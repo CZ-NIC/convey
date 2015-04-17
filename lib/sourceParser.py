@@ -11,6 +11,7 @@ from pprint import pprint
 import sys
 import threading
 import re
+import ntpath
 #import dill
 
 __author__ = "edvard"
@@ -20,6 +21,7 @@ __date__ = "$Feb 27, 2015 5:46:15 PM$"
 class SourceParser:
 
     def __init__(self, sourceFile):
+        repeating = False
         while True:
             #instance attributes init
             self.multithread = False #kdyz uzivatel nastavi na True, pouzije se multithread whois
@@ -38,22 +40,33 @@ class SourceParser:
             # ASN atributy - mozna se prepracuji XX
             self.isp = {} # isp["AS1025"] = {mail, ips:set() }
             self.ip2asn = dict() # ip2asn[ip] = asn
+
+            # atributy OTRS, ktere se k CSV vazou
+            self.ticketid = False
+            self.ticketnum = False
+            self.cookie = False
+            self.token = False
+            self.attachmentName = "part-" + ntpath.basename(sourceFile)
                         
             #nacist CSV
-            self._loadCsv(sourceFile)
+            self._loadCsv(sourceFile, repeating)
 
             sys.stdout.write("Is that correct? [Y/n] ")
             sys.stdout.flush()
             option = input()
             if option == "n":
+                repeating = True
                 continue #zopakovat
             else:
-                self.mailCz = MailList("mail_cz", Config.get("mail_template_cz")) # dopis pro CZ                
-                self.mailWorld = MailList("mail_world", Config.get("mail_template_world")) # dopis pro svet
+                self.mailCz = False #deklarace dopisu pro cz
+                self.mailWorld = False #deklarace dopisu pro svet
                 self.launchWhois()
                 break
 
     def launchWhois(self): #spusti dlouhotrvajici processing souboru
+        self.mailCz = MailList("mail_cz", Config.get("mail_template_cz")) # dopis pro CZ
+        self.mailWorld = MailList("mail_world", Config.get("mail_template_world")) # dopis pro svet
+        
         self._lines2logs()
         self._logs2countries()
         self.countriesOriginal = self.countries.copy() # backup promenne, nez se z ni ubere
@@ -72,7 +85,7 @@ class SourceParser:
 
 
     ## Parsuje CSV file na policka a uhadne pole IP.
-    def _loadCsv(self, sourceFile):
+    def _loadCsv(self, sourceFile, repeating = False):
         #pripravit csv k analyze
         self._addInfo("Source file: " + sourceFile)
         csvfile = open(sourceFile, 'r')
@@ -90,11 +103,12 @@ class SourceParser:
         print("Sample rows:")
         print(sample)
         sys.stdout.write("Is character '{}' delimiter? [y]/n ".format(self.delimiter))
-        while input() not in ("Y","y",""):
+        if input() not in ("Y","y",""):
             sys.stdout.write("What is delimiter: ")
             self.delimiter = input()
-            sys.stdout.write("Correct? [y]/n ")
-        self._addInfo("Delimiter: {}".format(self.delimiter))
+            #sys.stdout.write("Correct? [y]/n ")
+        else:
+            self._addInfo("Delimiter: {}".format(self.delimiter))
         csvfile.seek(0)
 
 
@@ -111,23 +125,24 @@ class SourceParser:
 
         # sloupec IP
         found = False
-        ipNames = ["ip", "sourceipaddress", "ipaddress", "source"] #mozne nazvy ip sloupcu - bez mezer
-        for fieldname in fields:
-            field = fieldname.replace(" ", "").replace("'", "").replace('"', "").lower()
-            if hasHeader == True: #soubor ma hlavicku, zjistovat v ni                
-                if field in ipNames: #tohle je mozna nazev ip sloupce
-                    self._addInfo("IP field column: " + fieldname)
-                    found = True
-                    break
-            else: #csv nema hlavicku -> pgrep IP, jinak se zeptat uzivatele na cislo sloupce
-                try:
-                    ipaddress.ip_address(field) #pokud neni IP, vyhodi chybu. Mozna nezvladne vsechny mozne zkracene verze zapisu IP.
-                    self._addInfo("IP found: " + fieldname)
-                    found = True
-                    break
-                except: #toto neni ip
-                    pass
-            self.ipField += 1
+        if repeating == False: # dialog jede poprve, zkusit autodetekci
+            ipNames = ["ip", "sourceipaddress", "ipaddress", "source"] #mozne nazvy ip sloupcu - bez mezer
+            for fieldname in fields:
+                field = fieldname.replace(" ", "").replace("'", "").replace('"', "").lower()
+                if hasHeader == True: #soubor ma hlavicku, zjistovat v ni
+                    if field in ipNames: #tohle je mozna nazev ip sloupce
+                        self._addInfo("IP field column: " + fieldname)
+                        found = True
+                        break
+                else: #csv nema hlavicku -> pgrep IP, jinak se zeptat uzivatele na cislo sloupce
+                    try:
+                        ipaddress.ip_address(field) #pokud neni IP, vyhodi chybu. Mozna nezvladne vsechny mozne zkracene verze zapisu IP.
+                        self._addInfo("IP found: " + fieldname)
+                        found = True
+                        break
+                    except: #toto neni ip
+                        pass
+                self.ipField += 1
 
         if found == False:#IP jsme nenalezli, dat uzivateli na vyber
             i = 1
@@ -147,20 +162,21 @@ class SourceParser:
 
         #sloupec AS
         found = False
-        asNames = ["as", "asn", "asnumber"] #mozne nazvy ip sloupcu - bez mezer
-        for fieldname in fields:
-            field = fieldname.replace(" ", "").lower()
-            if hasHeader == True: #soubor ma hlavicku, zjistovat v ni
-                if field in asNames: #tohle je mozna nazev ip sloupce
-                    self._addInfo("AS field column: " + fieldname)
-                    found = True
-                    break
-            else: #csv nema hlavicku -> pgrep IP, jinak se zeptat uzivatele na cislo sloupce
-                if re.search('AS\d+', 'AS1234') != "":
-                    self._addInfo("AS found: " + fieldname)
-                    found = True
-                    break
-            self.asnField += 1
+        if repeating == False: # dialog jede poprve, zkusit autodetekci
+            asNames = ["as", "asn", "asnumber"] #mozne nazvy ip sloupcu - bez mezer
+            for fieldname in fields:
+                field = fieldname.replace(" ", "").lower()
+                if hasHeader == True: #soubor ma hlavicku, zjistovat v ni
+                    if field in asNames: #tohle je mozna nazev ip sloupce
+                        self._addInfo("AS field column: " + fieldname)
+                        found = True
+                        break
+                else: #csv nema hlavicku -> pgrep IP, jinak se zeptat uzivatele na cislo sloupce
+                    if re.search('AS\d+', 'AS1234') != "":
+                        self._addInfo("AS found: " + fieldname)
+                        found = True
+                        break
+                self.asnField += 1
 
         if found == False:#AS jsme nenalezli, dat uzivateli na vyber
             i = 1
@@ -280,7 +296,7 @@ class SourceParser:
                 ipsRedo = set() # IP, kde je treba udelat B flag
                 for ip in ips:
                     mail, bSpared = Whois.queryMail(ip, False)
-                    if mail: # mail nalezen, B flag netreba
+                    if mail and mail != "unknown": # mail nalezen, B flag netreba
                         self.mailCz.mails[mail].add(ip)
                     if bSpared == False: #zde bychom potrebovali B flag
                         ipsRedo.add(ip) # udelat ip znovu
@@ -291,15 +307,17 @@ class SourceParser:
                     print(("Bez B-flagů jsme zjistili {} abusemailů. " +
                           "Zbývá zjistit abusemail pro {} IP adres. " +
                           "(Threshold pro to, abych se zeptal na použití ASN, byl {} adres.)").format(len(self.mailCz.mails), len(ipsRedo), threshold))
-                    print("Použít ASN a ušetřit tak B-flagy? [y],n: ")
-                    doAsn = True if input() in ("", "Y", "y") else False
+                    print("Použít ASN a ušetřit tak B-flagy? y,[n]: ")
+                    doAsn = False if input() in ("", "N", "n") else True
 
                 if doAsn == False: # rozhodli jsme se nesetrit B-flag
                     for ip in ipsRedo:
                         mail = Whois.queryMailForced(ip)[0]
+                        #print("x pridavam mail")# xx smaz
+                        #print(mail)
                         self.mailCz.mails[mail].add(ip)
                 else:# rozhodli jsme setrit B-flag a pouzit ASN
-                    self._ips2mailsByAsn(ipsRed)
+                    self._ips2mailsByAsn(ipsRedo)
 
         # stats
         if Whois.bCount > 0:
@@ -322,16 +340,20 @@ class SourceParser:
             # a naplnit self.ip2asn pole.
             print("Country CZ detected but ASN field not found.")
             print("JE TREBA IMPLEMENTOVAT. Skript ma byt schopen nacist z whoisu ASN, do ktere jednotlive IP spadaji.")
+            print("Nyni dejte pregenerovat whois informace.")
             return False # XX dohledat ASN z whoisu
         else:
             # grupovat podle ASN
             print("Country CZ detected -> ASN usage.")
 
-        asnSet = defaultdict(set())
+
+        # XXX mam podezreni, ze ASN vubec nefunguje, vraci sama unknown.
+        asnSet = defaultdict(set)
         for ip in ips:
             asnSet[self.ip2asn[ip]].add(ip)
         for asn in asnSet:
-            self.mailCz.mails[Whois.queryMailForce(asn)].update(asnSet[asn]) # pripojit vsechny IP ASNka k jeho mailu
+            mail, forced = Whois.queryMailForced(asn)
+            self.mailCz.mails[mail].update(asnSet[asn]) # pripojit vsechny IP ASNka k jeho mailu
         print("Počet ASN: {}".format(len(asnSet)))
 
     #
@@ -377,8 +399,6 @@ class SourceParser:
     ## Zapise soubory logu, rozdelenych po zemich.
     # dir - adresar bez koncoveho lomitka
     def generateFiles(self, dir, missingOnly = False):
-        files = self.countries if missingOnly else self.countriesOriginal
-        #files.update(self.mailCz.mails if missingOnly else self.);
         if missingOnly:
             files = self.countries.copy()
             files["cz"] = self.mailCz.getOrphans().copy() # CZ IP bez abusemailu budou jako soubor 'cz'
@@ -393,12 +413,20 @@ class SourceParser:
             if len(files[file]) > 0: #pokud mame pro danou zemi nejake ip
                 with open(dir + file + ".tmp", 'w') as f:
                     count += 1
-                    if self.header != "": #pokud mame hlavicku, pridat ji na zacatek souboru
-                        f.write(self.header + "\n")
-                    for ip in files[file]:
-                        for log in self.logs[ip]:
-                            #print(log)
-                            f.write(log + "\n")
+                    f.write(self.ips2logfile(files[file]))
+
+        print("Generated {} files to directory {} .".format(len(files),dir))
+
+    def ips2logfile(self,ips):
+        result = []
+        if self.header != "": #pokud mame hlavicku, pridat ji na zacatek souboru
+            result.append(self.header)
+        for ip in ips:
+            for log in self.logs[ip]:
+                #print(log)
+                result.append(log)
+        return "\n".join(result)
+
 
 
         #zapsat soubory CZ - dle jednotlivych ASN

@@ -11,7 +11,7 @@ class MailList:
         self.mails = defaultdict(set)
         self.listName = listName
         self.templateFile = templateFile
-        self.mailFile = MailList.dir +  self.listName + MailList.hash + ".txt" # ex: csirt/2015/mail_cz5615616.txt
+        self.mailFile = MailList.dir +  self.listName + MailList.hash + ".txt" # ex: csirt/2015/mail_cz5615616.txt        
 
         self.guiEdit()
 
@@ -37,16 +37,17 @@ class MailList:
 
     # get body text
     def getBody(self):
-        if self._assureMailContents() == True:            
-            return self.text.splitlines()[1:]
+        if self._assureMailContents() == True:
+            CRLF = '\r\n'
+            return CRLF.join(self.text.splitlines()[1:])
         else:
-            return False
+            return ""
 
     def getSubject(self):        
         if self._assureMailContents() == True:
             return self.text.splitlines()[0]
         else:
-            return False
+            return ""
 
         #print("Vypisuji text mailu:")
         #print(self.text)
@@ -68,9 +69,10 @@ class MailList:
                     self.text = input()
                 else:
                     return False # bodytext jsme neziskali
+        return True
 
     def _loadText(self):
-        """Nacte ze souboru text body a subject."""
+        """Nacte ze souboru text body a subject."""        
         with open(self.mailFile, 'r') as f:
             return f.read()
 
@@ -86,7 +88,7 @@ class MailList:
     # Pokud soubor neexistuje, vytvori ho a vlozi do nej text ze souboru sablony.    
     def guiEdit(self):        
         if os.path.isfile(self.mailFile) == False: # soubor pro bodytext sablonu jeste neexistuje
-            with open(self.templateFile, 'r') as template, open(mailFile , 'w+') as file: # nacte sablonu
+            with open(self.templateFile, 'r') as template, open(self.mailFile , 'w+') as file: # nacte sablonu
                 file.write(template.read()) # zapsat do textu mailu defaultni template
 
         #webbrowser.open(mailFile) X furt do konzole vypisuje error hlasky, nic nepomohlo

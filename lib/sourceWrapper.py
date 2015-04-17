@@ -18,7 +18,7 @@ class SourceWrapper:
         self.hash = str(hash(info.st_size + info.st_mtime))
 
         MailList.setHash(self.hash)
-        MailList.setDir(os.path.dirname(file))
+        MailList.setDir(os.path.dirname(file) + "/")
 
         # cache-file s metadaty zdrojoveho souboru
         self.cacheFile = os.path.dirname(file) +"/"+ ntpath.basename(self.file) + self.hash + ".tmp" #"cache/" +        
@@ -29,11 +29,14 @@ class SourceWrapper:
         else:
             self._treat() #zpracuje soubor
 
+    def save(self):
+        with open( self.cacheFile, "wb" ) as output: #ulozit cache
+            pickle.dump(self.csv,output,-1)
 
     def _treat(self): # zpracuje zdroj 
         self.csv = SourceParser(self.file)
-        with open( self.cacheFile, "wb" ) as output: #ulozit cache
-            pickle.dump(self.csv,output,-1)
+        self.save()
+        
         
     def clear(self): #smaze mezivysledky a zpracuje soubor znovu
         self._treat()

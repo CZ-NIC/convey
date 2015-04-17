@@ -3,6 +3,7 @@ import http.client
 from optparse import OptionParser
 import re
 import sys
+import logging
 
 HOST = 'otrs.nic.cz'
 BASEURI = '/otrs/index.pl'
@@ -13,10 +14,13 @@ SIGNKEYID = "PGP::Detached::B187176C"
 #RECORD_LABEL = "%(FILENAME)s"
 
 DEBUG = False
+logging.basicConfig(filename='mailSender.log',level=logging.DEBUG)
 
 re_title = re.compile('<title>([^<]*)</title>')
 
 class MailSender():
+
+    
 
     def _post_multipart(host, selector, fields, files, cookies):
         """
@@ -26,8 +30,9 @@ class MailSender():
         Return an appropriate http.client.HTTPResponse object.
         """
         content_type, body = MailSender._encode_multipart_formdata(fields, files)
-        protocol = host.split(':')[0]
-        h = http.client.HTTPSConnection(host)
+        body = bytes(body,"UTF-8")
+        protocol = host.split(':')[0]        
+        h = http.client.HTTPSConnection(host)        
         if DEBUG:
             h.debuglevel = 100
         h.putrequest('POST', selector)
@@ -35,17 +40,18 @@ class MailSender():
         h.putheader('Content-Length', str(len(body)))
         for key, value in cookies:
             h.putheader(key, value)
-        h.endheaders()
+        h.endheaders()        
         h.send(body)
         response = h.getresponse()
         return response
 
-    def _encode_multipart_formdata(fields, files):
+    def _encode_multipart_formdata(fields, files):        
         """
         fields is a sequence of (name, value) elements for regular form fields.
         files is a sequence of (name, filename, value) elements for data to be uploaded as files.
         Return (content_type, body) ready for http.client.HTTPConnection instance
         """
+
         BOUNDARY = '----------ThIs_Is_tHe_bouNdaRY_---$---'
         CRLF = '\r\n'
         l = []
@@ -75,12 +81,17 @@ class MailSender():
 
 
     def _check_response(response):
+        response = response.decode("UTF-8")
         if DEBUG:
-            print (str(sys.stderr) + " Response:\n " + response)
+            logging.info(str(sys.stderr) + " Response:\n " + response)
+
+        with open( "test.html", "w" ) as output:
+            output.write(response)
 
         mo = re_title.search(response)
         if not mo:
-            print (str(sys.stderr) + " Unrecognized response")
+            logging.warning(str(sys.stderr) + " Unrecognized response")
+            logging.error(response)
             return False
 
         title = mo.group(1)
@@ -89,39 +100,44 @@ class MailSender():
             return True
 
         elif title == 'Login - OTRS':
-            print (str(sys.stderr) + " Not logged in or wrong session cookie")
+            logging.warning(str(sys.stderr) + "\n\n *** Not logged in or wrong session cookie ***")
+            print("\n\n *** Not logged in or wrong session cookie ***") # XX: logging.warning se mi kdoviproc neukazuje na konzoli, mozna jen v nb
             return False
 
         elif title in ('Fatal Error - Frontend -  OTRS', 'Fatal Error - Rozhraní -  OTRS'):
-            print (str(sys.stderr) + " Bad CSRF token")
+            logging.warning(str(sys.stderr) + "\n\n *** Bad CSRF token ***")
+            print("BAD CSRF")  # XX: logging.warning se mi kdoviproc neukazuje na konzoli, mozna jen v nb
             return False
 
         else:
-            print (str(sys.stderr) + " Unrecognized response: " + title)
+            logging.warning(str(sys.stderr) + " Unrecognized response: " + title)
+            logging.error(response)
             return False
 
     # posle objekt mailList (mailCz ci mailWorld)
-    def sendList(mailList):
+    def sendList(mailList, csv):
         global DEBUG
-
         
-        for mail in mailList.mails:            
-            attachmentName = "priloha" # XX
+        sentMails = 0
+        logging.info("sending mails from list...")
+
+        for mail in mailList.mails:
+            
 
             textVars = {}
             textVars["CONTACTS"] = mail
-            textVars["FILENAME"] = attachmentName
-            textVars["TICKETNUM"] = MailSender.ticketnum
+            textVars["FILENAME"] = csv.attachmentName
+            textVars["TICKETNUM"] = csv.ticketnum
             subject = mailList.getSubject() % textVars
             body = mailList.getBody() % textVars # formatovat sablonu textu, ex: kde se v body vyskytuje {FILENAME}, nahradi se jmenem souboru
-            if subject == False or body == False:
+            if subject == "" or body == "":
                 print("Chybí subject nebo body text mailu.")
-                return False
+                return False            
 
             fields = (
                       ("Action", "AgentTicketForward"),
                       ("Subaction", "SendEmail"),
-                      ("TicketID", str(ticketid)),
+                      ("TicketID", str(csv.ticketid)),
                       ("Email", TICKETEMAIL),
                       ("From", FROMADDR),
                       ("To", "edvard.rejthar+otrs_test@nic.cz"), # XXX sem ma prijit mail, po otestovani
@@ -130,16 +146,26 @@ class MailSender():
                       ("Body", body),
                       ("ArticleTypeID", "1"), # mail-external
                       ("ComposeStateID", "4"), # open
-                      ("ChallengeToken", token),
+                      ("ChallengeToken", csv.token),
                       )
-
+            
             # load souboru k zaslani
-            if attachmentName and len(mailList.mails[mail]) > 0 :
-                files = (("FileUpload", attachmentName, "XXX soubor logu, dostat z parseSource generateFiles"),)
+            contents = csv.ips2logfile(mailList.mails[mail])
+
+            logging.info("mail {}".format(mail))
+            print("\n\nNový mail:")
+            print(mail)
+            print(mailList.mails[mail])
+            print(contents)
+            # XXX unknown (nevim, jak vypada unknown pro CR a pro SVET), genertovat soubory            
+            # XXX Lepsi vypis zaznamu, ktery mail se posila. Na lepsim miste.
+            
+            if csv.attachmentName and contents != "":
+                files = (("FileUpload", csv.attachmentName, contents),)
             else:
                 files = ()
 
-            cookies = (('Cookie', 'Session=%s' % cookie),)
+            cookies = (('Cookie', 'Session=%s' % csv.cookie),)
 
             if DEBUG:
                 print (str(sys.stderr) + ' Fields: '+ str(fields))
@@ -148,41 +174,42 @@ class MailSender():
 
             #print record_label % lrecord
 
-            print("XX Zamezeno poslani")
-            return True
+            
             #print encode_multipart_formdata(fields, files)
-            res = MailSender._post_multipart(HOST, BASEURI, fields=fields, files=files, cookies=cookies)
+            res = MailSender._post_multipart(HOST, BASEURI, fields=fields, files=files, cookies=cookies)            
 
             if not res or not MailSender._check_response (res.read()):
-                sys.exit(1)
+                print("Zaslání se nezdařilo, viz mailSender.log.")                                
+                break
+            else:
+                sentMails += 1
 
-    ticketid = False
-    ticketnum = False
-    cookie = False
-    token = False
+        print("\nPosláno {}/{} mailů.".format(sentMails,len(mailList.mails)))
+        return len(mailList.mails) == sentMails
 
+    def askValue(value, description = ""):
+        if value == False or (sys.stdout.write('Change {} ({})? y/[n]'.format(description,value)) and (input() in ("Y", "y"))):
+                sys.stdout.write("{}: ".format(description))
+                value = input()
+        return value
 
-    def _loginCheck():
-        return False #XX
-        pass
-
-    def assureTokens():
-        # XXX checknout prihlaseni do OTRS,
-        if (MailSender.cookie == False) or (MailSender.token == False) or MailSender._loginCheck() == False:
-            # jestli neprojde, požádat o údaje
-            # ulozit  cookie a token do config filu
-            pass
+    def assureTokens(csv):        
+        """ Checknout prihlasovaci udaje k OTRS """
+        # XX: cookie a token by se mohly nacitat/ukladat z config file
+        # # aktuální cookie z OTRS (doplní se samo) cookie =
+        # aktuální token (doplní se sám) token =
+        force = False
         while True:
-            if MailSender.ticketid == False:
-                sys.stdout.write("Ticket id: ")
-                MailSender.ticketid = input()
-            if MailSender.ticketnum == False:
-                sys.stdout.write("Ticket num: ")
-                MailSender.ticketnum = input()
+            if(force or csv.ticketid == False or csv.ticketnum == False or csv.cookie == False or csv.token == False or csv.attachmentName == False):
+                csv.ticketid = MailSender.askValue(csv.ticketid, "ticket url-id")
+                csv.ticketnum = MailSender.askValue(csv.ticketnum,"ticket long-num")
+                csv.cookie = MailSender.askValue(csv.cookie,"cookie")
+                csv.token = MailSender.askValue(csv.token,"token")
+                csv.attachmentName = MailSender.askValue(csv.attachmentName,"attachment name")
 
-            return True # XX pridat potvrzeni (nize)
-            sys.stdout.write("Ticket id = {}, ticket num = {}, is that correct? [y]/n".format(MailSender.ticketid, MailSender.ticketnum))
+            sys.stdout.write("Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachmentName = {}.\nWas that correct? [y]/n".format(csv.ticketid, csv.ticketnum, csv.cookie, csv.token, csv.attachmentName))
             if input() in ("y", "Y", ""):
                 return True
             else:
+                force = True
                 continue
