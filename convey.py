@@ -2,12 +2,10 @@
 # -*- coding: utf-8 -*-
 from lib.sourcePicker import SourcePicker
 from lib.sourceWrapper import SourceWrapper
+from lib.mailSender import MailSender
 import os.path
 import sys
-import configparser
-
-
-__shortdoc__= """OTRS Convey -> tlumočník pro OTRS"""
+__shortdoc__ = """OTRS Convey -> tlumočník pro OTRS"""
 __doc__ = """Tlumočník pro OTRS.
  Spouští se příkazem: convey.py [filename], přičemž [filename] je cesta ke zdrojovému souboru logů ve formátu CSV.
  Pokud [filename] není zadán, skript se na něj zeptá.
@@ -25,8 +23,8 @@ __date__ = "$Feb 26, 2015 8:13:25 PM$"
 #            pickle.dump(self,output,-1)
 
 #def __deserialize(self):
- #       obj = pickle.load( open( "pickle3.tmp", "rb" ) )
-  #      (self.lines, self.logs, self.countries, self.ipMapping, self.isp, self.ipField, self.asnField, self.delimiter, self.whoisBCount) = obj
+    #       obj = pickle.load( open( "pickle3.tmp", "rb" ) )
+        #      (self.lines, self.logs, self.countries, self.ipMapping, self.isp, self.ipField, self.asnField, self.delimiter, self.whoisBCount) = obj
 
 
 if __name__ == "__main__":    
@@ -40,44 +38,87 @@ if __name__ == "__main__":
     print(__shortdoc__)
 
     #flagy prikazove radky - kontroler behu programu
-    if set(["-h", "--help","-?","?","/?"]).intersection(sys.argv):
+    if set(["-h", "--help", "-?", "?", "/?"]).intersection(sys.argv):
         print(__doc__)
         quit()
 
     file = SourcePicker() # cesta ke zdrojovemu souboru
-    wrap = SourceWrapper(file) # "lab/zdroj.csv"
+    wrapper = SourceWrapper(file) # "lab/zdroj.csv"
+    csv = wrapper.csv
 
     #menu
     while True:
+        print("\n Stats - IP: {}, CZ IP abusemailů: {}, world IP csirtmailů: {} ".format(
+              csv.getIpCount(),
+              len(csv.mailCz.mails),
+              len(csv.mailWorld.mails)
+              ))
+        if len(csv.mailCz.getOrphans()):
+            print("Nezdařilo se dohledat abusemaily pro {} CZ IP.".format(len(csv.mailCz.getOrphans())))
+        if len(csv.countries):
+            print("Nezdařilo se dohledat csirtmaily pro {} zemí.".format(len(csv.countries)))
+
+        
         print("\n Hlavní menu:")
-        print("1 - Zpracovat znovu")
-        print("2 - Generovat soubory")
+        print("1 - Zaslat přes OTRS")
+        print("2 - Generovat soubory pro IP bez kontaktu ({} souborů)".format(len(csv.countries)))
+        print("--")
+        print("3 - Seznam abusemailů a počet IP")
+        print("4 - Změnit text mailu")
+        print("5 - Generovat všechny soubory ({} souborů)".format(len(csv.countriesOriginal)))
+        print("6 - Zpracovat znovu")
+        print("7 - Zpracovat znovu jen whois")
+                
+        
+        
         print("x - Konec")
         sys.stdout.write("? ")
         sys.stdout.flush()
         option = input()
+        #option = "7" #XX
+        print("******")
         if option == "x":
+            wrapper.save() # preulozit cache soubor
             break
-        elif option == "1":
-            wrap.clear()
+        elif option == "6":
+            wrapper.clear()
+            continue
+        elif option == "7":
+            csv.launchWhois() # XXX whois se refreshlo pouze pro tuto relaci, je treba preulozit cache soubor v sourceWrapper
+            continue        
+        elif option == "3":
+            csv.soutDetails()
             continue
         elif option == "2":
-            wrap.csv.generateFiles(os.path.dirname(file))
+            csv.generateFiles(os.path.dirname(file), True)
+            continue
+        elif option == "5":
+            csv.generateFiles(os.path.dirname(file))
+            continue
+        elif option == "4":
+            csv.mailCz.guiEdit()
+            csv.mailWorld.guiEdit()
+            continue
+        elif option == "1":
+            print("XX") #XX
+            csv.ticketid = "7056" # MISC vytvorit si vlastni ticket! Treba si vytvor nejaky novy testovaci tiket a potom ho presun do fronty MISC, nebo to klidne zkousej na kterymkoliv tiketu ve fronte MISC ;-)
+            csv.ticketnum = "20100224213000171"
+            csv.cookie = "228bdc286be05e9b37e3fd31a2bebb3e7b0"
+            csv.token = "4d64db6c6aee207c5c7853778ff57f27"
+            MailSender.assureTokens(csv)
+            sys.stdout.write("Poslat CZ abusemailům:")
+            if MailSender.sendList(csv.mailCz, csv): # poslat ceske maily
+                sys.stdout.write("Poslat světovým csirtmailům:")
+                if MailSender.sendList(csv.mailWorld, csv): # poslat svetove maily
+                    if len(csv.countries) > 0:
+                        print("Nyní můžete vygenerovat soubory bez kontaktu.")
+            else:
+                print("Nezdařilo se zaslat všechny české maily. Nebudu se pokoušet o zaslání světových mailů.")
             continue
         else:
             continue #zopakovat volbu
 
-
-    #print(csv.isp)
-    #print(csv.countries)
-
-    #print(csv.generateFiles())
-
-
-    # XXXX opatrit kontakty pro countries
-    # spojit s OTRS pro odeslani. Zjisim, ktery skript pouzivat soubory prikaz a body a prepisu auscert do pythonu3
-
-
+    
     
 
     #csv.generateFiles()

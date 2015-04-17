@@ -1,0 +1,644 @@
+INFO:root:sending mail zdenek.svarc@freebone.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'>
+
+ *** Not logged in or wrong session cookie ***
+INFO:root:sending mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'>
+
+ *** Not logged in or wrong session cookie ***
+WARNING:root:Ttes
+WARNING:root:Ttes
+DEBUG:root:This message should go to the log file
+INFO:root:So should this
+WARNING:root:And this, too
+WARNING:root:hej
+DEBUG:root:This message should go to the log file
+INFO:root:So should this
+WARNING:root:And this, too
+WARNING:root:hej
+INFO:root:sending mail zdenek.svarc@freebone.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'>
+
+ *** Not logged in or wrong session cookie ***
+INFO:root:sending mail zdenek.svarc@freebone.cz
+INFO:root:sending mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail csirtuk@cpni.gsi.gov.uk
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail contact@cert.ssi.gouv.fr
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail cert@posteitaliane.it
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail cert@posteitaliane.it
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail incidencias@cert.inteco.es
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response
+ERROR:root:<h1>Software error:</h1>
+<pre>Malformed multipart POST
+</pre>
+<p>
+For help, please send mail to the webmaster (<a href="mailto:webmaster@localhost">webmaster@localhost</a>), giving this error message 
+and the time and date of the error.
+
+</p>
+
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:mail admin@satan.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail admin@satan.cz
+INFO:root:mail zdenek.svarc@freebone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail certbund@bsi.bund.de
+INFO:root:mail adi@tehila.gov.il
+INFO:root:mail incidencias@cert.inteco.es
+INFO:root:mail contact@cert.ssi.gouv.fr
+INFO:root:mail cert@cert.gov.pl
+INFO:root:mail trcert@tib.gov.tr
+INFO:root:mail cert@posteitaliane.it
+INFO:root:mail cert@cert.se
+INFO:root:mail csirtuk@cpni.gsi.gov.uk
+INFO:root:mail office@cert-ro.eu
+INFO:root:mail cert@cert.at
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail adi@tehila.gov.il
+INFO:root:mail trcert@tib.gov.tr
+INFO:root:mail incidencias@cert.inteco.es
+INFO:root:mail csirtuk@cpni.gsi.gov.uk
+INFO:root:mail office@cert-ro.eu
+INFO:root:mail cert@cert.gov.pl
+INFO:root:mail cert@cert.at
+INFO:root:mail cert@posteitaliane.it
+INFO:root:mail cert@cert.se
+INFO:root:mail certbund@bsi.bund.de
+INFO:root:mail contact@cert.ssi.gouv.fr
+INFO:root:sending mails from list...
+INFO:root:mail boss@eri.cz
+INFO:root:mail abuse@wsc.cz
+INFO:root:mail hwsoft@lbcfree.net,abuse@lbcfree.net
+INFO:root:mail abuse@casablanca.cz
+INFO:root:mail abuse@netair.cz
+INFO:root:mail tomas.lazinka@ptcomp.cz
+INFO:root:mail vaclav.kordula@telefonica.com
+INFO:root:mail abuse@cdt.cz
+INFO:root:mail benes@grapesc.cz
+INFO:root:mail zahradnik@dozimont.cz
+INFO:root:mail abuse@selfnet.cz
+INFO:root:mail root@mpclick.cz
+INFO:root:mail abuse@jon.cz
+INFO:root:mail nic@t-mobile.cz
+INFO:root:mail reno@reno5.cz
+INFO:root:mail ervin.wacnik@ktct.cz
+INFO:root:mail unknown
+INFO:root:mail abuse@m247.com
+INFO:root:mail marian.rychtecky@riomedia.cz
+INFO:root:mail tomas.vrana@cemotel.cz
+INFO:root:mail abuse@marcom-eko.cz
+INFO:root:mail internet@starnet.cz
+INFO:root:mail libor.novotny@tlapnet.cz
+INFO:root:mail abuse@dragon.cz
+INFO:root:mail vlada@speednet.cz
+INFO:root:mail ona@onasoft.cz
+INFO:root:mail admin@ralskonet.cz
+INFO:root:mail miroslav.letak@iol.cz
+INFO:root:mail abuse@sloane.cz
+INFO:root:mail martin.krautwurst@upc.cz,hostmaster@mistral.cz
+INFO:root:mail net@optinet.cz
+INFO:root:mail abuse@centronet.cz
+INFO:root:mail abuse.cz@o2.com
+INFO:root:mail abuse@masterit.cz
+INFO:root:mail mkrasa.memory@pel.cz
+INFO:root:mail abuse@poda.cz
+INFO:root:mail tomas.simek@necoss.net
+INFO:root:mail petr.blaha@sumava-net.cz
+INFO:root:mail unt@unt.cz
+INFO:root:mail ripe@netforms.cz,ripe@blue4.cz,mlejnek@blue4.cz,info@blue4.cz
+INFO:root:mail milan.husak@internethome.cz
+INFO:root:mail hostmaster@mistral.cz
+INFO:root:mail jiri.hvezda@o2.com,jiri.hvezda@ct.cz
+INFO:root:mail abuse@techcom.cz
+INFO:root:mail stanislav.klubal@internethome.cz
+INFO:root:mail admin@best-net.cz
+INFO:root:mail nospam@tvtrinec.cz
+INFO:root:mail roman.cvicek@c2net.cz,kamil.firek@c2net.cz,info@c2net.cz
+INFO:root:sending mails from list...
