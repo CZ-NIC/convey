@@ -11,6 +11,7 @@ __doc__ = """Tlumočník pro OTRS.
  Pokud [filename] není zadán, skript se na něj zeptá.
  Skript se jej pokusí parsovat a zjistit sloupec s IP a ASN.
 
+ Je třeba mít knihovnu tkinter, apt-get install python3-tkinter
  -h, --help Nápověda
 """
 __author__ = "edvard"
@@ -68,7 +69,33 @@ if __name__ == "__main__":
         print("5 - Generovat všechny soubory ({} souborů)".format(len(csv.countriesOriginal)))
         print("6 - Zpracovat znovu")
         print("7 - Zpracovat znovu jen whois")
-                
+
+
+
+* Místo sloupce IP  může existovat sloupec s doménami.
+Ty se v csv natvrdo přiloží do IP a IP se připojí jako poslední column.
+
+* kdyz to vrati pet zemi, vrati prvni
+kdyz to vrati a zacne "EU", zeptat se celosvětově whois (bez ripedb2)
+
+
+honeypot, ramney, nbu
+
+Kdyz jsme testovali Nbu/zdroj:
+Ctyri maily na 1 radce tam jsou. To neprojde!!
+Když budou takhle ctyri, poslat jim to na ctyri soucasne. -> pridat hlavicku Cc
+Flaggovat, ktere maily se poslaly.
+
+Pokud domena toho mailu je shona s certim seznamem (napri cdt.cz), pridat do cc certi mail.
+Kdyz to pujde do O2 -> at to jde certim mailum.
+Soubor certs.csv, sloupce domain,cc
+
+
+
+Automaticka detekce ASN: zeptat se vzdy, co je ASN sloupec, byt s detekci.
+
+Spatny cache. Vygenerovali jsme Whois pro IP. Pak jsme zminili jiny IP sloupec. Ale tam zustaly tam viset predchozi IP.
+
         
         
         print("x - Konec")
@@ -84,7 +111,7 @@ if __name__ == "__main__":
             wrapper.clear()
             continue
         elif option == "7":
-            csv.launchWhois() # XXX whois se refreshlo pouze pro tuto relaci, je treba preulozit cache soubor v sourceWrapper
+            csv.launchWhois()
             continue        
         elif option == "3":
             csv.soutDetails()

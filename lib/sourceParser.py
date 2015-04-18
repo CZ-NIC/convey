@@ -168,15 +168,19 @@ class SourceParser:
                 field = fieldname.replace(" ", "").lower()
                 if hasHeader == True: #soubor ma hlavicku, zjistovat v ni
                     if field in asNames: #tohle je mozna nazev ip sloupce
-                        self._addInfo("AS field column: " + fieldname)
+                        self._addInfo("ASN field column: " + fieldname)
                         found = True
                         break
                 else: #csv nema hlavicku -> pgrep IP, jinak se zeptat uzivatele na cislo sloupce
                     if re.search('AS\d+', 'AS1234') != "":
-                        self._addInfo("AS found: " + fieldname)
+                        self._addInfo("ASN found: " + fieldname)
                         found = True
                         break
                 self.asnField += 1
+            if found == True: # mozna to naslo blby soubor
+                print("Correct? [y]/n")
+                if input() in ("", "N", "n"):
+                    found = False
 
         if found == False:#AS jsme nenalezli, dat uzivateli na vyber
             i = 1
@@ -400,9 +404,11 @@ class SourceParser:
     # dir - adresar bez koncoveho lomitka
     def generateFiles(self, dir, missingOnly = False):
         if missingOnly:
+            extension = "-missing.tmp"
             files = self.countries.copy()
-            files["cz"] = self.mailCz.getOrphans().copy() # CZ IP bez abusemailu budou jako soubor 'cz'
+            files["cz_unknown"] = self.mailCz.getOrphans().copy() # CZ IP bez abusemailu budou jako soubor 'cz'
         else: #vsechny soubory
+            extension = ".tmp"
             files = self.countriesOriginal.copy()
             files.update(self.mailCz.mails.copy()) # CZ IP budou v souborech dle abusemailu
 
@@ -411,7 +417,7 @@ class SourceParser:
         #zapsat soubory ze zemi a abusemailu
         for file in files:
             if len(files[file]) > 0: #pokud mame pro danou zemi nejake ip
-                with open(dir + file + ".tmp", 'w') as f:
+                with open(dir + file + extension, 'w') as f:
                     count += 1
                     f.write(self.ips2logfile(files[file]))
 

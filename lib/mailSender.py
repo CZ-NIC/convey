@@ -151,14 +151,11 @@ class MailSender():
             
             # load souboru k zaslani
             contents = csv.ips2logfile(mailList.mails[mail])
-
-            logging.info("mail {}".format(mail))
-            print("\n\nNový mail:")
+            
+            logging.info("mail {}".format(mail))            
             print(mail)
             print(mailList.mails[mail])
-            print(contents)
-            # XXX unknown (nevim, jak vypada unknown pro CR a pro SVET), genertovat soubory            
-            # XXX Lepsi vypis zaznamu, ktery mail se posila. Na lepsim miste.
+            print(contents)# XX vypis zaznamu mozna zpomaluje skript
             
             if csv.attachmentName and contents != "":
                 files = (("FileUpload", csv.attachmentName, contents),)

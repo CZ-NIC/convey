@@ -17,8 +17,11 @@ class Whois:
 
 
     def queryCountry(query):
-        cmd = "whois -h ripedb2.nic.cz -- " + query + " | grep country |cut -d: -f2 | sed 's/^ *//;s/ *$//'"
+        cmd = "whois -h ripedb2.nic.cz -- " + query + " | grep ^[c,C]ountry | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
         country = Whois._whois(cmd)
+
+
+
         if country == "":
             country = "unknown"
         return country
@@ -35,7 +38,7 @@ class Whois:
     # Pokud je force = True a mail neni k dispozici, zkusi pouzit jeste druhy request s flagem B.
     # Pokud neni abusemail nalezen, vraci "".
     def queryMail(query, force = False):
-        cmd = "whois -- " + query + " | grep '\ % Abuse contact for' | grep -E -o '\b[a-zA-Z0-9.-] + @[a-zA-Z0-9.-] + \.[a-zA-Z0-9.-] + \b' || whois -- " + query + " | grep abuse-mailbox | cut -d: -f2 | sed -e 's/^\s*//' -e 's/\s*$//' | sort -nr | uniq | tr '\n' ',' | sed -e 's/,$//' -e 's/,/\,/g'"
+        cmd = "whois -- " + query + " | grep '\% Abuse contact for' | grep -E -o '\b[a-zA-Z0-9.-] + @[a-zA-Z0-9.-] + \.[a-zA-Z0-9.-] + \b' || whois -- " + query + " | grep abuse-mailbox | cut -d: -f2 | sed -e 's/^\s*//' -e 's/\s*$//' | sort -nr | uniq | tr '\n' ',' | sed -e 's/,$//' -e 's/,/\,/g'"
         abuseMail = Whois._whois(cmd)
         if abuseMail == "":
             if force == False:
