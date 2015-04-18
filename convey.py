@@ -11,6 +11,8 @@ __doc__ = """Tlumočník pro OTRS.
  Pokud [filename] není zadán, skript se na něj zeptá.
  Skript se jej pokusí parsovat a zjistit sloupec s IP a ASN.
 
+ Místo sloupce IP lze užít sloupec s URL. V takovém případě skript z každé URL vytáhne doménu, přeloží ji na IP a přidá do CSV sloupec 'HOST_IP'. Pokud nalezne více IP, řádek s URL zduplikuje.
+
  Je třeba mít knihovnu tkinter, apt-get install python3-tkinter
  -h, --help Nápověda
 """
@@ -62,7 +64,7 @@ if __name__ == "__main__":
         
         print("\n Hlavní menu:")
         print("1 - Zaslat přes OTRS")
-        print("2 - Generovat soubory pro IP bez kontaktu ({} souborů)".format(len(csv.countries)))
+        print("2 - Generovat soubory s IP bez kontaktu ({} souborů)".format(len(csv.countries)))
         print("--")
         print("3 - Seznam abusemailů a počet IP")
         print("4 - Změnit text mailu")
@@ -71,13 +73,15 @@ if __name__ == "__main__":
         print("7 - Zpracovat znovu jen whois")
 
 
+XX
 
-* Místo sloupce IP  může existovat sloupec s doménami.
-Ty se v csv natvrdo přiloží do IP a IP se připojí jako poslední column.
-
-* kdyz to vrati pet zemi, vrati prvni
+X* kdyz to vrati pet zemi, vrati prvni
 kdyz to vrati a zacne "EU", zeptat se celosvětově whois (bez ripedb2)
 
+X* Místo sloupce IP  může existovat sloupec s doménami.
+Ty se v csv natvrdo přiloží do IP a IP se připojí jako poslední column.
+
+XAutomaticka detekce ASN: zeptat se vzdy, co je ASN sloupec, byt s detekci.
 
 honeypot, ramney, nbu
 
@@ -90,14 +94,9 @@ Pokud domena toho mailu je shona s certim seznamem (napri cdt.cz), pridat do cc 
 Kdyz to pujde do O2 -> at to jde certim mailum.
 Soubor certs.csv, sloupce domain,cc
 
+Testcase:
+Spatny cache. Vygenerovali jsme Whois pro IP. Pak jsme zminili jiny IP sloupec. Ale tam zustaly tam viset predchozi IP. (pripad nbu? - snad jsem opravil)
 
-
-Automaticka detekce ASN: zeptat se vzdy, co je ASN sloupec, byt s detekci.
-
-Spatny cache. Vygenerovali jsme Whois pro IP. Pak jsme zminili jiny IP sloupec. Ale tam zustaly tam viset predchozi IP.
-
-        
-        
         print("x - Konec")
         sys.stdout.write("? ")
         sys.stdout.flush()

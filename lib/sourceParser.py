@@ -1,7 +1,6 @@
 # Patri do projektu convey.py. Stara se o praci se zdrojovym souborem.
 from collections import defaultdict
 import csv
-import ipaddress
 from lib.config import Config
 from lib.mailList import MailList
 from lib.whois import Whois
@@ -31,7 +30,8 @@ class SourceParser:
             self.countriesOriginal = defaultdict(set) # kopie self.countries, ze ktere prvky ale nemizi po spusteni whoisu
             
             self.ipField = 0 #pozice sloupce s IP adresou
-            self.asnField = 0 #pozice sloupce s AS number
+            self.asnField = -1 #pozice sloupce s AS number
+            self.hostField = -1 # pozice sloupce s URL, ktere se prelozi na IP
             self.delimiter = None  #CSV dialect
             #self.whoisBCount = 0
             self.info = "" # nasbirana metadata o CSV souboru
@@ -51,10 +51,8 @@ class SourceParser:
             #nacist CSV
             self._loadCsv(sourceFile, repeating)
 
-            sys.stdout.write("Is that correct? [Y/n] ")
-            sys.stdout.flush()
-            option = input()
-            if option == "n":
+            print("Is everything correct? [Y/n] ")
+            if input() == "n":
                 repeating = True
                 continue #zopakovat
             else:
@@ -124,106 +122,136 @@ class SourceParser:
         fields = firstLine.split(self.delimiter)
 
         # sloupec IP
-        found = False
-        if repeating == False: # dialog jede poprve, zkusit autodetekci
-            ipNames = ["ip", "sourceipaddress", "ipaddress", "source"] #mozne nazvy ip sloupcu - bez mezer
-            for fieldname in fields:
-                field = fieldname.replace(" ", "").replace("'", "").replace('"', "").lower()
-                if hasHeader == True: #soubor ma hlavicku, zjistovat v ni
-                    if field in ipNames: #tohle je mozna nazev ip sloupce
-                        self._addInfo("IP field column: " + fieldname)
-                        found = True
-                        break
-                else: #csv nema hlavicku -> pgrep IP, jinak se zeptat uzivatele na cislo sloupce
-                    try:
-                        ipaddress.ip_address(field) #pokud neni IP, vyhodi chybu. Mozna nezvladne vsechny mozne zkracene verze zapisu IP.
-                        self._addInfo("IP found: " + fieldname)
-                        found = True
-                        break
-                    except: #toto neni ip
-                        pass
-                self.ipField += 1
+        def _findIpCol():
+            found = False
+            if repeating == False: # dialog jede poprve, zkusit autodetekci
+                ipNames = ["ip", "sourceipaddress", "ipaddress", "source"] #mozne nazvy ip sloupcu - bez mezer
+                for fieldname in fields:
+                    field = fieldname.replace(" ", "").replace("'", "").replace('"', "").lower()
+                    if hasHeader == True: #soubor ma hlavicku, zjistovat v ni
+                        if field in ipNames: #tohle je mozna nazev ip sloupce
+                            self._addInfo("IP field column: " + fieldname)
+                            found = True
+                            break
+                    else: #csv nema hlavicku -> pgrep IP, jinak se zeptat uzivatele na cislo sloupce
+                        if Whois.checkIp(field): #pokud neni IP, vyhodi chybu. Mozna nezvladne vsechny mozne zkracene verze zapisu IP.
+                            self._addInfo("IP found: " + fieldname)
+                            found = True
+                            break #toto je ip, konec hledani
+                            
+                    self.ipField += 1
 
-        if found == False:#IP jsme nenalezli, dat uzivateli na vyber
-            i = 1
-            print("\nWhat is IP column:")            
-            for fieldname in fields:#vypsat sloupce
-                print(str(i) + ". " + fieldname)
-                i += 1
-            #print("0. Delimiter is wrong!") to bych musel predelat tuhle velkou do jednotlivych submetod
+            if found == False:#IP jsme nenalezli, dat uzivateli na vyber
+                i = 1
+                print("\nWhat is IP/HOST column:")
+                for fieldname in fields:#vypsat sloupce
+                    print(str(i) + ". " + fieldname)
+                    i += 1
+                #print("0. Delimiter is wrong!") to bych musel predelat tuhle velkou do jednotlivych submetod
 
-            try: #zeptat se uzivatele na cislo sloupce
-                option = int(input('IP column: '))
-                self.ipField = option -1
-                self._addInfo("IP column:" + fields[self.ipField])
-            except ValueError:
-                print("This is not a number")
-                raise
+                try: #zeptat se uzivatele na cislo sloupce
+                    option = int(input('IP column: '))
+                    self.ipField = option -1
 
-        #sloupec AS
-        found = False
-        if repeating == False: # dialog jede poprve, zkusit autodetekci
-            asNames = ["as", "asn", "asnumber"] #mozne nazvy ip sloupcu - bez mezer
-            for fieldname in fields:
-                field = fieldname.replace(" ", "").lower()
-                if hasHeader == True: #soubor ma hlavicku, zjistovat v ni
-                    if field in asNames: #tohle je mozna nazev ip sloupce
-                        self._addInfo("ASN field column: " + fieldname)
-                        found = True
-                        break
-                else: #csv nema hlavicku -> pgrep IP, jinak se zeptat uzivatele na cislo sloupce
-                    if re.search('AS\d+', 'AS1234') != "":
-                        self._addInfo("ASN found: " + fieldname)
-                        found = True
-                        break
-                self.asnField += 1
-            if found == True: # mozna to naslo blby soubor
-                print("Correct? [y]/n")
-                if input() in ("", "N", "n"):
-                    found = False
+                    if Whois.checkIp(self.lines[0].split(self.delimiter)[self.ipField]):# zjistit, zda je to IP column, nebo column s domenami
+                        self._addInfo("IP column:" + fields[self.ipField])
+                    else:
+                        self._addInfo("HOST column:" + fields[self.ipField])
+                        print("Domény v tomto sloupci budou přeloženy na IP.")
+                        self.hostField, self.ipField = self.ipField, -1
 
-        if found == False:#AS jsme nenalezli, dat uzivateli na vyber
-            i = 1
-            print("\nWhat is ASN column:")
-            print("0. no ASN column")
-            for fieldname in fields:#vypsat sloupce
-                print(str(i) + ". " + fieldname)
-                i += 1
-            try: #zeptat se uzivatele na cislo sloupce
-                self.asnField = int(input('ASN column: ')) -1                
-            except ValueError:
-                print("This is not a number")
-                raise
-            if self.asnField == -1:
-                self._addInfo("ASN will not be used.")
-            else:
-                self._addInfo("ASN column:" + fields[self.asnField])
+                        if hasHeader == True: # pridame sloupec s nazvem HOST_IP
+                            self.header += self.delimiter + "HOST_IP"
+
+                except ValueError:
+                    print("This is not a number")
+                    raise
+
+
+            #sloupec AS
+        def _findAsnCol():
+            found = False
+            if repeating == False: # dialog jede poprve, zkusit autodetekci
+                asNames = ["as", "asn", "asnumber"] #mozne nazvy ip sloupcu - bez mezer
+                self.asnField = 0
+                for fieldname in fields:
+                    field = fieldname.replace(" ", "").lower()
+                    if hasHeader == True: #soubor ma hlavicku, zjistovat v ni
+                        if field in asNames: #tohle je mozna nazev ip sloupce                            
+                            found = True
+                            break
+                    else: #csv nema hlavicku -> pgrep IP, jinak se zeptat uzivatele na cislo sloupce
+                        if re.search('AS\d+', 'AS1234') != "":
+                            found = True
+                            break
+                    self.asnField += 1
+                if found == True: # mozna to naslo blby nazev
+                    sys.stdout.write("Is ASN field column: {}? Y/n".format(fieldname))
+                    if input().lower() in ("y",""):
+                        self._addInfo("ASN column:" + fields[self.asnField])
+                    else:
+                        found = False
+
+            if found == False:#AS jsme nenalezli, dat uzivateli na vyber
+                i = 1
+                print("\nWhat is ASN column:")
+                print("0. no ASN column")
+                for fieldname in fields:#vypsat sloupce
+                    print(str(i) + ". " + fieldname)
+                    i += 1
+                try: #zeptat se uzivatele na cislo sloupce
+                    self.asnField = int(input('ASN column: ')) -1
+                except ValueError:
+                    print("This is not a number")
+                    raise
+                if self.asnField == -1:
+                    self._addInfo("ASN will not be used.")
+                else:
+                    self._addInfo("ASN column:" + fields[self.asnField])
+
+        _findIpCol()
+        _findAsnCol()
         csvfile.close()
-        
-
 
     ## Kazdou radku logu pripoji k IP
     # logs[IP] = {log, ...}
     def _lines2logs(self):
-        i = 0
+        self.logs = defaultdict(set) # logs[145.1.2.3] = {logline, ...}
+        extend = 0
         for row in self.lines:#do klice
             if(row.strip() == ""):
                 continue
-            i += 1
             try:
-                ip = row.strip().split(self.delimiter)[self.ipField].replace(" ", "") #klic je ip
-                if self.asnField != -1:
-                    self.ip2asn[ip] = row.strip().split(self.delimiter)[self.asnField].replace(" ", "") #klic je ip
+                fields = row.strip().split(self.delimiter)
+                if self.hostField != -1:#pokud CSV obsahuje sloupec s URL, ktery teprve mame prelozit do sloupce s IP                    
+                    ips = Whois.url2ip(fields[self.hostField])                    
+                else:
+                    ips = [fields[self.ipField].replace(" ", "")] #klic bereme ze sloupce ip
+
+                if len(ips) > 1:
+                    extend = len(ips) -1 # kolik novych radku do logs pribyva
+                    print("Host {} má {} ip adres: {}".format(fields[self.hostField],len(ips),ips))
+
+                for ip in ips:
+                    log = row
+                    if self.hostField != -1:
+                        log += self.delimiter + ip # do posledniho sloupce prida nove zjistenou ip
+
+                    if self.asnField != -1:
+                        self.ip2asn[ip] = fields[self.asnField].replace(" ", "") #klic je ip
+
+                    self.logs[ip].add(log) #ulozit novy log do klice
             except:
-                print(i)
-                print("ROW " + row)
-                print(row.strip() == "")
+                print("ROW fault" + row)
+                print("Tohle by se nemělo stát. Buď je špatně CSV soubor, nebo řekněte Edvardovi, ať to opraví.")
                 raise
 
-            #if (ip in self.logs) == False: self.logs[ip] = set()#pridat klic, ktery neexistuje
-            self.logs[ip].add(row) #ulozit novy log do klice
-        print("Log lines count: " + str(len(self.lines)))
+
+        
         print("IP count: {}".format(self.getIpCount()))
+        print("Log lines count: {}".format(len(self.lines)))
+        if extend > 0:
+            print("+ dalších {} řádků, protože některé domény měly více IP".format(extend))        
         
     def getIpCount(self):
         return len(self.logs)
@@ -232,6 +260,8 @@ class SourceParser:
     ## Vezme strukturu logs[ip] = {log,...}
     # vraci strukturu  countries[cz] = {ip, ...}
     def _logs2countries(self):
+        self.countries = defaultdict(set)
+        self.countriesOriginal = defaultdict(set)
         sys.stdout.write("Asking whois for countries ...: ")
         sys.stdout.flush()
 
@@ -312,7 +342,7 @@ class SourceParser:
                           "Zbývá zjistit abusemail pro {} IP adres. " +
                           "(Threshold pro to, abych se zeptal na použití ASN, byl {} adres.)").format(len(self.mailCz.mails), len(ipsRedo), threshold))
                     print("Použít ASN a ušetřit tak B-flagy? y,[n]: ")
-                    doAsn = False if input() in ("", "N", "n") else True
+                    doAsn = False if input().lower() in ("", "n") else True
 
                 if doAsn == False: # rozhodli jsme se nesetrit B-flag
                     for ip in ipsRedo:
@@ -330,8 +360,7 @@ class SourceParser:
         orphL = len(self.mailCz.getOrphans())
         if orphL:
             count -= 1
-            print("Počet CZ IP bez abusemailů: {}".format(orphL))
-            # XXX PO ODESLANI: udelat neco s temamhle adresama, asi je vygenerovat jako soubor
+            print("Počet CZ IP bez abusemailů: {}".format(orphL))            
         else:
             print("CZ whois OK!")
         print("Nalezeno celkem {} abusemailů. " .format(count))

@@ -57,14 +57,14 @@ class MailList:
         self.text = self._loadText() # XX nejaky text se vrati vzdy, nasledujici radky, kdy je mozno vlozit text rucne, se tedy zrejme neprovedou
         if self.text == False: # uzivatel jeste v GUI nevyplnil soubory
             print("Prázdný body text. Přejete si v GUI otevřít soubor k editaci? [y]/n")
-            if input() in ("y","Y",""):
+            if input().lower() in ("y",""):
                 # otevrit template mailu v GUI
                 self.guiEdit()
                 print("Po vyplnění textu mailu se vraťte.")
                 return False # uživatel vyplnít GUI soubor, uloží jej a pak se ručně vrátí sem do metody
             else:
                 print("Přejete si napsat text ručně? [y]/n")
-                if input() in ("y","Y",""):
+                if input().lower() in ("y",""):
                     print("Vepište ručně text mailu. První řádek je subject. (Vkopírujte Ctrl+Shift+V.)") # XX vazne je prvni radek subject? Jeste jsem to neimplementoval
                     self.text = input()
                 else:

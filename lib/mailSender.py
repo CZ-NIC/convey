@@ -205,7 +205,7 @@ class MailSender():
                 csv.attachmentName = MailSender.askValue(csv.attachmentName,"attachment name")
 
             sys.stdout.write("Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachmentName = {}.\nWas that correct? [y]/n".format(csv.ticketid, csv.ticketnum, csv.cookie, csv.token, csv.attachmentName))
-            if input() in ("y", "Y", ""):
+            if input().lower() in ("y", ""):
                 return True
             else:
                 force = True

@@ -1,6 +1,9 @@
 # Prace s Whoisem
 from subprocess import PIPE
 from subprocess import Popen
+from urllib.parse import urlparse
+import ipaddress
+import socket
 import sys
 
 
@@ -15,11 +18,36 @@ class Whois:
         self.ip = ip #
         pass
 
+    def url2ip(url):
+        """ Oseká URL na doménu, zjistí list ip, které jí odpovídají. """
+        recs = socket.getaddrinfo(urlparse(url.strip()).hostname,0,0,0,socket.IPPROTO_TCP)
+        result = []
+        for ip in recs:
+            result.append(ip[4][0])
+        return result
+        # X socket.gethostbyname vraci jen 1 adresu, my chcem vsechny
+
+
+
+    def checkIp(ip):
+        """ True, pokud je ip dobře formovaná IPv4 nebo IPv6 """
+        try:
+            ipaddress.ip_address(ip)
+            return True
+        except:
+            return False
 
     def queryCountry(query):
-        cmd = "whois -h ripedb2.nic.cz -- " + query + " | grep ^[c,C]ountry | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
-        country = Whois._whois(cmd)
+        cmd = query + " | grep ^[c,C]ountry | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
+        country = Whois._whois("whois -h ripedb2.nic.cz -- " + cmd) # zeptat se rychleho whois-mirroru cz.nic
 
+        # osetrit pripad, kdy whois selhal
+        if country[0:2].lower() == "eu": #ex: 'EU # Country is really world wide' (64.9.241.202)
+            country = Whois._whois("whois " + cmd) # zeptame se whois celosvětově, nikoli cz.nic-mirroru
+
+        # osetrit pripad, kdy je vice zemi na jednom radku
+        if len(country.split("#")) > 1: # ex: 'NL # BE GB DE LU' -> 'NL' (82.175.175.231)
+            country = country.split("#")[0].strip(" ")
 
 
         if country == "":
@@ -28,7 +56,7 @@ class Whois:
 
     def _whois(cmd):
         sys.stdout.write('.') # at uzivatel vidi, ze se neco deje - (mozna nebude vypadat dobre)
-        sys.stdout.flush() # XXX tohle zkusit zakomentovat, jestli se preci jen neco vypise...
+        sys.stdout.flush() # XX: tohle zkusit zakomentovat, jestli se preci jen neco vypise...
         p = Popen([cmd], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         str = p.stdout.read()
         #print(ip,str) pri multithreadingu db ripedb2.nic.cz vracela prazdne misto
