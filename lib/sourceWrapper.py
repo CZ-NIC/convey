@@ -3,6 +3,11 @@ from lib.sourceParser import SourceParser
 from lib.mailList import MailList
 import os
 import pickle
+import yaml # from yaml import load, dump
+try:
+    from yaml import CLoader as Loader, CDumper as Dumper
+except ImportError:
+    from yaml import Loader, Dumper
 import sys
 import ntpath
 import webbrowser
@@ -30,7 +35,7 @@ class SourceWrapper:
             self._treat() #zpracuje soubor
 
     def save(self):
-        with open( self.cacheFile, "wb" ) as output: #ulozit cache
+        with open( self.cacheFile, "wb" ) as output: #ulozit cache            
             pickle.dump(self.csv,output,-1)
 
     def _treat(self): # zpracuje zdroj 

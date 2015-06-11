@@ -26,8 +26,8 @@ class SourceParser:
             self.multithread = False #kdyz uzivatel nastavi na True, pouzije se multithread whois
             self.lines = None #lines csv souboru
             self.logs = defaultdict(set) # logs[145.1.2.3] = {logline, ...}
-            self.countries = defaultdict(set) # countries[gb] = {ip, ...} Docasne misto, nez se IP dle whois dostanou do struktur MailList
-            self.countriesOriginal = defaultdict(set) # kopie self.countries, ze ktere prvky ale nemizi po spusteni whoisu
+            self.countries = defaultdict(set) # countries[gb] = {ip, ...} Odtud jdou IP dle whois do struktur MailList
+            self.countriesMissing = defaultdict(set) # takove prvky self.countries, ktere se nepodarilo zaradit dle whois do MailList
             
             self.ipField = 0 #pozice sloupce s IP adresou
             self.asnField = -1 #pozice sloupce s AS number
@@ -47,11 +47,11 @@ class SourceParser:
             self.cookie = False
             self.token = False
             self.attachmentName = "part-" + ntpath.basename(sourceFile)
-                        
+
             #nacist CSV
             self._loadCsv(sourceFile, repeating)
 
-            print("Is everything correct? [Y/n] ")
+            print("Is everything correct? [y]/n ")
             if input() == "n":
                 repeating = True
                 continue #zopakovat
@@ -61,26 +61,19 @@ class SourceParser:
                 self.launchWhois()
                 break
 
-    def launchWhois(self): #spusti dlouhotrvajici processing souboru
-        self.mailCz = MailList("mail_cz", Config.get("mail_template_cz")) # dopis pro CZ
-        self.mailWorld = MailList("mail_world", Config.get("mail_template_world")) # dopis pro svet
-        
+    def launchWhois(self): #spusti dlouhotrvajici processing souboru                        
         self._lines2logs()
-        self._logs2countries()
-        self.countriesOriginal = self.countries.copy() # backup promenne, nez se z ni ubere
+        self._logs2countries()        
 
         if 'cz' in self.countries: #CZ -> abuse maily
-            self._ips2mails(self.countries.pop("cz"))
+            self._buildListCz(self.countries.pop("cz"))
+            self.applyCzCcList() # doplnujici Cc kontakty na cz abusemaily
 
-        self._countries2mails() # World -> kontakty na maily CSIRTu
-
-        
-
+        self._buildListWorld() # World -> kontakty na maily CSIRTu
 
     def _addInfo(self, txt):
         self.info += txt + "\n"
         print(txt)
-
 
     ## Parsuje CSV file na policka a uhadne pole IP.
     def _loadCsv(self, sourceFile, repeating = False):
@@ -93,7 +86,7 @@ class SourceParser:
             if(i == 0):
                 firstLine = row
             sample += row + "\n"
-            if(i == 3): #snifferu na zjisteni dialektu staci treba 3 linky
+            if(i == 8): #XX snifferu na zjisteni dialektu nestaci 3 linky, ale 7+ (/mnt/csirt-rook/2015/06_08_Ramnit/zdroj), nevim proc
                 break
 
         #uhadnout delimiter        
@@ -186,7 +179,7 @@ class SourceParser:
                             break
                     self.asnField += 1
                 if found == True: # mozna to naslo blby nazev
-                    sys.stdout.write("Is ASN field column: {}? Y/n".format(fieldname))
+                    sys.stdout.write("Is ASN field column: {}? [y]/n ".format(fieldname))
                     if input().lower() in ("y",""):
                         self._addInfo("ASN column:" + fields[self.asnField])
                     else:
@@ -261,7 +254,7 @@ class SourceParser:
     # vraci strukturu  countries[cz] = {ip, ...}
     def _logs2countries(self):
         self.countries = defaultdict(set)
-        self.countriesOriginal = defaultdict(set)
+        #self.countriesOriginal = defaultdict(set)
         sys.stdout.write("Asking whois for countries ...: ")
         sys.stdout.flush()
 
@@ -314,7 +307,9 @@ class SourceParser:
     # XX Pocitam (zrejme) s existenci moznosti, kdy ruzne IP z ASN spadaji do ruznych zemi.
     #    Pokud se tak nekdy stane, na ASN abuse mail se poslou pouze logy z IP, ktere nalezi do CZ.
     #    
-    def _ips2mails(self, ips):
+    def _buildListCz(self, ips):
+        self.mailCz = MailList("mail_cz", Config.get("mail_template_cz")) # dopis pro CZ
+        print("Querying whois for mails.")
         if Config.get('spare_b_flag') == False: # nesetrit B flag (rovnou pouzivat queryMail force = True)
             # pro kazdou IP zvlast se zepta na abusemail
             for ip in ips:
@@ -324,7 +319,7 @@ class SourceParser:
             doAsn = False
             threshold = int(Config.get('b_flag_threshold'))
             if threshold == -1: # zjistovat abusemail pro ASN, nikoli IP (setrime)
-                self._ips2mailsByAsn(ips)
+                self._buildListCzByAsn(ips)
             else:
                 # zkusi, kolik by bylo treba -b requestu pro jednotliva IP (queryMail force = false)
                 ipsRedo = set() # IP, kde je treba udelat B flag
@@ -351,7 +346,8 @@ class SourceParser:
                         #print(mail)
                         self.mailCz.mails[mail].add(ip)
                 else:# rozhodli jsme setrit B-flag a pouzit ASN
-                    self._ips2mailsByAsn(ipsRedo)
+                    self._buildListCzByAsn(ipsRedo)
+
 
         # stats
         if Whois.bCount > 0:
@@ -365,16 +361,41 @@ class SourceParser:
             print("CZ whois OK!")
         print("Nalezeno celkem {} abusemailů. " .format(count))
 
+    ##
+    # pridat maily z vlastniho listu do cc-kopie
+    def applyCzCcList(self):
+        count = 0
+        file = Config.get("contacts_cz")
+        if os.path.isfile(file) == False: #soubor s kontakty
+            print("(Soubor s cz kontakty {} nenalezen.) ".format(file))
+        else:
+            with open(file, 'r') as csvfile:
+                reader = csv.reader(csvfile)
+                abusemails = {rows[0]:rows[1] for rows in reader}
+                for mail in self.mailCz.mails: #check domain mail
+                    self.mailCz.mails[mail].cc = ""
+                    for domain in MailList.getDomains(mail):
+                        if domain in abusemails:
+                            count += 1
+                            self.mailCz.mails[mail].cc += abusemails[domain] + ";"
+            if count:
+                print("Z listu cz kontaktů ({}) přidáno Cc do {} mailů.".format(len(abusemails), count))
+            else:
+                print("Soubor s cz kontakty nalezen, nepáruje s nimi však žádný, ok.")
+
 
     # zjistit abuseMail pro ASN
-    def _ips2mailsByAsn(self, ips):
+    def _buildListCzByAsn(self, ips):
         if self.asnField == -1:
             # XX Pokud pouziva ASN a v CSV neni sloupecek, dohledat ASN z whoisu.
             # a naplnit self.ip2asn pole.
-            print("Country CZ detected but ASN field not found.")
-            print("JE TREBA IMPLEMENTOVAT. Skript ma byt schopen nacist z whoisu ASN, do ktere jednotlive IP spadaji.")
-            print("Nyni dejte pregenerovat whois informace.")
-            return False # XX dohledat ASN z whoisu
+            #print("Country CZ detected but ASN field not found.")
+            #print("JE TREBA IMPLEMENTOVAT. Skript ma byt schopen nacist z whoisu ASN, do ktere jednotlive IP spadaji.")
+            #print("Nyni dejte pregenerovat whois informace.")
+            print("Looking up AS numbers from whois")
+            for ip in ips:
+                self.ip2asn[ip] = Whois.getAsn(ip)
+            #return False # XX dohledat ASN z whoisu
         else:
             # grupovat podle ASN
             print("Country CZ detected -> ASN usage.")
@@ -402,45 +423,54 @@ class SourceParser:
     #
     #pak hledá statické kontakty.
     #    
-    def _countries2mails(self):
-        file = Config.get("contacts")
+    def _buildListWorld(self):
+        self.mailWorld = MailList("mail_world", Config.get("mail_template_world")) # dopis pro svet
+        file = Config.get("contacts_world")
         if os.path.isfile(file) == False: #soubor s kontakty
-            print("Soubor s kontakty {} nenalezen. ".format(file))
-            quit()
+            print("Soubor s world kontakty {} nenalezen. ".format(file))
+            return False
         with open(file, 'r') as csvfile:
             reader = csv.reader(csvfile)
             abusemails = {rows[0]:rows[1] for rows in reader}
 
         # sparovat zeme s abusemaily
         missing = []
-        countries = list(self.countries.keys())
-        for country in countries: #dohledat abusemail pro country
+        self.countriesMissing = self.countries.copy() #list(self.countries.keys())
+        for country in list(self.countries.keys()): #dohledat abusemail pro country
             if country in abusemails:
                 mail = abusemails[country]
-                self.mailWorld.mails[mail].update(self.countries.pop(country)) # presunout set IP adres pod maillist
+                self.mailWorld.mails[mail].update(self.countriesMissing.pop(country)) # presunout set IP adres pod maillist
             else:
                 missing.append(country)
 
         # info, co delat s chybejicimi abusemaily
         if len(missing) > 0:
             sys.stdout.write("Chybí csirtmail na {} zemí: {}\n".format(len(missing),", ".join(missing)))
-            print("Doplnte csirtmaily do souboru contacts.csv a spusťte znovu whois! \n")
+            print("Doplňte csirtmaily do souboru s kontakty zemí (viz config.ini) a spusťte znovu whois! \n")
         else:
             sys.stdout.write("World whois OK! \n")
+        return True
 
+
+    def missingFilesInfo(self):
+        return "({} souborů, {} world a {} cz kontaktů)".format(
+            len(self.countriesMissing) + (1 if len(self.mailCz.getOrphans()) else 0),
+            len(self.countriesMissing),
+            len(self.mailCz.getOrphans()))
+        
 
     ## Zapise soubory logu, rozdelenych po zemich.
     # dir - adresar bez koncoveho lomitka
     def generateFiles(self, dir, missingOnly = False):
         if missingOnly:
             extension = "-missing.tmp"
-            files = self.countries.copy()
+            files = self.countriesMissing.copy()
             files["cz_unknown"] = self.mailCz.getOrphans().copy() # CZ IP bez abusemailu budou jako soubor 'cz'
         else: #vsechny soubory
             extension = ".tmp"
-            files = self.countriesOriginal.copy()
+            files = self.countries.copy() # X countriesOriginal
             files.update(self.mailCz.mails.copy()) # CZ IP budou v souborech dle abusemailu
-
+        
         dir += "/"
         count = 0
         #zapsat soubory ze zemi a abusemailu
@@ -450,7 +480,7 @@ class SourceParser:
                     count += 1
                     f.write(self.ips2logfile(files[file]))
 
-        print("Generated {} files to directory {} .".format(len(files),dir))
+        print("Generated {} files to directory {} .".format(count,dir))
 
     def ips2logfile(self,ips):
         result = []
@@ -484,7 +514,7 @@ class SourceParser:
     def soutDetails(self):        
         print("\nCZ\n"+str(self.mailCz))
         print("\nWorld\n"+str(self.mailWorld))
-        print("\nMissing csirmails\n"+str(self.countries) if len(self.countries) else "Všechny abroad-IP jsou OK přiřazeny")
+        print("\nMissing csirmails\n"+str(self.countriesMissing) if len(self.countriesMissing) else "Všechny world IP jsou OK přiřazeny")
 
     def __exit__(self):
         pass

@@ -39,11 +39,11 @@ class Whois:
 
     def queryCountry(query):
         cmd = query + " | grep ^[c,C]ountry | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
-        country = Whois._whois("whois -h ripedb2.nic.cz -- " + cmd) # zeptat se rychleho whois-mirroru cz.nic
+        country = Whois._exec("whois -h ripedb2.nic.cz -- " + cmd) # zeptat se rychleho whois-mirroru cz.nic
 
         # osetrit pripad, kdy whois selhal
         if country[0:2].lower() == "eu": #ex: 'EU # Country is really world wide' (64.9.241.202)
-            country = Whois._whois("whois " + cmd) # zeptame se whois celosvětově, nikoli cz.nic-mirroru
+            country = Whois._exec("whois " + cmd) # zeptame se whois celosvětově, nikoli cz.nic-mirroru
 
         # osetrit pripad, kdy je vice zemi na jednom radku
         if len(country.split("#")) > 1: # ex: 'NL # BE GB DE LU' -> 'NL' (82.175.175.231)
@@ -54,11 +54,19 @@ class Whois:
             country = "unknown"
         return country
 
-    def _whois(cmd):
+    def getAsn(ip):
+        cmd = ip + " | grep ^[o,O]rigin | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
+        asn = Whois._exec("whois -h ripedb2.nic.cz -- " + cmd) # zeptat se rychleho whois-mirroru cz.nic
+        return asn
+
+
+    def _exec(cmd):
+        #print("exec: {}".format(cmd))
         sys.stdout.write('.') # at uzivatel vidi, ze se neco deje - (mozna nebude vypadat dobre)
         sys.stdout.flush() # XX: tohle zkusit zakomentovat, jestli se preci jen neco vypise...
         p = Popen([cmd], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         str = p.stdout.read()
+        #print("vysledek {}".format(str))
         #print(ip,str) pri multithreadingu db ripedb2.nic.cz vracela prazdne misto
         return str.decode("utf-8").strip().lower().replace("\n", " ")
 
@@ -66,8 +74,8 @@ class Whois:
     # Pokud je force = True a mail neni k dispozici, zkusi pouzit jeste druhy request s flagem B.
     # Pokud neni abusemail nalezen, vraci "".
     def queryMail(query, force = False):
-        cmd = "whois -- " + query + " | grep '\% Abuse contact for' | grep -E -o '\b[a-zA-Z0-9.-] + @[a-zA-Z0-9.-] + \.[a-zA-Z0-9.-] + \b' || whois -- " + query + " | grep abuse-mailbox | cut -d: -f2 | sed -e 's/^\s*//' -e 's/\s*$//' | sort -nr | uniq | tr '\n' ',' | sed -e 's/,$//' -e 's/,/\,/g'"
-        abuseMail = Whois._whois(cmd)
+        cmd = "whois -- " + query + " | grep '\\% Abuse contact for' | grep -E -o '\\b[a-zA-Z0-9.-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z0-9.-]+\\b' || whois -- " + query + " | grep abuse-mailbox | cut -d: -f2 | sed -e 's/^\\s*//' -e 's/\\s*$//' | sort -nr | uniq | tr '\\n' ',' | sed -e 's/,$//' -e 's/,/\\,/g'"
+        abuseMail = Whois._exec(cmd)
         if abuseMail == "":
             if force == False:
                 return "unknown", False # radeji nechceme pouzit flag
@@ -83,7 +91,8 @@ class Whois:
     def queryMailForced(query):
         Whois.bCount += 1 # pouzivame dalsi B-flag
         cmd = "whois -B -- " + query + " | grep e-mail | cut -d: -f2 | sed -e 's/^\s*//' -e 's/\s*$//' | sort -nr | uniq | tr '\n' ',' | sed -e 's/,$//' -e 's/,/\,/g'"
-        abuseMail = Whois._whois(cmd)
+        # XX tady bych mohl vystup whois -B ulozit a zkouset greppovat radek Abuse contact for, stejne jako se dela v queryMail. Netusim, proc se to nedeje, bud jsem to z puvodnich skriptu spatne opsaal, nebo tenkrat radek Abuse contact jeste moc neexistoval.
+        abuseMail = Whois._exec(cmd)
         if abuseMail == "":
             abuseMail = "unknown"
         return abuseMail, False # False znamena, ze jsme pouzili metodu queryMailForced, neusetrili jsme flag -B

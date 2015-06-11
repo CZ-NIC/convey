@@ -140,22 +140,24 @@ class MailSender():
                       ("TicketID", str(csv.ticketid)),
                       ("Email", TICKETEMAIL),
                       ("From", FROMADDR),
-                      ("To", "edvard.rejthar+otrs_test@nic.cz"), # XXX sem ma prijit mail, po otestovani
+                      ("To", "edvard.rejthar+otrs_test@nic.cz"), # XXX sem ma prijit mail (nebo maily oddelene carkou ci strednikem, primo z whois), po otestovani. XX Jdou pouzit maily oddelene strednikem i vice stredniky? mail;mail2;;mail3 (kvuli retezeni v cc pro pripad, ze je vic domen)
                       ("Subject", subject),
                       ("SignKeyID", SIGNKEYID),
                       ("Body", body),
                       ("ArticleTypeID", "1"), # mail-external
                       ("ComposeStateID", "4"), # open
                       ("ChallengeToken", csv.token),
-                      )
+                      )            
+            if mailList.mails[mail].cc:
+               fields += (("Cc", mailList.mails[mail].cc),)
             
             # load souboru k zaslani
             contents = csv.ips2logfile(mailList.mails[mail])
             
             logging.info("mail {}".format(mail))            
             print(mail)
-            print(mailList.mails[mail])
-            print(contents)# XX vypis zaznamu mozna zpomaluje skript
+            #print(mailList.mails[mail])
+            print(contents[:100] + " (sample)")# XX vypis zaznamu mozna zpomaluje skript
             
             if csv.attachmentName and contents != "":
                 files = (("FileUpload", csv.attachmentName, contents),)
@@ -173,10 +175,10 @@ class MailSender():
 
             
             #print encode_multipart_formdata(fields, files)
-            res = MailSender._post_multipart(HOST, BASEURI, fields=fields, files=files, cookies=cookies)            
-
+            import pdb;pdb.set_trace();
+            res = MailSender._post_multipart(HOST, BASEURI, fields=fields, files=files, cookies=cookies)
             if not res or not MailSender._check_response (res.read()):
-                print("Zaslání se nezdařilo, viz mailSender.log.")                                
+                print("Zaslání se nezdařilo, viz mailSender.log.")
                 break
             else:
                 sentMails += 1

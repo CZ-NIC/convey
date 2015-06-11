@@ -3,17 +3,22 @@ from collections import defaultdict
 import os
 import webbrowser
 import subprocess
+import re
 
 class MailList:
+
+
+
     """ Datova struktura na spravu mailu"""
-    def __init__(self, listName, templateFile):
+    def __init__(self, listName, templateFile):        
         self.text = False
-        self.mails = defaultdict(set)
+        self.mails = defaultdict(_Mail) #defaultdict(set)
         self.listName = listName
         self.templateFile = templateFile
-        self.mailFile = MailList.dir +  self.listName + MailList.hash + ".txt" # ex: csirt/2015/mail_cz5615616.txt        
+        self.mailFile = MailList.dir +  self.listName + MailList.hash + ".txt" # ex: csirt/2015/mail_cz5615616.txt
 
         self.guiEdit()
+
 
     # Vraci set IP, ktera nemaji zadny e-mail.
     # Ma smysl jenom u listu ceskych adres mailCz. K orphan-IP nelze dohledat mail (a zrejme se vyhodi nebo poslou na ASN adresu).
@@ -76,12 +81,24 @@ class MailList:
         with open(self.mailFile, 'r') as f:
             return f.read()
 
-    def __str__(self):        
+    def __str__(self):
         result = ("Počet abusemailů: {0}\n".format(len(self.mails)))
-        for mail in self.mails:
-            result += "'{}' ({})\n".format(mail, len(self.mails[mail]))
+        for mail in self.mails:            
+            result += "'{}' ({})".format(mail, len(self.mails[mail]))            
+            if self.mails[mail].cc:
+                result += " cc: {} ".format(self.mails[mail].cc)
+            result += "\n"
+            
+        #print(result);import pdb; pdb.set_trace()
         return result
 
+    ##
+    # mail = mail@example.com;mail2@example2.com -> [example.com, example2.com]
+    def getDomains(mail):
+        try:
+            return set(re.findall("@([\w.]+)", mail))
+        except AttributeError:
+            return []
 
 
     # Otevre soubor pro text z mailu ke GUI editaci.
@@ -94,7 +111,12 @@ class MailList:
         #webbrowser.open(mailFile) X furt do konzole vypisuje error hlasky, nic nepomohlo
         subprocess.Popen(['gedit',self.mailFile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
- 
 
+class _Mail(set):
+    def __init__(self, state= None): # state=None kvuli unpickleni. State dostava hodnoty setu. XAle state se prirazuje uz vys, v MailList.__setstate__
+        self.cc = ""
+        if state:
+            self.update(state)
 
-        
+    def __setstate__(self,state): # vola to pickle.load. State dostava atributy (cc)
+        self.__dict__ = state

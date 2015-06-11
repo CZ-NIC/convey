@@ -59,44 +59,18 @@ if __name__ == "__main__":
         if len(csv.mailCz.getOrphans()):
             print("Nezdařilo se dohledat abusemaily pro {} CZ IP.".format(len(csv.mailCz.getOrphans())))
         if len(csv.countries):
-            print("Nezdařilo se dohledat csirtmaily pro {} zemí.".format(len(csv.countries)))
+            print("Nezdařilo se dohledat csirtmaily pro {} zemí.".format(len(csv.countriesMissing)))
 
         
         print("\n Hlavní menu:")
         print("1 - Zaslat přes OTRS")
-        print("2 - Generovat soubory s IP bez kontaktu ({} souborů)".format(len(csv.countries)))
+        print("2 - Generovat soubory s IP bez kontaktu {}".format(csv.missingFilesInfo()))
         print("--")
         print("3 - Seznam abusemailů a počet IP")
         print("4 - Změnit text mailu")
-        print("5 - Generovat všechny soubory ({} souborů)".format(len(csv.countriesOriginal)))
+        print("5 - Generovat všechny soubory ({} souborů)".format(len(csv.countries) + len(csv.mailCz.mails)))
         print("6 - Zpracovat znovu")
         print("7 - Zpracovat znovu jen whois")
-
-
-XX
-
-X* kdyz to vrati pet zemi, vrati prvni
-kdyz to vrati a zacne "EU", zeptat se celosvětově whois (bez ripedb2)
-
-X* Místo sloupce IP  může existovat sloupec s doménami.
-Ty se v csv natvrdo přiloží do IP a IP se připojí jako poslední column.
-
-XAutomaticka detekce ASN: zeptat se vzdy, co je ASN sloupec, byt s detekci.
-
-honeypot, ramney, nbu
-
-Kdyz jsme testovali Nbu/zdroj:
-Ctyri maily na 1 radce tam jsou. To neprojde!!
-Když budou takhle ctyri, poslat jim to na ctyri soucasne. -> pridat hlavicku Cc
-Flaggovat, ktere maily se poslaly.
-
-Pokud domena toho mailu je shona s certim seznamem (napri cdt.cz), pridat do cc certi mail.
-Kdyz to pujde do O2 -> at to jde certim mailum.
-Soubor certs.csv, sloupce domain,cc
-
-Testcase:
-Spatny cache. Vygenerovali jsme Whois pro IP. Pak jsme zminili jiny IP sloupec. Ale tam zustaly tam viset predchozi IP. (pripad nbu? - snad jsem opravil)
-
         print("x - Konec")
         sys.stdout.write("? ")
         sys.stdout.flush()
@@ -112,7 +86,7 @@ Spatny cache. Vygenerovali jsme Whois pro IP. Pak jsme zminili jiny IP sloupec. 
         elif option == "7":
             csv.launchWhois()
             continue        
-        elif option == "3":
+        elif option == "3":            
             csv.soutDetails()
             continue
         elif option == "2":
@@ -129,10 +103,10 @@ Spatny cache. Vygenerovali jsme Whois pro IP. Pak jsme zminili jiny IP sloupec. 
             print("XX") #XX
             csv.ticketid = "7056" # MISC vytvorit si vlastni ticket! Treba si vytvor nejaky novy testovaci tiket a potom ho presun do fronty MISC, nebo to klidne zkousej na kterymkoliv tiketu ve fronte MISC ;-)
             csv.ticketnum = "20100224213000171"
-            csv.cookie = "228bdc286be05e9b37e3fd31a2bebb3e7b0"
-            csv.token = "4d64db6c6aee207c5c7853778ff57f27"
+            #csv.cookie = "228930f13d91f4dad6514d82bf5dbc3ccd2"
+            #csv.token = "23d9c2267829358a5eecf047fd242d96"
             MailSender.assureTokens(csv)
-            sys.stdout.write("Poslat CZ abusemailům:")
+            print("Poslat CZ abusemailům:")
             if MailSender.sendList(csv.mailCz, csv): # poslat ceske maily
                 sys.stdout.write("Poslat světovým csirtmailům:")
                 if MailSender.sendList(csv.mailWorld, csv): # poslat svetove maily
