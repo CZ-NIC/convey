@@ -46,12 +46,16 @@ class SourceParser:
             self.ticketnum = False
             self.cookie = False
             self.token = False
+
+            self.ticketid = Config.get("ticketid") # XX MISC vytvorit si vlastni ticket! Treba si vytvor nejaky novy testovaci tiket a potom ho presun do fronty MISC, nebo to klidne zkousej na kterymkoliv tiketu ve fronte MISC ;-)            
+            self.ticketnum = Config.get("ticketnum")            
+
             self.attachmentName = "part-" + ntpath.basename(sourceFile)
 
             #nacist CSV
             self._loadCsv(sourceFile, repeating)
 
-            print("Is everything correct? [y]/n ")
+            sys.stdout.write("Is everything correct? [y]/n ")
             if input() == "n":
                 repeating = True
                 continue #zopakovat
@@ -310,7 +314,7 @@ class SourceParser:
     def _buildListCz(self, ips):
         self.mailCz = MailList("mail_cz", Config.get("mail_template_cz")) # dopis pro CZ
         print("Querying whois for mails.")
-        if Config.get('spare_b_flag') == False: # nesetrit B flag (rovnou pouzivat queryMail force = True)
+        if Config.getboolean('spare_b_flag') == False: # nesetrit B flag (rovnou pouzivat queryMail force = True)
             # pro kazdou IP zvlast se zepta na abusemail
             for ip in ips:
                 mail, bSpared = Whois.queryMail(ip, True)

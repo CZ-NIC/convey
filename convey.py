@@ -3,6 +3,7 @@
 from lib.sourcePicker import SourcePicker
 from lib.sourceWrapper import SourceWrapper
 from lib.mailSender import MailSender
+from lib.config import Config
 import os.path
 import sys
 __shortdoc__ = """OTRS Convey -> tlumočník pro OTRS"""
@@ -48,6 +49,8 @@ if __name__ == "__main__":
     file = SourcePicker() # cesta ke zdrojovemu souboru
     wrapper = SourceWrapper(file) # "lab/zdroj.csv"
     csv = wrapper.csv
+    csv.cookie = Config.get("cookie")
+    csv.token = Config.get("token")
 
     #menu
     while True:
@@ -100,11 +103,6 @@ if __name__ == "__main__":
             csv.mailWorld.guiEdit()
             continue
         elif option == "1":
-            print("XX") #XX
-            csv.ticketid = "7056" # MISC vytvorit si vlastni ticket! Treba si vytvor nejaky novy testovaci tiket a potom ho presun do fronty MISC, nebo to klidne zkousej na kterymkoliv tiketu ve fronte MISC ;-)
-            csv.ticketnum = "20100224213000171"
-            #csv.cookie = "228930f13d91f4dad6514d82bf5dbc3ccd2"
-            #csv.token = "23d9c2267829358a5eecf047fd242d96"
             MailSender.assureTokens(csv)
             print("Poslat CZ abusemailům:")
             if MailSender.sendList(csv.mailCz, csv): # poslat ceske maily

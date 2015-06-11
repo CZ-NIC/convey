@@ -4,8 +4,18 @@
 import configparser
 
 class Config:
+    file = 'config.ini'
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read(file)
 
     def get(key):
         return Config.config['CONVEY'][key]
+
+    def getboolean(key):
+        return Config.config.getboolean('CONVEY',key)
+
+    #X Zabije komentaredef set(key, val):
+        #Config.config.set('CONVEY',key,val)
+        #with open(Config.file,"w") as f:
+            #Config.config.write(f)
+            

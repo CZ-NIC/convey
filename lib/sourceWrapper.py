@@ -11,6 +11,7 @@ except ImportError:
 import sys
 import ntpath
 import webbrowser
+from lib.config import Config
 
 __author__ = "edvard"
 __date__ = "$Mar 23, 2015 8:33:24 PM$"
@@ -28,15 +29,32 @@ class SourceWrapper:
         # cache-file s metadaty zdrojoveho souboru
         self.cacheFile = os.path.dirname(file) +"/"+ ntpath.basename(self.file) + self.hash + ".tmp" #"cache/" +        
         if os.path.isfile(self.cacheFile):
-            print("Soubor {} již byl zpracován.".format(self.file))            
-            self.csv = pickle.load( open( self.cacheFile, "rb" ) )
+            print("Soubor {} již byl zpracován.".format(self.file))
+            try: # zkousime rozpicklovat
+                self.csv = pickle.load( open( self.cacheFile, "rb" ) )
+            except:
+                try: # mozna byl pouzit pro caching yaml
+                    with open(self.cacheFile, 'r') as f:
+                        print("Loading slow yaml format...")
+                        self.csv = yaml.load(f.read(), Loader=Loader)
+                except:
+                    print("Selhalo načtení cache souboru z minula, zpracujeme ho znovu. Pokud budete pokračovat, cache se přemaže.")
+                    self._treat()
             self.csv.soutInfo()
         else:
             self._treat() #zpracuje soubor
 
+    ##
+    # Ulozime v YAML nebo picklu.
     def save(self):
-        with open( self.cacheFile, "wb" ) as output: #ulozit cache            
-            pickle.dump(self.csv,output,-1)
+        if Config.getboolean("yaml_cache"):
+            with open( self.cacheFile, "w" ) as output: #ulozit cache
+                print("Saving in slow yaml format...")
+                output.write(yaml.dump(self.csv, Dumper=Dumper))
+        else:
+            with open( self.cacheFile, "wb" ) as output: #ulozit cache
+                pickle.dump(self.csv,output,-1)
+        
 
     def _treat(self): # zpracuje zdroj 
         self.csv = SourceParser(self.file)

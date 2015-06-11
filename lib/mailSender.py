@@ -175,7 +175,7 @@ class MailSender():
 
             
             #print encode_multipart_formdata(fields, files)
-            import pdb;pdb.set_trace();
+            #import pdb;pdb.set_trace();
             res = MailSender._post_multipart(HOST, BASEURI, fields=fields, files=files, cookies=cookies)
             if not res or not MailSender._check_response (res.read()):
                 print("Zaslání se nezdařilo, viz mailSender.log.")
@@ -196,7 +196,7 @@ class MailSender():
         """ Checknout prihlasovaci udaje k OTRS """
         # XX: cookie a token by se mohly nacitat/ukladat z config file
         # # aktuální cookie z OTRS (doplní se samo) cookie =
-        # aktuální token (doplní se sám) token =
+        # aktuální token (doplní se sám) token =        
         force = False
         while True:
             if(force or csv.ticketid == False or csv.ticketnum == False or csv.cookie == False or csv.token == False or csv.attachmentName == False):

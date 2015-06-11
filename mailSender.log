@@ -570,3 +570,33 @@ Core.App.Ready(function () {
 
 </body>
 </html>
+INFO:root:sending mails from list...
+INFO:root:mail abuse@fiber.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'>
+
+ *** Not logged in or wrong session cookie ***
+INFO:root:sending mails from list...
+INFO:root:mail abuse@fiber.cz
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'>
+
+ *** Not logged in or wrong session cookie ***
+INFO:root:sending mails from list...
+INFO:root:mail nic@t-mobile.cz
+INFO:root:mail lir@miramo.cz
+INFO:root:mail abuse@upcbroadband.cz
+INFO:root:mail helpdesk.losan@internethome.cz
+INFO:root:mail fedor@mo-nex.cz
+INFO:root:mail abuse@fiber.cz
+INFO:root:mail abuse@bluetone.cz
+INFO:root:mail abuse.cz@o2.com
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail abuse.cz@o2.com
+INFO:root:mail fedor@mo-nex.cz
+INFO:root:mail lir@miramo.cz
+INFO:root:mail abuse@fiber.cz
+INFO:root:mail helpdesk.losan@internethome.cz
+INFO:root:mail abuse@upcbroadband.cz
+INFO:root:mail abuse@bluetone.cz
+INFO:root:mail nic@t-mobile.cz
+INFO:root:sending mails from list...
