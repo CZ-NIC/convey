@@ -58,25 +58,22 @@ if __name__ == "__main__":
     #menu
     while True:
         csv = wrapper.csv
-        print("\n Stats - IP: {}, CZ (abuse)mailů: {}, world (csirt)mailů: {} ".format(
-              csv.getIpCount(),
-              len(csv.mailCz.mails),
-              len(csv.mailWorld.mails)
-              ))
+        #print("\n Stats - IP: {}, CZ (abuse)mailů: {}, world (csirt)mailů: {} ".format(
+              #csv.getIpCount(),
+              #len(csv.mailCz.mails),
+              #len(csv.mailWorld.mails)
+              #))
+        print("Statistický přehled: " + csv.getStatsPhrase())
         if len(csv.mailCz.getOrphans()):
             print("Nezdařilo se dohledat abusemaily pro {} CZ IP.".format(len(csv.mailCz.getOrphans())))
         if len(csv.countriesMissing):
             print("Nezdařilo se dohledat csirtmaily pro {} zemí.".format(len(csv.countriesMissing)))
 
-        
         print("\n Hlavní menu:")
         print("1 - Zaslat přes OTRS...")
-        print("2 - Generovat soubory s IP bez kontaktu {}".format(csv.missingFilesInfo()))
-        print("--")
-        print("3 - Seznam abusemailů a počet IP")
-        print("4 - Změnit text mailu")
-        print("5 - Generovat všechny soubory ({} souborů)".format(len(csv.countries) + len(csv.mailCz.mails)))
-        print("6 - Zpracovat znovu...")
+        print("2 - Generovat... (soubory s IP bez kontaktu: {})".format(csv.missingFilesInfo()))
+        print("3 - Seznamy mailů a počet IP (interní proměnné)")
+        print("4 - Zpracovat znovu...")
         print("x - Konec")
         sys.stdout.write("? ")
         sys.stdout.flush()
@@ -86,10 +83,12 @@ if __name__ == "__main__":
         if option == "x":
             wrapper.save() # preulozit cache soubor
             break
-        elif option == "6":
-            print("1 Zpracovat celý soubor znovu")
-            print("2 Zpracovat znovu jen whois")
-            print("3 Renačíst světové csirtmaily ze souboru")
+        elif option == "4":
+            print("1 - Zpracovat celý soubor znovu")
+            print("2 - Zpracovat znovu jen whois")
+            print("3 - Renačíst světové csirtmaily ze souboru")
+            print("4 - Editovat texty mailů")
+            print("[x] - Storno")
 
             sys.stdout.write("? ")
             sys.stdout.flush()
@@ -101,27 +100,37 @@ if __name__ == "__main__":
                 csv.launchWhois()
             elif option2 == "3":
                 csv.buildListWorld()
+            elif option2 == "4":
+                csv.mailCz.guiEdit()
+                csv.mailWorld.guiEdit()
 
             continue        
         elif option == "3":            
             csv.soutDetails()
             continue
         elif option == "2":
-            csv.generateFiles(os.path.dirname(file), True)
-            continue
-        elif option == "5":
-            csv.generateFiles(os.path.dirname(file))
-            continue
-        elif option == "4":
-            csv.mailCz.guiEdit()
-            csv.mailWorld.guiEdit()
+            print("1 - Generovat soubory s IP bez kontaktu {}".format(csv.missingFilesInfo()))
+            print("2 - Generovat všechny soubory ({} souborů)".format(len(csv.countries) + len(csv.mailCz.mails)))
+            #print("3 - Generovat statistiky pro Martina")
+            print("[x] - Storno")
+            sys.stdout.write("? ")
+            sys.stdout.flush()
+            option2 = input()
+
+            if option2 == "1":
+                csv.generateFiles(os.path.dirname(file), True)
+            elif option2 == "2":
+                csv.generateFiles(os.path.dirname(file))
+            #elif option2 == "3":
+            #    print(csv.getStatsPhrase())
+
             continue
         elif option == "1":
             MailSender.assureTokens(csv)
-            print("1 Zaslat do CZ i do světa")
-            print("2 Zaslat jen do CZ")
-            print("3 Zaslat jen do světa")
-            print("x storno")
+            print("1 - Zaslat do CZ i do světa")
+            print("2 - Zaslat jen do CZ")
+            print("3 - Zaslat jen do světa")
+            print("[x] - Storno")
             sys.stdout.write("? ")
             sys.stdout.flush()
             option = input()

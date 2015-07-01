@@ -537,10 +537,57 @@ class SourceParser:
         print(self.info)
         #print("Soubor obsahuje {} řádek logů. ".format(len(self.logs)))
 
-    def soutDetails(self):        
+    def soutDetails(self):
+        print("**************************")
+        print("Stav interních proměnných:")
         print("\nCZ\n"+str(self.mailCz))
         print("\nWorld\n"+str(self.mailWorld))
         print("\nMissing world mails\n"+str(self.countriesMissing) if len(self.countriesMissing) else "Všechny world IP jsou OK přiřazeny")
+        #print("\nStatistický přehled:")print(self.getStatsPhrase())
+
+    # Vypise vetu:
+    # Celkem 800 unikatnich IP;
+    # z toho nalezených 350 v 25 zemích a nenalezených 30 IP adres v 2 zemích;
+    # 570 IP adres jsme distribuovali 57 českým ISP a pro 30 jsme ISP nenalezli.
+    def getStatsPhrase(self):
+        # XZadani
+        #1. Pocet unikatnich IP adres celkem
+        #2. Pocet unikatnich IP adres v CR
+        #3. Pocet unikatnich IP adres v jinych zemi
+        #4. Kontaktovano xy ISP v CR
+        #5. Naslo to xy Zemi (ne vsechny Zeme maji narodni/vladni CSIRT, ale to urcite vis)
+        #6. Kontaktovano xy Zemi (kam se bude posilat)
+
+
+        ipsUnique = self.getIpCount()
+        ispCzFound = len(self.mailCz.mails)
+
+        ipsWorldMissing = len([[y for y in self.countriesMissing[x]] for x in self.countriesMissing])
+        ipsWorldFound = len([[y for y in self.mailWorld.mails[x]] for x in self.mailWorld.mails])
+        
+        countriesMissing = len(self.countriesMissing)
+        countriesFound = len(self.mailWorld.mails)
+
+        ipsCzMissing = len(self.mailCz.getOrphans())
+        ipsCzFound = len([[y for y in self.mailCz.mails[x]] for x in self.mailCz.mails]) - ipsCzMissing
+
+        if ipsUnique > 0:
+            res = "Celkem {} unikátních IP adres".format(ipsUnique)
+        else:
+            res = "žádná IP adresa"
+        if ipsWorldFound or countriesFound:
+            res += "; z toho nalezených {} IP adres".format(ipsWorldFound) \
+            + " v {} zemích".format(countriesFound)
+        if ipsWorldMissing or countriesMissing:
+            + " a nenalezených {} IP adres".format(ipsWorldMissing) \
+            + " v {} zemích".format(countriesMissing)
+        if ipsCzFound or ispCzFound:
+            res += "; {} IP adres jsme distribuovali".format(ipsCzFound) \
+            + " {} českým ISP".format(ispCzFound)
+        if ipsCzMissing:
+            res += " a pro {} IP jsme ISP nenalezli.".format(ipsCzMissing)
+
+        return res + "."
 
     def __exit__(self):
         pass
