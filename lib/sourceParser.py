@@ -55,25 +55,28 @@ class SourceParser:
             #nacist CSV
             self._loadCsv(sourceFile, repeating)
 
-            sys.stdout.write("Is everything correct? [y]/n ")
+            sys.stdout.write("Bylo všechno zadáno v pořádku? [y]/n ")
             if input() == "n":
                 repeating = True
                 continue #zopakovat
             else:
                 self.mailCz = False #deklarace dopisu pro cz
                 self.mailWorld = False #deklarace dopisu pro svet
-                self.launchWhois()
+                self.launchWhois()                
                 break
 
     def launchWhois(self): #spusti dlouhotrvajici processing souboru                        
         self._lines2logs()
-        self._logs2countries()        
+        self._logs2countries()
+
+        self.mailCz = MailList("mail_cz", Config.get("mail_template_cz")) # dopis pro CZ
+        self.mailWorld = MailList("mail_world", Config.get("mail_template_world")) # dopis pro svet
 
         if 'cz' in self.countries: #CZ -> abuse maily
             self._buildListCz(self.countries.pop("cz"))
             self.applyCzCcList() # doplnujici Cc kontakty na cz abusemaily
 
-        self._buildListWorld() # World -> kontakty na maily CSIRTu
+        self.buildListWorld() # World -> kontakty na maily CSIRTu
 
     def _addInfo(self, txt):
         self.info += txt + "\n"
@@ -109,19 +112,29 @@ class SourceParser:
 
         #vyjmout z logu hlavicku
         hasHeader = csv.Sniffer().has_header(sample)
+
+        if hasHeader:
+            sys.stdout.write("Header present [y]/n: ")
+            if input().lower() not in ("y",""):
+                hasHeader = False
+        else:
+            sys.stdout.write("Header not present [y]/n: ")
+            if input().lower() not in ("y",""):
+                hasHeader = True
+
         if hasHeader == True:
             self.header = firstLine
-            self._addInfo("Header: found")
+            self._addInfo("Header: used")
             self.lines.pop(0)
         else:
-            self._addInfo("Header: not found")
+            self._addInfo("Header: not used")
 
         fields = firstLine.split(self.delimiter)
 
         # sloupec IP
         def _findIpCol():
             found = False
-            if repeating == False: # dialog jede poprve, zkusit autodetekci
+            if repeating == False: # dialog jede poprve, zkusit autodetekci                
                 ipNames = ["ip", "sourceipaddress", "ipaddress", "source"] #mozne nazvy ip sloupcu - bez mezer
                 for fieldname in fields:
                     field = fieldname.replace(" ", "").replace("'", "").replace('"', "").lower()
@@ -132,11 +145,17 @@ class SourceParser:
                             break
                     else: #csv nema hlavicku -> pgrep IP, jinak se zeptat uzivatele na cislo sloupce
                         if Whois.checkIp(field): #pokud neni IP, vyhodi chybu. Mozna nezvladne vsechny mozne zkracene verze zapisu IP.
-                            self._addInfo("IP found: " + fieldname)
+                            #self._addInfo("IP found: " + fieldname)
                             found = True
                             break #toto je ip, konec hledani
-                            
                     self.ipField += 1
+
+                if found == True:
+                    sys.stdout.write("Is IP field column: {}? [y]/n ".format(fieldname))
+                    if input().lower() in ("y",""):
+                        self._addInfo("IP column: " + fields[self.ipField])
+                    else:
+                        found = False
 
             if found == False:#IP jsme nenalezli, dat uzivateli na vyber
                 i = 1
@@ -192,19 +211,19 @@ class SourceParser:
             if found == False:#AS jsme nenalezli, dat uzivateli na vyber
                 i = 1
                 print("\nWhat is ASN column:")
-                print("0. no ASN column")
+                print("[0]. no ASN column")
                 for fieldname in fields:#vypsat sloupce
                     print(str(i) + ". " + fieldname)
                     i += 1
                 try: #zeptat se uzivatele na cislo sloupce
                     self.asnField = int(input('ASN column: ')) -1
                 except ValueError:
-                    print("This is not a number")
-                    raise
+                    #print("This is not a number.")
+                    self.asnField = -1 # -> ASN not used
                 if self.asnField == -1:
                     self._addInfo("ASN will not be used.")
                 else:
-                    self._addInfo("ASN column:" + fields[self.asnField])
+                    self._addInfo("ASN column: " + fields[self.asnField])
 
         _findIpCol()
         _findAsnCol()
@@ -235,7 +254,10 @@ class SourceParser:
                         log += self.delimiter + ip # do posledniho sloupce prida nove zjistenou ip
 
                     if self.asnField != -1:
-                        self.ip2asn[ip] = fields[self.asnField].replace(" ", "") #klic je ip
+                        str = fields[self.asnField].replace(" ", "")
+                        if str[0:2] != "AS":
+                            str = "AS"+str
+                        self.ip2asn[ip] = str #klic je ip
 
                     self.logs[ip].add(log) #ulozit novy log do klice
             except:
@@ -312,7 +334,7 @@ class SourceParser:
     #    Pokud se tak nekdy stane, na ASN abuse mail se poslou pouze logy z IP, ktere nalezi do CZ.
     #    
     def _buildListCz(self, ips):
-        self.mailCz = MailList("mail_cz", Config.get("mail_template_cz")) # dopis pro CZ
+        self.mailCz.resetMails()
         print("Querying whois for mails.")
         if Config.getboolean('spare_b_flag') == False: # nesetrit B flag (rovnou pouzivat queryMail force = True)
             # pro kazdou IP zvlast se zepta na abusemail
@@ -427,8 +449,8 @@ class SourceParser:
     #
     #pak hledá statické kontakty.
     #    
-    def _buildListWorld(self):
-        self.mailWorld = MailList("mail_world", Config.get("mail_template_world")) # dopis pro svet
+    def buildListWorld(self):
+        self.mailWorld.resetMails()
         file = Config.get("contacts_world")
         if os.path.isfile(file) == False: #soubor s kontakty
             print("Soubor s world kontakty {} nenalezen. ".format(file))
@@ -518,7 +540,7 @@ class SourceParser:
     def soutDetails(self):        
         print("\nCZ\n"+str(self.mailCz))
         print("\nWorld\n"+str(self.mailWorld))
-        print("\nMissing csirmails\n"+str(self.countriesMissing) if len(self.countriesMissing) else "Všechny world IP jsou OK přiřazeny")
+        print("\nMissing world mails\n"+str(self.countriesMissing) if len(self.countriesMissing) else "Všechny world IP jsou OK přiřazeny")
 
     def __exit__(self):
         pass

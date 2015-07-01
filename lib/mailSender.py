@@ -140,7 +140,7 @@ class MailSender():
                       ("TicketID", str(csv.ticketid)),
                       ("Email", TICKETEMAIL),
                       ("From", FROMADDR),
-                      ("To", "edvard.rejthar+otrs_test@nic.cz"), # XXX sem ma prijit mail (nebo maily oddelene carkou ci strednikem, primo z whois), po otestovani. XX Jdou pouzit maily oddelene strednikem i vice stredniky? mail;mail2;;mail3 (kvuli retezeni v cc pro pripad, ze je vic domen)
+                      ("To", mail), # X "edvard.rejthar+otrs_test@nic.cz" sem ma prijit mail (nebo maily oddelene carkou ci strednikem, primo z whois), po otestovani. XX Jdou pouzit maily oddelene strednikem i vice stredniky? mail;mail2;;mail3 (kvuli retezeni v cc pro pripad, ze je vic domen)
                       ("Subject", subject),
                       ("SignKeyID", SIGNKEYID),
                       ("Body", body),
@@ -187,9 +187,15 @@ class MailSender():
         return len(mailList.mails) == sentMails
 
     def askValue(value, description = ""):
-        if value == False or (sys.stdout.write('Change {} ({})? y/[n]'.format(description,value)) and (input() in ("Y", "y"))):
-                sys.stdout.write("{}: ".format(description))
-                value = input()
+        while True:
+            if value != False:
+                sys.stdout.write('Change {} ({})? y/[n] '.format(description,value))
+                if input().lower() in ("n", ""):
+                    break
+            sys.stdout.write("{}: ".format(description))
+            value = input()
+            if value != False:
+                break
         return value
 
     def assureTokens(csv):        
@@ -205,6 +211,8 @@ class MailSender():
                 csv.cookie = MailSender.askValue(csv.cookie,"cookie")
                 csv.token = MailSender.askValue(csv.token,"token")
                 csv.attachmentName = MailSender.askValue(csv.attachmentName,"attachment name")
+                if csv.attachmentName[-4:] != ".txt":
+                    csv.attachmentName += ".txt"
 
             sys.stdout.write("Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachmentName = {}.\nWas that correct? [y]/n".format(csv.ticketid, csv.ticketnum, csv.cookie, csv.token, csv.attachmentName))
             if input().lower() in ("y", ""):

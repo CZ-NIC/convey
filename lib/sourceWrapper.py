@@ -23,11 +23,12 @@ class SourceWrapper:
         info = os.stat(self.file)
         self.hash = str(hash(info.st_size + info.st_mtime))
 
-        MailList.setHash(self.hash)
-        MailList.setDir(os.path.dirname(file) + "/")
+        #MailList.setHash(self.hash)
+        #MailList.setDir(os.path.dirname(file) + "/")
 
         # cache-file s metadaty zdrojoveho souboru
-        self.cacheFile = os.path.dirname(file) +"/"+ ntpath.basename(self.file) + self.hash + ".tmp" #"cache/" +        
+        Config.setCacheDir(os.path.dirname(file) +"/"+ ntpath.basename(self.file) + self.hash + "/")
+        self.cacheFile = Config.getCacheDir() + ntpath.basename(self.file) + ".cache" #"cache/" +
         if os.path.isfile(self.cacheFile):
             print("Soubor {} již byl zpracován.".format(self.file))
             try: # zkousime rozpicklovat
@@ -42,8 +43,10 @@ class SourceWrapper:
                     self._treat()
             self.csv.soutInfo()
         else:
+            if not os.path.exists(Config.getCacheDir()):
+                os.makedirs(Config.getCacheDir())
             self._treat() #zpracuje soubor
-
+    
     ##
     # Ulozime v YAML nebo picklu.
     def save(self):
@@ -58,6 +61,8 @@ class SourceWrapper:
 
     def _treat(self): # zpracuje zdroj 
         self.csv = SourceParser(self.file)
+        self.csv.cookie = Config.get("cookie")
+        self.csv.token = Config.get("token")
         self.save()
         
         

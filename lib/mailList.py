@@ -4,6 +4,7 @@ import os
 import webbrowser
 import subprocess
 import re
+from lib.config import Config
 
 class MailList:
 
@@ -15,9 +16,14 @@ class MailList:
         self.mails = defaultdict(_Mail) #defaultdict(set)
         self.listName = listName
         self.templateFile = templateFile
-        self.mailFile = MailList.dir +  self.listName + MailList.hash + ".txt" # ex: csirt/2015/mail_cz5615616.txt
+
+        self.mailFile = Config.getCacheDir() + self.listName + ".txt" # ex: csirt/2015/mail_cz5615616.txt XMailList.dir +  + MailList.hash
 
         self.guiEdit()
+
+    # Zahodi strukturu mailu.
+    def resetMails(self):
+        self.mails = defaultdict(_Mail)
 
 
     # Vraci set IP, ktera nemaji zadny e-mail.
@@ -31,13 +37,13 @@ class MailList:
             return set()
 
 
-    hash = "" # hash se pripoji k temp-souboru, ktery obsahuje bodytext
-    def setHash(hash):
-        MailList.hash = hash
+    #hash = "" # hash se pripoji k temp-souboru, ktery obsahuje bodytext
+    #def setHash(hash):
+    #    MailList.hash = hash
     
-    dir = "cache/" # vcetne lomitka
-    def setDir(dir):
-        MailList.dir = dir
+    #dir = "cache/" # vcetne lomitka
+    #def setDir(dir):
+    #    MailList.dir = dir
         
 
     # get body text
@@ -96,7 +102,8 @@ class MailList:
     # mail = mail@example.com;mail2@example2.com -> [example.com, example2.com]
     def getDomains(mail):
         try:
-            return set(re.findall("@([\w.]+)", mail))
+            #return set(re.findall("@([\w.]+)", mail))
+            return set([x[0] for x in re.findall("@(([A-Za-z0-9-]{1,63}\.)+[A-Za-z]{2,6})", mail)])
         except AttributeError:
             return []
 

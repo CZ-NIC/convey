@@ -61,7 +61,7 @@ class Whois:
 
 
     def _exec(cmd):
-        #print("exec: {}".format(cmd))
+        #debug: print("exec: {}".format(cmd))
         sys.stdout.write('.') # at uzivatel vidi, ze se neco deje - (mozna nebude vypadat dobre)
         sys.stdout.flush() # XX: tohle zkusit zakomentovat, jestli se preci jen neco vypise...
         p = Popen([cmd], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)

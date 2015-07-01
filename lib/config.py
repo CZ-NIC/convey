@@ -18,4 +18,10 @@ class Config:
         #Config.config.set('CONVEY',key,val)
         #with open(Config.file,"w") as f:
             #Config.config.write(f)
+    cacheDir = ""
+    def setCacheDir(dir):
+        Config.cacheDir = dir
+
+    def getCacheDir():
+        return Config.cacheDir
             

@@ -1,11 +1,17 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
-from lib.sourcePicker import SourcePicker
-from lib.sourceWrapper import SourceWrapper
-from lib.mailSender import MailSender
-from lib.config import Config
-import os.path
-import sys
+try:
+  import traceback
+  import os.path
+  import sys
+  from lib.sourcePicker import SourcePicker
+  from lib.sourceWrapper import SourceWrapper
+  from lib.mailSender import MailSender
+  from lib.config import Config  
+except ImportError:
+  traceback.print_exc()
+  print("\nZkuste nainstalovat knihovny spuštěním přiloženého skriptu install.sh")
+  quit()
 __shortdoc__ = """OTRS Convey -> tlumočník pro OTRS"""
 __doc__ = """Tlumočník pro OTRS.
  Spouští se příkazem: convey.py [filename], přičemž [filename] je cesta ke zdrojovému souboru logů ve formátu CSV.
@@ -14,7 +20,7 @@ __doc__ = """Tlumočník pro OTRS.
 
  Místo sloupce IP lze užít sloupec s URL. V takovém případě skript z každé URL vytáhne doménu, přeloží ji na IP a přidá do CSV sloupec 'HOST_IP'. Pokud nalezne více IP, řádek s URL zduplikuje.
 
- Je třeba mít knihovnu tkinter, apt-get install python3-tkinter
+ Potřebné knihovny se nainstalují skriptem install.sh .
  -h, --help Nápověda
 """
 __author__ = "edvard"
@@ -47,33 +53,30 @@ if __name__ == "__main__":
         quit()
 
     file = SourcePicker() # cesta ke zdrojovemu souboru
-    wrapper = SourceWrapper(file) # "lab/zdroj.csv"
-    csv = wrapper.csv
-    csv.cookie = Config.get("cookie")
-    csv.token = Config.get("token")
+    wrapper = SourceWrapper(file) # "lab/zdroj.csv"        
 
     #menu
     while True:
-        print("\n Stats - IP: {}, CZ IP abusemailů: {}, world IP csirtmailů: {} ".format(
+        csv = wrapper.csv
+        print("\n Stats - IP: {}, CZ (abuse)mailů: {}, world (csirt)mailů: {} ".format(
               csv.getIpCount(),
               len(csv.mailCz.mails),
               len(csv.mailWorld.mails)
               ))
         if len(csv.mailCz.getOrphans()):
             print("Nezdařilo se dohledat abusemaily pro {} CZ IP.".format(len(csv.mailCz.getOrphans())))
-        if len(csv.countries):
+        if len(csv.countriesMissing):
             print("Nezdařilo se dohledat csirtmaily pro {} zemí.".format(len(csv.countriesMissing)))
 
         
         print("\n Hlavní menu:")
-        print("1 - Zaslat přes OTRS")
+        print("1 - Zaslat přes OTRS...")
         print("2 - Generovat soubory s IP bez kontaktu {}".format(csv.missingFilesInfo()))
         print("--")
         print("3 - Seznam abusemailů a počet IP")
         print("4 - Změnit text mailu")
         print("5 - Generovat všechny soubory ({} souborů)".format(len(csv.countries) + len(csv.mailCz.mails)))
-        print("6 - Zpracovat znovu")
-        print("7 - Zpracovat znovu jen whois")
+        print("6 - Zpracovat znovu...")
         print("x - Konec")
         sys.stdout.write("? ")
         sys.stdout.flush()
@@ -84,10 +87,21 @@ if __name__ == "__main__":
             wrapper.save() # preulozit cache soubor
             break
         elif option == "6":
-            wrapper.clear()
-            continue
-        elif option == "7":
-            csv.launchWhois()
+            print("1 Zpracovat celý soubor znovu")
+            print("2 Zpracovat znovu jen whois")
+            print("3 Renačíst světové csirtmaily ze souboru")
+
+            sys.stdout.write("? ")
+            sys.stdout.flush()
+            option2 = input()
+
+            if option2 == "1":
+                wrapper.clear()
+            elif option2 == "2":
+                csv.launchWhois()
+            elif option2 == "3":
+                csv.buildListWorld()
+
             continue        
         elif option == "3":            
             csv.soutDetails()
@@ -104,23 +118,28 @@ if __name__ == "__main__":
             continue
         elif option == "1":
             MailSender.assureTokens(csv)
-            print("Poslat CZ abusemailům:")
-            if MailSender.sendList(csv.mailCz, csv): # poslat ceske maily
-                sys.stdout.write("Poslat světovým csirtmailům:")
-                if MailSender.sendList(csv.mailWorld, csv): # poslat svetove maily
-                    if len(csv.countries) > 0:
-                        print("Nyní můžete vygenerovat soubory bez kontaktu.")
-            else:
-                print("Nezdařilo se zaslat všechny české maily. Nebudu se pokoušet o zaslání světových mailů.")
+            print("1 Zaslat do CZ i do světa")
+            print("2 Zaslat jen do CZ")
+            print("3 Zaslat jen do světa")
+            print("x storno")
+            sys.stdout.write("? ")
+            sys.stdout.flush()
+            option = input()
+            if option == "1" or option == "2":
+                print("Posíláme do CZ...")
+                if not MailSender.sendList(csv.mailCz, csv): # poslat ceske maily
+                    print("Nezdařilo se zaslat všechny české maily. (Detaily v mailSender.log.)")
+            if option == "1" or option == "3":
+                print("Posíláme do světa...")
+                if not MailSender.sendList(csv.mailWorld, csv): # poslat svetove maily
+                    print("Nezdařilo se zaslat všechny světové maily. (Detaily v mailSender.log.)")
+                    #if len(csv.countries) > 0: print("Nyní můžete vygenerovat soubory bez kontaktu.")
             continue
+        elif option == "debug":
+            import pdb; pdb.set_trace()
         else:
             continue #zopakovat volbu
 
-    
-    
-
-    #csv.generateFiles()
-    #csv.detectMails()
 
     print("Finished.")
     
