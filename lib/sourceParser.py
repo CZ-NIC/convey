@@ -4,13 +4,13 @@ import csv
 from lib.config import Config
 from lib.mailList import MailList
 from lib.whois import Whois
+import ntpath
 import os
 import pickle
 from pprint import pprint
+import re
 import sys
 import threading
-import re
-import ntpath
 #import dill
 
 __author__ = "edvard"
@@ -83,7 +83,7 @@ class SourceParser:
         print(txt)
 
     ## Parsuje CSV file na policka a uhadne pole IP.
-    def _loadCsv(self, sourceFile, repeating = False):
+    def _loadCsv(self, sourceFile, repeating=False):
         #pripravit csv k analyze
         self._addInfo("Source file: " + sourceFile)
         csvfile = open(sourceFile, 'r')
@@ -101,7 +101,7 @@ class SourceParser:
         print("Sample rows:")
         print(sample)
         sys.stdout.write("Is character '{}' delimiter? [y]/n ".format(self.delimiter))
-        if input() not in ("Y","y",""):
+        if input() not in ("Y", "y", ""):
             sys.stdout.write("What is delimiter: ")
             self.delimiter = input()
             #sys.stdout.write("Correct? [y]/n ")
@@ -115,11 +115,11 @@ class SourceParser:
 
         if hasHeader:
             sys.stdout.write("Header present [y]/n: ")
-            if input().lower() not in ("y",""):
+            if input().lower() not in ("y", ""):
                 hasHeader = False
         else:
             sys.stdout.write("Header not present [y]/n: ")
-            if input().lower() not in ("y",""):
+            if input().lower() not in ("y", ""):
                 hasHeader = True
 
         if hasHeader == True:
@@ -152,7 +152,7 @@ class SourceParser:
 
                 if found == True:
                     sys.stdout.write("Is IP field column: {}? [y]/n ".format(fieldname))
-                    if input().lower() in ("y",""):
+                    if input().lower() in ("y", ""):
                         self._addInfo("IP column: " + fields[self.ipField])
                     else:
                         found = False
@@ -203,7 +203,7 @@ class SourceParser:
                     self.asnField += 1
                 if found == True: # mozna to naslo blby nazev
                     sys.stdout.write("Is ASN field column: {}? [y]/n ".format(fieldname))
-                    if input().lower() in ("y",""):
+                    if input().lower() in ("y", ""):
                         self._addInfo("ASN column:" + fields[self.asnField])
                     else:
                         found = False
@@ -246,7 +246,7 @@ class SourceParser:
 
                 if len(ips) > 1:
                     extend = len(ips) -1 # kolik novych radku do logs pribyva
-                    print("Host {} má {} ip adres: {}".format(fields[self.hostField],len(ips),ips))
+                    print("Host {} má {} ip adres: {}".format(fields[self.hostField], len(ips), ips))
 
                 for ip in ips:
                     log = row
@@ -256,7 +256,7 @@ class SourceParser:
                     if self.asnField != -1:
                         str = fields[self.asnField].replace(" ", "")
                         if str[0:2] != "AS":
-                            str = "AS"+str
+                            str = "AS" + str
                         self.ip2asn[ip] = str #klic je ip
 
                     self.logs[ip].add(log) #ulozit novy log do klice
@@ -471,7 +471,7 @@ class SourceParser:
 
         # info, co delat s chybejicimi abusemaily
         if len(missing) > 0:
-            sys.stdout.write("Chybí csirtmail na {} zemí: {}\n".format(len(missing),", ".join(missing)))
+            sys.stdout.write("Chybí csirtmail na {} zemí: {}\n".format(len(missing), ", ".join(missing)))
             print("Doplňte csirtmaily do souboru s kontakty zemí (viz config.ini) a spusťte znovu whois! \n")
         else:
             sys.stdout.write("World whois OK! \n")
@@ -480,14 +480,14 @@ class SourceParser:
 
     def missingFilesInfo(self):
         return "({} souborů, {} world a {} cz kontaktů)".format(
-            len(self.countriesMissing) + (1 if len(self.mailCz.getOrphans()) else 0),
-            len(self.countriesMissing),
-            len(self.mailCz.getOrphans()))
+                                                                len(self.countriesMissing) + (1 if len(self.mailCz.getOrphans()) else 0),
+                                                                len(self.countriesMissing),
+                                                                len(self.mailCz.getOrphans()))
         
 
     ## Zapise soubory logu, rozdelenych po zemich.
     # dir - adresar bez koncoveho lomitka
-    def generateFiles(self, dir, missingOnly = False):
+    def generateFiles(self, dir, missingOnly=False):
         if missingOnly:
             extension = "-missing.tmp"
             files = self.countriesMissing.copy()
@@ -506,9 +506,9 @@ class SourceParser:
                     count += 1
                     f.write(self.ips2logfile(files[file]))
 
-        print("Generated {} files to directory {} .".format(count,dir))
+        print("Generated {} files to directory {} .".format(count, dir))
 
-    def ips2logfile(self,ips):
+    def ips2logfile(self, ips):
         result = []
         if self.header != "": #pokud mame hlavicku, pridat ji na zacatek souboru
             result.append(self.header)
@@ -540,9 +540,9 @@ class SourceParser:
     def soutDetails(self):
         print("**************************")
         print("Stav interních proměnných:")
-        print("\nCZ\n"+str(self.mailCz))
-        print("\nWorld\n"+str(self.mailWorld))
-        print("\nMissing world mails\n"+str(self.countriesMissing) if len(self.countriesMissing) else "Všechny world IP jsou OK přiřazeny")
+        print("\nCZ\n" + str(self.mailCz))
+        print("\nWorld\n" + str(self.mailWorld))
+        print("\nMissing world mails\n" + str(self.countriesMissing) if len(self.countriesMissing) else "Všechny world IP jsou OK přiřazeny")
         #print("\nStatistický přehled:")print(self.getStatsPhrase())
 
     # Vypise vetu:
@@ -572,20 +572,20 @@ class SourceParser:
         ipsCzFound = len([[y for y in self.mailCz.mails[x]] for x in self.mailCz.mails]) - ipsCzMissing
 
         if ipsUnique > 0:
-            res = "Celkem {} unikátních IP adres".format(ipsUnique)
+            res = "Celkem {} unikátních IP".format(ipsUnique)
         else:
             res = "žádná IP adresa"
         if ipsWorldFound or countriesFound:
-            res += "; z toho nalezených {} IP adres".format(ipsWorldFound) \
-            + " v {} zemích".format(countriesFound)
-        if ipsWorldMissing or countriesMissing:
-            + " a nenalezených {} IP adres".format(ipsWorldMissing) \
-            + " v {} zemích".format(countriesMissing)
+            res += "; informace zaslána do {} zemí".format(countriesFound) \
+            + " ({} unikátních IP adres)".format(ipsWorldFound)
+        if ipsWorldMissing or countriesMissing:            
+            res += ", do {} zemí neposláno, nemají národní/vládní CSIRT".format(countriesMissing) \
+            + " ({} unikátních IP adres)".format(ipsWorldMissing)
         if ipsCzFound or ispCzFound:
-            res += "; {} IP adres jsme distribuovali".format(ipsCzFound) \
-            + " {} českým ISP".format(ispCzFound)
+            res += "; {} unikátních IP adres v ČR".format(ipsCzFound) \
+            + " distribuováno {} ISP".format(ispCzFound)
         if ipsCzMissing:
-            res += " a pro {} IP jsme ISP nenalezli.".format(ipsCzMissing)
+            res += " (pro {} unikátních IP adres v ČR jsme ISP nenalezli)".format(ipsCzMissing)
 
         return res + "."
 
