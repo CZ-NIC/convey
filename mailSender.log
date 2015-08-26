@@ -1,14 +1,33 @@
 INFO:root:sending mails from list...
-INFO:root:mail fedor@mo-nex.cz
-WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'>
-
- *** Not logged in or wrong session cookie ***
+INFO:root:mail abuse@bluetone.cz
 INFO:root:sending mails from list...
-INFO:root:mail fedor@mo-nex.cz
-INFO:root:mail lir@miramo.cz
-INFO:root:mail abuse.cz@o2.com
-WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Unrecognized response: 20100224213000171 - Předat - Tiket -  OTRS
-ERROR:root:<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+INFO:root:sending mails from list...
+INFO:root:mail abuse@bluetone.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail abuse@comacomp.cz
+INFO:root:sending mails from list...
+INFO:root:mail cert@cert-hungary.hu
+INFO:root:sending mails from list...
+INFO:root:mail abuse@comacomp.cz
+INFO:root:sending mails from list...
+INFO:root:mail cert@cert-hungary.hu
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail abuse@nic.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail edvard.rejthar+otrs_test@nic.cz
+INFO:root:sending mails from list...
+INFO:root:mail edvard.rejthar+otrs_test@nic.cz
+INFO:root:sending mails from list...
+INFO:root:mail abuse@nic.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail abuse@nic.cz
+INFO:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Response:
+ <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <!--                                                                           -->
@@ -60,7 +79,7 @@ ERROR:root:<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
 
 
 
-    <title>20100224213000171 - Předat - Tiket -  OTRS</title>
+    <title>Předat - Tiket -  OTRS</title>
 
 
 <script type="text/javascript">//<![CDATA[
@@ -126,336 +145,6 @@ Core.App.BlockEvents();
 
 
 
-<form action="/otrs/index.pl" method="post" enctype="multipart/form-data" name="compose" id="Compose" class="Validate PreventMultipleSubmits"><input type="hidden" name="ChallengeToken" value="2901cddb3765579078377965d425c21d"/>
-    <input type="hidden" name="Action" value="AgentTicketForward"/>
-    <input type="hidden" name="Subaction" value="SendEmail"/>
-    <input type="hidden" name="TicketID" value="7056"/>
-    <input type="hidden" name="Email" value=""/>
-    <input type="hidden" name="InReplyTo" value=""/>
-    <input type="hidden" name="References" value=""/>
-    <input type="hidden" name="FormID" value="1434022513.1088910.55317895"/>
-
-    <div class="LayoutPopup ARIARoleMain">
-        <div class="Header">
-            <h1>Forward ticket: 20100224213000171 - </h1>
-
-
-
-
-        </div>
-
-        <div class="Content">
-
-            <h2>Možnosti</h2>
-
-            <fieldset class="TableLike FixedLabel">
-                <label>Od:</label>
-                <div class="Value">
-                    &quot;CSIRT.CZ Abuse Team&quot; &lt;abuse@csirt.cz&gt;
-                    <input type="hidden" name="From" value="&quot;CSIRT.CZ Abuse Team&quot; &lt;abuse@csirt.cz&gt;"/>
-                </div>
-                <div class="Clear"></div>
-
-                <label class="Mandatory" for="CustomerAutoComplete"><span class="Marker">*</span>Komu:</label>
-                <div class="Field">
-                    <input type="text" name="To" id="CustomerAutoComplete" value="edvard.rejthar+otrs_test@nic.cz" class="W50pc AutocompleteOff Validate_Required "/>
-                    <div id="CustomerAutoCompleteError" class="TooltipErrorMessage" ><p>This field is required.</p></div>
-                    <div id="CustomerAutoCompleteServerError" class="TooltipErrorMessage"><p>Need a valid email address or don't use a local email address.</p></div>
-                </div>
-                <div class="Clear"></div>
-
-                <label for="Cc">Kopie:</label>
-                <div class="Field">
-                    <input type="text" name="Cc" id="Cc" value="o2test;"  class="W50pc ServerError" />
-                    <div id="CcServerError" class="TooltipErrorMessage"><p>Need a valid email address or don't use a local email address</p></div>
-                </div>
-                <div class="Clear"></div>
-
-                <label for="Bcc">Slepá kopie:</label>
-                <div class="Field">
-                    <input type="text" name="Bcc" id="Bcc" value="" class="W50pc " />
-                    <div id="BccServerError" class="TooltipErrorMessage"><p>Need a valid email address or don't use a local email address</p></div>
-                </div>
-                <div class="Clear"></div>
-
-                <label class="Mandatory" for="Subject"><span class="Marker">*</span>Předmět:</label>
-                <div class="Field">
-                    <input type="text" name="Subject" id="Subject" value="Fwd: [Ticket#20100224213000171] Předmět" class="W50pc Validate_Required "/>
-                    <div id="SubjectError" class="TooltipErrorMessage"><p>This field is required.</p></div>
-                    <div id="SubjectServerError" class="TooltipErrorMessage"><p>This field is required.</p></div>
-                </div>
-                <div class="Clear"></div>
-
-
-                <label>Podepsat:</label>
-                <div class="Field">
-                    <select name="SignKeyID" id="SignKeyID">
-  <option value="">-žádný-</option>
-  <option value="PGP::Detached::B187176C" selected="selected">PGP-Detached: B187176C [never] CSIRT.CZ Abuse team &lt;csirt@csirt.cz&gt;, CSIRT.CZ Abuse team &lt;abuse@csir[..]</option>
-  <option value="PGP::Inline::B187176C">PGP-Inline: B187176C [never] CSIRT.CZ Abuse team &lt;csirt@csirt.cz&gt;, CSIRT.CZ Abuse team &lt;abuse@csirt.[..]</option>
-</select>
-                    <p class="Error"></p>
-                </div>
-                <div class="Clear"></div>
-                <label>Šifrovat:</label>
-                <div class="Field">
-                    <select name="CryptKeyID" id="CryptKeyID">
-  <option value="">-žádný-</option>
-</select>
-                    <p class="Error"></p>
-                </div>
-                <div class="Clear"></div>
-
-
-                <label>Možnosti:</label>
-                <div class="Field">
-
-<!-- OutputFilterHook_TicketOptionsBegin -->
-
-
-
-                    <a href="#" id="OptionAddressBook">[ Address book ]</a>
-
-<!-- OutputFilterHook_TicketOptionsEnd -->
-
-                </div>
-                <div class="Clear"></div>
-
-<!-- OutputFilterHook_NoTicketOptionsFallback -->
-
-                <label class="Mandatory" for="RichText"><span class="Marker">*</span>Text:</label>
-                <div class="RichTextField">
-
-                    <textarea id="RichText" name="Body" rows="15" cols="82" class="RichText Validate_Required "></textarea>
-                    <div id="RichTextError" class="TooltipErrorMessage"><p>This field is required.</p></div>
-                    <div id="RichTextServerError" class="TooltipErrorMessage"><p>This field is required.</p></div>
-                </div>
-                <div class="Clear"></div>
-
-                <label>Příloha:</label>
-                <div class="Field">
-                    <ul>
-
-                        <li>
-                            <input id="FileUpload" name="FileUpload" type="file" size="40" />
-                            <input type="hidden" id="AttachmentUpload" name="AttachmentUpload" value="0" />
-                        </li>
-                    </ul>
-
-                </div>
-                <div class="Clear"></div>
-
-                <label for="ComposeStateID">Následující stav tiketu:</label>
-                <div class="Field">
-                    <select name="ComposeStateID" id="ComposeStateID">
-  <option value="20">IDS Informed</option>
-  <option value="4" selected="selected">otevřít</option>
-  <option value="11">timeout</option>
-  <option value="24">turris - bez reakce</option>
-  <option value="23">turris - nepotvrzeno</option>
-  <option value="21">turris - potvrzeno antivir</option>
-  <option value="22">turris - potvrzeno symptomy</option>
-  <option value="6">upomínka při čekání na vyřízení</option>
-  <option value="13">uzavřeno - informační</option>
-  <option value="16">uzavřeno - jsme informováni</option>
-  <option value="18">uzavřeno - neschopní vyřešit</option>
-  <option value="3">uzavřeno - nevyřešeno</option>
-  <option value="15">uzavřeno - odpad</option>
-  <option value="12">uzavřeno - organizační</option>
-  <option value="17">uzavřeno - pozitivní změna</option>
-  <option value="14">uzavřeno - upozornění</option>
-  <option value="2">uzavřeno - vyřešeno</option>
-  <option value="7">čeká na vyřízení - automaticky zavřít+</option>
-  <option value="8">čeká na vyřízení - automaticky zavřít-</option>
-</select>
-                </div>
-                <div class="Clear"></div>
-
-                <label>Očekávaný čas vyřízení (pro stavy očekávání*):</label>
-                <div class="Field">
-                    <select name="Day" title="Day" id="Day" class="Validate_DateDay Validate_DateYear_Year Validate_DateMonth_Month Validate_DateInFuture  ">
-  <option value="1">01</option>
-  <option value="2">02</option>
-  <option value="3">03</option>
-  <option value="4">04</option>
-  <option value="5">05</option>
-  <option value="6">06</option>
-  <option value="7">07</option>
-  <option value="8">08</option>
-  <option value="9">09</option>
-  <option value="10">10</option>
-  <option value="11">11</option>
-  <option value="12" selected="selected">12</option>
-  <option value="13">13</option>
-  <option value="14">14</option>
-  <option value="15">15</option>
-  <option value="16">16</option>
-  <option value="17">17</option>
-  <option value="18">18</option>
-  <option value="19">19</option>
-  <option value="20">20</option>
-  <option value="21">21</option>
-  <option value="22">22</option>
-  <option value="23">23</option>
-  <option value="24">24</option>
-  <option value="25">25</option>
-  <option value="26">26</option>
-  <option value="27">27</option>
-  <option value="28">28</option>
-  <option value="29">29</option>
-  <option value="30">30</option>
-  <option value="31">31</option>
-</select>/<select name="Month" title="Month" id="Month" class="Validate_DateMonth">
-  <option value="1">01</option>
-  <option value="2">02</option>
-  <option value="3">03</option>
-  <option value="4">04</option>
-  <option value="5">05</option>
-  <option value="6" selected="selected">06</option>
-  <option value="7">07</option>
-  <option value="8">08</option>
-  <option value="9">09</option>
-  <option value="10">10</option>
-  <option value="11">11</option>
-  <option value="12">12</option>
-</select>/<select name="Year" title="Year" id="Year" class="Validate_DateYear">
-  <option value="2015" selected="selected">2015</option>
-  <option value="2016">2016</option>
-  <option value="2017">2017</option>
-  <option value="2018">2018</option>
-  <option value="2019">2019</option>
-  <option value="2020">2020</option>
-</select> - <select name="Hour" title="Hours" id="Hour" class="Validate_DateHour  ">
-  <option value="0">00</option>
-  <option value="1">01</option>
-  <option value="2">02</option>
-  <option value="3">03</option>
-  <option value="4">04</option>
-  <option value="5">05</option>
-  <option value="6">06</option>
-  <option value="7">07</option>
-  <option value="8">08</option>
-  <option value="9">09</option>
-  <option value="10">10</option>
-  <option value="11">11</option>
-  <option value="12">12</option>
-  <option value="13" selected="selected">13</option>
-  <option value="14">14</option>
-  <option value="15">15</option>
-  <option value="16">16</option>
-  <option value="17">17</option>
-  <option value="18">18</option>
-  <option value="19">19</option>
-  <option value="20">20</option>
-  <option value="21">21</option>
-  <option value="22">22</option>
-  <option value="23">23</option>
-</select>:<select name="Minute" title="Minutes" id="Minute" class="Validate_DateMinute  ">
-  <option value="0">00</option>
-  <option value="1">01</option>
-  <option value="2">02</option>
-  <option value="3">03</option>
-  <option value="4">04</option>
-  <option value="5">05</option>
-  <option value="6">06</option>
-  <option value="7">07</option>
-  <option value="8">08</option>
-  <option value="9">09</option>
-  <option value="10">10</option>
-  <option value="11">11</option>
-  <option value="12">12</option>
-  <option value="13">13</option>
-  <option value="14">14</option>
-  <option value="15">15</option>
-  <option value="16">16</option>
-  <option value="17">17</option>
-  <option value="18">18</option>
-  <option value="19">19</option>
-  <option value="20">20</option>
-  <option value="21">21</option>
-  <option value="22">22</option>
-  <option value="23">23</option>
-  <option value="24">24</option>
-  <option value="25">25</option>
-  <option value="26">26</option>
-  <option value="27">27</option>
-  <option value="28">28</option>
-  <option value="29">29</option>
-  <option value="30">30</option>
-  <option value="31">31</option>
-  <option value="32">32</option>
-  <option value="33">33</option>
-  <option value="34">34</option>
-  <option value="35" selected="selected">35</option>
-  <option value="36">36</option>
-  <option value="37">37</option>
-  <option value="38">38</option>
-  <option value="39">39</option>
-  <option value="40">40</option>
-  <option value="41">41</option>
-  <option value="42">42</option>
-  <option value="43">43</option>
-  <option value="44">44</option>
-  <option value="45">45</option>
-  <option value="46">46</option>
-  <option value="47">47</option>
-  <option value="48">48</option>
-  <option value="49">49</option>
-  <option value="50">50</option>
-  <option value="51">51</option>
-  <option value="52">52</option>
-  <option value="53">53</option>
-  <option value="54">54</option>
-  <option value="55">55</option>
-  <option value="56">56</option>
-  <option value="57">57</option>
-  <option value="58">58</option>
-  <option value="59">59</option>
-</select>
-                    <div id="DayServerError" class="TooltipErrorMessage"><p>Date Invalid!</p></div>
-                    <div id="HourServerError" class="TooltipErrorMessage"><p>Date Invalid!</p></div>
-                </div>
-                <div class="Clear"></div>
-
-                <label for="ArticleTypeID">Typ položky:</label>
-                <div class="Field">
-                    <select name="ArticleTypeID" id="ArticleTypeID">
-  <option value="1" selected="selected">externí email</option>
-  <option value="2">interní email</option>
-</select>
-                </div>
-                <div class="Clear"></div>
-
-
-
-
-
-
-
-
-
-
-
-                <label for="TimeUnits">Jednotky času(jednotky práce):</label>
-
-
-                <div class="Field">
-                    <input type="text" name="TimeUnits" id="TimeUnits" value="" class="W20pc Validate_TimeUnits  "/>
-                    <div id="TimeUnitsError" class="TooltipErrorMessage"><p>Neplatný čas</p></div>
-                    <div id="TimeUnitsServerError" class="TooltipErrorMessage"><p>This field is required.</p></div>
-                </div>
-                <div class="Clear"></div>
-
-            </fieldset>
-        </div>
-        <div class="Footer">
-            <button class="Primary" id="submitRichText" accesskey="g" title="Poslat mail! (g)" type="submit" value="Poslat mail!" >Poslat mail!</button>
-        </div>
-    </div>
-</form>
-
-
-
 
 <script type="text/javascript" src="/otrs-web/js/js-cache/CommonJS_5ceb29242f4ad99d046a80743353468e.js"></script>
 
@@ -471,9 +160,9 @@ Core.App.Ready(function () {
         Baselink: '/otrs/index.pl?',
         CGIHandle: '/otrs/index.pl',
         Action: 'AgentTicketForward',
-        SessionIDCookie: '2285e6ef243a656395b859954b5f2b89cae',
+        SessionIDCookie: '22852de5030eff47670c5b78097fa32ab98',
         SessionName: 'Session',
-        SessionID: '2285e6ef243a656395b859954b5f2b89cae',
+        SessionID: '22852de5030eff47670c5b78097fa32ab98',
         CustomerPanelSessionName: 'CSID',
         Images: '/otrs-web/skins/Agent/default/img/',
         UserLanguage: 'cs',
@@ -525,36 +214,13 @@ Core.App.Ready(function () {
 
 
 
-    Core.Config.Set('Autocomplete.QueryDelay', "100");
-    Core.Config.Set('Autocomplete.MaxResultsDisplayed', "20");
-    Core.Config.Set('Autocomplete.MinQueryLength', "2");
-    Core.Config.Set('Autocomplete.DynamicWidth', "1");
-    Core.Config.Set('Autocomplete.ShowCustomerTickets', "1");
-    Core.Config.Set('Autocomplete.SearchButtonText', "Vyhledat Zákazníka");
-    Core.Agent.CustomerSearch.Init($("#CustomerAutoComplete"), 1);
-
-
-
-    $('#FileUpload').bind('change', function () {
-        var $Form = $('#FileUpload').closest('form');
-        Core.Form.Validate.DisableValidation($Form);
-        $Form.find('#AttachmentUpload').val('1').end().submit();
-    });
-
-
-        Core.UI.Datepicker.Init({
-            Day: $('#Day'),
-            Month: $('#Month'),
-            Year: $('#Year'),
-            Hour: $('#Hour'),
-            Minute: $('#Minute'),
-            DateInFuture: true,
-            WeekDayStart: 1
-        });
-    
-    
-
-    Core.Agent.TicketAction.Init();
+if (window.opener) {
+    window.opener.Core.UI.Popup.FirePopupEvent('URL', { URL: '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=90913' });
+    window.close();
+}
+else {
+    window.location.href = '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=90913';
+}
 
 
 
@@ -570,42 +236,4 @@ Core.App.Ready(function () {
 
 </body>
 </html>
-INFO:root:sending mails from list...
-INFO:root:mail abuse@fiber.cz
-WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'>
-
- *** Not logged in or wrong session cookie ***
-INFO:root:sending mails from list...
-INFO:root:mail abuse@fiber.cz
-WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'>
-
- *** Not logged in or wrong session cookie ***
-INFO:root:sending mails from list...
-INFO:root:mail nic@t-mobile.cz
-INFO:root:mail lir@miramo.cz
-INFO:root:mail abuse@upcbroadband.cz
-INFO:root:mail helpdesk.losan@internethome.cz
-INFO:root:mail fedor@mo-nex.cz
-INFO:root:mail abuse@fiber.cz
-INFO:root:mail abuse@bluetone.cz
-INFO:root:mail abuse.cz@o2.com
-INFO:root:sending mails from list...
-INFO:root:sending mails from list...
-INFO:root:mail abuse.cz@o2.com
-INFO:root:mail fedor@mo-nex.cz
-INFO:root:mail lir@miramo.cz
-INFO:root:mail abuse@fiber.cz
-INFO:root:mail helpdesk.losan@internethome.cz
-INFO:root:mail abuse@upcbroadband.cz
-INFO:root:mail abuse@bluetone.cz
-INFO:root:mail nic@t-mobile.cz
-INFO:root:sending mails from list...
-INFO:root:sending mails from list...
-INFO:root:sending mails from list...
-INFO:root:sending mails from list...
-INFO:root:sending mails from list...
-INFO:root:sending mails from list...
-INFO:root:sending mails from list...
-INFO:root:sending mails from list...
-INFO:root:sending mails from list...
 INFO:root:sending mails from list...

@@ -4,6 +4,7 @@ from optparse import OptionParser
 import re
 import sys
 import logging
+from lib.config import Config
 
 HOST = 'otrs.nic.cz'
 BASEURI = '/otrs/index.pl'
@@ -121,6 +122,8 @@ class MailSender():
         sentMails = 0
         logging.info("sending mails from list...")
 
+        DEBUG = True if Config.get('debug') == "True" else False
+
         for mail in mailList.mails:
             
 
@@ -134,22 +137,29 @@ class MailSender():
                 print("Chybí subject nebo body text mailu.")
                 return False            
 
+            if DEBUG:
+                mailFinal = Config.get('debugMail')
+            else:
+                mailFinal = mail
+                
             fields = (
                       ("Action", "AgentTicketForward"),
                       ("Subaction", "SendEmail"),
                       ("TicketID", str(csv.ticketid)),
                       ("Email", TICKETEMAIL),
                       ("From", FROMADDR),
-                      ("To", mail), # X "edvard.rejthar+otrs_test@nic.cz" sem ma prijit mail (nebo maily oddelene carkou ci strednikem, primo z whois), po otestovani. XX Jdou pouzit maily oddelene strednikem i vice stredniky? mail;mail2;;mail3 (kvuli retezeni v cc pro pripad, ze je vic domen)
+                      ("To", mailFinal), # X "edvard.rejthar+otrs_test@nic.cz" sem ma prijit mail (nebo maily oddelene carkou ci strednikem, primo z whois), po otestovani. XX Jdou pouzit maily oddelene strednikem i vice stredniky? mail;mail2;;mail3 (kvuli retezeni v cc pro pripad, ze je vic domen)
                       ("Subject", subject),
                       ("SignKeyID", SIGNKEYID),
                       ("Body", body),
                       ("ArticleTypeID", "1"), # mail-external
                       ("ComposeStateID", "4"), # open
                       ("ChallengeToken", csv.token),
-                      )            
-            if mailList.mails[mail].cc:
-               fields += (("Cc", mailList.mails[mail].cc),)
+                      )
+
+            if DEBUG == False:
+                if mailList.mails[mail].cc:
+                   fields += (("Cc", mailList.mails[mail].cc),)
             
             # load souboru k zaslani
             contents = csv.ips2logfile(mailList.mails[mail])
@@ -157,7 +167,7 @@ class MailSender():
             logging.info("mail {}".format(mail))            
             print(mail)
             #print(mailList.mails[mail])
-            print(contents[:100] + " (sample)")# XX vypis zaznamu mozna zpomaluje skript
+            #print(contents[:100] + " (sample)")# XX vypis zaznamu mozna zpomaluje skript
             
             if csv.attachmentName and contents != "":
                 files = (("FileUpload", csv.attachmentName, contents),)
@@ -176,7 +186,8 @@ class MailSender():
             
             #print encode_multipart_formdata(fields, files)
             #import pdb;pdb.set_trace();
-            res = MailSender._post_multipart(HOST, BASEURI, fields=fields, files=files, cookies=cookies)
+
+            res = MailSender._post_multipart(HOST, BASEURI, fields=fields, files=files, cookies=cookies)            
             if not res or not MailSender._check_response (res.read()):
                 print("Zaslání se nezdařilo, viz mailSender.log.")
                 break

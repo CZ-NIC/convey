@@ -583,7 +583,7 @@ class SourceParser:
             + " ({} unikátních IP adres)".format(ipsWorldMissing)
         if ipsCzFound or ispCzFound:
             res += "; {} unikátních IP adres v ČR".format(ipsCzFound) \
-            + " distribuováno {} ISP".format(ispCzFound)
+            + " distribuováno pro {} ISP".format(ispCzFound)
         if ipsCzMissing:
             res += " (pro {} unikátních IP adres v ČR jsme ISP nenalezli)".format(ipsCzMissing)
 
