@@ -1,20 +1,22 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 try:
-  import traceback
-  import os.path
-  import sys
-  from lib.sourcePicker import SourcePicker
-  from lib.sourceWrapper import SourceWrapper
-  from lib.mailSender import MailSender
-  from lib.config import Config  
+    import traceback
+    import os.path
+    import sys, getopt
+    from lib.sourcePicker import SourcePicker
+    from lib.sourceWrapper import SourceWrapper
+    from lib.mailSender import MailSender
+    from lib.config import Config
 except ImportError:
-  traceback.print_exc()
-  print("\nZkuste nainstalovat knihovny spuštěním přiloženého skriptu install.sh")
-  quit()
+    traceback.print_exc()
+    print("\nZkuste nainstalovat knihovny spuštěním přiloženého skriptu install.sh")
+    quit()
 __shortdoc__ = """OTRS Convey -> tlumočník pro OTRS"""
 __doc__ = """Tlumočník pro OTRS.
- Spouští se příkazem: convey.py [filename], přičemž [filename] je cesta ke zdrojovému souboru logů ve formátu CSV.
+ Syntaxe:
+    ./convey.py [--id <OTRS ticket id>] [--num <OTRS ticket number>] [--cookie <OTRS cookie>] [--token <OTRS token>] [<filename>]
+ Parametr [filename] je cesta ke zdrojovému souboru logů ve formátu CSV.
  Pokud [filename] není zadán, skript se na něj zeptá.
  Skript se jej pokusí parsovat a zjistit sloupec s IP a ASN.
 
@@ -27,42 +29,54 @@ __author__ = "edvard"
 __date__ = "$Feb 26, 2015 8:13:25 PM$"
 
 
-#def __serialize(self):
-#        with open( "pickle3.tmp", "wb" ) as output:
-#            #data = (self.lines, self.logs, self.countries, self.ipMapping, self.isp, self.ipField, self.asnField, self.delimiter, self.whoisBCount)
-#            pickle.dump(self,output,-1)
-
-#def __deserialize(self):
-    #       obj = pickle.load( open( "pickle3.tmp", "rb" ) )
-        #      (self.lines, self.logs, self.countries, self.ipMapping, self.isp, self.ipField, self.asnField, self.delimiter, self.whoisBCount) = obj
-
-
 if __name__ == "__main__":    
-    #module findSource - ziskat zdrojovy soubor. Bud parametrem, nebo vyhledat ve strukture jeste nepouzity.
-    #module parseSource - vypsat prvni dva radky, overit, zda program zdrojovemu CSV rozumi
-
-    #DEBUG:
-    #file = "lab/zdroj.csv"
-    #csv = SourceWrapper(file)
-
     print(__shortdoc__)
 
-    #flagy prikazove radky - kontroler behu programu
+    #flagy prikazove radky - kontroler behu programu; parametry --id, --ticket, --cookie --token --attachmentName
     if set(["-h", "--help", "-?", "?", "/?"]).intersection(sys.argv):
         print(__doc__)
         quit()
 
     file = SourcePicker() # cesta ke zdrojovemu souboru
-    wrapper = SourceWrapper(file) # "lab/zdroj.csv"        
+    wrapper = SourceWrapper(file) # "lab/zdroj.csv"
+    csv = wrapper.csv
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "", ["","id=", "num=","cookie=","token="])
+    except getopt.GetoptError:
+        print(__doc__)        
+        sys.exit(2)
+    for opt, arg in opts:
+        #if opt in ('-h','-?',"--help"):
+        #    print(__doc__)
+        #    sys.exit()
+        if opt in ("--id"):
+            #Config.setTemp("ticketid",arg)
+            csv.ticketid = arg
+            print("Ticket id: {}".format(arg))            
+        elif opt in ("--num"):
+            csv.ticketnum = arg
+            #Config.setTemp("ticketnum",arg)
+            print("Ticket num: {}".format(arg))
+        elif opt in ("--cookie"):
+            csv.cookie = arg
+            #Config.setTemp("cookie",arg)
+            print("OTRS cookie: {}".format(arg))
+        elif opt in ("--token"):
+            csv.token = arg
+            #Config.setTemp("token",arg)
+            print("OTRS token: {}".format(arg))    
+    
 
     #menu
-    while True:
-        csv = wrapper.csv
+    while True:        
         #print("\n Stats - IP: {}, CZ (abuse)mailů: {}, world (csirt)mailů: {} ".format(
-              #csv.getIpCount(),
-              #len(csv.mailCz.mails),
-              #len(csv.mailWorld.mails)
-              #))
+            #csv.getIpCount(),
+            #len(csv.mailCz.mails),
+            #len(csv.mailWorld.mails)
+            #))
+        if Config.get('debug') == "True":
+            print("\n*** DEBUG MOD - maily budou zaslany na mail {} ***\n (Pro zrušení debug módu nastavte debug = False v config.ini.)".format(Config.get('debugMail')))
         print("Statistický přehled: " + csv.getStatsPhrase())
         if len(csv.mailCz.getOrphans()):
             print("Nezdařilo se dohledat abusemaily pro {} CZ IP.".format(len(csv.mailCz.getOrphans())))
@@ -111,7 +125,7 @@ if __name__ == "__main__":
         elif option == "2":
             print("1 - Generovat soubory s IP bez kontaktu {}".format(csv.missingFilesInfo()))
             print("2 - Generovat všechny soubory ({} souborů)".format(len(csv.countries) + len(csv.mailCz.mails)))
-            #print("3 - Generovat statistiky pro Martina")
+            print("3 - Generovat statistiky pro Martina")
             print("[x] - Storno")
             sys.stdout.write("? ")
             sys.stdout.flush()
@@ -121,15 +135,22 @@ if __name__ == "__main__":
                 csv.generateFiles(os.path.dirname(file), True)
             elif option2 == "2":
                 csv.generateFiles(os.path.dirname(file))
-            #elif option2 == "3":
-            #    print(csv.getStatsPhrase())
+            elif option2 == "3":
+                with open("statistics.txt","w") as f:
+                    f.write(csv.getStatsPhrase())
+                    
+                    
 
             continue
         elif option == "1":
             MailSender.assureTokens(csv)
+            print("\nV příštím kroku se přípojíme k OTRS a odešleme maily.")
+            print(" Template českého mailu začíná: {}".format(csv.mailCz.getMailPreview()))
+            print(" Template světového mailu začíná: {}".format(csv.mailWorld.getMailPreview()))
+            print("Opravdu si přejete odeslat maily nyní?")
             print("1 - Zaslat do CZ i do světa")
             print("2 - Zaslat jen do CZ")
-            print("3 - Zaslat jen do světa")
+            print("3 - Zaslat jen do světa")            
             print("[x] - Storno")
             sys.stdout.write("? ")
             sys.stdout.flush()

@@ -60,6 +60,9 @@ class MailList:
         else:
             return ""
 
+    def getMailPreview(self):
+        return (self.getSubject() + ": " + self.getBody()[0:50] + "... ").replace("\n"," ").replace("\r"," ")
+
         #print("Vypisuji text mailu:")
         #print(self.text)
         #print("\nVypsal jsem text mailu. J")

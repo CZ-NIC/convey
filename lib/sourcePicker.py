@@ -13,8 +13,8 @@ def SourcePicker():
     
     
     file = ""
-    if (len(sys.argv) > 1) and (sys.argv[1] != ""):
-        file = sys.argv[1]
+    if (len(sys.argv) > 1) and (sys.argv[-1] != ""):
+        file = sys.argv[-1]
     else:
         try: # cesta v prikazove radce nezadana, zkusime default dir
             dirDefault = Config.get('default_dir') # zkousime crawlovat oblibeny adresar

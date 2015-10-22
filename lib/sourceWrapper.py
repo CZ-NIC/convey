@@ -21,7 +21,7 @@ class SourceWrapper:
     def __init__(self, file):
         self.file = file
         info = os.stat(self.file)
-        self.hash = str(hash(info.st_size + info.st_mtime))
+        self.hash = str(hash(info.st_size + round(info.st_mtime))) # Proc round: pri zkopirovani souboru se mozna odriznul mikrosekundovy kus za desetinnou carkou.
 
         #MailList.setHash(self.hash)
         #MailList.setDir(os.path.dirname(file) + "/")

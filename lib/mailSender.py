@@ -14,14 +14,12 @@ FROMADDR = "\"CSIRT.CZ Abuse Team\" <abuse@csirt.cz>"
 SIGNKEYID = "PGP::Detached::B187176C"
 #RECORD_LABEL = "%(FILENAME)s"
 
-DEBUG = False
+#DEBUG = False
 logging.basicConfig(filename='mailSender.log',level=logging.DEBUG)
 
 re_title = re.compile('<title>([^<]*)</title>')
 
-class MailSender():
-
-    
+class MailSender():    
 
     def _post_multipart(host, selector, fields, files, cookies):
         """
@@ -34,7 +32,7 @@ class MailSender():
         body = bytes(body,"UTF-8")
         protocol = host.split(':')[0]        
         h = http.client.HTTPSConnection(host)        
-        if DEBUG:
+        if Config.isDebug():
             h.debuglevel = 100
         h.putrequest('POST', selector)
         h.putheader('Content-Type', content_type)
@@ -83,7 +81,7 @@ class MailSender():
 
     def _check_response(response):
         response = response.decode("UTF-8")
-        if DEBUG:
+        if Config.isDebug():
             logging.info(str(sys.stderr) + " Response:\n " + response)
 
         with open( "test.html", "w" ) as output:
@@ -117,16 +115,15 @@ class MailSender():
 
     # posle objekt mailList (mailCz ci mailWorld)
     def sendList(mailList, csv):
-        global DEBUG
+        #global DEBUG
+        if not len(mailList.mails):
+            print("... hotovo. (Žádné maily na seznamu, není co poslat.)")
+            return True
         
         sentMails = 0
-        logging.info("sending mails from list...")
+        logging.info("sending mails from list...")    
 
-        DEBUG = True if Config.get('debug') == "True" else False
-
-        for mail in mailList.mails:
-            
-
+        for mail in mailList.mails:            
             textVars = {}
             textVars["CONTACTS"] = mail
             textVars["FILENAME"] = csv.attachmentName
@@ -137,8 +134,9 @@ class MailSender():
                 print("Chybí subject nebo body text mailu.")
                 return False            
 
-            if DEBUG:
+            if Config.isDebug():
                 mailFinal = Config.get('debugMail')
+                print("***************************************\n*** DEBUG MOD - maily budou zaslany na mail {} ***\n (Pro zrušení debug módu nastavte debug = False v config.ini.)".format(mailFinal))
             else:
                 mailFinal = mail
                 
@@ -157,7 +155,7 @@ class MailSender():
                       ("ChallengeToken", csv.token),
                       )
 
-            if DEBUG == False:
+            if Config.isDebug() == False:
                 if mailList.mails[mail].cc:
                    fields += (("Cc", mailList.mails[mail].cc),)
             
@@ -176,18 +174,18 @@ class MailSender():
 
             cookies = (('Cookie', 'Session=%s' % csv.cookie),)
 
-            if DEBUG:
+            if Config.isDebug():
+                print(" Debug info:")
                 print (str(sys.stderr) + ' Fields: '+ str(fields))
                 print (str(sys.stderr) + ' Files: '+ str(files))
                 print (str(sys.stderr) + ' Cookies: '+ str(cookies))
-
             #print record_label % lrecord
 
             
             #print encode_multipart_formdata(fields, files)
             #import pdb;pdb.set_trace();
 
-            res = MailSender._post_multipart(HOST, BASEURI, fields=fields, files=files, cookies=cookies)            
+            res = MailSender._post_multipart(HOST, BASEURI, fields=fields, files=files, cookies=cookies)
             if not res or not MailSender._check_response (res.read()):
                 print("Zaslání se nezdařilo, viz mailSender.log.")
                 break
@@ -200,8 +198,8 @@ class MailSender():
     def askValue(value, description = ""):
         while True:
             if value != False:
-                sys.stdout.write('Change {} ({})? y/[n] '.format(description,value))
-                if input().lower() in ("n", ""):
+                sys.stdout.write('Change {} ({})? [y]/n '.format(description,value))
+                if input().lower() not in ("y", ""):
                     break
             sys.stdout.write("{}: ".format(description))
             value = input()
@@ -211,7 +209,7 @@ class MailSender():
 
     def assureTokens(csv):        
         """ Checknout prihlasovaci udaje k OTRS """
-        # XX: cookie a token by se mohly nacitat/ukladat z config file
+        # Xcookie a token by se mohly nacitat/ukladat z config file
         # # aktuální cookie z OTRS (doplní se samo) cookie =
         # aktuální token (doplní se sám) token =        
         force = False
@@ -225,7 +223,7 @@ class MailSender():
                 if csv.attachmentName[-4:] != ".txt":
                     csv.attachmentName += ".txt"
 
-            sys.stdout.write("Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachmentName = {}.\nWas that correct? [y]/n".format(csv.ticketid, csv.ticketnum, csv.cookie, csv.token, csv.attachmentName))
+            sys.stdout.write("Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachmentName = {}.\nWas that correct? [y]/n ".format(csv.ticketid, csv.ticketnum, csv.cookie, csv.token, csv.attachmentName))
             if input().lower() in ("y", ""):
                 return True
             else:

@@ -114,20 +114,21 @@ class SourceParser:
         hasHeader = csv.Sniffer().has_header(sample)
 
         if hasHeader:
-            sys.stdout.write("Header present [y]/n: ")
+            sys.stdout.write("Header nalezen - ok? [y]/n: ") # Header present 
             if input().lower() not in ("y", ""):
                 hasHeader = False
         else:
-            sys.stdout.write("Header not present [y]/n: ")
+            sys.stdout.write("Header nenalezen a nepoužije se - ok? [y]/n: ") # Header not present
             if input().lower() not in ("y", ""):
                 hasHeader = True
 
         if hasHeader == True:
             self.header = firstLine
-            self._addInfo("Header: used")
+            self._addInfo("Header: použije se") # Header: used
             self.lines.pop(0)
         else:
-            self._addInfo("Header: not used")
+            self.header = ""
+            self._addInfo("Header: nepoužije se") # Header: not used
 
         fields = firstLine.split(self.delimiter)
 
@@ -187,6 +188,7 @@ class SourceParser:
             #sloupec AS
         def _findAsnCol():
             found = False
+            print("debug 222")
             if repeating == False: # dialog jede poprve, zkusit autodetekci
                 asNames = ["as", "asn", "asnumber"] #mozne nazvy ip sloupcu - bez mezer
                 self.asnField = 0
@@ -197,7 +199,7 @@ class SourceParser:
                             found = True
                             break
                     else: #csv nema hlavicku -> pgrep IP, jinak se zeptat uzivatele na cislo sloupce
-                        if re.search('AS\d+', 'AS1234') != "":
+                        if re.search('AS\d+', field) != None: #X 'AS1234'
                             found = True
                             break
                     self.asnField += 1
@@ -549,7 +551,7 @@ class SourceParser:
     # Celkem 800 unikatnich IP;
     # z toho nalezených 350 v 25 zemích a nenalezených 30 IP adres v 2 zemích;
     # 570 IP adres jsme distribuovali 57 českým ISP a pro 30 jsme ISP nenalezli.
-    def getStatsPhrase(self):
+    def getStatsPhrase(self, generate = False):
         # XZadani
         #1. Pocet unikatnich IP adres celkem
         #2. Pocet unikatnich IP adres v CR
@@ -557,7 +559,6 @@ class SourceParser:
         #4. Kontaktovano xy ISP v CR
         #5. Naslo to xy Zemi (ne vsechny Zeme maji narodni/vladni CSIRT, ale to urcite vis)
         #6. Kontaktovano xy Zemi (kam se bude posilat)
-
 
         ipsUnique = self.getIpCount()
         ispCzFound = len(self.mailCz.mails)
@@ -587,7 +588,15 @@ class SourceParser:
         if ipsCzMissing:
             res += " (pro {} unikátních IP adres v ČR jsme ISP nenalezli)".format(ipsCzMissing)
 
-        return res + "."
+        res += "."
+
+        #if(generate == True):
+            #file = Config.get("generate_statistics_to_file")
+            #if file != "False":
+                #with open("statistics.txt","a") as f:
+                    #return f.write(csv.getStatsPhrase(generate = True))
+
+        return res
 
     def __exit__(self):
         pass

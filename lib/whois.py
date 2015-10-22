@@ -49,6 +49,15 @@ class Whois:
         if len(country.split("#")) > 1: # ex: 'NL # BE GB DE LU' -> 'NL' (82.175.175.231)
             country = country.split("#")[0].strip(" ")
 
+        #v pripade 10_16_Honeypot se nam stalo, ze se whois ptal kdovi ceho. Prestoze si myslime, ze se pta ripe ARINu, nevypadalo to.
+        if country == "":
+            country = Whois._exec("whois -h whois.arin.net " + cmd)
+        if country == "":
+            country = Whois._exec("whois -h whois.lacnic.net " + cmd)
+        if country == "":
+            country = Whois._exec("whois -h whois.apnic.net " + cmd)
+        if country == "":
+            country = Whois._exec("whois -h whois.afrinic.net " + cmd)
 
         if country == "":
             country = "unknown"

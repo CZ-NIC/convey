@@ -237,3 +237,2532 @@ Core.App.Ready(function () {
 </body>
 </html>
 INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail abuse@nic.cz
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail abuse@nic.cz
+INFO:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Response:
+ <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!--                                                                           -->
+<!-- OTRS: Copyright 2001-2010, OTRS Project. This Software is under the AGPL. -->
+<!--          Web: http://otrs.org/ - Lists: http://lists.otrs.org/            -->
+<!--  GNU AFFERO General Public License: http://www.gnu.org/licenses/agpl.txt  -->
+<!--                                                                           -->
+<head>
+    <meta http-equiv="Content-type" content="text/html;charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <link rel="shortcut icon" href="/otrs-web/skins/Agent/default/img/icons/product.ico" type="image/ico" />
+
+
+    <link rel="stylesheet" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_0993dc53b82a778c8a79ee47e1dcaa94.css" />
+    <link rel="stylesheet" href="/otrs-web/skins/Agent/Custom/css-cache/CommonCSS_2960bbf3a5e7823498e20985bd82dad3.css" />
+
+
+<!--[if IE 7]>
+    <link rel="stylesheet" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE7_b091cdf5e61a2e3df2e70fc73dcf7470.css" />
+    <![endif]-->
+
+
+<!--[if IE 8]>
+    <link rel="stylesheet" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE8_3f2c669d21c3ed5e0115bf96d0799e2d.css" />
+    <![endif]-->
+
+    <link rel="stylesheet" href="/otrs-web/skins/Agent/default/css/thirdparty/ui-theme/jquery-ui.css" />
+
+
+    <style type="text/css">
+        #Header #Logo {
+            background-image: url(/otrs-web/skins/Agent/default/img/logo_bg.png);
+            top: -4px;
+            right: 38px;
+            width: 244px;
+            height: 67px;
+        }
+    </style>
+
+
+
+    <title>Login - OTRS</title>
+
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+
+var Core = Core || {};
+Core.App = Core.App || {};
+
+/**
+ * @function
+ *      Ignores an event. Implemented without jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+function IgnoreEvent (Event) {
+    if (Event.preventDefault) {
+        Event.preventDefault();
+    }
+    Event.returnValue = false;
+    return false;
+}
+
+/**
+ * @function
+ *      This function blocks all click events on the page until it is
+ *      unblocked after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.BlockEvents = function() {
+    if (document.addEventListener) {
+        document.addEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.attachEvent('onclick', IgnoreEvent);
+    }
+};
+
+/**
+ * @function
+ *      This function unblocks all click events on the page
+ *      after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.UnblockEvents = function() {
+    if (document.removeEventListener) {
+        document.removeEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.detachEvent('onclick', IgnoreEvent);
+    }
+};
+
+// Now block all click events on the page to make sure that
+// an agent does not click before all JavaScript was loaded,
+// as event listeners are not yet available, for example.
+Core.App.BlockEvents();
+//]]></script>
+
+</head>
+<!-- end header -->
+<body class="">
+
+    <div id="Header" class="ARIARoleBanner">
+        <div id="Logo"></div>
+    </div>
+
+    <div class="MainBox ARIARoleMain SpacingTopLarge">
+
+
+        <div class="W33pc SpacingBottomLarge CenterBox">
+            <noscript>
+            <div class="WidgetSimple">
+                <div class="Header">
+                    <h2 class="Center">JavaScript Not Available</h2>
+                </div>
+                <div class="Content">
+                    <p class="SpacingTop Center">
+                        In order to experience OTRS, you'll need to enable JavaScript in your browser.</p>
+                    </div>
+                </div>
+                </noscript>
+
+                <div class="WidgetSimple Hidden" id="OldBrowser">
+                    <div class="Header">
+                        <h2 class="Center">Browser Warning</h2>
+                    </div>
+                    <div class="Content">
+                        <p class="SpacingTop Center">
+                            The browser you are using is too old.
+                            OTRS runs with a huge lists of browsers, please upgrade to one of these.
+                            Please see the documentation or ask your admin for further information.
+                        </p>
+                    </div>
+                </div>
+
+                <div id="LoginBox">
+                    <p class="Error Center Spacing">
+                        SessionID invalid! Need user data!
+                    </p>
+                    <div class="WidgetSimple">
+                        <div class="Header">
+                            <h2 class="Center">Welcome to OTRS</h2>
+                        </div>
+                        <div class="Content">
+                            <p class="Error Center Spacing"></p>
+
+                            <form action="/otrs/index.pl" method="post" enctype="application/x-www-form-urlencoded" name="login">
+                                <input type="hidden" name="Action" value="Login" />
+                                <input type="hidden" name="RequestedURL" value=""/>
+                                <input type="hidden" name="Lang" value="en"/>
+                                <input type="hidden" name="TimeOffset" id="TimeOffset" value=""/>
+                                <fieldset class="TableLike">
+                                    <label for="User">Username:</label>
+                                    <div class="Field">
+                                        <input type="text" id="User" name="User" value="" class="W50pc" readonly="readonly"/>
+                                    </div>
+                                    <div class="Clear"></div>
+
+                                    <label for="Password">Password:</label>
+                                    <div class="Field">
+                                        <input type="password" id="Password" name="Password" class="W50pc" readonly="readonly"/>
+                                    </div>
+                                    <div class="Clear"></div>
+
+<!--
+                                    -->
+
+                                    <div class="Field SpacingTopSmall">
+                                        <button type="submit" id="LoginButton" value="Login" disabled="disabled">Login</button>
+                                    </div>
+                                    <div class="Clear"></div>
+                                </fieldset>
+                            </form>
+                        </div>
+                    </div>
+
+                    <p class="Center SpacingTop">
+                        <a href="#" id="LostPassword">Lost your password?</a>
+                    </p>
+                </div>
+
+
+                <div id="PasswordBox" class="Hidden">
+                    <div class="WidgetSimple">
+                        <div class="Header">
+                            <h2 class="Center Spacing">Request New Password</h2>
+                        </div>
+                        <div class="Content">
+                            <p class="Error Center Spacing"></p>
+                            <form action="/otrs/index.pl" method="post" enctype="application/x-www-form-urlencoded">
+                                <input type="hidden" name="Action" value="LostPassword"/>
+                                <input type="hidden" name="Lang" value="en"/>
+
+                                <fieldset class="TableLike">
+                                    <label for="PasswordUser">Username:</label>
+                                    <div class="Field">
+                                        <input type="text" id="PasswordUser" name="User" value="" class="W50pc" readonly="readonly"/>
+                                    </div>
+                                    <div class="Clear"></div>
+
+                                    <div class="Field SpacingTop">
+                                        <button type="submit" value="Submit" disabled="disabled">Submit</button>
+                                    </div>
+                                    <div class="Clear"></div>
+                                </fieldset>
+                            </form>
+                        </div>
+                    </div>
+                    <p class="Center SpacingTop">
+                        <a href="" id="BackToLogin">&larr; Back to login</a>
+                    </p>
+                </div>
+
+
+
+            </div>
+        </div>
+
+
+
+
+<div id="Footer" class="ARIARoleContentinfo">
+
+    <div class="TopOfPage"><a href="#Top">Top of page</a></div>
+    <div class="Clear"></div>
+</div>
+
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/CommonJS_5ceb29242f4ad99d046a80743353468e.js"></script>
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/ModuleJS_2a53135056d2c35676f34daf46a0bd79.js"></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+    Core.Config.AddConfig({
+        // config
+        Baselink: '/otrs/index.pl?',
+        CGIHandle: '/otrs/index.pl',
+        Action: 'Login',
+        SessionIDCookie: '228be51494e2b0aaf8a6e5bf8c8c22ddc35',
+        SessionName: 'Session',
+        SessionID: '228be51494e2b0aaf8a6e5bf8c8c22ddc35',
+        CustomerPanelSessionName: 'CSID',
+        Images: '/otrs-web/skins/Agent/default/img/',
+        UserLanguage: 'en',
+        CheckEmailAddresses: parseInt('1', 10),
+        AnimationEnabled: parseInt('1', 10),
+        OpenMainMenuOnHover: parseInt('0', 10),
+        HTMLArticleHeightDefault: parseInt("100" || 0, 10),
+        HTMLArticleHeightMax: parseInt("2500" || 0, 10),
+        // translations
+        ValidateServerErrorTitle: 'Error',
+        ValidateServerErrorMsg: 'One or more errors occurred!',
+        PopupLeaveParentWindowMsg: 'If you now leave this page, all open popup windows will be closed, too!',
+        DialogCloseMsg: 'Close this dialog',
+        PopupBlockerMsg: 'Could not open popup window. Please disable any popup blockers for this application.',
+        PopupAlreadyOpenMsg: 'A popup of this screen is already open. Do you want to close it and load this one instead?',
+        LoadingMsg: 'Loading...',
+        SearchMsg: 'Search'
+    });
+
+    Core.Agent.Init();
+
+
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+
+    
+        Core.Agent.Login.Init();
+    
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+    Core.App.UnblockEvents();
+});
+//]]></script>
+
+</body>
+</html>
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'>
+
+ *** Not logged in or wrong session cookie ***
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail abuse@nic.cz
+INFO:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Response:
+ <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!--                                                                           -->
+<!-- OTRS: Copyright 2001-2010, OTRS Project. This Software is under the AGPL. -->
+<!--          Web: http://otrs.org/ - Lists: http://lists.otrs.org/            -->
+<!--  GNU AFFERO General Public License: http://www.gnu.org/licenses/agpl.txt  -->
+<!--                                                                           -->
+<head>
+    <meta http-equiv="Content-type" content="text/html;charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+
+
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Ticket#)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionTicketNumber" />
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Fulltext)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionFulltext" />
+    <link rel="shortcut icon" href="/otrs-web/skins/Agent/default/img/icons/product.ico" type="image/ico" />
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_0993dc53b82a778c8a79ee47e1dcaa94.css" />
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/Custom/css-cache/CommonCSS_2960bbf3a5e7823498e20985bd82dad3.css" />
+
+
+<!--[if IE 7]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE7_b091cdf5e61a2e3df2e70fc73dcf7470.css" />
+    <![endif]-->
+
+
+<!--[if IE 8]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE8_3f2c669d21c3ed5e0115bf96d0799e2d.css" />
+    <![endif]-->
+
+
+
+
+
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css/thirdparty/ui-theme/jquery-ui.css" />
+
+
+    <style type="text/css">
+        #Header #Logo {
+            background-image: url(/otrs-web/skins/Agent/default/img/logo_bg.png);
+            top: -4px;
+            right: 38px;
+            width: 244px;
+            height: 67px;
+        }
+    </style>
+
+
+
+    <title>Předat - Tiket -  OTRS</title>
+
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+
+var Core = Core || {};
+Core.App = Core.App || {};
+
+/**
+ * @function
+ *      Ignores an event. Implemented without jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+function IgnoreEvent (Event) {
+    if (Event.preventDefault) {
+        Event.preventDefault();
+    }
+    Event.returnValue = false;
+    return false;
+}
+
+/**
+ * @function
+ *      This function blocks all click events on the page until it is
+ *      unblocked after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.BlockEvents = function() {
+    if (document.addEventListener) {
+        document.addEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.attachEvent('onclick', IgnoreEvent);
+    }
+};
+
+/**
+ * @function
+ *      This function unblocks all click events on the page
+ *      after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.UnblockEvents = function() {
+    if (document.removeEventListener) {
+        document.removeEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.detachEvent('onclick', IgnoreEvent);
+    }
+};
+
+// Now block all click events on the page to make sure that
+// an agent does not click before all JavaScript was loaded,
+// as event listeners are not yet available, for example.
+Core.App.BlockEvents();
+//]]></script>
+
+</head>
+<body class="">
+    <a name="Top"></a>
+
+
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/CommonJS_5ceb29242f4ad99d046a80743353468e.js"></script>
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/ModuleJS_34a7468413fd19438f8273be5a3d018e.js"></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+    Core.Config.AddConfig({
+        // config
+        Baselink: '/otrs/index.pl?',
+        CGIHandle: '/otrs/index.pl',
+        Action: 'AgentTicketForward',
+        SessionIDCookie: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        SessionName: 'Session',
+        SessionID: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        CustomerPanelSessionName: 'CSID',
+        Images: '/otrs-web/skins/Agent/default/img/',
+        UserLanguage: 'cs',
+        CheckEmailAddresses: parseInt('1', 10),
+        AnimationEnabled: parseInt('1', 10),
+        OpenMainMenuOnHover: parseInt('0', 10),
+        HTMLArticleHeightDefault: parseInt("100" || 0, 10),
+        HTMLArticleHeightMax: parseInt("2500" || 0, 10),
+        // translations
+        ValidateServerErrorTitle: 'Chyba',
+        ValidateServerErrorMsg: 'One or more errors occurred!',
+        PopupLeaveParentWindowMsg: 'If you now leave this page, all open popup windows will be closed, too!',
+        DialogCloseMsg: 'Close this dialog',
+        PopupBlockerMsg: 'Could not open popup window. Please disable any popup blockers for this application.',
+        PopupAlreadyOpenMsg: 'A popup of this screen is already open. Do you want to close it and load this one instead?',
+        LoadingMsg: 'Loading...',
+        SearchMsg: 'Vyhledat'
+    });
+
+    Core.Agent.Init();
+
+
+
+Core.Config.Set('Datepicker.VacationDays', {"TimeVacationDays":{"1":{"1":"New Year's Day"},"12":{"25":"First Christmas Day","24":"Christmas Eve","26":"Second Christmas Day","31":"New Year's Eve"},"5":{"1":"International Workers' Day"}},"TimeVacationDaysOneTime":{"2004":{"1":{"1":"test"}}}});
+Core.Config.Set('Datepicker.ErrorMessage', 'Neplatné datum');
+Core.Config.Set('Datepicker.ErrorMessageDateInFuture', 'Invalid date (need a future date)!');
+Core.Config.Set('Datepicker.Localization', {
+PrevText: 'Previous',
+NextText: 'Další',
+MonthNames: ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'],
+MonthNamesShort: ['Led', 'Úno', 'Bře', 'Dub', 'Kvě', 'Čer', 'Čvc', 'Srp', 'Zář', 'Říj', 'Lis', 'Pro'],
+DayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+DayNamesShort: ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'],
+DayNamesMin: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+IsRTL: 0,
+FirstDay: 0,
+ShowMonthAfterYear: 0,
+IconText: 'Open date selection'
+});
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+
+
+if (window.opener) {
+    window.opener.Core.UI.Popup.FirePopupEvent('URL', { URL: '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96048' });
+    window.close();
+}
+else {
+    window.location.href = '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96048';
+}
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+    Core.App.UnblockEvents();
+});
+//]]></script>
+
+</body>
+</html>
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail abuse@nic.cz
+INFO:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Response:
+ <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!--                                                                           -->
+<!-- OTRS: Copyright 2001-2010, OTRS Project. This Software is under the AGPL. -->
+<!--          Web: http://otrs.org/ - Lists: http://lists.otrs.org/            -->
+<!--  GNU AFFERO General Public License: http://www.gnu.org/licenses/agpl.txt  -->
+<!--                                                                           -->
+<head>
+    <meta http-equiv="Content-type" content="text/html;charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+
+
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Ticket#)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionTicketNumber" />
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Fulltext)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionFulltext" />
+    <link rel="shortcut icon" href="/otrs-web/skins/Agent/default/img/icons/product.ico" type="image/ico" />
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_0993dc53b82a778c8a79ee47e1dcaa94.css" />
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/Custom/css-cache/CommonCSS_2960bbf3a5e7823498e20985bd82dad3.css" />
+
+
+<!--[if IE 7]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE7_b091cdf5e61a2e3df2e70fc73dcf7470.css" />
+    <![endif]-->
+
+
+<!--[if IE 8]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE8_3f2c669d21c3ed5e0115bf96d0799e2d.css" />
+    <![endif]-->
+
+
+
+
+
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css/thirdparty/ui-theme/jquery-ui.css" />
+
+
+    <style type="text/css">
+        #Header #Logo {
+            background-image: url(/otrs-web/skins/Agent/default/img/logo_bg.png);
+            top: -4px;
+            right: 38px;
+            width: 244px;
+            height: 67px;
+        }
+    </style>
+
+
+
+    <title>Předat - Tiket -  OTRS</title>
+
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+
+var Core = Core || {};
+Core.App = Core.App || {};
+
+/**
+ * @function
+ *      Ignores an event. Implemented without jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+function IgnoreEvent (Event) {
+    if (Event.preventDefault) {
+        Event.preventDefault();
+    }
+    Event.returnValue = false;
+    return false;
+}
+
+/**
+ * @function
+ *      This function blocks all click events on the page until it is
+ *      unblocked after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.BlockEvents = function() {
+    if (document.addEventListener) {
+        document.addEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.attachEvent('onclick', IgnoreEvent);
+    }
+};
+
+/**
+ * @function
+ *      This function unblocks all click events on the page
+ *      after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.UnblockEvents = function() {
+    if (document.removeEventListener) {
+        document.removeEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.detachEvent('onclick', IgnoreEvent);
+    }
+};
+
+// Now block all click events on the page to make sure that
+// an agent does not click before all JavaScript was loaded,
+// as event listeners are not yet available, for example.
+Core.App.BlockEvents();
+//]]></script>
+
+</head>
+<body class="">
+    <a name="Top"></a>
+
+
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/CommonJS_5ceb29242f4ad99d046a80743353468e.js"></script>
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/ModuleJS_34a7468413fd19438f8273be5a3d018e.js"></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+    Core.Config.AddConfig({
+        // config
+        Baselink: '/otrs/index.pl?',
+        CGIHandle: '/otrs/index.pl',
+        Action: 'AgentTicketForward',
+        SessionIDCookie: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        SessionName: 'Session',
+        SessionID: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        CustomerPanelSessionName: 'CSID',
+        Images: '/otrs-web/skins/Agent/default/img/',
+        UserLanguage: 'cs',
+        CheckEmailAddresses: parseInt('1', 10),
+        AnimationEnabled: parseInt('1', 10),
+        OpenMainMenuOnHover: parseInt('0', 10),
+        HTMLArticleHeightDefault: parseInt("100" || 0, 10),
+        HTMLArticleHeightMax: parseInt("2500" || 0, 10),
+        // translations
+        ValidateServerErrorTitle: 'Chyba',
+        ValidateServerErrorMsg: 'One or more errors occurred!',
+        PopupLeaveParentWindowMsg: 'If you now leave this page, all open popup windows will be closed, too!',
+        DialogCloseMsg: 'Close this dialog',
+        PopupBlockerMsg: 'Could not open popup window. Please disable any popup blockers for this application.',
+        PopupAlreadyOpenMsg: 'A popup of this screen is already open. Do you want to close it and load this one instead?',
+        LoadingMsg: 'Loading...',
+        SearchMsg: 'Vyhledat'
+    });
+
+    Core.Agent.Init();
+
+
+
+Core.Config.Set('Datepicker.VacationDays', {"TimeVacationDays":{"1":{"1":"New Year's Day"},"12":{"25":"First Christmas Day","24":"Christmas Eve","26":"Second Christmas Day","31":"New Year's Eve"},"5":{"1":"International Workers' Day"}},"TimeVacationDaysOneTime":{"2004":{"1":{"1":"test"}}}});
+Core.Config.Set('Datepicker.ErrorMessage', 'Neplatné datum');
+Core.Config.Set('Datepicker.ErrorMessageDateInFuture', 'Invalid date (need a future date)!');
+Core.Config.Set('Datepicker.Localization', {
+PrevText: 'Previous',
+NextText: 'Další',
+MonthNames: ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'],
+MonthNamesShort: ['Led', 'Úno', 'Bře', 'Dub', 'Kvě', 'Čer', 'Čvc', 'Srp', 'Zář', 'Říj', 'Lis', 'Pro'],
+DayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+DayNamesShort: ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'],
+DayNamesMin: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+IsRTL: 0,
+FirstDay: 0,
+ShowMonthAfterYear: 0,
+IconText: 'Open date selection'
+});
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+
+
+if (window.opener) {
+    window.opener.Core.UI.Popup.FirePopupEvent('URL', { URL: '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96049' });
+    window.close();
+}
+else {
+    window.location.href = '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96049';
+}
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+    Core.App.UnblockEvents();
+});
+//]]></script>
+
+</body>
+</html>
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail abuse@nic.cz
+INFO:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Response:
+ <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!--                                                                           -->
+<!-- OTRS: Copyright 2001-2010, OTRS Project. This Software is under the AGPL. -->
+<!--          Web: http://otrs.org/ - Lists: http://lists.otrs.org/            -->
+<!--  GNU AFFERO General Public License: http://www.gnu.org/licenses/agpl.txt  -->
+<!--                                                                           -->
+<head>
+    <meta http-equiv="Content-type" content="text/html;charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+
+
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Ticket#)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionTicketNumber" />
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Fulltext)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionFulltext" />
+    <link rel="shortcut icon" href="/otrs-web/skins/Agent/default/img/icons/product.ico" type="image/ico" />
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_0993dc53b82a778c8a79ee47e1dcaa94.css" />
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/Custom/css-cache/CommonCSS_2960bbf3a5e7823498e20985bd82dad3.css" />
+
+
+<!--[if IE 7]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE7_b091cdf5e61a2e3df2e70fc73dcf7470.css" />
+    <![endif]-->
+
+
+<!--[if IE 8]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE8_3f2c669d21c3ed5e0115bf96d0799e2d.css" />
+    <![endif]-->
+
+
+
+
+
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css/thirdparty/ui-theme/jquery-ui.css" />
+
+
+    <style type="text/css">
+        #Header #Logo {
+            background-image: url(/otrs-web/skins/Agent/default/img/logo_bg.png);
+            top: -4px;
+            right: 38px;
+            width: 244px;
+            height: 67px;
+        }
+    </style>
+
+
+
+    <title>Předat - Tiket -  OTRS</title>
+
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+
+var Core = Core || {};
+Core.App = Core.App || {};
+
+/**
+ * @function
+ *      Ignores an event. Implemented without jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+function IgnoreEvent (Event) {
+    if (Event.preventDefault) {
+        Event.preventDefault();
+    }
+    Event.returnValue = false;
+    return false;
+}
+
+/**
+ * @function
+ *      This function blocks all click events on the page until it is
+ *      unblocked after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.BlockEvents = function() {
+    if (document.addEventListener) {
+        document.addEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.attachEvent('onclick', IgnoreEvent);
+    }
+};
+
+/**
+ * @function
+ *      This function unblocks all click events on the page
+ *      after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.UnblockEvents = function() {
+    if (document.removeEventListener) {
+        document.removeEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.detachEvent('onclick', IgnoreEvent);
+    }
+};
+
+// Now block all click events on the page to make sure that
+// an agent does not click before all JavaScript was loaded,
+// as event listeners are not yet available, for example.
+Core.App.BlockEvents();
+//]]></script>
+
+</head>
+<body class="">
+    <a name="Top"></a>
+
+
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/CommonJS_5ceb29242f4ad99d046a80743353468e.js"></script>
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/ModuleJS_34a7468413fd19438f8273be5a3d018e.js"></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+    Core.Config.AddConfig({
+        // config
+        Baselink: '/otrs/index.pl?',
+        CGIHandle: '/otrs/index.pl',
+        Action: 'AgentTicketForward',
+        SessionIDCookie: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        SessionName: 'Session',
+        SessionID: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        CustomerPanelSessionName: 'CSID',
+        Images: '/otrs-web/skins/Agent/default/img/',
+        UserLanguage: 'cs',
+        CheckEmailAddresses: parseInt('1', 10),
+        AnimationEnabled: parseInt('1', 10),
+        OpenMainMenuOnHover: parseInt('0', 10),
+        HTMLArticleHeightDefault: parseInt("100" || 0, 10),
+        HTMLArticleHeightMax: parseInt("2500" || 0, 10),
+        // translations
+        ValidateServerErrorTitle: 'Chyba',
+        ValidateServerErrorMsg: 'One or more errors occurred!',
+        PopupLeaveParentWindowMsg: 'If you now leave this page, all open popup windows will be closed, too!',
+        DialogCloseMsg: 'Close this dialog',
+        PopupBlockerMsg: 'Could not open popup window. Please disable any popup blockers for this application.',
+        PopupAlreadyOpenMsg: 'A popup of this screen is already open. Do you want to close it and load this one instead?',
+        LoadingMsg: 'Loading...',
+        SearchMsg: 'Vyhledat'
+    });
+
+    Core.Agent.Init();
+
+
+
+Core.Config.Set('Datepicker.VacationDays', {"TimeVacationDays":{"1":{"1":"New Year's Day"},"12":{"25":"First Christmas Day","24":"Christmas Eve","26":"Second Christmas Day","31":"New Year's Eve"},"5":{"1":"International Workers' Day"}},"TimeVacationDaysOneTime":{"2004":{"1":{"1":"test"}}}});
+Core.Config.Set('Datepicker.ErrorMessage', 'Neplatné datum');
+Core.Config.Set('Datepicker.ErrorMessageDateInFuture', 'Invalid date (need a future date)!');
+Core.Config.Set('Datepicker.Localization', {
+PrevText: 'Previous',
+NextText: 'Další',
+MonthNames: ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'],
+MonthNamesShort: ['Led', 'Úno', 'Bře', 'Dub', 'Kvě', 'Čer', 'Čvc', 'Srp', 'Zář', 'Říj', 'Lis', 'Pro'],
+DayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+DayNamesShort: ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'],
+DayNamesMin: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+IsRTL: 0,
+FirstDay: 0,
+ShowMonthAfterYear: 0,
+IconText: 'Open date selection'
+});
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+
+
+if (window.opener) {
+    window.opener.Core.UI.Popup.FirePopupEvent('URL', { URL: '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96050' });
+    window.close();
+}
+else {
+    window.location.href = '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96050';
+}
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+    Core.App.UnblockEvents();
+});
+//]]></script>
+
+</body>
+</html>
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail abuse@nic.cz
+INFO:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Response:
+ <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!--                                                                           -->
+<!-- OTRS: Copyright 2001-2010, OTRS Project. This Software is under the AGPL. -->
+<!--          Web: http://otrs.org/ - Lists: http://lists.otrs.org/            -->
+<!--  GNU AFFERO General Public License: http://www.gnu.org/licenses/agpl.txt  -->
+<!--                                                                           -->
+<head>
+    <meta http-equiv="Content-type" content="text/html;charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+
+
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Ticket#)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionTicketNumber" />
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Fulltext)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionFulltext" />
+    <link rel="shortcut icon" href="/otrs-web/skins/Agent/default/img/icons/product.ico" type="image/ico" />
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_0993dc53b82a778c8a79ee47e1dcaa94.css" />
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/Custom/css-cache/CommonCSS_2960bbf3a5e7823498e20985bd82dad3.css" />
+
+
+<!--[if IE 7]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE7_b091cdf5e61a2e3df2e70fc73dcf7470.css" />
+    <![endif]-->
+
+
+<!--[if IE 8]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE8_3f2c669d21c3ed5e0115bf96d0799e2d.css" />
+    <![endif]-->
+
+
+
+
+
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css/thirdparty/ui-theme/jquery-ui.css" />
+
+
+    <style type="text/css">
+        #Header #Logo {
+            background-image: url(/otrs-web/skins/Agent/default/img/logo_bg.png);
+            top: -4px;
+            right: 38px;
+            width: 244px;
+            height: 67px;
+        }
+    </style>
+
+
+
+    <title>Předat - Tiket -  OTRS</title>
+
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+
+var Core = Core || {};
+Core.App = Core.App || {};
+
+/**
+ * @function
+ *      Ignores an event. Implemented without jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+function IgnoreEvent (Event) {
+    if (Event.preventDefault) {
+        Event.preventDefault();
+    }
+    Event.returnValue = false;
+    return false;
+}
+
+/**
+ * @function
+ *      This function blocks all click events on the page until it is
+ *      unblocked after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.BlockEvents = function() {
+    if (document.addEventListener) {
+        document.addEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.attachEvent('onclick', IgnoreEvent);
+    }
+};
+
+/**
+ * @function
+ *      This function unblocks all click events on the page
+ *      after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.UnblockEvents = function() {
+    if (document.removeEventListener) {
+        document.removeEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.detachEvent('onclick', IgnoreEvent);
+    }
+};
+
+// Now block all click events on the page to make sure that
+// an agent does not click before all JavaScript was loaded,
+// as event listeners are not yet available, for example.
+Core.App.BlockEvents();
+//]]></script>
+
+</head>
+<body class="">
+    <a name="Top"></a>
+
+
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/CommonJS_5ceb29242f4ad99d046a80743353468e.js"></script>
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/ModuleJS_34a7468413fd19438f8273be5a3d018e.js"></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+    Core.Config.AddConfig({
+        // config
+        Baselink: '/otrs/index.pl?',
+        CGIHandle: '/otrs/index.pl',
+        Action: 'AgentTicketForward',
+        SessionIDCookie: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        SessionName: 'Session',
+        SessionID: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        CustomerPanelSessionName: 'CSID',
+        Images: '/otrs-web/skins/Agent/default/img/',
+        UserLanguage: 'cs',
+        CheckEmailAddresses: parseInt('1', 10),
+        AnimationEnabled: parseInt('1', 10),
+        OpenMainMenuOnHover: parseInt('0', 10),
+        HTMLArticleHeightDefault: parseInt("100" || 0, 10),
+        HTMLArticleHeightMax: parseInt("2500" || 0, 10),
+        // translations
+        ValidateServerErrorTitle: 'Chyba',
+        ValidateServerErrorMsg: 'One or more errors occurred!',
+        PopupLeaveParentWindowMsg: 'If you now leave this page, all open popup windows will be closed, too!',
+        DialogCloseMsg: 'Close this dialog',
+        PopupBlockerMsg: 'Could not open popup window. Please disable any popup blockers for this application.',
+        PopupAlreadyOpenMsg: 'A popup of this screen is already open. Do you want to close it and load this one instead?',
+        LoadingMsg: 'Loading...',
+        SearchMsg: 'Vyhledat'
+    });
+
+    Core.Agent.Init();
+
+
+
+Core.Config.Set('Datepicker.VacationDays', {"TimeVacationDays":{"1":{"1":"New Year's Day"},"12":{"25":"First Christmas Day","24":"Christmas Eve","26":"Second Christmas Day","31":"New Year's Eve"},"5":{"1":"International Workers' Day"}},"TimeVacationDaysOneTime":{"2004":{"1":{"1":"test"}}}});
+Core.Config.Set('Datepicker.ErrorMessage', 'Neplatné datum');
+Core.Config.Set('Datepicker.ErrorMessageDateInFuture', 'Invalid date (need a future date)!');
+Core.Config.Set('Datepicker.Localization', {
+PrevText: 'Previous',
+NextText: 'Další',
+MonthNames: ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'],
+MonthNamesShort: ['Led', 'Úno', 'Bře', 'Dub', 'Kvě', 'Čer', 'Čvc', 'Srp', 'Zář', 'Říj', 'Lis', 'Pro'],
+DayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+DayNamesShort: ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'],
+DayNamesMin: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+IsRTL: 0,
+FirstDay: 0,
+ShowMonthAfterYear: 0,
+IconText: 'Open date selection'
+});
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+
+
+if (window.opener) {
+    window.opener.Core.UI.Popup.FirePopupEvent('URL', { URL: '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96051' });
+    window.close();
+}
+else {
+    window.location.href = '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96051';
+}
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+    Core.App.UnblockEvents();
+});
+//]]></script>
+
+</body>
+</html>
+INFO:root:sending mails from list...
+INFO:root:sending mails from list...
+INFO:root:mail abuse@nic.cz
+INFO:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Response:
+ <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!--                                                                           -->
+<!-- OTRS: Copyright 2001-2010, OTRS Project. This Software is under the AGPL. -->
+<!--          Web: http://otrs.org/ - Lists: http://lists.otrs.org/            -->
+<!--  GNU AFFERO General Public License: http://www.gnu.org/licenses/agpl.txt  -->
+<!--                                                                           -->
+<head>
+    <meta http-equiv="Content-type" content="text/html;charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+
+
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Ticket#)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionTicketNumber" />
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Fulltext)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionFulltext" />
+    <link rel="shortcut icon" href="/otrs-web/skins/Agent/default/img/icons/product.ico" type="image/ico" />
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_0993dc53b82a778c8a79ee47e1dcaa94.css" />
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/Custom/css-cache/CommonCSS_2960bbf3a5e7823498e20985bd82dad3.css" />
+
+
+<!--[if IE 7]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE7_b091cdf5e61a2e3df2e70fc73dcf7470.css" />
+    <![endif]-->
+
+
+<!--[if IE 8]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE8_3f2c669d21c3ed5e0115bf96d0799e2d.css" />
+    <![endif]-->
+
+
+
+
+
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css/thirdparty/ui-theme/jquery-ui.css" />
+
+
+    <style type="text/css">
+        #Header #Logo {
+            background-image: url(/otrs-web/skins/Agent/default/img/logo_bg.png);
+            top: -4px;
+            right: 38px;
+            width: 244px;
+            height: 67px;
+        }
+    </style>
+
+
+
+    <title>Předat - Tiket -  OTRS</title>
+
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+
+var Core = Core || {};
+Core.App = Core.App || {};
+
+/**
+ * @function
+ *      Ignores an event. Implemented without jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+function IgnoreEvent (Event) {
+    if (Event.preventDefault) {
+        Event.preventDefault();
+    }
+    Event.returnValue = false;
+    return false;
+}
+
+/**
+ * @function
+ *      This function blocks all click events on the page until it is
+ *      unblocked after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.BlockEvents = function() {
+    if (document.addEventListener) {
+        document.addEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.attachEvent('onclick', IgnoreEvent);
+    }
+};
+
+/**
+ * @function
+ *      This function unblocks all click events on the page
+ *      after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.UnblockEvents = function() {
+    if (document.removeEventListener) {
+        document.removeEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.detachEvent('onclick', IgnoreEvent);
+    }
+};
+
+// Now block all click events on the page to make sure that
+// an agent does not click before all JavaScript was loaded,
+// as event listeners are not yet available, for example.
+Core.App.BlockEvents();
+//]]></script>
+
+</head>
+<body class="">
+    <a name="Top"></a>
+
+
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/CommonJS_5ceb29242f4ad99d046a80743353468e.js"></script>
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/ModuleJS_34a7468413fd19438f8273be5a3d018e.js"></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+    Core.Config.AddConfig({
+        // config
+        Baselink: '/otrs/index.pl?',
+        CGIHandle: '/otrs/index.pl',
+        Action: 'AgentTicketForward',
+        SessionIDCookie: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        SessionName: 'Session',
+        SessionID: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        CustomerPanelSessionName: 'CSID',
+        Images: '/otrs-web/skins/Agent/default/img/',
+        UserLanguage: 'cs',
+        CheckEmailAddresses: parseInt('1', 10),
+        AnimationEnabled: parseInt('1', 10),
+        OpenMainMenuOnHover: parseInt('0', 10),
+        HTMLArticleHeightDefault: parseInt("100" || 0, 10),
+        HTMLArticleHeightMax: parseInt("2500" || 0, 10),
+        // translations
+        ValidateServerErrorTitle: 'Chyba',
+        ValidateServerErrorMsg: 'One or more errors occurred!',
+        PopupLeaveParentWindowMsg: 'If you now leave this page, all open popup windows will be closed, too!',
+        DialogCloseMsg: 'Close this dialog',
+        PopupBlockerMsg: 'Could not open popup window. Please disable any popup blockers for this application.',
+        PopupAlreadyOpenMsg: 'A popup of this screen is already open. Do you want to close it and load this one instead?',
+        LoadingMsg: 'Loading...',
+        SearchMsg: 'Vyhledat'
+    });
+
+    Core.Agent.Init();
+
+
+
+Core.Config.Set('Datepicker.VacationDays', {"TimeVacationDays":{"1":{"1":"New Year's Day"},"12":{"25":"First Christmas Day","24":"Christmas Eve","26":"Second Christmas Day","31":"New Year's Eve"},"5":{"1":"International Workers' Day"}},"TimeVacationDaysOneTime":{"2004":{"1":{"1":"test"}}}});
+Core.Config.Set('Datepicker.ErrorMessage', 'Neplatné datum');
+Core.Config.Set('Datepicker.ErrorMessageDateInFuture', 'Invalid date (need a future date)!');
+Core.Config.Set('Datepicker.Localization', {
+PrevText: 'Previous',
+NextText: 'Další',
+MonthNames: ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'],
+MonthNamesShort: ['Led', 'Úno', 'Bře', 'Dub', 'Kvě', 'Čer', 'Čvc', 'Srp', 'Zář', 'Říj', 'Lis', 'Pro'],
+DayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+DayNamesShort: ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'],
+DayNamesMin: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+IsRTL: 0,
+FirstDay: 0,
+ShowMonthAfterYear: 0,
+IconText: 'Open date selection'
+});
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+
+
+if (window.opener) {
+    window.opener.Core.UI.Popup.FirePopupEvent('URL', { URL: '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96052' });
+    window.close();
+}
+else {
+    window.location.href = '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96052';
+}
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+    Core.App.UnblockEvents();
+});
+//]]></script>
+
+</body>
+</html>
+INFO:root:sending mails from list...
+INFO:root:mail abuse@nic.cz
+INFO:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Response:
+ <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!--                                                                           -->
+<!-- OTRS: Copyright 2001-2010, OTRS Project. This Software is under the AGPL. -->
+<!--          Web: http://otrs.org/ - Lists: http://lists.otrs.org/            -->
+<!--  GNU AFFERO General Public License: http://www.gnu.org/licenses/agpl.txt  -->
+<!--                                                                           -->
+<head>
+    <meta http-equiv="Content-type" content="text/html;charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+
+
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Ticket#)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionTicketNumber" />
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Fulltext)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionFulltext" />
+    <link rel="shortcut icon" href="/otrs-web/skins/Agent/default/img/icons/product.ico" type="image/ico" />
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_0993dc53b82a778c8a79ee47e1dcaa94.css" />
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/Custom/css-cache/CommonCSS_2960bbf3a5e7823498e20985bd82dad3.css" />
+
+
+<!--[if IE 7]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE7_b091cdf5e61a2e3df2e70fc73dcf7470.css" />
+    <![endif]-->
+
+
+<!--[if IE 8]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE8_3f2c669d21c3ed5e0115bf96d0799e2d.css" />
+    <![endif]-->
+
+
+
+
+
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css/thirdparty/ui-theme/jquery-ui.css" />
+
+
+    <style type="text/css">
+        #Header #Logo {
+            background-image: url(/otrs-web/skins/Agent/default/img/logo_bg.png);
+            top: -4px;
+            right: 38px;
+            width: 244px;
+            height: 67px;
+        }
+    </style>
+
+
+
+    <title>Předat - Tiket -  OTRS</title>
+
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+
+var Core = Core || {};
+Core.App = Core.App || {};
+
+/**
+ * @function
+ *      Ignores an event. Implemented without jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+function IgnoreEvent (Event) {
+    if (Event.preventDefault) {
+        Event.preventDefault();
+    }
+    Event.returnValue = false;
+    return false;
+}
+
+/**
+ * @function
+ *      This function blocks all click events on the page until it is
+ *      unblocked after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.BlockEvents = function() {
+    if (document.addEventListener) {
+        document.addEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.attachEvent('onclick', IgnoreEvent);
+    }
+};
+
+/**
+ * @function
+ *      This function unblocks all click events on the page
+ *      after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.UnblockEvents = function() {
+    if (document.removeEventListener) {
+        document.removeEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.detachEvent('onclick', IgnoreEvent);
+    }
+};
+
+// Now block all click events on the page to make sure that
+// an agent does not click before all JavaScript was loaded,
+// as event listeners are not yet available, for example.
+Core.App.BlockEvents();
+//]]></script>
+
+</head>
+<body class="">
+    <a name="Top"></a>
+
+
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/CommonJS_5ceb29242f4ad99d046a80743353468e.js"></script>
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/ModuleJS_34a7468413fd19438f8273be5a3d018e.js"></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+    Core.Config.AddConfig({
+        // config
+        Baselink: '/otrs/index.pl?',
+        CGIHandle: '/otrs/index.pl',
+        Action: 'AgentTicketForward',
+        SessionIDCookie: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        SessionName: 'Session',
+        SessionID: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        CustomerPanelSessionName: 'CSID',
+        Images: '/otrs-web/skins/Agent/default/img/',
+        UserLanguage: 'cs',
+        CheckEmailAddresses: parseInt('1', 10),
+        AnimationEnabled: parseInt('1', 10),
+        OpenMainMenuOnHover: parseInt('0', 10),
+        HTMLArticleHeightDefault: parseInt("100" || 0, 10),
+        HTMLArticleHeightMax: parseInt("2500" || 0, 10),
+        // translations
+        ValidateServerErrorTitle: 'Chyba',
+        ValidateServerErrorMsg: 'One or more errors occurred!',
+        PopupLeaveParentWindowMsg: 'If you now leave this page, all open popup windows will be closed, too!',
+        DialogCloseMsg: 'Close this dialog',
+        PopupBlockerMsg: 'Could not open popup window. Please disable any popup blockers for this application.',
+        PopupAlreadyOpenMsg: 'A popup of this screen is already open. Do you want to close it and load this one instead?',
+        LoadingMsg: 'Loading...',
+        SearchMsg: 'Vyhledat'
+    });
+
+    Core.Agent.Init();
+
+
+
+Core.Config.Set('Datepicker.VacationDays', {"TimeVacationDays":{"1":{"1":"New Year's Day"},"12":{"25":"First Christmas Day","24":"Christmas Eve","26":"Second Christmas Day","31":"New Year's Eve"},"5":{"1":"International Workers' Day"}},"TimeVacationDaysOneTime":{"2004":{"1":{"1":"test"}}}});
+Core.Config.Set('Datepicker.ErrorMessage', 'Neplatné datum');
+Core.Config.Set('Datepicker.ErrorMessageDateInFuture', 'Invalid date (need a future date)!');
+Core.Config.Set('Datepicker.Localization', {
+PrevText: 'Previous',
+NextText: 'Další',
+MonthNames: ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'],
+MonthNamesShort: ['Led', 'Úno', 'Bře', 'Dub', 'Kvě', 'Čer', 'Čvc', 'Srp', 'Zář', 'Říj', 'Lis', 'Pro'],
+DayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+DayNamesShort: ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'],
+DayNamesMin: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+IsRTL: 0,
+FirstDay: 0,
+ShowMonthAfterYear: 0,
+IconText: 'Open date selection'
+});
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+
+
+if (window.opener) {
+    window.opener.Core.UI.Popup.FirePopupEvent('URL', { URL: '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96053' });
+    window.close();
+}
+else {
+    window.location.href = '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96053';
+}
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+    Core.App.UnblockEvents();
+});
+//]]></script>
+
+</body>
+</html>
+INFO:root:sending mails from list...
+INFO:root:mail abuse@nic.cz
+INFO:root:sending mails from list...
+INFO:root:mail abuse@nic.cz
+INFO:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Response:
+ <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!--                                                                           -->
+<!-- OTRS: Copyright 2001-2010, OTRS Project. This Software is under the AGPL. -->
+<!--          Web: http://otrs.org/ - Lists: http://lists.otrs.org/            -->
+<!--  GNU AFFERO General Public License: http://www.gnu.org/licenses/agpl.txt  -->
+<!--                                                                           -->
+<head>
+    <meta http-equiv="Content-type" content="text/html;charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <link rel="shortcut icon" href="/otrs-web/skins/Agent/default/img/icons/product.ico" type="image/ico" />
+
+
+    <link rel="stylesheet" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_0993dc53b82a778c8a79ee47e1dcaa94.css" />
+    <link rel="stylesheet" href="/otrs-web/skins/Agent/Custom/css-cache/CommonCSS_2960bbf3a5e7823498e20985bd82dad3.css" />
+
+
+<!--[if IE 7]>
+    <link rel="stylesheet" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE7_b091cdf5e61a2e3df2e70fc73dcf7470.css" />
+    <![endif]-->
+
+
+<!--[if IE 8]>
+    <link rel="stylesheet" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE8_3f2c669d21c3ed5e0115bf96d0799e2d.css" />
+    <![endif]-->
+
+    <link rel="stylesheet" href="/otrs-web/skins/Agent/default/css/thirdparty/ui-theme/jquery-ui.css" />
+
+
+    <style type="text/css">
+        #Header #Logo {
+            background-image: url(/otrs-web/skins/Agent/default/img/logo_bg.png);
+            top: -4px;
+            right: 38px;
+            width: 244px;
+            height: 67px;
+        }
+    </style>
+
+
+
+    <title>Login - OTRS</title>
+
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+
+var Core = Core || {};
+Core.App = Core.App || {};
+
+/**
+ * @function
+ *      Ignores an event. Implemented without jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+function IgnoreEvent (Event) {
+    if (Event.preventDefault) {
+        Event.preventDefault();
+    }
+    Event.returnValue = false;
+    return false;
+}
+
+/**
+ * @function
+ *      This function blocks all click events on the page until it is
+ *      unblocked after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.BlockEvents = function() {
+    if (document.addEventListener) {
+        document.addEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.attachEvent('onclick', IgnoreEvent);
+    }
+};
+
+/**
+ * @function
+ *      This function unblocks all click events on the page
+ *      after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.UnblockEvents = function() {
+    if (document.removeEventListener) {
+        document.removeEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.detachEvent('onclick', IgnoreEvent);
+    }
+};
+
+// Now block all click events on the page to make sure that
+// an agent does not click before all JavaScript was loaded,
+// as event listeners are not yet available, for example.
+Core.App.BlockEvents();
+//]]></script>
+
+</head>
+<!-- end header -->
+<body class="">
+
+    <div id="Header" class="ARIARoleBanner">
+        <div id="Logo"></div>
+    </div>
+
+    <div class="MainBox ARIARoleMain SpacingTopLarge">
+
+
+        <div class="W33pc SpacingBottomLarge CenterBox">
+            <noscript>
+            <div class="WidgetSimple">
+                <div class="Header">
+                    <h2 class="Center">JavaScript Not Available</h2>
+                </div>
+                <div class="Content">
+                    <p class="SpacingTop Center">
+                        In order to experience OTRS, you'll need to enable JavaScript in your browser.</p>
+                    </div>
+                </div>
+                </noscript>
+
+                <div class="WidgetSimple Hidden" id="OldBrowser">
+                    <div class="Header">
+                        <h2 class="Center">Browser Warning</h2>
+                    </div>
+                    <div class="Content">
+                        <p class="SpacingTop Center">
+                            The browser you are using is too old.
+                            OTRS runs with a huge lists of browsers, please upgrade to one of these.
+                            Please see the documentation or ask your admin for further information.
+                        </p>
+                    </div>
+                </div>
+
+                <div id="LoginBox">
+                    <p class="Error Center Spacing">
+                        SessionID invalid! Need user data!
+                    </p>
+                    <div class="WidgetSimple">
+                        <div class="Header">
+                            <h2 class="Center">Welcome to OTRS</h2>
+                        </div>
+                        <div class="Content">
+                            <p class="Error Center Spacing"></p>
+
+                            <form action="/otrs/index.pl" method="post" enctype="application/x-www-form-urlencoded" name="login">
+                                <input type="hidden" name="Action" value="Login" />
+                                <input type="hidden" name="RequestedURL" value=""/>
+                                <input type="hidden" name="Lang" value="en"/>
+                                <input type="hidden" name="TimeOffset" id="TimeOffset" value=""/>
+                                <fieldset class="TableLike">
+                                    <label for="User">Username:</label>
+                                    <div class="Field">
+                                        <input type="text" id="User" name="User" value="" class="W50pc" readonly="readonly"/>
+                                    </div>
+                                    <div class="Clear"></div>
+
+                                    <label for="Password">Password:</label>
+                                    <div class="Field">
+                                        <input type="password" id="Password" name="Password" class="W50pc" readonly="readonly"/>
+                                    </div>
+                                    <div class="Clear"></div>
+
+<!--
+                                    -->
+
+                                    <div class="Field SpacingTopSmall">
+                                        <button type="submit" id="LoginButton" value="Login" disabled="disabled">Login</button>
+                                    </div>
+                                    <div class="Clear"></div>
+                                </fieldset>
+                            </form>
+                        </div>
+                    </div>
+
+                    <p class="Center SpacingTop">
+                        <a href="#" id="LostPassword">Lost your password?</a>
+                    </p>
+                </div>
+
+
+                <div id="PasswordBox" class="Hidden">
+                    <div class="WidgetSimple">
+                        <div class="Header">
+                            <h2 class="Center Spacing">Request New Password</h2>
+                        </div>
+                        <div class="Content">
+                            <p class="Error Center Spacing"></p>
+                            <form action="/otrs/index.pl" method="post" enctype="application/x-www-form-urlencoded">
+                                <input type="hidden" name="Action" value="LostPassword"/>
+                                <input type="hidden" name="Lang" value="en"/>
+
+                                <fieldset class="TableLike">
+                                    <label for="PasswordUser">Username:</label>
+                                    <div class="Field">
+                                        <input type="text" id="PasswordUser" name="User" value="" class="W50pc" readonly="readonly"/>
+                                    </div>
+                                    <div class="Clear"></div>
+
+                                    <div class="Field SpacingTop">
+                                        <button type="submit" value="Submit" disabled="disabled">Submit</button>
+                                    </div>
+                                    <div class="Clear"></div>
+                                </fieldset>
+                            </form>
+                        </div>
+                    </div>
+                    <p class="Center SpacingTop">
+                        <a href="" id="BackToLogin">&larr; Back to login</a>
+                    </p>
+                </div>
+
+
+
+            </div>
+        </div>
+
+
+
+
+<div id="Footer" class="ARIARoleContentinfo">
+
+    <div class="TopOfPage"><a href="#Top">Top of page</a></div>
+    <div class="Clear"></div>
+</div>
+
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/CommonJS_5ceb29242f4ad99d046a80743353468e.js"></script>
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/ModuleJS_2a53135056d2c35676f34daf46a0bd79.js"></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+    Core.Config.AddConfig({
+        // config
+        Baselink: '/otrs/index.pl?',
+        CGIHandle: '/otrs/index.pl',
+        Action: 'Login',
+        SessionIDCookie: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        SessionName: 'Session',
+        SessionID: '228b9c5fc6ff0c749a29fabf839ce153af6',
+        CustomerPanelSessionName: 'CSID',
+        Images: '/otrs-web/skins/Agent/default/img/',
+        UserLanguage: 'en',
+        CheckEmailAddresses: parseInt('1', 10),
+        AnimationEnabled: parseInt('1', 10),
+        OpenMainMenuOnHover: parseInt('0', 10),
+        HTMLArticleHeightDefault: parseInt("100" || 0, 10),
+        HTMLArticleHeightMax: parseInt("2500" || 0, 10),
+        // translations
+        ValidateServerErrorTitle: 'Error',
+        ValidateServerErrorMsg: 'One or more errors occurred!',
+        PopupLeaveParentWindowMsg: 'If you now leave this page, all open popup windows will be closed, too!',
+        DialogCloseMsg: 'Close this dialog',
+        PopupBlockerMsg: 'Could not open popup window. Please disable any popup blockers for this application.',
+        PopupAlreadyOpenMsg: 'A popup of this screen is already open. Do you want to close it and load this one instead?',
+        LoadingMsg: 'Loading...',
+        SearchMsg: 'Search'
+    });
+
+    Core.Agent.Init();
+
+
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+
+    
+        Core.Agent.Login.Init();
+    
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+    Core.App.UnblockEvents();
+});
+//]]></script>
+
+</body>
+</html>
+WARNING:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'>
+
+ *** Not logged in or wrong session cookie ***
+INFO:root:sending mails from list...
+INFO:root:mail jan.krivsky@airwaynet.cz
+INFO:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Response:
+ <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!--                                                                           -->
+<!-- OTRS: Copyright 2001-2010, OTRS Project. This Software is under the AGPL. -->
+<!--          Web: http://otrs.org/ - Lists: http://lists.otrs.org/            -->
+<!--  GNU AFFERO General Public License: http://www.gnu.org/licenses/agpl.txt  -->
+<!--                                                                           -->
+<head>
+    <meta http-equiv="Content-type" content="text/html;charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+
+
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Ticket#)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionTicketNumber" />
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Fulltext)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionFulltext" />
+    <link rel="shortcut icon" href="/otrs-web/skins/Agent/default/img/icons/product.ico" type="image/ico" />
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_0993dc53b82a778c8a79ee47e1dcaa94.css" />
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/Custom/css-cache/CommonCSS_2960bbf3a5e7823498e20985bd82dad3.css" />
+
+
+<!--[if IE 7]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE7_b091cdf5e61a2e3df2e70fc73dcf7470.css" />
+    <![endif]-->
+
+
+<!--[if IE 8]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE8_3f2c669d21c3ed5e0115bf96d0799e2d.css" />
+    <![endif]-->
+
+
+
+
+
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css/thirdparty/ui-theme/jquery-ui.css" />
+
+
+    <style type="text/css">
+        #Header #Logo {
+            background-image: url(/otrs-web/skins/Agent/default/img/logo_bg.png);
+            top: -4px;
+            right: 38px;
+            width: 244px;
+            height: 67px;
+        }
+    </style>
+
+
+
+    <title>Předat - Tiket -  OTRS</title>
+
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+
+var Core = Core || {};
+Core.App = Core.App || {};
+
+/**
+ * @function
+ *      Ignores an event. Implemented without jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+function IgnoreEvent (Event) {
+    if (Event.preventDefault) {
+        Event.preventDefault();
+    }
+    Event.returnValue = false;
+    return false;
+}
+
+/**
+ * @function
+ *      This function blocks all click events on the page until it is
+ *      unblocked after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.BlockEvents = function() {
+    if (document.addEventListener) {
+        document.addEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.attachEvent('onclick', IgnoreEvent);
+    }
+};
+
+/**
+ * @function
+ *      This function unblocks all click events on the page
+ *      after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.UnblockEvents = function() {
+    if (document.removeEventListener) {
+        document.removeEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.detachEvent('onclick', IgnoreEvent);
+    }
+};
+
+// Now block all click events on the page to make sure that
+// an agent does not click before all JavaScript was loaded,
+// as event listeners are not yet available, for example.
+Core.App.BlockEvents();
+//]]></script>
+
+</head>
+<body class="">
+    <a name="Top"></a>
+
+
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/CommonJS_5ceb29242f4ad99d046a80743353468e.js"></script>
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/ModuleJS_34a7468413fd19438f8273be5a3d018e.js"></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+    Core.Config.AddConfig({
+        // config
+        Baselink: '/otrs/index.pl?',
+        CGIHandle: '/otrs/index.pl',
+        Action: 'AgentTicketForward',
+        SessionIDCookie: '228def80237ea8ecf9ec5cce6ff704222d8',
+        SessionName: 'Session',
+        SessionID: '228def80237ea8ecf9ec5cce6ff704222d8',
+        CustomerPanelSessionName: 'CSID',
+        Images: '/otrs-web/skins/Agent/default/img/',
+        UserLanguage: 'cs',
+        CheckEmailAddresses: parseInt('1', 10),
+        AnimationEnabled: parseInt('1', 10),
+        OpenMainMenuOnHover: parseInt('0', 10),
+        HTMLArticleHeightDefault: parseInt("100" || 0, 10),
+        HTMLArticleHeightMax: parseInt("2500" || 0, 10),
+        // translations
+        ValidateServerErrorTitle: 'Chyba',
+        ValidateServerErrorMsg: 'One or more errors occurred!',
+        PopupLeaveParentWindowMsg: 'If you now leave this page, all open popup windows will be closed, too!',
+        DialogCloseMsg: 'Close this dialog',
+        PopupBlockerMsg: 'Could not open popup window. Please disable any popup blockers for this application.',
+        PopupAlreadyOpenMsg: 'A popup of this screen is already open. Do you want to close it and load this one instead?',
+        LoadingMsg: 'Loading...',
+        SearchMsg: 'Vyhledat'
+    });
+
+    Core.Agent.Init();
+
+
+
+Core.Config.Set('Datepicker.VacationDays', {"TimeVacationDays":{"1":{"1":"New Year's Day"},"12":{"25":"First Christmas Day","24":"Christmas Eve","26":"Second Christmas Day","31":"New Year's Eve"},"5":{"1":"International Workers' Day"}},"TimeVacationDaysOneTime":{"2004":{"1":{"1":"test"}}}});
+Core.Config.Set('Datepicker.ErrorMessage', 'Neplatné datum');
+Core.Config.Set('Datepicker.ErrorMessageDateInFuture', 'Invalid date (need a future date)!');
+Core.Config.Set('Datepicker.Localization', {
+PrevText: 'Previous',
+NextText: 'Další',
+MonthNames: ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'],
+MonthNamesShort: ['Led', 'Úno', 'Bře', 'Dub', 'Kvě', 'Čer', 'Čvc', 'Srp', 'Zář', 'Říj', 'Lis', 'Pro'],
+DayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+DayNamesShort: ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'],
+DayNamesMin: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+IsRTL: 0,
+FirstDay: 0,
+ShowMonthAfterYear: 0,
+IconText: 'Open date selection'
+});
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+
+
+if (window.opener) {
+    window.opener.Core.UI.Popup.FirePopupEvent('URL', { URL: '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96876' });
+    window.close();
+}
+else {
+    window.location.href = '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96876';
+}
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+    Core.App.UnblockEvents();
+});
+//]]></script>
+
+</body>
+</html>
+INFO:root:mail abuse@superhosting.cz
+INFO:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Response:
+ <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!--                                                                           -->
+<!-- OTRS: Copyright 2001-2010, OTRS Project. This Software is under the AGPL. -->
+<!--          Web: http://otrs.org/ - Lists: http://lists.otrs.org/            -->
+<!--  GNU AFFERO General Public License: http://www.gnu.org/licenses/agpl.txt  -->
+<!--                                                                           -->
+<head>
+    <meta http-equiv="Content-type" content="text/html;charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+
+
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Ticket#)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionTicketNumber" />
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Fulltext)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionFulltext" />
+    <link rel="shortcut icon" href="/otrs-web/skins/Agent/default/img/icons/product.ico" type="image/ico" />
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_0993dc53b82a778c8a79ee47e1dcaa94.css" />
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/Custom/css-cache/CommonCSS_2960bbf3a5e7823498e20985bd82dad3.css" />
+
+
+<!--[if IE 7]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE7_b091cdf5e61a2e3df2e70fc73dcf7470.css" />
+    <![endif]-->
+
+
+<!--[if IE 8]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE8_3f2c669d21c3ed5e0115bf96d0799e2d.css" />
+    <![endif]-->
+
+
+
+
+
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css/thirdparty/ui-theme/jquery-ui.css" />
+
+
+    <style type="text/css">
+        #Header #Logo {
+            background-image: url(/otrs-web/skins/Agent/default/img/logo_bg.png);
+            top: -4px;
+            right: 38px;
+            width: 244px;
+            height: 67px;
+        }
+    </style>
+
+
+
+    <title>Předat - Tiket -  OTRS</title>
+
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+
+var Core = Core || {};
+Core.App = Core.App || {};
+
+/**
+ * @function
+ *      Ignores an event. Implemented without jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+function IgnoreEvent (Event) {
+    if (Event.preventDefault) {
+        Event.preventDefault();
+    }
+    Event.returnValue = false;
+    return false;
+}
+
+/**
+ * @function
+ *      This function blocks all click events on the page until it is
+ *      unblocked after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.BlockEvents = function() {
+    if (document.addEventListener) {
+        document.addEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.attachEvent('onclick', IgnoreEvent);
+    }
+};
+
+/**
+ * @function
+ *      This function unblocks all click events on the page
+ *      after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.UnblockEvents = function() {
+    if (document.removeEventListener) {
+        document.removeEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.detachEvent('onclick', IgnoreEvent);
+    }
+};
+
+// Now block all click events on the page to make sure that
+// an agent does not click before all JavaScript was loaded,
+// as event listeners are not yet available, for example.
+Core.App.BlockEvents();
+//]]></script>
+
+</head>
+<body class="">
+    <a name="Top"></a>
+
+
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/CommonJS_5ceb29242f4ad99d046a80743353468e.js"></script>
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/ModuleJS_34a7468413fd19438f8273be5a3d018e.js"></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+    Core.Config.AddConfig({
+        // config
+        Baselink: '/otrs/index.pl?',
+        CGIHandle: '/otrs/index.pl',
+        Action: 'AgentTicketForward',
+        SessionIDCookie: '228def80237ea8ecf9ec5cce6ff704222d8',
+        SessionName: 'Session',
+        SessionID: '228def80237ea8ecf9ec5cce6ff704222d8',
+        CustomerPanelSessionName: 'CSID',
+        Images: '/otrs-web/skins/Agent/default/img/',
+        UserLanguage: 'cs',
+        CheckEmailAddresses: parseInt('1', 10),
+        AnimationEnabled: parseInt('1', 10),
+        OpenMainMenuOnHover: parseInt('0', 10),
+        HTMLArticleHeightDefault: parseInt("100" || 0, 10),
+        HTMLArticleHeightMax: parseInt("2500" || 0, 10),
+        // translations
+        ValidateServerErrorTitle: 'Chyba',
+        ValidateServerErrorMsg: 'One or more errors occurred!',
+        PopupLeaveParentWindowMsg: 'If you now leave this page, all open popup windows will be closed, too!',
+        DialogCloseMsg: 'Close this dialog',
+        PopupBlockerMsg: 'Could not open popup window. Please disable any popup blockers for this application.',
+        PopupAlreadyOpenMsg: 'A popup of this screen is already open. Do you want to close it and load this one instead?',
+        LoadingMsg: 'Loading...',
+        SearchMsg: 'Vyhledat'
+    });
+
+    Core.Agent.Init();
+
+
+
+Core.Config.Set('Datepicker.VacationDays', {"TimeVacationDays":{"1":{"1":"New Year's Day"},"12":{"25":"First Christmas Day","24":"Christmas Eve","26":"Second Christmas Day","31":"New Year's Eve"},"5":{"1":"International Workers' Day"}},"TimeVacationDaysOneTime":{"2004":{"1":{"1":"test"}}}});
+Core.Config.Set('Datepicker.ErrorMessage', 'Neplatné datum');
+Core.Config.Set('Datepicker.ErrorMessageDateInFuture', 'Invalid date (need a future date)!');
+Core.Config.Set('Datepicker.Localization', {
+PrevText: 'Previous',
+NextText: 'Další',
+MonthNames: ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'],
+MonthNamesShort: ['Led', 'Úno', 'Bře', 'Dub', 'Kvě', 'Čer', 'Čvc', 'Srp', 'Zář', 'Říj', 'Lis', 'Pro'],
+DayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+DayNamesShort: ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'],
+DayNamesMin: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+IsRTL: 0,
+FirstDay: 0,
+ShowMonthAfterYear: 0,
+IconText: 'Open date selection'
+});
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+
+
+if (window.opener) {
+    window.opener.Core.UI.Popup.FirePopupEvent('URL', { URL: '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96877' });
+    window.close();
+}
+else {
+    window.location.href = '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96877';
+}
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+    Core.App.UnblockEvents();
+});
+//]]></script>
+
+</body>
+</html>
+INFO:root:sending mails from list...
+INFO:root:mail response@cert-gib.ru
+INFO:root:<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'> Response:
+ <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!--                                                                           -->
+<!-- OTRS: Copyright 2001-2010, OTRS Project. This Software is under the AGPL. -->
+<!--          Web: http://otrs.org/ - Lists: http://lists.otrs.org/            -->
+<!--  GNU AFFERO General Public License: http://www.gnu.org/licenses/agpl.txt  -->
+<!--                                                                           -->
+<head>
+    <meta http-equiv="Content-type" content="text/html;charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+
+
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Ticket#)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionTicketNumber" />
+    <link rel="search" type="application/opensearchdescription+xml" title="OTRS(Fulltext)" href="/otrs/index.pl?Action=AgentTicketSearch;Subaction=OpenSearchDescriptionFulltext" />
+    <link rel="shortcut icon" href="/otrs-web/skins/Agent/default/img/icons/product.ico" type="image/ico" />
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_0993dc53b82a778c8a79ee47e1dcaa94.css" />
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/Custom/css-cache/CommonCSS_2960bbf3a5e7823498e20985bd82dad3.css" />
+
+
+<!--[if IE 7]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE7_b091cdf5e61a2e3df2e70fc73dcf7470.css" />
+    <![endif]-->
+
+
+<!--[if IE 8]>
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css-cache/CommonCSS_IE8_3f2c669d21c3ed5e0115bf96d0799e2d.css" />
+    <![endif]-->
+
+
+
+
+
+
+
+    <link rel="stylesheet" type="text/css" href="/otrs-web/skins/Agent/default/css/thirdparty/ui-theme/jquery-ui.css" />
+
+
+    <style type="text/css">
+        #Header #Logo {
+            background-image: url(/otrs-web/skins/Agent/default/img/logo_bg.png);
+            top: -4px;
+            right: 38px;
+            width: 244px;
+            height: 67px;
+        }
+    </style>
+
+
+
+    <title>Předat - Tiket -  OTRS</title>
+
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+
+var Core = Core || {};
+Core.App = Core.App || {};
+
+/**
+ * @function
+ *      Ignores an event. Implemented without jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+function IgnoreEvent (Event) {
+    if (Event.preventDefault) {
+        Event.preventDefault();
+    }
+    Event.returnValue = false;
+    return false;
+}
+
+/**
+ * @function
+ *      This function blocks all click events on the page until it is
+ *      unblocked after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.BlockEvents = function() {
+    if (document.addEventListener) {
+        document.addEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.attachEvent('onclick', IgnoreEvent);
+    }
+};
+
+/**
+ * @function
+ *      This function unblocks all click events on the page
+ *      after all JavaScript was loaded. Implemented without
+ *      jQuery because no external JavaScript is available yet.
+ * @return nothing
+ */
+Core.App.UnblockEvents = function() {
+    if (document.removeEventListener) {
+        document.removeEventListener('click', IgnoreEvent, false);
+    }
+    else {
+        document.detachEvent('onclick', IgnoreEvent);
+    }
+};
+
+// Now block all click events on the page to make sure that
+// an agent does not click before all JavaScript was loaded,
+// as event listeners are not yet available, for example.
+Core.App.BlockEvents();
+//]]></script>
+
+</head>
+<body class="">
+    <a name="Top"></a>
+
+
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/CommonJS_5ceb29242f4ad99d046a80743353468e.js"></script>
+
+
+<script type="text/javascript" src="/otrs-web/js/js-cache/ModuleJS_34a7468413fd19438f8273be5a3d018e.js"></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+    Core.Config.AddConfig({
+        // config
+        Baselink: '/otrs/index.pl?',
+        CGIHandle: '/otrs/index.pl',
+        Action: 'AgentTicketForward',
+        SessionIDCookie: '228def80237ea8ecf9ec5cce6ff704222d8',
+        SessionName: 'Session',
+        SessionID: '228def80237ea8ecf9ec5cce6ff704222d8',
+        CustomerPanelSessionName: 'CSID',
+        Images: '/otrs-web/skins/Agent/default/img/',
+        UserLanguage: 'cs',
+        CheckEmailAddresses: parseInt('1', 10),
+        AnimationEnabled: parseInt('1', 10),
+        OpenMainMenuOnHover: parseInt('0', 10),
+        HTMLArticleHeightDefault: parseInt("100" || 0, 10),
+        HTMLArticleHeightMax: parseInt("2500" || 0, 10),
+        // translations
+        ValidateServerErrorTitle: 'Chyba',
+        ValidateServerErrorMsg: 'One or more errors occurred!',
+        PopupLeaveParentWindowMsg: 'If you now leave this page, all open popup windows will be closed, too!',
+        DialogCloseMsg: 'Close this dialog',
+        PopupBlockerMsg: 'Could not open popup window. Please disable any popup blockers for this application.',
+        PopupAlreadyOpenMsg: 'A popup of this screen is already open. Do you want to close it and load this one instead?',
+        LoadingMsg: 'Loading...',
+        SearchMsg: 'Vyhledat'
+    });
+
+    Core.Agent.Init();
+
+
+
+Core.Config.Set('Datepicker.VacationDays', {"TimeVacationDays":{"1":{"1":"New Year's Day"},"12":{"25":"First Christmas Day","24":"Christmas Eve","26":"Second Christmas Day","31":"New Year's Eve"},"5":{"1":"International Workers' Day"}},"TimeVacationDaysOneTime":{"2004":{"1":{"1":"test"}}}});
+Core.Config.Set('Datepicker.ErrorMessage', 'Neplatné datum');
+Core.Config.Set('Datepicker.ErrorMessageDateInFuture', 'Invalid date (need a future date)!');
+Core.Config.Set('Datepicker.Localization', {
+PrevText: 'Previous',
+NextText: 'Další',
+MonthNames: ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'],
+MonthNamesShort: ['Led', 'Úno', 'Bře', 'Dub', 'Kvě', 'Čer', 'Čvc', 'Srp', 'Zář', 'Říj', 'Lis', 'Pro'],
+DayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+DayNamesShort: ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'],
+DayNamesMin: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+IsRTL: 0,
+FirstDay: 0,
+ShowMonthAfterYear: 0,
+IconText: 'Open date selection'
+});
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+
+
+
+if (window.opener) {
+    window.opener.Core.UI.Popup.FirePopupEvent('URL', { URL: '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96878' });
+    window.close();
+}
+else {
+    window.location.href = '/otrs/index.pl?Action=AgentTicketZoom;TicketID=7056;ArticleID=96878';
+}
+
+
+
+});
+//]]></script>
+
+<script type="text/javascript">//<![CDATA[
+"use strict";
+Core.App.Ready(function () {
+    Core.App.UnblockEvents();
+});
+//]]></script>
+
+</body>
+</html>
