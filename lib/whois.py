@@ -39,7 +39,7 @@ class Whois:
 
     def queryCountry(query):
         cmd = query + " | grep ^[c,C]ountry | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
-        country = Whois._exec("whois -h ripedb2.nic.cz -- " + cmd) # zeptat se rychleho whois-mirroru cz.nic
+        country = Whois._exec("whois -h ripedb.nic.cz -- " + cmd) # zeptat se rychleho whois-mirroru cz.nic
 
         # osetrit pripad, kdy whois selhal
         if country[0:2].lower() == "eu": #ex: 'EU # Country is really world wide' (64.9.241.202)
@@ -51,7 +51,7 @@ class Whois:
 
         #v pripade 10_16_Honeypot se nam stalo, ze se whois ptal kdovi ceho. Prestoze si myslime, ze se pta ripe ARINu, nevypadalo to.
         if country == "":
-            country = Whois._exec("whois -h whois.arin.net " + cmd)
+            country = Whois._exec("whois -h whois.arin.net " + cmd) # myslim, ze ripe se ptat nemusim, protoze ARIN na nej primo odkazuje (whois -h whois.arin.net 109.123.209.188 mi proste vratilo i vysledek RIPE)
         if country == "":
             country = Whois._exec("whois -h whois.lacnic.net " + cmd)
         if country == "":
@@ -65,7 +65,7 @@ class Whois:
 
     def getAsn(ip):
         cmd = ip + " | grep ^[o,O]rigin | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
-        asn = Whois._exec("whois -h ripedb2.nic.cz -- " + cmd) # zeptat se rychleho whois-mirroru cz.nic
+        asn = Whois._exec("whois -h ripedb.nic.cz -- " + cmd) # zeptat se rychleho whois-mirroru cz.nic
         return asn
 
 

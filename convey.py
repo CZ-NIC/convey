@@ -77,7 +77,10 @@ if __name__ == "__main__":
             #))
         if Config.get('debug') == "True":
             print("\n*** DEBUG MOD - maily budou zaslany na mail {} ***\n (Pro zrušení debug módu nastavte debug = False v config.ini.)".format(Config.get('debugMail')))
-        print("Statistický přehled: " + csv.getStatsPhrase())
+        stat = csv.getStatsPhrase()
+        print("Statistický přehled: " + stat)
+        with open("statistics.txt","w") as f:
+                    f.write(stat)
         if len(csv.mailCz.getOrphans()):
             print("Nezdařilo se dohledat abusemaily pro {} CZ IP.".format(len(csv.mailCz.getOrphans())))
         if len(csv.countriesMissing):
