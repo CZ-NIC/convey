@@ -79,7 +79,7 @@ if __name__ == "__main__":
             print("\n*** DEBUG MOD - maily budou zaslany na mail {} ***\n (Pro zrušení debug módu nastavte debug = False v config.ini.)".format(Config.get('debugMail')))
         stat = csv.getStatsPhrase()
         print("Statistický přehled: " + stat)
-        with open("statistics.txt","w") as f:
+        with open(os.path.dirname(file) + "/statistics.txt","w") as f:
                     f.write(stat)
         if len(csv.mailCz.getOrphans()):
             print("Nezdařilo se dohledat abusemaily pro {} CZ IP.".format(len(csv.mailCz.getOrphans())))
@@ -128,7 +128,7 @@ if __name__ == "__main__":
         elif option == "2":
             print("1 - Generovat soubory s IP bez kontaktu {}".format(csv.missingFilesInfo()))
             print("2 - Generovat všechny soubory ({} souborů)".format(len(csv.countries) + len(csv.mailCz.mails)))
-            print("3 - Generovat statistiky pro Martina")
+            #print("3 - Generovat statistiky pro Martina")
             print("[x] - Storno")
             sys.stdout.write("? ")
             sys.stdout.flush()
@@ -138,9 +138,9 @@ if __name__ == "__main__":
                 csv.generateFiles(os.path.dirname(file), True)
             elif option2 == "2":
                 csv.generateFiles(os.path.dirname(file))
-            elif option2 == "3":
-                with open("statistics.txt","w") as f:
-                    f.write(csv.getStatsPhrase())
+            #elif option2 == "3":
+            #    with open("statistics.txt","w") as f:
+            #        f.write(csv.getStatsPhrase())
                     
                     
 
