@@ -38,7 +38,7 @@ class Whois:
             return False
 
     def queryCountry(query):
-        cmd = query + " | grep ^[c,C]ountry | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
+        cmd = query + " | strings | grep ^[c,C]ountry | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
         country = Whois._exec("whois -h ripedb.nic.cz -- " + cmd) # zeptat se rychleho whois-mirroru cz.nic
 
         # osetrit pripad, kdy whois selhal
@@ -64,7 +64,7 @@ class Whois:
         return country
 
     def getAsn(ip):
-        cmd = ip + " | grep ^[o,O]rigin | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
+        cmd = ip + " | strings | grep ^[o,O]rigin | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
         asn = Whois._exec("whois -h ripedb.nic.cz -- " + cmd) # zeptat se rychleho whois-mirroru cz.nic
         return asn
 
@@ -83,7 +83,7 @@ class Whois:
     # Pokud je force = True a mail neni k dispozici, zkusi pouzit jeste druhy request s flagem B.
     # Pokud neni abusemail nalezen, vraci "".
     def queryMail(query, force = False):
-        cmd = "whois -- " + query + " | grep '\\% Abuse contact for' | grep -E -o '\\b[a-zA-Z0-9.-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z0-9.-]+\\b' || whois -- " + query + " | grep abuse-mailbox | cut -d: -f2 | sed -e 's/^\\s*//' -e 's/\\s*$//' | sort -nr | uniq | tr '\\n' ',' | sed -e 's/,$//' -e 's/,/\\,/g'"
+        cmd = "whois -- " + query + " | strings | grep '\\% Abuse contact for' | grep -E -o '\\b[a-zA-Z0-9.-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z0-9.-]+\\b' || whois -- " + query + " | strings | grep abuse-mailbox | cut -d: -f2 | sed -e 's/^\\s*//' -e 's/\\s*$//' | sort -nr | uniq | tr '\\n' ',' | sed -e 's/,$//' -e 's/,/\\,/g'"
         abuseMail = Whois._exec(cmd)
         if abuseMail == "":
             if force == False:
@@ -99,7 +99,7 @@ class Whois:
     # return mail, nebo "" (pokud mail neni k dispozici)
     def queryMailForced(query):
         Whois.bCount += 1 # pouzivame dalsi B-flag
-        cmd = "whois -B -- " + query + " | grep e-mail | cut -d: -f2 | sed -e 's/^\s*//' -e 's/\s*$//' | sort -nr | uniq | tr '\n' ',' | sed -e 's/,$//' -e 's/,/\,/g'"
+        cmd = "whois -B -- " + query + " | strings | grep e-mail | cut -d: -f2 | sed -e 's/^\s*//' -e 's/\s*$//' | sort -nr | uniq | tr '\n' ',' | sed -e 's/,$//' -e 's/,/\,/g'"
         # XX tady bych mohl vystup whois -B ulozit a zkouset greppovat radek Abuse contact for, stejne jako se dela v queryMail. Netusim, proc se to nedeje, bud jsem to z puvodnich skriptu spatne opsaal, nebo tenkrat radek Abuse contact jeste moc neexistoval.
         abuseMail = Whois._exec(cmd)
         if abuseMail == "":

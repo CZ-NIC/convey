@@ -8,23 +8,18 @@ from lib.config import Config
 
 class MailList:
 
-
-
     """ Datova struktura na spravu mailu"""
     def __init__(self, listName, templateFile):        
         self.text = False
         self.mails = defaultdict(_Mail) #defaultdict(set)
         self.listName = listName
         self.templateFile = templateFile
-
         self.mailFile = Config.getCacheDir() + self.listName + ".txt" # ex: csirt/2015/mail_cz5615616.txt XMailList.dir +  + MailList.hash
-
         self.guiEdit()
 
     # Zahodi strukturu mailu.
     def resetMails(self):
         self.mails = defaultdict(_Mail)
-
 
     # Vraci set IP, ktera nemaji zadny e-mail.
     # Ma smysl jenom u listu ceskych adres mailCz. K orphan-IP nelze dohledat mail (a zrejme se vyhodi nebo poslou na ASN adresu).
@@ -95,7 +90,7 @@ class MailList:
         for mail in self.mails:            
             result += "'{}' ({})".format(mail, len(self.mails[mail]))            
             if self.mails[mail].cc:
-                result += " cc: {} ".format(self.mails[mail].cc)
+                result += " cc: {} ".format(self.mails[mail].cc)            
             result += "\n"
             
         #print(result);import pdb; pdb.set_trace()
