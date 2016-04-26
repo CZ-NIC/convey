@@ -1,2 +1,0 @@
-Start Time - first seen	Duration	IP Protocol	Source IP address	Source Port	Destination IP address	Destination Port	TCP Flags	TOS (default: source)	Packets (default: input)	Bytes (default: input)	Flows
-2015-02-15 01:44:58.799	0.000	TCP	185.122.2.146	40697	91.239.200.165	80	0xc2	0	1	40	1

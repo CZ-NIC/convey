@@ -1,9 +1,0 @@
-IPaddress,ASnumber,Country,Firstseen_epoch,Firstseen_readable,Lastseen_epoch,Lastseen_readable,C2Domain,DstIP,DstPort,URI,Botname
-88.101.29.151,AS5610,CZ,1415791757,2014-11-12 11:29:17,1415792688,2014-11-12 11:44:48,na,na,na,/updates/userlogin.php,na
-88.101.190.25,AS5610,CZ,1420314274,2015-01-03 19:44:34,1422077765,2015-01-24 05:36:05,gb.relbin.info,na,443,https://therushcrash.co/news/userlogin.php,na
-37.48.35.241,AS13036,CZ,1417121634,2014-11-27 20:53:54,1417121634,2014-11-27 20:53:54,na,na,na,/updates/imageupload.php,na
-178.23.216.108,AS50971,CZ,1415790074,2014-11-12 11:01:14,1415793642,2014-11-12 12:00:42,na,na,na,/updates/userlogin.php,na
-77.242.95.92,AS41046,CZ,1415795270,2014-11-12 12:27:50,1415795578,2014-11-12 12:32:58,na,na,na,/updates/userlogin.php,na
-37.48.54.63,AS13036,CZ,1415793185,2014-11-12 11:53:05,1415802415,2014-11-12 14:26:55,na,na,na,/updates/userlogin.php,na
-109.81.211.202,AS5610,CZ,1419305626,2014-12-23 03:33:46,1419305626,2014-12-23 03:33:46,na,na,na,/updates/imageupload.php,na
-81.91.219.237,AS39817,CZ,1415744018,2014-11-11 22:13:38,1415744041,2014-11-11 22:14:01,na,na,na,/updates/userlogin.php,na

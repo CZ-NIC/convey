@@ -1,17 +1,16 @@
 # Patri do projektu convey.py. Stara se o praci se zdrojovym souborem.
 from collections import defaultdict
-import csv
 from lib.config import Config
 from lib.mailList import MailList
 from lib.whois import Whois
+from pprint import pprint
+import csv
 import ntpath
 import os
 import pickle
-from pprint import pprint
 import re
 import sys
 import threading
-#import dill
 
 __author__ = "edvard"
 __date__ = "$Feb 27, 2015 5:46:15 PM$"
@@ -28,7 +27,7 @@ class SourceParser:
             self.logs = defaultdict(set) # logs[145.1.2.3] = {logline, ...}
             self.countries = defaultdict(set) # countries[gb] = {ip, ...} Odtud jdou IP dle whois do struktur MailList
             self.countriesMissing = defaultdict(set) # takove prvky self.countries, ktere se nepodarilo zaradit dle whois do MailList
-            
+
             self.ipField = 0 #pozice sloupce s IP adresou
             self.asnField = -1 #pozice sloupce s AS number
             self.hostField = -1 # pozice sloupce s URL, ktere se prelozi na IP
@@ -47,8 +46,8 @@ class SourceParser:
             self.cookie = False
             self.token = False
 
-            self.ticketid = Config.get("ticketid") # XX MISC vytvorit si vlastni ticket! Treba si vytvor nejaky novy testovaci tiket a potom ho presun do fronty MISC, nebo to klidne zkousej na kterymkoliv tiketu ve fronte MISC ;-)            
-            self.ticketnum = Config.get("ticketnum")            
+            self.ticketid = Config.get("ticketid") # XX MISC vytvorit si vlastni ticket! Treba si vytvor nejaky novy testovaci tiket a potom ho presun do fronty MISC, nebo to klidne zkousej na kterymkoliv tiketu ve fronte MISC ;-)
+            self.ticketnum = Config.get("ticketnum")
 
             self.attachmentName = "part-" + ntpath.basename(sourceFile)
 
@@ -62,10 +61,10 @@ class SourceParser:
             else:
                 self.mailCz = False #deklarace dopisu pro cz
                 self.mailWorld = False #deklarace dopisu pro svet
-                self.launchWhois()                
+                self.launchWhois()
                 break
 
-    def launchWhois(self): #spusti dlouhotrvajici processing souboru                        
+    def launchWhois(self): #spusti dlouhotrvajici processing souboru
         self._lines2logs()
         self._logs2countries()
 
@@ -87,7 +86,7 @@ class SourceParser:
         #pripravit csv k analyze
         self._addInfo("Source file: " + sourceFile)
         csvfile = open(sourceFile, 'r')
-        self.lines = csvfile.read().splitlines()    
+        self.lines = csvfile.read().splitlines()
         sample = ""
         for i, row in enumerate(self.lines):
             if(i == 0):
@@ -96,7 +95,7 @@ class SourceParser:
             if(i == 8): #XX snifferu na zjisteni dialektu nestaci 3 linky, ale 7+ (/mnt/csirt-rook/2015/06_08_Ramnit/zdroj), nevim proc
                 break
 
-        #uhadnout delimiter        
+        #uhadnout delimiter
         self.delimiter = csv.Sniffer().sniff(sample).delimiter
         print("Sample rows:")
         print(sample)
@@ -114,7 +113,7 @@ class SourceParser:
         hasHeader = csv.Sniffer().has_header(sample)
 
         if hasHeader:
-            sys.stdout.write("Header nalezen - ok? [y]/n: ") # Header present 
+            sys.stdout.write("Header nalezen - ok? [y]/n: ") # Header present
             if input().lower() not in ("y", ""):
                 hasHeader = False
         else:
@@ -135,7 +134,7 @@ class SourceParser:
         # sloupec IP
         def _findIpCol():
             found = False
-            if repeating == False: # dialog jede poprve, zkusit autodetekci                
+            if repeating == False: # dialog jede poprve, zkusit autodetekci
                 ipNames = ["ip", "sourceipaddress", "ipaddress", "source"] #mozne nazvy ip sloupcu - bez mezer
                 for fieldname in fields:
                     field = fieldname.replace(" ", "").replace("'", "").replace('"', "").lower()
@@ -195,7 +194,7 @@ class SourceParser:
                 for fieldname in fields:
                     field = fieldname.replace(" ", "").lower()
                     if hasHeader == True: #soubor ma hlavicku, zjistovat v ni
-                        if field in asNames: #tohle je mozna nazev ip sloupce                            
+                        if field in asNames: #tohle je mozna nazev ip sloupce
                             found = True
                             break
                     else: #csv nema hlavicku -> pgrep IP, jinak se zeptat uzivatele na cislo sloupce
@@ -241,8 +240,8 @@ class SourceParser:
                 continue
             try:
                 fields = row.strip().split(self.delimiter)
-                if self.hostField != -1:#pokud CSV obsahuje sloupec s URL, ktery teprve mame prelozit do sloupce s IP                    
-                    ips = Whois.url2ip(fields[self.hostField])                    
+                if self.hostField != -1:#pokud CSV obsahuje sloupec s URL, ktery teprve mame prelozit do sloupce s IP
+                    ips = Whois.url2ip(fields[self.hostField])
                 else:
                     ips = [fields[self.ipField].replace(" ", "")] #klic bereme ze sloupce ip
 
@@ -268,15 +267,15 @@ class SourceParser:
                 raise
 
 
-        
+
         print("IP count: {}".format(self.getIpCount()))
         print("Log lines count: {}".format(len(self.lines)))
         if extend > 0:
-            print("+ dalších {} řádků, protože některé domény měly více IP".format(extend))        
-        
+            print("+ dalších {} řádků, protože některé domény měly více IP".format(extend))
+
     def getIpCount(self):
         return len(self.logs)
-    
+
 
     ## Vezme strukturu logs[ip] = {log,...}
     # vraci strukturu  countries[cz] = {ip, ...}
@@ -287,7 +286,7 @@ class SourceParser:
         sys.stdout.flush()
 
         #zjistit ke kazde IP stat dle whois
-        if self.multithread == True:            
+        if self.multithread == True:
             threads = []
             for ip in self.logs:
                 #threads  XX snad je threadu optimalni pocet
@@ -306,7 +305,7 @@ class SourceParser:
         #print("COUNTRIES:")
         #print(self.countries)
 
-    
+
     # Prida zemi ip-adresy do self.countries
     lock = threading.RLock()
     def _push2countries(self, ip):
@@ -316,8 +315,8 @@ class SourceParser:
         with SourceParser.lock: #nesmi se stat, ze dva thready pridaji tyz klic
             if (country not in self.countries): #jiny thread mezitim klic nevytvoril .
                 sys.stdout.write(country + ', ')
-                sys.stdout.flush() #ihned vypsat, at uzivatel vidi, ze se neco deje            
-                
+                sys.stdout.flush() #ihned vypsat, at uzivatel vidi, ze se neco deje
+
         self.countries[country].add(ip) #ulozit novy log do klice
         pass
 
@@ -334,7 +333,7 @@ class SourceParser:
     #
     # XX Pocitam (zrejme) s existenci moznosti, kdy ruzne IP z ASN spadaji do ruznych zemi.
     #    Pokud se tak nekdy stane, na ASN abuse mail se poslou pouze logy z IP, ktere nalezi do CZ.
-    #    
+    #
     def _buildListCz(self, ips):
         self.mailCz.resetMails()
         print("Querying whois for mails.")
@@ -357,8 +356,8 @@ class SourceParser:
                         self.mailCz.mails[mail].add(ip)
                     if bSpared == False: #zde bychom potrebovali B flag
                         ipsRedo.add(ip) # udelat ip znovu
-                        
-                
+
+
                 if len(ipsRedo) > threshold: # B flagu je treba vic nez je prah
                     #zepta se uzivatele, ma-li pro zbyle IP -b requesty udelat, nebo pouzit ASN.
                     print(("Bez B-flagů jsme zjistili {} abusemailů. " +
@@ -384,7 +383,7 @@ class SourceParser:
         orphL = len(self.mailCz.getOrphans())
         if orphL:
             count -= 1
-            print("Počet CZ IP bez abusemailů: {}".format(orphL))            
+            print("Počet CZ IP bez abusemailů: {}".format(orphL))
         else:
             print("CZ whois OK!")
         print("Nalezeno celkem {} abusemailů. " .format(count))
@@ -434,7 +433,7 @@ class SourceParser:
         for ip in ips:
             asnSet[self.ip2asn[ip]].add(ip)
         for asn in asnSet:
-            mail, forced = Whois.queryMailForced(asn)
+            mail, forced = Whois.queryMailForced(asn) # XXX proc rovnou forced?
             self.mailCz.mails[mail].update(asnSet[asn]) # pripojit vsechny IP ASNka k jeho mailu
         print("Počet ASN: {}".format(len(asnSet)))
 
@@ -450,7 +449,7 @@ class SourceParser:
     #http://www.first.org/members/teams
     #
     #pak hledá statické kontakty.
-    #    
+    #
     def buildListWorld(self):
         self.mailWorld.resetMails()
         file = Config.get("contacts_world")
@@ -485,7 +484,7 @@ class SourceParser:
                                                                 len(self.countriesMissing) + (1 if len(self.mailCz.getOrphans()) else 0),
                                                                 len(self.countriesMissing),
                                                                 len(self.mailCz.getOrphans()))
-        
+
 
     ## Zapise soubory logu, rozdelenych po zemich.
     # dir - adresar bez koncoveho lomitka
@@ -498,7 +497,7 @@ class SourceParser:
             extension = ".tmp"
             files = self.countries.copy() # X countriesOriginal
             files.update(self.mailCz.mails.copy()) # CZ IP budou v souborech dle abusemailu
-        
+
         dir += "/"
         count = 0
         #zapsat soubory ze zemi a abusemailu
@@ -565,7 +564,7 @@ class SourceParser:
 
         ipsWorldMissing = len([[y for y in self.countriesMissing[x]] for x in self.countriesMissing])
         ipsWorldFound = len([[y for y in self.mailWorld.mails[x]] for x in self.mailWorld.mails])
-        
+
         countriesMissing = len(self.countriesMissing)
         countriesFound = len(self.mailWorld.mails)
 
@@ -579,7 +578,7 @@ class SourceParser:
         if ipsWorldFound or countriesFound:
             res += "; informace zaslána do {} zemí".format(countriesFound) \
             + " ({} unikátních IP adres)".format(ipsWorldFound)
-        if ipsWorldMissing or countriesMissing:            
+        if ipsWorldMissing or countriesMissing:
             res += ", do {} zemí neposláno, nemají národní/vládní CSIRT".format(countriesMissing) \
             + " ({} unikátních IP adres)".format(ipsWorldMissing)
         if ipsCzFound or ispCzFound:
