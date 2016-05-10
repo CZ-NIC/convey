@@ -64,11 +64,11 @@ class SourceParser:
         self._lines2logs()
         self._logs2countries()
 
-        self.mailCz = MailList("mail_cz", Config.get("mail_template_cz")) # local mail
-        self.mailWorld = MailList("mail_world", Config.get("mail_template_world")) # foreign mail
+        self.mailCz = MailList("mail_cz", Config.get("mail_template_local")) # local mail
+        self.mailWorld = MailList("mail_world", Config.get("mail_template_foreign")) # foreign mail
 
-        if 'cz' in self.countries: # local -> abuse mails
-            self._buildListCz(self.countries.pop("cz"))
+        if Config.get("local_country") in self.countries: # local -> abuse mails
+            self._buildListCz(self.countries.pop(Config.get("local_country")))
             self.applyCzCcList() # additional Cc contacts to local abusemails
 
         self.buildListWorld() # Foreign -> contacts to other CSIRTs
@@ -371,14 +371,14 @@ class SourceParser:
             count -= 1
             print("Count of local IPs without abusemails: {}".format(orphL))
         else:
-            print("CZ whois OK!")
+            print("Local whois OK!")
         print("Totally found {} abusemails. " .format(count))
 
     ##
     # add mails from custom list to cc-copy
     def applyCzCcList(self):
         count = 0
-        file = Config.get("contacts_cz")
+        file = Config.get("contacts_local")
         if os.path.isfile(file) == False: # file with contacts
             print("(File with local CC contacts {} not found.) ".format(file))
         else:
@@ -421,7 +421,7 @@ class SourceParser:
     #
     def buildListWorld(self):
         self.mailWorld.resetMails()
-        file = Config.get("contacts_world")
+        file = Config.get("contacts_foreign")
         if os.path.isfile(file) == False: #soubor s kontakty
             print("Foreign contacts file {} not found. ".format(file))
             return False
