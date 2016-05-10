@@ -1,4 +1,4 @@
-# Vyber zdrojoveho souboru
+# Source file choice
 import os.path
 import sys
 import configparser
@@ -6,7 +6,7 @@ from lib.config import Config
 import tkinter as tk
 from tkinter.filedialog import askopenfilename
 
-__author__ = "edvard"
+__author__ = "Edvard Rejthar, CSIRT.CZ"
 __date__ = "$Mar 23, 2015 10:36:35 PM$"
 
 def SourcePicker():
@@ -16,57 +16,57 @@ def SourcePicker():
     if (len(sys.argv) > 1) and (sys.argv[-1] != ""):
         file = sys.argv[-1]
     else:
-        try: # cesta v prikazove radce nezadana, zkusime default dir
-            dirDefault = Config.get('default_dir') # zkousime crawlovat oblibeny adresar
+        try: # path not set in command line, let's crawl default dir
+            dirDefault = Config.get('default_dir')
             dirs = os.listdir(dirDefault)
-            print("Cesta k souboru s logy nebyla zadána v příkazové řádce. V kterém adresáři ho mám hledat?")
+            print("Source log filepath not set in command line. In which directory should I search?")
             while True:
                 i = 1
                 if dirs != "":
                     for dir in dirs:
                         print(str(i) + ". " + dir)
                         i += 1
-                print("0. Zadat jinou cestu")
-                print("x. Konec")
+                print("0. Set another path")
+                print("x. End")
                 sys.stdout.write("? ")
                 sys.stdout.flush()
 
                 option = input()
-                if option == "x": # skoncit program
+                if option == "x":
                     quit()
-                elif option == "0": # zadame pozdeji primo jmeno souboru
+                elif option == "0": # we'll set file name afterwards
                     break
-                else: # crawlujeme nejaky adresar, zda se tam nachazi soubor povedomeho nazvu
+                else: # crawlujeme a dir to find filename with known name
                     dir = dirDefault + dirs[int(option)-1] + "/"
                     for fileD in Config.get('default_file').split(","):
                         if os.path.isfile(dir + fileD):
                             file = dir + fileD
                             break
                     if file == "":
-                        print("V tomto adresáři se nevyskytuje žádný z defaultních souborů s logy: " + Config.get('default_file'))
+                        print("There is not any default log file in that directory: " + Config.get('default_file'))
                     else:
-                        break #opakovat volbu adresáře
-        except FileNotFoundError as e: #oblibeny adresar neexistuje
-            print("Z config.ini se nepovedlo načíst adresář default_dir {}".format(Config.get('default_dir')))
-            pass # budeme muset zadat soubor rucne
+                        break # repeat dir choice
+        except FileNotFoundError as e: # favourite dir does not exist
+            print("Couldn't load from config.ini directory default_dir {}".format(Config.get('default_dir')))
+            pass # let's set the path manually
 
 
     if file == "":
-        print("Zadejte cestu k zdrojovému souboru s logy.")
+        print("Set path to the source log file.")
         sys.stdout.write("? ")
         sys.stdout.flush()
-        #file = input() varianta bez gui
+        #file = input() without GUI variant
         root = tk.Tk()
         root.withdraw() # show askopenfilename dialog without the Tkinter window
         file = askopenfilename() # default is all file types
         print(file)
 
 
-    # overit cestu ke zdrojovemu souboru
+    # open source file path
     if os.path.isfile(file):
-        print("Zdrojový soubor nalezen.")
+        print("Source file not found.")
     else:
-        print("Soubor {} nenalezen.".format(file))
+        print("File {} not found.".format(file))
         quit()
 
     return file

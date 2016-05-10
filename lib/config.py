@@ -1,6 +1,4 @@
-# spojeni s konfiguracnim souborem
-# To change this template file, choose Tools | Templates
-# and open the template in the editor.
+# Env config file connection
 import configparser
 
 class Config:
@@ -20,7 +18,8 @@ class Config:
 
     #def setTemp(key,val):
     #    Config.tempCache[key] = val
-    #X Zabije komentaredef set(key, val):
+    #X Can't update, it would kill comments in config.ini :(
+    #def set(key, val):
         #Config.config.set('CONVEY',key,val)
         #with open(Config.file,"w") as f:
             #Config.config.write(f)

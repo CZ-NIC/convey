@@ -1,4 +1,4 @@
-# datova struktura na spravu mailu
+# Mail management data structure
 from collections import defaultdict
 import os
 import webbrowser
@@ -8,7 +8,7 @@ from lib.config import Config
 
 class MailList:
 
-    """ Datova struktura na spravu mailu"""
+    """ Mail management data structure """
     def __init__(self, listName, templateFile):        
         self.text = False
         self.mails = defaultdict(_Mail) #defaultdict(set)
@@ -17,28 +17,19 @@ class MailList:
         self.mailFile = Config.getCacheDir() + self.listName + ".txt" # ex: csirt/2015/mail_cz5615616.txt XMailList.dir +  + MailList.hash
         self.guiEdit()
 
-    # Zahodi strukturu mailu.
+    # Clears mail structure.
     def resetMails(self):
         self.mails = defaultdict(_Mail)
 
-    # Vraci set IP, ktera nemaji zadny e-mail.
-    # Ma smysl jenom u listu ceskych adres mailCz. K orphan-IP nelze dohledat mail (a zrejme se vyhodi nebo poslou na ASN adresu).
-    # U list svetovych adres mailWorld jsou orphany cele zeme, ke kterym musi dohledat kontakt operator.
+    # Returns set of IPs without e-mail.
+    # It has sense only in the local address list mailCz. To the orphan-IP can't be found e-mail (and they will be likely ignored or send to ASN e-mail).
+    # In the case of foreign address mailWorld list, orphans are whole countries. CSIRT conctact has to be found.
     #
     def getOrphans(self):
         if "unknown" in self.mails:
             return self.mails["unknown"]
         else:
             return set()
-
-
-    #hash = "" # hash se pripoji k temp-souboru, ktery obsahuje bodytext
-    #def setHash(hash):
-    #    MailList.hash = hash
-    
-    #dir = "cache/" # vcetne lomitka
-    #def setDir(dir):
-    #    MailList.dir = dir
         
 
     # get body text
@@ -58,35 +49,30 @@ class MailList:
     def getMailPreview(self):
         return (self.getSubject() + ": " + self.getBody()[0:50] + "... ").replace("\n"," ").replace("\r"," ")
 
-        #print("Vypisuji text mailu:")
-        #print(self.text)
-        #print("\nVypsal jsem text mailu. J")
-
     def _assureMailContents(self):
-        self.text = self._loadText() # XX nejaky text se vrati vzdy, nasledujici radky, kdy je mozno vlozit text rucne, se tedy zrejme neprovedou
-        if self.text == False: # uzivatel jeste v GUI nevyplnil soubory
-            print("Prázdný body text. Přejete si v GUI otevřít soubor k editaci? [y]/n")
-            if input().lower() in ("y",""):
-                # otevrit template mailu v GUI
+        self.text = self._loadText() # XX some text is always returned, following lines that manually edits text, will likely never be executed
+        if self.text == False: # user didn't fill files in GUI
+            print("Empty body text. Do you wish to open GUI for editation? [y]/n")
+            if input().lower() in ("y",""):                
                 self.guiEdit()
-                print("Po vyplnění textu mailu se vraťte.")
-                return False # uživatel vyplnít GUI soubor, uloží jej a pak se ručně vrátí sem do metody
+                print("Come back after filling in the mail.")
+                return False # user fill GUI file, saves it and manually comes here to the method
             else:
-                print("Přejete si napsat text ručně? [y]/n")
+                print("Do you wish to edit the text manually[y]/n")
                 if input().lower() in ("y",""):
-                    print("Vepište ručně text mailu. První řádek je subject. (Vkopírujte Ctrl+Shift+V.)") # XX vazne je prvni radek subject? Jeste jsem to neimplementoval
+                    print("Write mail text. First line is subject. (Copy in to the terminal likely by Ctrl+Shift+V.)") # XX really is first line subject? It may not be implemented. We've always used gui.
                     self.text = input()
                 else:
-                    return False # bodytext jsme neziskali
+                    return False # bodytext not received
         return True
 
     def _loadText(self):
-        """Nacte ze souboru text body a subject."""        
+        """Loads body text and subject from the file."""
         with open(self.mailFile, 'r') as f:
             return f.read()
 
     def __str__(self):
-        result = ("Počet abusemailů: {0}\n".format(len(self.mails)))
+        result = ("Abusemails count: {0}\n".format(len(self.mails)))
         for mail in self.mails:            
             result += "'{}' ({})".format(mail, len(self.mails[mail]))            
             if self.mails[mail].cc:
@@ -106,22 +92,22 @@ class MailList:
             return []
 
 
-    # Otevre soubor pro text z mailu ke GUI editaci.
-    # Pokud soubor neexistuje, vytvori ho a vlozi do nej text ze souboru sablony.    
+    # Opens file for mail text to GUI editation.
+    # If file doesnt exists, it creates it from the template.
     def guiEdit(self):        
-        if os.path.isfile(self.mailFile) == False: # soubor pro bodytext sablonu jeste neexistuje
-            with open(self.templateFile, 'r') as template, open(self.mailFile , 'w+') as file: # nacte sablonu
-                file.write(template.read()) # zapsat do textu mailu defaultni template
+        if os.path.isfile(self.mailFile) == False:
+            with open(self.templateFile, 'r') as template, open(self.mailFile , 'w+') as file:
+                file.write(template.read())
 
-        #webbrowser.open(mailFile) X furt do konzole vypisuje error hlasky, nic nepomohlo
+        #webbrowser.open(mailFile) X this preferred method didnt work, console was fullfilled by errors
         subprocess.Popen(['gedit',self.mailFile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
 class _Mail(set):
-    def __init__(self, state= None): # state=None kvuli unpickleni. State dostava hodnoty setu. XAle state se prirazuje uz vys, v MailList.__setstate__
+    def __init__(self, state= None): # state=None because of unpickling. State gets values of set.
         self.cc = ""
         if state:
             self.update(state)
 
-    def __setstate__(self,state): # vola to pickle.load. State dostava atributy (cc)
+    def __setstate__(self,state): # this is called by pickle.load. State receives attributes (cc)
         self.__dict__ = state

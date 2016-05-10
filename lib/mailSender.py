@@ -1,4 +1,4 @@
-# Vychazi z auscert-send.6.py pro Python2.
+# Send mails throught OTRS
 import http.client
 from optparse import OptionParser
 import re
@@ -113,11 +113,11 @@ class MailSender():
             logging.error(response)
             return False
 
-    # posle objekt mailList (mailCz ci mailWorld)
+    # send mailList object (mailCz or mailWorld)
     def sendList(mailList, csv):
         #global DEBUG
         if not len(mailList.mails):
-            print("... hotovo. (Žádné maily na seznamu, není co poslat.)")
+            print("... done. (No mails in the list, nothing to send.)")
             return True
         
         sentMails = 0
@@ -129,14 +129,14 @@ class MailSender():
             textVars["FILENAME"] = csv.attachmentName
             textVars["TICKETNUM"] = csv.ticketnum
             subject = mailList.getSubject() % textVars
-            body = mailList.getBody() % textVars # formatovat sablonu textu, ex: kde se v body vyskytuje {FILENAME}, nahradi se jmenem souboru
+            body = mailList.getBody() % textVars # format mail template, ex: {FILENAME} in the body will be transformed by the filename
             if subject == "" or body == "":
-                print("Chybí subject nebo body text mailu.")
+                print("Missing subject or mail body text.")
                 return False            
 
             if Config.isDebug():
                 mailFinal = Config.get('debugMail')
-                print("***************************************\n*** DEBUG MOD - maily budou zaslany na mail {} ***\n (Pro zrušení debug módu nastavte debug = False v config.ini.)".format(mailFinal))
+                print("***************************************\n*** DEBUG MOD - mails will be sent to mail {} ***\n (For turning off debug mode set debug = False in config.ini.)".format(mailFinal))
             else:
                 mailFinal = mail
                 
@@ -163,9 +163,7 @@ class MailSender():
             contents = csv.ips2logfile(mailList.mails[mail])
             
             logging.info("mail {}".format(mail))            
-            print(mail)
-            #print(mailList.mails[mail])
-            #print(contents[:100] + " (sample)")# XX vypis zaznamu mozna zpomaluje skript
+            print(mail)            
             
             if csv.attachmentName and contents != "":
                 files = (("FileUpload", csv.attachmentName, contents),)
@@ -187,12 +185,12 @@ class MailSender():
 
             res = MailSender._post_multipart(HOST, BASEURI, fields=fields, files=files, cookies=cookies)
             if not res or not MailSender._check_response (res.read()):
-                print("Zaslání se nezdařilo, viz mailSender.log.")
+                print("Sending failure, see mailSender.log.")
                 break
             else:
                 sentMails += 1
 
-        print("\nPosláno {}/{} mailů.".format(sentMails,len(mailList.mails)))
+        print("\nSent: {}/{} mails.".format(sentMails,len(mailList.mails)))
         return len(mailList.mails) == sentMails
 
     def askValue(value, description = ""):
@@ -208,10 +206,7 @@ class MailSender():
         return value
 
     def assureTokens(csv):        
-        """ Checknout prihlasovaci udaje k OTRS """
-        # Xcookie a token by se mohly nacitat/ukladat z config file
-        # # aktuální cookie z OTRS (doplní se samo) cookie =
-        # aktuální token (doplní se sám) token =        
+        """ Checknout OTRS credentials """        
         force = False
         while True:
             if(force or csv.ticketid == False or csv.ticketnum == False or csv.cookie == False or csv.token == False or csv.attachmentName == False):

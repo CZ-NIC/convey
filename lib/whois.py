@@ -1,4 +1,4 @@
-# Prace s Whoisem
+# Work with Whoisem
 import ipaddress
 import json
 import re
@@ -10,30 +10,30 @@ from urllib.parse import urlparse
 import urllib.request
 
 
-__author__ = "edvard"
+__author__ = "Edvard Rejthar, CSIRT.CZ"
 __date__ = "$Mar 24, 2015 6:08:16 PM$"
 
 class Whois:
 
-    ipDict = {} # set pritomnych IP adres [ip] = object
+    ipDict = {} # set present IP adresses [ip] = object
 
     def __init__(self, ip):
         self.ip = ip #
         pass
 
     def url2ip(url):
-        """ Oseká URL na doménu, zjistí list ip, které jí odpovídají. """
+        """ Shorten URL to domain, find out related IPs list. """
         recs = socket.getaddrinfo(urlparse(url.strip()).hostname, 0, 0, 0, socket.IPPROTO_TCP)
         result = []
         for ip in recs:
             result.append(ip[4][0])
         return result
-        # X socket.gethostbyname vraci jen 1 adresu, my chcem vsechny
+        # X socket.gethostbyname returns 1 adress only, we want all of them
 
 
 
     def checkIp(ip):
-        """ True, pokud je ip dobre formovana IPv4 nebo IPv6 """
+        """ True, if IP is well formated IPv4 or IPv6 """
         try:
             ipaddress.ip_address(ip)
             return True
@@ -46,19 +46,19 @@ class Whois:
             return Whois._exec(cmd, grep = '(.*)[c,C]ountry(.*)', lastWord = true)
 
         
-        country = getCountry("whois -h ripedb.nic.cz -- " + query) # zeptat se rychleho whois-mirroru cz.nic
+        country = getCountry("whois -h ripedb.nic.cz -- " + query) # try our fast whois-mirroru in cz.nic
 
-        # osetrit pripad, kdy whois selhal
+        # sanitize whois failure
         if country[0:2].lower() == "eu": #ex: 'EU # Country is really world wide' (64.9.241.202)
-            country = getCountry("whois " + query) # zeptame se whois celosvětově, nikoli cz.nic-mirroru
+            country = getCountry("whois " + query) # try worldwide whois, not CZ.NIC-mirror
 
-        # osetrit pripad, kdy je vice zemi na jednom radku
+        # sanitize multiple countries in one line
         if len(country.split("#")) > 1: # ex: 'NL # BE GB DE LU' -> 'NL' (82.175.175.231)
             country = country.split("#")[0].strip(" ")
 
-        #v pripade 10_16_Honeypot se nam stalo, ze se whois ptal kdovi ceho. Prestoze si myslime, ze se pta ripe ARINu, nevypadalo to.
+        # in the case of 10_16_Honeypot it happened that whois asked we dont know who. We thought it asked ARIN, but it didnt seem to.
         if country == "":
-            country = getCountry("whois -h whois.arin.net " + query) # myslim, ze ripe se ptat nemusim, protoze ARIN na nej primo odkazuje (whois -h whois.arin.net 109.123.209.188 mi proste vratilo i vysledek RIPE)
+            country = getCountry("whois -h whois.arin.net " + query) # I think i dont have to ask ripe because ARIN directly links to it (whois -h whois.arin.net 109.123.209.188 returned RIPE result)
         if country == "":
             country = getCountry("whois -h whois.lacnic.net " + query)
         if country == "":
@@ -86,11 +86,11 @@ class Whois:
         """
         if cmd not in self._cache:
             #debug: print("exec: {}".format(cmd))
-            sys.stdout.write('.') # at uzivatel vidi, ze se neco deje - (mozna nebude vypadat dobre)
+            sys.stdout.write('.') # let the user see something is happening (may wont look good)
             sys.stdout.flush() # XX: tohle zkusit zakomentovat, jestli se preci jen neco vypise...
             p = Popen([cmd], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
             s = p.stdout.read().decode("utf-8").strip().lower().replace("\n", " ")
-            #print("vysledek {}".format(str)) #print(ip,str) pri multithreadingu db ripedb2.nic.cz vracela prazdne misto
+            #print("resuls {}".format(str)) #print(ip,str) when multithreaded db ripedb2.nic.cz returned empty place
             self._cache[cmd] = s
 
         if grep:
@@ -104,9 +104,9 @@ class Whois:
 
         return self._cache[cmd]
 
-    # Vrati abusemail pro query (ip ci asn).
-    # Pokud je force = True a mail neni k dispozici, zkusi pouzit jeste druhy request s flagem B.
-    # Pokud neni abusemail nalezen, vraci "".
+    # Returns abusemail for query (ip ci asn).
+    # If force = True and no mail available, we ll try use another request with flag B.
+    # If abusemail not found, returns "".
     def queryMail(query, force=False):
         #cmd = "whois -- " + query + " | strings | grep '\\% Abuse contact for' | grep -E -o '\\b[a-zA-Z0-9.-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z0-9.-]+\\b' || whois -- " + query + " | strings | grep abuse-mailbox | cut -d: -f2 | sed -e 's/^\\s*//' -e 's/\\s*$//' | sort -nr | uniq | tr '\\n' ',' | sed -e 's/,$//' -e 's/,/\\,/g'"
         #abuseMail = Whois._exec(cmd)
@@ -132,18 +132,18 @@ class Whois:
 
         if abuseMail == "":
             if force == False:
-                return "unknown", False # radeji nechceme pouzit flag
+                return "unknown", False # we rather not use flag
             else:
-                return Whois.queryMailForced(query) # pouzi flag B
+                return Whois.queryMailForced(query) # use flag B
         else:
-            return abuseMail, True # True znamena, ze jsme mail nasli napoprve, usetrili jsme flag -B
+            return abuseMail, True # True means we found mail at first try, we spared flag -B
 
-    bCount = 0 # pocet dotazu, u nichz jsme se whoisu ptali s limitovanym flagem B
+    bCount = 0 # count of queries that used limited flag B
 
-    # Tazeme se whoisu s -B flagem (jehoz pouziti je limitovano na cca 1500 / den)
-    # return mail, nebo "" (pokud mail neni k dispozici)
+    # We query whoisu with -B flag (it's use is limited to cca 1500 / day)
+    # returns mail OR "" (if mail not available)
     def queryMailForced(query):
-        Whois.bCount += 1 # pouzivame dalsi B-flag
+        Whois.bCount += 1 # we use additional B-flag
         abuseMail = Whois._exec("whois -B -- " + query, grep = 'e-mail', lastWord = true)
 
         # XXX: Koukat se i na radek '%  Abuse ...'.
@@ -153,4 +153,4 @@ class Whois:
 
         if abuseMail == "":
             abuseMail = "unknown"
-        return abuseMail, False # False znamena, ze jsme pouzili metodu queryMailForced, neusetrili jsme flag -B
+        return abuseMail, False # False means we used queryMailForced method, we didn't spare flag -B

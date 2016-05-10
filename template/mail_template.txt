@@ -1,2 +1,2 @@
 Předmět
-template mailu
+local mail template
