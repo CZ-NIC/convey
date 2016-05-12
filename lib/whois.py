@@ -8,14 +8,19 @@ from subprocess import Popen
 import sys
 from urllib.parse import urlparse
 import urllib.request
+from netaddr import *
+import logging
 
 
 __author__ = "Edvard Rejthar, CSIRT.CZ"
 __date__ = "$Mar 24, 2015 6:08:16 PM$"
+logging.basicConfig(filename='whois.log',level=logging.DEBUG)
 
 class Whois:
 
     ipDict = {} # set present IP adresses [ip] = object
+    _cache = {}
+    _ranges = {} # ["IPRange" => abusemail]
 
     def __init__(self, ip):
         self.ip = ip #
@@ -76,8 +81,7 @@ class Whois:
         #return asn
         return Whois._exec("whois -h ripedb.nic.cz -- " + ip, grep = "^[o,O]rigin", lastWord = True)
         
-
-    _cache = {}
+    
 
     def _exec(cmd, grep = "", lastWord = False):
         """
@@ -110,6 +114,9 @@ class Whois:
     def queryMail(query, force=False):
         #cmd = "whois -- " + query + " | strings | grep '\\% Abuse contact for' | grep -E -o '\\b[a-zA-Z0-9.-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z0-9.-]+\\b' || whois -- " + query + " | strings | grep abuse-mailbox | cut -d: -f2 | sed -e 's/^\\s*//' -e 's/\\s*$//' | sort -nr | uniq | tr '\\n' ',' | sed -e 's/,$//' -e 's/,/\\,/g'"
         #abuseMail = Whois._exec(cmd)
+        for rng in Whois._ranges: # weve already seen abuseMail in this range
+            if query in rng:
+                return Whois._ranges[rng]
         
         text = Whois._exec("whois -- " + query, grep = '% abuse contact for')
         abuseMail = re.search('[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}', text)
@@ -117,18 +124,22 @@ class Whois:
         if abuseMail == "":
             abuseMail = Whois._exec("whois -- " + query, grep = 'abuse-mailbox', lastWord = True)
 
-        # XXX #6
-        #if abuseMail == "": # slower method, without limits
-        #    url = "https://stat.ripe.net/data/abuse-contact-finder/data.json?resource=" + query
-        #    jsonp = urllib.request.urlopen(url).read().decode("utf-8").replace("\n", "")
-        #    response = json.loads(jsonp)
-        #    if response["status"] == "ok":
-        #        #data
-        #        #holder_info resource (prefix)
-        #        #authorities: ripe
-        #        #anti_abuse_contacts->abuse_c->email
-        #        pass
-
+        # JSON, prefixes
+        if abuseMail == "": # slower method, without limits
+            url = "https://stat.ripe.net/data/abuse-contact-finder/data.json?resource=" + query
+            jsonp = urllib.request.urlopen(url).read().decode("utf-8").replace("\n", "")
+            response = json.loads(jsonp)
+            if response["status"] == "ok":
+                abuseMail = response["data"]["anti_abuse_contacts"]["abuse_c"][0]["email"]
+                if abuseMail:
+                    r = response["data"]["holder_info"]["resource"].split(" - ") # "resource": "88.174.0.0 - 88.187.255.255"
+                    rng = IPRange(r[0],r[1])
+                    Whois._ranges[rng] = abuseMail
+                    if IPAddress(query) not in rng:
+                        raise Exception("Given IP " + query + " is not in IPRange " + str(r) + ". This should never happen. Tell the programmer, please.")
+                    # we may fetch: authorities: ripe. Do we want it?
+                else: # we have to debug if whois-json is working at all...
+                    logging.info("whois-json didnt work for " + query)                                                                                
 
         if abuseMail == "":
             if force == False:
