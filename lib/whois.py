@@ -43,7 +43,7 @@ class Whois:
     def queryCountry(query):
         #cmd = query + " | strings | grep ^[c,C]ountry | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
         def getCountry(cmd):
-            return Whois._exec(cmd, grep = '(.*)[c,C]ountry(.*)', lastWord = true)
+            return Whois._exec(cmd, grep = '(.*)[c,C]ountry(.*)', lastWord = True)
 
         
         country = getCountry("whois -h ripedb.nic.cz -- " + query) # try our fast whois-mirroru in cz.nic
@@ -74,12 +74,12 @@ class Whois:
         #cmd = ip + " | strings | grep ^[o,O]rigin | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
         #asn = Whois._exec("whois -h ripedb.nic.cz -- " + cmd) # zeptat se rychleho whois-mirroru cz.nic
         #return asn
-        return Whois._exec("whois -h ripedb.nic.cz -- " + ip, grep = "^[o,O]rigin", lastWord = true)
+        return Whois._exec("whois -h ripedb.nic.cz -- " + ip, grep = "^[o,O]rigin", lastWord = True)
         
 
     _cache = {}
 
-    def _exec(cmd, grep = "", lastWord = false):
+    def _exec(cmd, grep = "", lastWord = False):
         """
         # grep - returns grep for line
         # lastWord - returns only last word of grepped line
@@ -115,7 +115,7 @@ class Whois:
         abuseMail = re.search('[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}', text)
 
         if abuseMail == "":
-            abuseMail = Whois._exec("whois -- " + query, grep = 'abuse-mailbox', lastWord = true)
+            abuseMail = Whois._exec("whois -- " + query, grep = 'abuse-mailbox', lastWord = True)
 
         # XXX #6
         #if abuseMail == "": # slower method, without limits
@@ -144,7 +144,7 @@ class Whois:
     # returns mail OR "" (if mail not available)
     def queryMailForced(query):
         Whois.bCount += 1 # we use additional B-flag
-        abuseMail = Whois._exec("whois -B -- " + query, grep = 'e-mail', lastWord = true)
+        abuseMail = Whois._exec("whois -B -- " + query, grep = 'e-mail', lastWord = True)
 
         # XXX: Koukat se i na radek '%  Abuse ...'.
         #  starsi: XX tady bych mohl vystup whois -B ulozit a zkouset greppovat radek Abuse contact for, stejne jako se dela v queryMail. Netusim, proc se to nedeje, bud jsem to z puvodnich skriptu spatne opsaal, nebo tenkrat radek Abuse contact jeste moc neexistoval.

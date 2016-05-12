@@ -90,10 +90,17 @@ class SourceParser:
             sample += row + "\n"
             if(i == 8): #XX sniffer needs 7+ lines to determine dialect, not only 3 (/mnt/csirt-rook/2015/06_08_Ramnit/zdroj), I dont know why
                 break
-
+        
         # guess delimiter
-        self.delimiter = csv.Sniffer().sniff(sample).delimiter
-        print("Sample rows:")
+        try:
+            self.delimiter = csv.Sniffer().sniff(sample).delimiter
+        except csv.Error: # delimiter failed – maybe there is an empty column: "89.187.1.81,06-05-2016,,CZ,botnet drone"
+            s = sample.split("\n")[1] # we dont take header (there is no empty column for sure)
+            for dl in (",",";","|"): # lets suppose the double sign is delimiter
+                if s.find(dl+dl) > -1:
+                    self.delimiter = dl
+                    break
+            
         print(sample)
         sys.stdout.write("Is character '{}' delimiter? [y]/n ".format(self.delimiter))
         if input() not in ("Y", "y", ""):
