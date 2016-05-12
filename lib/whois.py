@@ -108,6 +108,18 @@ class Whois:
 
         return self._cache[cmd]
 
+    ##
+    # s = "88.174.0.0 - 88.187.255.255"
+    # ip Validity check only.
+    def _addRange(s, abuseMail = None, ip = None):
+        r = s.split(" - ")
+        rng = IPRange(r[0],r[1])
+        Whois._ranges[rng] = abuseMail
+        if IPAddress(ip) not in rng:
+            raise Exception("Given IP " + ip + " is not in IPRange " + s + ". This should never happen. Tell the programmer, please.")
+        return rng
+
+
     # Returns abusemail for query (ip ci asn).
     # If force = True and no mail available, we ll try use another request with flag B.
     # If abusemail not found, returns "".
@@ -120,6 +132,7 @@ class Whois:
         
         text = Whois._exec("whois -- " + query, grep = '% abuse contact for')
         abuseMail = re.search('[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}', text)
+        rng = re.search(r"for '([^']*)'", text).group(1)        
 
         if abuseMail == "":
             abuseMail = Whois._exec("whois -- " + query, grep = 'abuse-mailbox', lastWord = True)
@@ -132,14 +145,10 @@ class Whois:
             if response["status"] == "ok":
                 abuseMail = response["data"]["anti_abuse_contacts"]["abuse_c"][0]["email"]
                 if abuseMail:
-                    r = response["data"]["holder_info"]["resource"].split(" - ") # "resource": "88.174.0.0 - 88.187.255.255"
-                    rng = IPRange(r[0],r[1])
-                    Whois._ranges[rng] = abuseMail
-                    if IPAddress(query) not in rng:
-                        raise Exception("Given IP " + query + " is not in IPRange " + str(r) + ". This should never happen. Tell the programmer, please.")
+                    rng = response["data"]["holder_info"]["resource"] # "resource": "88.174.0.0 - 88.187.255.255"
                     # we may fetch: authorities: ripe. Do we want it?
                 else: # we have to debug if whois-json is working at all...
-                    logging.info("whois-json didnt work for " + query)                                                                                
+                    logging.info("whois-json didnt work for " + query)
 
         if abuseMail == "":
             if force == False:
@@ -147,6 +156,8 @@ class Whois:
             else:
                 return Whois.queryMailForced(query) # use flag B
         else:
+            if rng: # stores IPRange for the next time, so we may be quicker
+                Whois._addRange(rng, ip = query, abuseMail = abuseMail)
             return abuseMail, True # True means we found mail at first try, we spared flag -B
 
     bCount = 0 # count of queries that used limited flag B
