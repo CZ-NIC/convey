@@ -11,6 +11,7 @@ import pickle
 import re
 import sys
 import threading
+import pdb
 
 class SourceParser:
 
@@ -113,7 +114,10 @@ class SourceParser:
 
 
         # cut log header
-        hasHeader = csv.Sniffer().has_header(sample)
+        try:
+            hasHeader = csv.Sniffer().has_header(sample)
+        except csv.Error: # if delimiter wasnt found automatically, this raises error two
+            hasHeader = False # lets just guess the value the
 
         if hasHeader:
             sys.stdout.write("Header found – ok? [y]/n: ") # Header present
@@ -187,8 +191,7 @@ class SourceParser:
 
             #sloupec AS
         def _findAsnCol():
-            found = False
-            print("debug 222")
+            found = False            
             if repeating == False: # dialog goes for first time -> autodetect
                 asNames = ["as", "asn", "asnumber"] # different types of name – no space
                 self.asnField = 0
@@ -336,7 +339,7 @@ class SourceParser:
             # asks every IP for abusemail
             for ip in ips:
                 mail, bSpared = Whois.queryMail(ip, True)
-                self.mailCz.mails[mail].add(ip) # add to local maillist
+                self.mailCz.mails[mail].add(ip) # add to local maillist            
         else:  # try to spare B flag
             doAsn = False
             threshold = int(Config.get('b_flag_threshold'))
@@ -345,13 +348,17 @@ class SourceParser:
             else:
                 # tries, how much -b request would be needed for individual IPs (queryMail force = false)
                 ipsRedo = set() # IP where B flag is needed
-                for ip in ips:
-                    mail, bSpared = Whois.queryMail(ip, False)
-                    if mail and mail != "unknown": # mail not found, B flag not needed
-                        self.mailCz.mails[mail].add(ip)
-                    if bSpared == False: # we would need B flag
-                        ipsRedo.add(ip) # redo IP again
-
+                try:
+                    for ip in ips:
+                        mail, bSpared = Whois.queryMail(ip, False)
+                        #print("QUERY: " + ip)
+                        #pdb.set_trace()
+                        if mail and mail != "unknown": # mail not found, B flag not needed
+                            self.mailCz.mails[mail].add(ip)
+                        if bSpared == False: # we would need B flag
+                            ipsRedo.add(ip) # redo IP again
+                except:                
+                    pdb.set_trace()
 
                 if len(ipsRedo) > threshold: # we would need more B flags than threshold
                     # asks user if we use -B flags or ASN
@@ -449,14 +456,14 @@ class SourceParser:
         # info, what to do with missing csirtmails
         if len(missing) > 0:
             sys.stdout.write("Missing csirtmails for {} countries: {}\n".format(len(missing), ", ".join(missing)))
-            print("Add csirtmaily to the foreign contacts file (see config.ini) and relaunch whois! \n")
+            print("Add csirtmails to the foreign contacts file (see config.ini) and relaunch whois! \n")
         else:
             sys.stdout.write("Foreign whois OK! \n")
         return True
 
 
     def missingFilesInfo(self):
-        return "({} files, {} foreing and {} local contacts)".format(
+        return "({} files, {} foreign and {} local contacts)".format(
                                                                 len(self.countriesMissing) + (1 if len(self.mailCz.getOrphans()) else 0),
                                                                 len(self.countriesMissing),
                                                                 len(self.mailCz.getOrphans()))
@@ -517,7 +524,7 @@ class SourceParser:
         print("Internal variables state:")
         print("\nLocal\n" + str(self.mailCz))
         print("\nForeign\n" + str(self.mailWorld))
-        print("\nMissing foreign mails\n" + str(self.countriesMissing) if len(self.countriesMissing) else "All foreing IP are OK linked.")        
+        print("\nMissing foreign mails\n" + str(self.countriesMissing) if len(self.countriesMissing) else "All foreign IP are OK linked.")
 
     # Vypise vetu:
     # Celkem 800 unikatnich IP;

@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import urllib.request
 from netaddr import *
 import logging
+import pdb;
 
 
 __author__ = "Edvard Rejthar, CSIRT.CZ"
@@ -46,7 +47,7 @@ class Whois:
             return False
 
     def queryCountry(query):
-        #cmd = query + " | strings | grep ^[c,C]ountry | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
+        #cmd = query + " | strings | grep ^[c,C]ountry | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"        
         def getCountry(cmd):
             return Whois._exec(cmd, grep = '(.*)[c,C]ountry(.*)', lastWord = True)
 
@@ -88,25 +89,27 @@ class Whois:
         # grep - returns grep for line
         # lastWord - returns only last word of grepped line
         """
-        if cmd not in self._cache:
+        if cmd not in Whois._cache:
             #debug: print("exec: {}".format(cmd))
             sys.stdout.write('.') # let the user see something is happening (may wont look good)
             sys.stdout.flush() # XX: tohle zkusit zakomentovat, jestli se preci jen neco vypise...
             p = Popen([cmd], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-            s = p.stdout.read().decode("utf-8").strip().lower().replace("\n", " ")
-            #print("resuls {}".format(str)) #print(ip,str) when multithreaded db ripedb2.nic.cz returned empty place
-            self._cache[cmd] = s
+            s = p.stdout.read().decode("utf-8").strip().lower().split("\n") #.replace("\n", " ")
+            #print("resuls {}".format(str)) #print(ip,str) when multithreaded db ripedb2.nic.cz returned empty place            
+            Whois._cache[cmd] = s
 
         if grep:
-            for line in self._cache[cmd]:
+            #try:
+            for line in Whois._cache[cmd]:
                 result = re.match(grep, line)
                 if result:
                     if lastWord: # returns only last word
-                        return re.search('\w*$',result)
+                        return re.search('[^\s]*$', line).group(0) # \w*
                     else: # returns whole line
-                        return result
+                        return result.group(0)
+            return None
 
-        return self._cache[cmd]
+        return "".join(Whois._cache[cmd])
 
     ##
     # s = "88.174.0.0 - 88.187.255.255"
@@ -126,23 +129,38 @@ class Whois:
     def queryMail(query, force=False):
         #cmd = "whois -- " + query + " | strings | grep '\\% Abuse contact for' | grep -E -o '\\b[a-zA-Z0-9.-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z0-9.-]+\\b' || whois -- " + query + " | strings | grep abuse-mailbox | cut -d: -f2 | sed -e 's/^\\s*//' -e 's/\\s*$//' | sort -nr | uniq | tr '\\n' ',' | sed -e 's/,$//' -e 's/,/\\,/g'"
         #abuseMail = Whois._exec(cmd)
-        for rng in Whois._ranges: # weve already seen abuseMail in this range
-            if query in rng:
-                return Whois._ranges[rng]
-        
-        text = Whois._exec("whois -- " + query, grep = '% abuse contact for')
-        abuseMail = re.search('[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}', text)
-        rng = re.search(r"for '([^']*)'", text).group(1)        
+        for rngs in Whois._ranges: # weve already seen abuseMail in this range
+            if query in rngs and Whois._ranges[rngs] != "":
+                return Whois._ranges[rngs], True
 
-        if abuseMail == "":
+        abuseMail = ""
+        rng = ""
+        try:
+            text = Whois._exec("whois -- " + query, grep = '% abuse contact for')
+            match = re.search('[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}', text)
+            if match:
+                abuseMail = match.group(0)
+            match = re.search(r"for '([^']*)'", text)
+            if match:
+                rng = match.group(1)
+        except:
+            print("Error #142. Tell the programmer. ")
+            pdb.set_trace()
+    
+
+
+        if not abuseMail:
             abuseMail = Whois._exec("whois -- " + query, grep = 'abuse-mailbox', lastWord = True)
 
+        #print("QUERY: " + query)
+        #pdb.set_trace()
+
         # JSON, prefixes
-        if abuseMail == "": # slower method, without limits
+        if not abuseMail: # slower method, without limits
             url = "https://stat.ripe.net/data/abuse-contact-finder/data.json?resource=" + query
             jsonp = urllib.request.urlopen(url).read().decode("utf-8").replace("\n", "")
             response = json.loads(jsonp)
-            if response["status"] == "ok":
+            if response["status"] == "ok":                
                 abuseMail = response["data"]["anti_abuse_contacts"]["abuse_c"][0]["email"]
                 if abuseMail:
                     rng = response["data"]["holder_info"]["resource"] # "resource": "88.174.0.0 - 88.187.255.255"
@@ -150,7 +168,7 @@ class Whois:
                 else: # we have to debug if whois-json is working at all...
                     logging.info("whois-json didnt work for " + query)
 
-        if abuseMail == "":
+        if not abuseMail:
             if force == False:
                 return "unknown", False # we rather not use flag
             else:

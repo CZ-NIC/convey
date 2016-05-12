@@ -72,7 +72,7 @@ if __name__ == "__main__":
         if len(csv.mailCz.getOrphans()):
             print("Couldn't find abusemails for {} CZ IP.".format(len(csv.mailCz.getOrphans())))
         if len(csv.countriesMissing):
-            print("Couldn't find csirtmaily for {} countries.".format(len(csv.countriesMissing)))
+            print("Couldn't find csirtmails for {} countries.".format(len(csv.countriesMissing)))
 
         print("\n Main menu:")
         print("1 – Send by OTRS...")
