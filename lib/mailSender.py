@@ -15,7 +15,7 @@ SIGNKEYID = "PGP::Detached::B187176C"
 #RECORD_LABEL = "%(FILENAME)s"
 
 #DEBUG = False
-logging.basicConfig(filename='mailSender.log',level=logging.DEBUG)
+logging.FileHandler('mailSender.log', 'a')
 
 re_title = re.compile('<title>([^<]*)</title>')
 

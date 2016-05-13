@@ -15,7 +15,7 @@ import pdb;
 
 __author__ = "Edvard Rejthar, CSIRT.CZ"
 __date__ = "$Mar 24, 2015 6:08:16 PM$"
-logging.basicConfig(filename='whois.log',level=logging.DEBUG)
+logging.FileHandler('whois.log', 'a')
 
 class Whois:
 
@@ -92,10 +92,13 @@ class Whois:
         if cmd not in Whois._cache:
             #debug: print("exec: {}".format(cmd))
             sys.stdout.write('.') # let the user see something is happening (may wont look good)
-            sys.stdout.flush() # XX: tohle zkusit zakomentovat, jestli se preci jen neco vypise...
+            sys.stdout.flush()
             p = Popen([cmd], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-            s = p.stdout.read().decode("utf-8").strip().lower().split("\n") #.replace("\n", " ")
-            #print("resuls {}".format(str)) #print(ip,str) when multithreaded db ripedb2.nic.cz returned empty place            
+            try:
+                s = p.stdout.read().decode("utf-8").strip().lower().split("\n") #.replace("\n", " ")
+            except UnicodeDecodeError: # ip address 94.230.155.109 had this string 'Jan Krivsky Hl\xc3\x83\x83\xc3\x82\xc2\xa1dkov' and everything failed
+                s = ""
+            #print("resuls {}".format(str)) #print(ip,str) when multithreaded db ripedb2.nic.cz returned empty plac
             Whois._cache[cmd] = s
 
         if grep:

@@ -1,6 +1,10 @@
-Launch convey.py and it's all. If a library is not found, you'll be asked to launch install.sh.
+# Convey
 
-Translator for OTRS.
+Input: Any CSV that has IP or URL column.
+Output: Set of CSV grouped by country AND/OR abusemail related to IPs.
+These CSVs can be automatically send by your OTRS.
+
+## Translator for OTRS.
  Syntax:
     ./convey.py [--id <OTRS ticket id>] [--num <OTRS ticket number>] [--cookie <OTRS cookie>] [--token <OTRS token>] [<filename>]
  Parameter [filename] is path to source log file in CSV format.

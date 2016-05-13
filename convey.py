@@ -8,26 +8,17 @@ try:
     from lib.sourceWrapper import SourceWrapper
     from lib.mailSender import MailSender
     from lib.config import Config
+    import logging
 except ImportError:
     traceback.print_exc()
     print("\nTry installing the libraries by install.sh")
     quit()
-__shortdoc__ = """OTRS Convey -> translator for OTRS"""
-__doc__ = """Translator for OTRS.
- Syntax:
-    ./convey.py [--id <OTRS ticket id>] [--num <OTRS ticket number>] [--cookie <OTRS cookie>] [--token <OTRS token>] [<filename>]
- Parameter [filename] is path to source log file in CSV format.
- If [filename] not present, script asks for it.
- Script tries to parse and determine IP and ASN columns.
-
- Instead of IP column we may use URL column. In that case, script takes the URL domain, translates it to IP and adds a column 'HOST_IP' to CSV. If it finds more IP, it duplicates URL row.
-
- Dependencies needed are installed by install.sh script.
- -h, --help Show help.
-"""
+__shortdoc__ = """Incident log in CSV -> mails to responsible people (via OTRS)"""
+with open("README.md", "r") as f:
+    __doc__ = f.read()
 __author__ = "Edvard Rejthar, CSIRT.CZ"
 __date__ = "$Feb 26, 2015 8:13:25 PM$"
-
+logging.basicConfig(level=logging.DEBUG)
 
 if __name__ == "__main__":    
     print(__shortdoc__)
