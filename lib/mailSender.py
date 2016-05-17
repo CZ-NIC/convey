@@ -1,20 +1,14 @@
 # Send mails throught OTRS
 import http.client
+from lib.config import Config
+import logging
 from optparse import OptionParser
 import re
 import sys
-import logging
-from lib.config import Config
 
-HOST = 'otrs.nic.cz'
-BASEURI = '/otrs/index.pl'
 
-TICKETEMAIL = 'abuse@csirt.cz'
-FROMADDR = "\"CSIRT.CZ Abuse Team\" <abuse@csirt.cz>"
-SIGNKEYID = "PGP::Detached::B187176C"
+
 #RECORD_LABEL = "%(FILENAME)s"
-
-#DEBUG = False
 logging.FileHandler('mailSender.log', 'a')
 
 re_title = re.compile('<title>([^<]*)</title>')
@@ -29,10 +23,10 @@ class MailSender():
         Return an appropriate http.client.HTTPResponse object.
         """
         content_type, body = MailSender._encode_multipart_formdata(fields, files)
-        body = bytes(body,"UTF-8")
+        body = bytes(body, "UTF-8")
         protocol = host.split(':')[0]        
         h = http.client.HTTPSConnection(host)        
-        if Config.isDebug():
+        if Config.isTesting():
             h.debuglevel = 100
         h.putrequest('POST', selector)
         h.putheader('Content-Type', content_type)
@@ -81,10 +75,10 @@ class MailSender():
 
     def _check_response(response):
         response = response.decode("UTF-8")
-        if Config.isDebug():
+        if Config.isTesting():
             logging.info(str(sys.stderr) + " Response:\n " + response)
 
-        with open( "test.html", "w" ) as output:
+        with open("test.html", "w") as output:
             output.write(response)
 
         mo = re_title.search(response)
@@ -95,7 +89,7 @@ class MailSender():
 
         title = mo.group(1)
 
-        if title in ('Forward - Ticket -  OTRS', 'Předat - Tiket -  OTRS'):
+        if title in ('Forward - Ticket - OTRS', 'P\xc5\x99edat - Tiket - OTRS'): # XX r with caron make nb-python fail. Does this work?
             return True
 
         elif title == 'Login - OTRS':
@@ -113,9 +107,12 @@ class MailSender():
             logging.error(response)
             return False
 
-    # send mailList object (mailCz or mailWorld)
+    # send mailList object (mailLocal or mailForeign)
     def sendList(mailList, csv):
-        #global DEBUG
+        if not Config.get("otrs_enabled", "OTRS"):
+            print("OTRS is the only implemented option of sending now. Error.")
+            return False
+
         if not len(mailList.mails):
             print("... done. (No mails in the list, nothing to send.)")
             return True
@@ -134,30 +131,30 @@ class MailSender():
                 print("Missing subject or mail body text.")
                 return False            
 
-            if Config.isDebug():
-                mailFinal = Config.get('debugMail')
-                print("***************************************\n*** DEBUG MOD - mails will be sent to mail {} ***\n (For turning off debug mode set debug = False in config.ini.)".format(mailFinal))
+            if Config.isTesting():
+                mailFinal = Config.get('testingMail')
+                print("***************************************\n*** TESTING MOD - mails will be sent to mail {} ***\n (For turning off testing mode set testing = False in config.ini.)".format(mailFinal))
             else:
                 mailFinal = mail
-                
+
             fields = (
                       ("Action", "AgentTicketForward"),
                       ("Subaction", "SendEmail"),
                       ("TicketID", str(csv.ticketid)),
-                      ("Email", TICKETEMAIL),
-                      ("From", FROMADDR),
+                      ("Email", Config.get("ticketemail", "OTRS")),
+                      ("From", Config.get("fromaddr", "OTRS")),
                       ("To", mailFinal), # X "edvard.rejthar+otrs_test@nic.cz" sem ma prijit mail (nebo maily oddelene carkou ci strednikem, primo z whois), po otestovani. XX Jdou pouzit maily oddelene strednikem i vice stredniky? mail;mail2;;mail3 (kvuli retezeni v cc pro pripad, ze je vic domen)
                       ("Subject", subject),
-                      ("SignKeyID", SIGNKEYID),
+                      ("SignKeyID", Config.get("signkeyid", "OTRS")),
                       ("Body", body),
                       ("ArticleTypeID", "1"), # mail-external
                       ("ComposeStateID", "4"), # open
                       ("ChallengeToken", csv.token),
                       )
 
-            if Config.isDebug() == False:
+            if Config.isTesting() == False:
                 if mailList.mails[mail].cc:
-                   fields += (("Cc", mailList.mails[mail].cc),)
+                    fields += (("Cc", mailList.mails[mail].cc),)
             
             # load souboru k zaslani
             contents = csv.ips2logfile(mailList.mails[mail])
@@ -172,31 +169,37 @@ class MailSender():
 
             cookies = (('Cookie', 'Session=%s' % csv.cookie),)
 
-            if Config.isDebug():
-                print(" Debug info:")
-                print (str(sys.stderr) + ' Fields: '+ str(fields))
-                print (str(sys.stderr) + ' Files: '+ str(files))
-                print (str(sys.stderr) + ' Cookies: '+ str(cookies))
+            if Config.isTesting():
+                print(" Testing info:")
+                print (str(sys.stderr) + ' Fields: ' + str(fields))
+                print (str(sys.stderr) + ' Files: ' + str(files))
+                print (str(sys.stderr) + ' Cookies: ' + str(cookies))
             #print record_label % lrecord
 
             
             #print encode_multipart_formdata(fields, files)
             #import pdb;pdb.set_trace();
 
-            res = MailSender._post_multipart(HOST, BASEURI, fields=fields, files=files, cookies=cookies)
+
+
+            res = MailSender._post_multipart(Config.get("host", "OTRS"),
+                                             Config.get("baseuri", "OTRS"),
+                                             fields=fields,
+                                             files=files,
+                                             cookies=cookies)
             if not res or not MailSender._check_response (res.read()):
                 print("Sending failure, see mailSender.log.")
                 break
             else:
                 sentMails += 1
 
-        print("\nSent: {}/{} mails.".format(sentMails,len(mailList.mails)))
+        print("\nSent: {}/{} mails.".format(sentMails, len(mailList.mails)))
         return len(mailList.mails) == sentMails
 
-    def askValue(value, description = ""):
+    def askValue(value, description=""):
         while True:
             if value != False:
-                sys.stdout.write('Change {} ({})? [y]/n '.format(description,value))
+                sys.stdout.write('Change {} ({})? [y]/n '.format(description, value))
                 if input().lower() not in ("y", ""):
                     break
             sys.stdout.write("{}: ".format(description))
@@ -211,10 +214,10 @@ class MailSender():
         while True:
             if(force or csv.ticketid == False or csv.ticketnum == False or csv.cookie == False or csv.token == False or csv.attachmentName == False):
                 csv.ticketid = MailSender.askValue(csv.ticketid, "ticket url-id")
-                csv.ticketnum = MailSender.askValue(csv.ticketnum,"ticket long-num")
-                csv.cookie = MailSender.askValue(csv.cookie,"cookie")
-                csv.token = MailSender.askValue(csv.token,"token")
-                csv.attachmentName = MailSender.askValue(csv.attachmentName,"attachment name")
+                csv.ticketnum = MailSender.askValue(csv.ticketnum, "ticket long-num")
+                csv.cookie = MailSender.askValue(csv.cookie, "cookie")
+                csv.token = MailSender.askValue(csv.token, "token")
+                csv.attachmentName = MailSender.askValue(csv.attachmentName, "attachment name")
                 if csv.attachmentName[-4:] != ".txt":
                     csv.attachmentName += ".txt"
 

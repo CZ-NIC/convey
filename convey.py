@@ -54,14 +54,14 @@ if __name__ == "__main__":
 
     #menu
     while True:                
-        if Config.get('debug') == "True":
-            print("\n*** DEBUG MOD - mails will be send to mail {} ***\n (To cancel the debug mode set debug = False in config.ini.)".format(Config.get('debugMail')))
+        if Config.get('testing') == "True":
+            print("\n*** TESTING MOD - mails will be send to mail {} ***\n (To cancel the testing mode set testing = False in config.ini.)".format(Config.get('testingMail')))
         stat = csv.getStatsPhrase()
         print("Statistics overview: " + stat)
         with open(os.path.dirname(file) + "/statistics.txt","w") as f:
                     f.write(stat)
-        if len(csv.mailCz.getOrphans()):
-            print("Couldn't find abusemails for {} CZ IP.".format(len(csv.mailCz.getOrphans())))
+        if len(csv.mailLocal.getOrphans()):
+            print("Couldn't find abusemails for {} CZ IP.".format(len(csv.mailLocal.getOrphans())))
         if len(csv.countriesMissing):
             print("Couldn't find csirtmails for {} countries.".format(len(csv.countriesMissing)))
 
@@ -97,8 +97,8 @@ if __name__ == "__main__":
             elif option2 == "3":
                 csv.buildListWorld()
             elif option2 == "4":
-                csv.mailCz.guiEdit()
-                csv.mailWorld.guiEdit()
+                csv.mailLocal.guiEdit()
+                csv.mailForeign.guiEdit()
 
             continue        
         elif option == "3":            
@@ -106,7 +106,7 @@ if __name__ == "__main__":
             continue
         elif option == "2":
             print("1 - Generate files with IP without contacts {}".format(csv.missingFilesInfo()))
-            print("2 - Generate all files ({} files)".format(len(csv.countries) + len(csv.mailCz.mails)))
+            print("2 - Generate all files ({} files)".format(len(csv.countries) + len(csv.mailLocal.mails)))
             print("[x] - Cancel")
             sys.stdout.write("? ")
             sys.stdout.flush()
@@ -120,8 +120,8 @@ if __name__ == "__main__":
         elif option == "1":
             MailSender.assureTokens(csv)
             print("\nIn the next step, we connect to OTRS and send e-mails.")
-            print(" Template of local mail starts: {}".format(csv.mailCz.getMailPreview()))
-            print(" Template of foreign mail starts: {}".format(csv.mailWorld.getMailPreview()))
+            print(" Template of local mail starts: {}".format(csv.mailLocal.getMailPreview()))
+            print(" Template of foreign mail starts: {}".format(csv.mailForeign.getMailPreview()))
             print("Do you really want to send e-mails now?")
             print("1 - Send both local and foreign")
             print("2 - Send local only")
@@ -132,14 +132,14 @@ if __name__ == "__main__":
             option = input()
             if option == "1" or option == "2":
                 print("Sending to local country...")
-                if not MailSender.sendList(csv.mailCz, csv): 
+                if not MailSender.sendList(csv.mailLocal, csv): 
                     print("Couldn't send all local mails. (Details in mailSender.log.)")
             if option == "1" or option == "3":
                 print("Sending to foreigns...")
-                if not MailSender.sendList(csv.mailWorld, csv): 
+                if not MailSender.sendList(csv.mailForeign, csv): 
                     print("Couldn't send all foreign e-mails. (Details in mailSender.log.)")
             continue
-        elif option == "debug":
+        elif option == "testing":
             import pdb; pdb.set_trace()
         else:
             continue #repeat options

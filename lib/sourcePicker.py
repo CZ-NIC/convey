@@ -10,7 +10,6 @@ __author__ = "Edvard Rejthar, CSIRT.CZ"
 __date__ = "$Mar 23, 2015 10:36:35 PM$"
 
 def SourcePicker():
-    
      
     file = ""
     if (len(sys.argv) > 1) and (sys.argv[-1] != ""):
@@ -63,10 +62,12 @@ def SourcePicker():
 
 
     # open source file path
-    if os.path.isfile(file):
-        print("Source file not found.")
-    else:
-        print("File {} not found.".format(file))
+    try:
+        if not os.path.isfile(file):
+            print("File {} not found.".format(file))
+            quit()
+    except TypeError:
+        print("File not found, quit.")
         quit()
 
     return file

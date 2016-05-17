@@ -1,5 +1,6 @@
 # Env config file connection
 import configparser
+import pudb
 
 class Config:
     file = 'config.ini'
@@ -7,11 +8,18 @@ class Config:
     config.read(file)
     #tempCache = {}
 
+    def errorCatched():
+        if Config.isDebug():
+            pudb.set_trace()
+
     def isDebug():
         return True if Config.get('debug') == "True" else False
 
-    def get(key):
-        return Config.config['CONVEY'][key]
+    def isTesting():
+        return True if Config.get('testing') == "True" else False
+
+    def get(key, section = 'CONVEY'):
+        return Config.config[section][key]
 
     def getboolean(key):
         return Config.config.getboolean('CONVEY',key)

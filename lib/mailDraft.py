@@ -6,31 +6,15 @@ import subprocess
 import re
 from lib.config import Config
 
-class MailList:
+
+class MailDraft:
 
     """ Mail management data structure """
-    def __init__(self, listName, templateFile):        
-        self.text = False
-        self.mails = defaultdict(_Mail) #defaultdict(set)
-        self.listName = listName
-        self.templateFile = templateFile
-        self.mailFile = Config.getCacheDir() + self.listName + ".txt" # ex: csirt/2015/mail_cz5615616.txt XMailList.dir +  + MailList.hash
+    def __init__(self, filename):
+        self.text = False                
+        self.templateFile = Config.get("mail_template_local")
+        self.mailFile = Config.getCacheDir() + filename + ".txt" # ex: csirt/2015/mail_cz5615616.txt XMailDraft.dir +  + MailDraft.hash
         self.guiEdit()
-
-    # Clears mail structure.
-    def resetMails(self):
-        self.mails = defaultdict(_Mail)
-
-    # Returns set of IPs without e-mail.
-    # It has sense only in the local address list mailCz. To the orphan-IP can't be found e-mail (and they will be likely ignored or send to ASN e-mail).
-    # In the case of foreign address mailWorld list, orphans are whole countries. CSIRT conctact has to be found.
-    #
-    def getOrphans(self):
-        if "unknown" in self.mails:
-            return self.mails["unknown"]
-        else:
-            return set()
-        
 
     # get body text
     def getBody(self):
@@ -71,27 +55,6 @@ class MailList:
         with open(self.mailFile, 'r') as f:
             return f.read()
 
-    def __str__(self):
-        result = ("Abusemails count: {0}\n".format(len(self.mails)))
-        for mail in self.mails:            
-            result += "'{}' ({})".format(mail, len(self.mails[mail]))            
-            if self.mails[mail].cc:
-                result += " cc: {} ".format(self.mails[mail].cc)            
-            result += "\n"
-            
-        #print(result);import pdb; pdb.set_trace()
-        return result
-
-    ##
-    # mail = mail@example.com;mail2@example2.com -> [example.com, example2.com]
-    def getDomains(mail):
-        try:
-            #return set(re.findall("@([\w.]+)", mail))
-            return set([x[0] for x in re.findall("@(([A-Za-z0-9-]{1,63}\.)+[A-Za-z]{2,6})", mail)])
-        except AttributeError:
-            return []
-
-
     # Opens file for mail text to GUI editation.
     # If file doesnt exists, it creates it from the template.
     def guiEdit(self):        
@@ -103,11 +66,3 @@ class MailList:
         subprocess.Popen(['gedit',self.mailFile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
-class _Mail(set):
-    def __init__(self, state= None): # state=None because of unpickling. State gets values of set.
-        self.cc = ""
-        if state:
-            self.update(state)
-
-    def __setstate__(self,state): # this is called by pickle.load. State receives attributes (cc)
-        self.__dict__ = state
