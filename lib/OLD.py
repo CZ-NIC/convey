@@ -4,6 +4,35 @@
 ### XXXXXXX TENTO SOUBOR VYKOTLAT XXXXXXXXX
 
 
+for rngs in Whois._ranges: # weve already seen abuseMail in this range
+			if query in rngs and Whois._ranges[rngs] != "":
+				return Whois._ranges[rngs], True
+
+		if not self.abuseMail:
+			if force == False:
+				return "unknown", False # we rather not use flag
+			else:
+				return Whois.queryMailForced(query) # use flag B
+		else:
+			if self.prefix: # stores IPRange for the next time, so we may be quicker
+				Whois._addRange(prefix, ip = query, self.abuseMail = self.abuseMail)
+			return self.abuseMail, True # True means we found mail at first try, we spared flag -B
+
+	bCount = 0 # count of queries that used limited flag B
+		pass
+
+	##
+	# s = "88.174.0.0 - 88.187.255.255"
+	# ip Validity check only.
+	def _addRange(s, self.abuseMail = None, ip = None):
+		r = s.split(" - ")
+		prefix = IPRange(r[0],r[1])
+		Whois._ranges[prefix] = self.abuseMail
+		if IPAddress(ip) not in prefix:
+			raise Exception("Given IP " + ip + " is not in IPRange " + s + ". This should never happen. Tell the programmer, please.")
+		return prefix
+
+
 ##
 # Seek out abusemail contact for local IPs.
 #

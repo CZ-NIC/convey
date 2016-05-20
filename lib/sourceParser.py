@@ -1,18 +1,24 @@
 # Source file parsing
 from collections import defaultdict
+from collections import namedtuple
+import csv
+import itertools
 from lib.config import Config
 from lib.csvGuesses import CsvGuesses
-from lib.dialogue import Dialogue, Cancelled
-from lib.registry import AbusemailsRegistry, CountriesRegistry
+from lib.dialogue import Cancelled
+from lib.dialogue import Dialogue
+from lib.registry import AbusemailsRegistry
+from lib.registry import CountriesRegistry
 from lib.whois import Whois
-import csv
 import ntpath
 import os
-import pdb
+import pdb, pudb, ipdb
 import re
 import sys
 import threading
-import itertools
+import logging
+logging.FileHandler('whois.log', 'a')
+
 
 class SourceParser:
 
@@ -42,9 +48,9 @@ class SourceParser:
         sys.stdout.write(", ".join(l))
         sys.stdout.write("\nSample:\n" + self.sample) # XX maybe only three lines first?
 
-        if self.reg: # print counters "ru (230), cn (12)"
-            for reg in self.reg.values():
-                reg.soutInfo()
+        #if self.reg: # print counters "ru (230), cn (12)"
+        [reg.soutInfo() for reg in self.reg.values()]
+            
                 
 
     def askBasics(self):
@@ -64,7 +70,7 @@ class SourceParser:
         fn = lambda field: Whois.checkIp(field)        
         self.ipColumn = CsvGuesses.guessCol(self, "IP/HOST", fn, ["ip", "sourceipaddress", "ipaddress", "source"])
 
-        if self.ipColumn == -1:
+        if self.ipColumn:
             print("We can't live without IP/HOST column. Try again or write x for cancellation.")
             return self.askIpCol()
 
@@ -110,8 +116,8 @@ class SourceParser:
             self.cookie = False
             self.token = False
 
-            self.ticketid = Config.get("ticketid","OTRS")
-            self.ticketnum = Config.get("ticketnum","OTRS")
+            self.ticketid = Config.get("ticketid", "OTRS")
+            self.ticketnum = Config.get("ticketnum", "OTRS")
 
             self.attachmentName = "part-" + ntpath.basename(sourceFile)
 
@@ -136,7 +142,8 @@ class SourceParser:
                 break
 
     def _reset(self):
-        self.reg = {"local": AbusemailsRegistry(), "foreign": CountriesRegistry()}
+        #cant be pickled: self.reg = namedtuple('SourceParser.registries', 'local foreign')(AbusemailsRegistry(), CountriesRegistry())
+        self.reg = { 'local' : AbusemailsRegistry(), "foreign" :CountriesRegistry()}
         self.ranges = {}        
         self.lineCount = 0
         self.ipCount = 0
@@ -146,18 +153,20 @@ class SourceParser:
 
     ## ma nahradit hodne metod XXX
     def runAnalysis(self):
+        ipdb.set_trace()
         self._reset()
+        if Config.getboolean("autoopen_editor"):
+            [r.mailDraft.guiEdit() for r in self.reg.values()]
         with open(self.sourceFile, 'r') as csvfile:
             for line in csvfile:
                 self._processLine(line)                
 
-            print("IP count: {}".format(self.lineCount))
-            print("Log lines count: {}".format(self.ipCount))
+            print("IP count: {}".format(sum([r.stat("ips", "both") for r in self.reg.values()])))
+            print("Log lines count: {}".format(self.lineCount))
             if self.extendCount > 0:
                 print("+ other {} rows, because some domains had multiple IPs".format(extend))
         self.isAnalyzedB = True
-        for r in self.reg.values():
-            r.update()
+        [r.update() for r in self.reg.values()]
 
         ### XXX jeste se nikde nepridava CC k ceskkym IP. Zde, nebo az pri odeslani?
 
@@ -187,24 +196,37 @@ class SourceParser:
 
             for ip in ips:
                 self.ipCount += 1
-                if self.hostColumn != -1:
+                if self.hostColumn:
                     row += self.delimiter + ip # append determined IP to the last col
 
-                if self.asnColumn != -1:
+                if self.asnColumn:
                     str = records[self.asnColumn].replace(" ", "")
                     if str[0:2] != "AS":
                         str = "AS" + str
-                    self.ip2asn[ip] = str # key is IP
+                    self.ip2asn[ip] = str # key is IP XXX tohle se pouziva?
 
-                prefix, kind, name = Whois(ip).analyze()
-                if prefix not in self.ranges:
-                    self.ranges[prefix] = name + "." + kind
-                method = "a" if self.reg[kind].count(name, 1) else "w"                
-                with open(self.ranges[prefix], method) as f:
-                    f.write(row)
-        except:
+                found = False
+                for prefix, o in self.ranges.items(): # XXX pomuze mi tohle proti duplikaci IP adres??
+                    if ip in prefix:
+                        found = True
+                        record, kind = o
+                        break
+                if found == False:
+                    prefix, kind, record = Whois(ip).analyze()
+                    if not prefix:                        
+                        logging.info("No prefix found for IP {}".format(ip))
+                    elif prefix not in self.ranges:
+                        self.ranges[prefix] = record, kind
+                    else: # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
+                        raise AssertionError("The prefix " + prefix + " shouldnt be already present. Tell the programmer")
+                #print("Found: {}, IP: {}, Prefix: {}, Record: {}, Kind: {}".format(found, ip, prefix,record, kind)) # XX put to logging
+                method = "a" if self.reg[kind].count(record, ip) else "w"
+                with open(Config.getCacheDir() + record + "." + kind, method) as f:
+                    f.write(row + "\n")
+        except Exception as e:
             print("ROW fault" + row)
-            print("This should not happend. CSV is wrong or tell programmer to repair this.")
+            pdb.set_trace()
+            print("This should not happen. CSV is wrong or tell programmer to repair this.")
             raise
 
     def launchWhois(self): # launches long file processing
@@ -236,7 +258,7 @@ class SourceParser:
         #4. Kontaktovano xy ISP v CR
         #5. Naslo to xy Zemi (ne vsechny Zeme maji narodni/vladni CSIRT, ale to urcite vis)
         #6. Kontaktovano xy Zemi (kam se bude posilat)
-        lo =self.reg["local"].stat
+        lo = self.reg["local"].stat
         fo = self.reg["foreign"].stat
 
         ipsUnique = lo("ips", True) + fo("ips", True)

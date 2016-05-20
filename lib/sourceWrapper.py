@@ -2,8 +2,9 @@
 from lib.mailDraft import MailDraft
 from lib.sourceParser import SourceParser
 import os
-import pickle
-import yaml
+import jsonpickle
+#import pickle
+#import yaml
     # from yaml import load, dump
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
@@ -13,6 +14,7 @@ import sys
 import ntpath
 import webbrowser
 from lib.config import Config
+import ipdb
 
 __author__ = "edvard"
 __date__ = "$Mar 23, 2015 8:33:24 PM$"
@@ -35,19 +37,24 @@ class SourceWrapper:
             print("File {} has already been processed.".format(self.file))
             #import pdb;pdb.set_trace()
             try: # try to depickle
-                self.csv = pickle.load(open(self.cacheFile, "rb"))
+                #self.csv = pickle.load(open(self.cacheFile, "rb"))
+                self.csv = jsonpickle.decode(open(self.cacheFile, "r").read())
             except:
-                try: # maybe yaml was used for caching
-                    with open(self.cacheFile, 'r') as f:
-                        print("Loading slow yaml format...")
-                        self.csv = yaml.load(f.read(), Loader=Loader)
-                except:
-                    print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
-                    self._treat()
-            if self.csv.isAnalyzed():
+                #try: # maybe yaml was used for caching
+                #    with open(self.cacheFile, 'r') as f:
+                #        print("Loading slow yaml format...")
+                #        self.csv = yaml.load(f.read(), Loader=Loader)
+                #except Exception as e:
+                #    print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
+                #    self._treat()
+                print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
+                ipdb.set_trace()
+                self._treat()
+            if self.csv and self.csv.isAnalyzed():
                 try:
                     self.csv.soutInfo()
                 except:
+                    ipdb.set_trace()
                     print("Format of the file may have changed since last time. Let's process it all again. If you continue, cache gets deleted.")
                     self._treat()
             else:
@@ -60,6 +67,7 @@ class SourceWrapper:
     ##
     # Store in YAML or pickle.
     def save(self):
+        """XXX dat pryc a do config jsonpickle?
         if Config.getboolean("yaml_cache"):
             with open(self.cacheFile, "w") as output: #save cache
                 print("Saving in slow yaml format...")
@@ -67,7 +75,9 @@ class SourceWrapper:
         else:
             with open(self.cacheFile, "wb") as output: #save cache
                 pickle.dump(self.csv, output, -1)
-        
+        """
+        with open(self.cacheFile, "w") as output: #save cache
+            output.write(jsonpickle.encode(self.csv))
 
     def _treat(self): # process source
         self.csv = SourceParser(self.file)

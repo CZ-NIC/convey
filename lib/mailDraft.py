@@ -14,7 +14,7 @@ class MailDraft:
         self.text = False                
         self.templateFile = Config.get("mail_template_local")
         self.mailFile = Config.getCacheDir() + filename + ".txt" # ex: csirt/2015/mail_cz5615616.txt XMailDraft.dir +  + MailDraft.hash
-        self.guiEdit()
+        #self.guiEdit()
 
     # get body text
     def getBody(self):

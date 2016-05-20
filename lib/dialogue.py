@@ -1,3 +1,5 @@
+import ipdb
+
 class Cancelled(Exception):
     pass
 
@@ -9,6 +11,8 @@ class Dialogue:
         txt = input(text) if text else input()
         if txt == "x":
             raise Cancelled("CANCEL - DOES THIS WORK?? XX JAK UDELAT CUSTOM EXCEPTION?")
+        if txt == "debug":
+            ipdb.set_trace()
         return txt
 
     def askNumber(text):

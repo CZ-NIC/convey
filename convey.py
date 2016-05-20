@@ -60,14 +60,14 @@ if __name__ == "__main__":
         print("Statistics overview: " + stat)
         with open(os.path.dirname(file) + "/statistics.txt","w") as f:
                     f.write(stat)
-        if len(csv.mailLocal.getOrphans()):
-            print("Couldn't find abusemails for {} CZ IP.".format(len(csv.mailLocal.getOrphans())))
-        if len(csv.countriesMissing):
-            print("Couldn't find csirtmails for {} countries.".format(len(csv.countriesMissing)))
+        if csv.reg["local"].stat("records", False):
+            print("Couldn't find {} abusemails for {} CZ IP.".format(csv.reg["local"].stat("records", False), csv.reg["local"].stat("ips", False)))
+        if csv.reg["foreign"].stat("records", False):
+            print("Couldn't find {} csirtmails for {} countries.".format(csv.reg["foreign"].stat("records", False), csv.reg["foreign"].stat("ips", False)))
 
         print("\n Main menu:")
         print("1 – Send by OTRS...")
-        print("2 – Generate... (file with IP without contact: {})".format(csv.missingFilesInfo()))
+        print("2 – Generate...")  # XXX tuhle moznost celou zrustit? generuje se neco? (file with IP without contact: {})".format(csv.missingFilesInfo()))
         print("3 – List mails and IP count (internal variables)")
         print("4 – Rework again...")
         print("x – End")
@@ -97,14 +97,17 @@ if __name__ == "__main__":
             elif option2 == "3":
                 csv.buildListWorld()
             elif option2 == "4":
-                csv.mailLocal.guiEdit()
-                csv.mailForeign.guiEdit()
+                csv.reg["local"].mailDraft.guiEdit()
+                csv.reg["foreign"].mailDraft.guiEdit()
 
             continue        
         elif option == "3":            
             csv.soutDetails()
             continue
         elif option == "2":
+            print("NOTHING")
+            continue
+            # XXX celou sekci zrusit?
             print("1 - Generate files with IP without contacts {}".format(csv.missingFilesInfo()))
             print("2 - Generate all files ({} files)".format(len(csv.countries) + len(csv.mailLocal.mails)))
             print("[x] - Cancel")

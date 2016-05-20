@@ -57,4 +57,7 @@ class CsvGuesses:
                 print(str(i2+1) + ". " + fieldname)
             colI = Dialogue.askNumber(colName + " column: ") - 1
 
+        if colI == -1:
+            colI = None
+            
         return colI

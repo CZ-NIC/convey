@@ -1,6 +1,6 @@
 # Env config file connection
 import configparser
-import pudb
+import ipdb
 
 class Config:
     file = 'config.ini'
@@ -10,7 +10,7 @@ class Config:
 
     def errorCatched():
         if Config.isDebug():
-            pudb.set_trace()
+            ipdb.set_trace()
 
     def isDebug():
         return True if Config.get('debug') == "True" else False
@@ -26,9 +26,11 @@ class Config:
 
     #def setTemp(key,val):
     #    Config.tempCache[key] = val
-    #X Can't update, it would kill comments in config.ini :(
-    #def set(key, val):
-        #Config.config.set('CONVEY',key,val)
+    
+    def set(key, val):
+        Config.config.set('CONVEY',key,val)
+        # Can't update the file now, it would kill comments in config.ini :(
+        # And I dont want to can do the update because Whois may set whois_mirror value and this change is meant to be temporary only (for the single run of program)
         #with open(Config.file,"w") as f:
             #Config.config.write(f)
     cacheDir = ""
@@ -36,5 +38,6 @@ class Config:
         Config.cacheDir = dir
 
     def getCacheDir():
+        """ Cache dir with ending slash. """
         return Config.cacheDir
             

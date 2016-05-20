@@ -4,38 +4,39 @@ from collections import defaultdict
 import os
 import csv
 import re
+import pdb, ipdb
+
+class _RegistryRecord(set):
+    def __init__(self):
+        """
+        :param:mail If record is not mail, it's stored here.
+        mail = None = no mail specified (take a look to the name of the record)
+        mail = False = we have no mail available
+        mail = mail@example.com
+        """
+        self.cc = ""
+        self.mail = None
+        self.counter = set()
 
 class _Registry:
 
     _missing = {"records": 0, "ips": 0}
 
-    class _RegistryRecord(set):
-        def __init__(self):
-            """
-             :param:mail If name of the record is not mail, it's stored here.
-                mail = None = no mail specified (take a look to the name of the record)
-                mail = False = we have no mail available
-                mail = mail@example.com
-            """
-            self.cc = ""
-            self.mail = None
-            self.counter = 0
-
     def __init__(self):
-        self.records = defaultdict(self._RegistryRecord)
-        self.unknowns = 0
-        self.knowns = 0
+        self.records = defaultdict(_RegistryRecord)
+        self.unknowns = set()
+        self.knowns = set()
         self.total = 0
         self.mailDraft = MailDraft(self.name)
 
-    def count(self, name, count):
-        """ Add count of IPs to this name and returns if it existed before. """
-        existed = name in self.records
-        if name and name is not "unknown":
-            self.records[name].counter += count
-            self.knowns += count
+    def count(self, record, ip):
+        """ Add IPs to this record and returns if it existed before. """
+        existed = record in self.records
+        if record and record is not "unknown":
+            self.records[record].counter.add(ip)
+            self.knowns.add(ip)
         else:
-            self.unknowns += count
+            self.unknowns.add(ip)
         return existed
 
 
@@ -52,7 +53,7 @@ class _Registry:
         #print (', '.join(key + " ( " + value + ")") for key, value in itertools.chain(self.counters["foreign"],self.counters["local"]))
         l = []
         for key, o in self.records.items():
-            s = [o.count]
+            s = [str(len(o.counter))]
             o.mail is False and s.append("no mail")
             o.cc and s.append("cc " + o.cc)
             l.append(key + " ( " + ", ".join(s) + ")")
@@ -64,15 +65,20 @@ class _Registry:
         :param:kind "records"|"ips"
         :param:found Bool. Returns count of found or not found objects.
         """
-        if kind == "ips" and found:
-            return self.knowns - self._missing["ips"]
+        if kind == "ips" and found == "both":
+            return len(self.knowns) + len(self.unknowns)
+        elif kind == "records" and found == "both":
+            return len(self.records) + int(bool(self.unknowns))
+        elif kind == "ips" and found:
+            return len(self.knowns) - self._missing["ips"]
         elif kind == "records" and found:
             return len(self.records) - self._missing["records"]
         elif kind == "ips" and not found:
-            return self.unknowns + self._missing["ips"]
+            return len(self.unknowns) + self._missing["ips"]
         elif kind == "records" and not found: # unknown country, unknown csirtmail or unknown abusemail for cz
             return int(bool(self.unknowns)) + self._missing["records"]
         else:
+            ipdb.set_trace()
             raise Error("Statistics key error. Tell the programmer.")
 
     def _update(self, key):
@@ -130,7 +136,7 @@ class CountriesRegistry(_Registry):
             for country, record in self.records.items(): #check domain mail
                 record.mail = False
                 if country in csirtmails:
-                    country.mail = csirtmails[country]
+                    record.mail = csirtmails[country]
                 else:
                     missingCountries.add(country)
                     self._missing["records"] += 1
