@@ -61,9 +61,9 @@ if __name__ == "__main__":
         with open(os.path.dirname(file) + "/statistics.txt","w") as f:
                     f.write(stat)
         if csv.reg["local"].stat("records", False):
-            print("Couldn't find {} abusemails for {} CZ IP.".format(csv.reg["local"].stat("records", False), csv.reg["local"].stat("ips", False)))
+            print("Couldn't find {} abusemails for {}× IP.".format(csv.reg["local"].stat("records", False), csv.reg["local"].stat("ips", False)))
         if csv.reg["foreign"].stat("records", False):
-            print("Couldn't find {} csirtmails for {} countries.".format(csv.reg["foreign"].stat("records", False), csv.reg["foreign"].stat("ips", False)))
+            print("Couldn't find {} csirtmails for {}× IP.".format(csv.reg["foreign"].stat("records", False), csv.reg["foreign"].stat("ips", False)))
 
         print("\n Main menu:")
         print("1 – Send by OTRS...")
@@ -142,8 +142,8 @@ if __name__ == "__main__":
                 if not MailSender.sendList(csv.mailForeign, csv): 
                     print("Couldn't send all foreign e-mails. (Details in mailSender.log.)")
             continue
-        elif option == "testing":
-            import pdb; pdb.set_trace()
+        elif option == "debug":
+            import ipdb; ipdb.set_trace()
         else:
             continue #repeat options
 

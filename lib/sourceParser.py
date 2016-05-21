@@ -37,16 +37,20 @@ class SourceParser:
         if self.hasHeader is not None:
             l.append("header: " + ("used" if self.hasHeader else "not used"))
         
-
         if self.hostColumn is not None:
             l.append("Host column: " + self.fields[self.hostColumn])
-        if self.ipColumn is not None:
             l.append("IP column: " + self.fields[self.ipColumn])
         if self.asnColumn is not None:
             l.append("ASN column: " + self.fields[self.asnColumn])
+        print(", ".join(l))
+        if self.whoisStats:
+            print("During analysis, whois servers were called: " + ", ".join(key+"("+str(val)+"×)" for key,val in self.whoisStats.items()))
+        print("Log lines count: {}".format(self.lineCount))
+        if self.extendCount > 0:
+            print("+ other {} rows, because some domains had multiple IPs".format(extend))
 
-        sys.stdout.write(", ".join(l))
-        sys.stdout.write("\nSample:\n" + self.sample) # XX maybe only three lines first?
+        print("\nSample:\n" + "\n".join(self.sample.split("\n")[:3]) + "\n") # first 3rd lines first
+
 
         #if self.reg: # print counters "ru (230), cn (12)"
         [reg.soutInfo() for reg in self.reg.values()]
@@ -138,37 +142,30 @@ class SourceParser:
                 self.isRepeating = True
                 continue # repeat
             else:                
-                self.runAnalysis()                
+                self.runAnalysis()
                 break
 
     def _reset(self):
         #cant be pickled: self.reg = namedtuple('SourceParser.registries', 'local foreign')(AbusemailsRegistry(), CountriesRegistry())
         self.reg = { 'local' : AbusemailsRegistry(), "foreign" :CountriesRegistry()}
         self.ranges = {}        
-        self.lineCount = 0
-        self.ipCount = 0
+        self.lineCount = 0        
         self.extendCount = 0
         self.isAnalyzedB = False
         self.sums = {}
+        self.whoisStats = Whois.stats # so that it is saved
 
     ## ma nahradit hodne metod XXX
-    def runAnalysis(self):
-        ipdb.set_trace()
+    def runAnalysis(self):        
         self._reset()
         if Config.getboolean("autoopen_editor"):
             [r.mailDraft.guiEdit() for r in self.reg.values()]
         with open(self.sourceFile, 'r') as csvfile:
             for line in csvfile:
                 self._processLine(line)                
-
-            print("IP count: {}".format(sum([r.stat("ips", "both") for r in self.reg.values()])))
-            print("Log lines count: {}".format(self.lineCount))
-            if self.extendCount > 0:
-                print("+ other {} rows, because some domains had multiple IPs".format(extend))
+                        
         self.isAnalyzedB = True
-        [r.update() for r in self.reg.values()]
-
-        ### XXX jeste se nikde nepridava CC k ceskkym IP. Zde, nebo az pri odeslani?
+        [r.update() for r in self.reg.values()]        
 
     def isAnalyzed(self):
         return self.isAnalyzedB
@@ -194,8 +191,7 @@ class SourceParser:
                 self.extendCount += len(ips) -1 # count of new lines in logs
                 print("Host {} has {} IP addresses: {}".format(records[self.hostColumn], len(ips), ips))
 
-            for ip in ips:
-                self.ipCount += 1
+            for ip in ips:                
                 if self.hostColumn:
                     row += self.delimiter + ip # append determined IP to the last col
 
@@ -219,7 +215,7 @@ class SourceParser:
                         self.ranges[prefix] = record, kind
                     else: # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
                         raise AssertionError("The prefix " + prefix + " shouldnt be already present. Tell the programmer")
-                #print("Found: {}, IP: {}, Prefix: {}, Record: {}, Kind: {}".format(found, ip, prefix,record, kind)) # XX put to logging
+                print("Found: {}, IP: {}, Prefix: {}, Record: {}, Kind: {}".format(found, ip, prefix,record, kind)) # XX put to logging
                 method = "a" if self.reg[kind].count(record, ip) else "w"
                 with open(Config.getCacheDir() + record + "." + kind, method) as f:
                     f.write(row + "\n")
@@ -261,7 +257,7 @@ class SourceParser:
         lo = self.reg["local"].stat
         fo = self.reg["foreign"].stat
 
-        ipsUnique = lo("ips", True) + fo("ips", True)
+        ipsUnique = lo("ips", "both") + fo("ips", "both")
 
         ispCzFound = lo("records", True)
         ipsCzMissing = lo("ips", False)

@@ -56,9 +56,10 @@ class _Registry:
             s = [str(len(o.counter))]
             o.mail is False and s.append("no mail")
             o.cc and s.append("cc " + o.cc)
-            l.append(key + " ( " + ", ".join(s) + ")")
+            l.append(key + " (" + ", ".join(s) + ")")
         if self.unknowns:
             l.append("unknown {} ({})".format(self.name, self.unknowns))
+        print(", ".join(l))
 
     def stat(self, kind, found):
         """
@@ -140,10 +141,10 @@ class CountriesRegistry(_Registry):
                 else:
                     missingCountries.add(country)
                     self._missing["records"] += 1
-                    self._missing["ips"] += record.count
+                    self._missing["ips"] += len(record.counter)
 
             if self._missing["records"]:
-                print("Missing csirtmails for {} countries: {}\n".format(len(self._missing["records"]), ", ".join(missingCountries)))
+                print("Missing csirtmails for {} countries: {}\n".format(self._missing["records"], ", ".join(missingCountries)))
                 print("Add csirtmails to the foreign contacts file (see config.ini) and relaunch whois! \n")
             else:
                 print("Foreign whois OK!")
