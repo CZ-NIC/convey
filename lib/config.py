@@ -27,10 +27,10 @@ class Config:
     #def setTemp(key,val):
     #    Config.tempCache[key] = val
     
-    def set(key, val):
-        Config.config.set('CONVEY',key,val)
+    #def set(key, val):
+    #    Config.config.set('CONVEY',key,val)
         # Can't update the file now, it would kill comments in config.ini :(
-        # And I dont want to can do the update because Whois may set whois_mirror value and this change is meant to be temporary only (for the single run of program)
+        # XAnd I dont want to can do the update because Whois may set whois_mirror value and this change is meant to be temporary only (for the single run of program)
         #with open(Config.file,"w") as f:
             #Config.config.write(f)
     cacheDir = ""

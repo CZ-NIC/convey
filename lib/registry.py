@@ -19,10 +19,9 @@ class _RegistryRecord(set):
         self.counter = set()
 
 class _Registry:
-
-    _missing = {"records": 0, "ips": 0}
-
+    
     def __init__(self):
+        self._missing = {"records": 0, "ips": 0}
         self.records = defaultdict(_RegistryRecord)
         self.unknowns = set()
         self.knowns = set()
@@ -52,13 +51,16 @@ class _Registry:
     def soutInfo(self):
         #print (', '.join(key + " ( " + value + ")") for key, value in itertools.chain(self.counters["foreign"],self.counters["local"]))
         l = []
-        for key, o in self.records.items():
-            s = [str(len(o.counter))]
-            o.mail is False and s.append("no mail")
-            o.cc and s.append("cc " + o.cc)
-            l.append(key + " (" + ", ".join(s) + ")")
+        if len(self.records) < 100:
+            for key, o in self.records.items():
+                s = [str(len(o.counter))]
+                o.mail is False and s.append("no mail")
+                o.cc and s.append("cc " + o.cc)
+                l.append(key + " (" + ", ".join(s) + ")")
+        else:# too much of results, print just the count
+            l.append(str(len(self.records)) + " " + self.name)
         if self.unknowns:
-            l.append("unknown {} ({})".format(self.name, self.unknowns))
+            l.append("unknown {} ({})".format(self.name, len(self.unknowns)))
         print(", ".join(l))
 
     def stat(self, kind, found):
@@ -120,9 +122,9 @@ class AbusemailsRegistry(_Registry):
                         count += 1
 
             if count:
-                print("Included {} cc addresses into local mails.".format(count))
+                print("Included {} cc contacts into local mails.".format(count))
             else:
-                print("File with local contacts found, no intersection with current CSV, ok.")
+                print("No intersection with local cc contacts, ok.")
 
 class CountriesRegistry(_Registry):
 
@@ -144,7 +146,14 @@ class CountriesRegistry(_Registry):
                     self._missing["ips"] += len(record.counter)
 
             if self._missing["records"]:
-                print("Missing csirtmails for {} countries: {}\n".format(self._missing["records"], ", ".join(missingCountries)))
+                print("Missing csirtmails for {} countries: {}".format(self._missing["records"], ", ".join(missingCountries)))
                 print("Add csirtmails to the foreign contacts file (see config.ini) and relaunch whois! \n")
             else:
                 print("Foreign whois OK!")
+
+#"""
+#class Registries:
+#     Public access to both local and foreign registries
+#    local = AbusemailsRegistry()
+#    foreign = CountriesRegistry()"""
+#"""

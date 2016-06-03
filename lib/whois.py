@@ -12,7 +12,7 @@ from subprocess import Popen
 import sys
 from urllib.parse import urlparse
 import urllib.request
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 logging.FileHandler('whois.log', 'a')
 
 class Whois:
@@ -25,18 +25,26 @@ class Whois:
     ## 
     # returns prefix, local|foreign, country|abusemail
     def analyze(self):
-        #print("anal starts {}".format(self.ip))
         self._loadCountry()
-        print("country loaded {}".format(self.country))
+        #print("country loaded {}".format(self.country))
         self._loadPrefix()
-        print("prefix loaded {}".format(self.prefix))
+        #print("prefix loaded {}".format(self.prefix))
         if not self.country in Config.get("local_country"):
             return self.prefix, "foreign", self.country
         else:
             #print("Abusemail: ")
             self._loadAbusemail()
-            print("abusemail loaded {}".format(self.abusemail))
+            #print("abusemail loaded {}".format(self.abusemail))
             return self.prefix, "local", self.abusemail
+
+    def resolveUnknownMail(self):
+        """ Forces to load abusemail """
+        self._exec(self.lastServer, flags = "") # no -r flag
+        self._loadAbusemail()
+        if self.abusemail == "unknown":
+            self._exec(self.lastServer, flags = " -B ") # with -B flag
+            self._loadAbusemail()
+
 
     def _loadPrefix(self):
         """ Loads prefix from last whois response. """
@@ -65,7 +73,7 @@ class Whois:
             else:
                 self.prefix = IPNetwork(s)
         except Exception as e:
-            print("Prefix {} cannot be parsed.".format(s))
+            logging.warning("Prefix {} cannot be parsed.".format(s))
             Config.errorCatched()
 
     def url2ip(url):
@@ -99,39 +107,43 @@ class Whois:
                     return line
         return "" # no grep result found
 
+    servers = OrderedDict()
+    if Config.get("whois_mirror"):  # try our fast whois-mirror in cz.nic first
+        servers["mirror"] = Config.get("whois_mirror")
+    for name, val in zip(["ripe","arin","lacnic","apnic","afrinic"],["whois.ripe.net", "whois.arin.net", "whois.lacnic.net","whois.apnic.net","whois.afrinic.net"]):
+        servers[name] = val
+    
+
     def _loadCountry(self):
         query = self.ip
         self.country = ""
-        #cmd = query + " | strings | grep ^[c,C]ountry | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"        
-        def getCountry(cmd, server):
-            self.stats[server] += 1
-            self._exec(cmd)
-            return self._grepResponse('(.*)[c,C]ountry(.*)', lastWord=True)
 
-        if Config.get("whois_mirror"):
-            self.country = getCountry("whois -r -h {} -- {}".format(Config.get("whois_mirror"), query),"mirror") # try our fast whois-mirror in cz.nic
+        #import pudb;pudb.set_trace()
+        for server in self.servers.keys():
+            if server != "ripe":
+                import pudb;pudb.set_trace()
+            self._exec(server = server, query = query)
+            self.country = self._grepResponse('(.*)[c,C]ountry(.*)', lastWord=True)
             if self._grepResponse("network is unreachable"):
-                print("Whois mirror {} is unreachable. Disabling for this session.".format(Config.get("whois_mirror")))
-                Config.set("whois_mirror", "")
+                logging.warning("Whois server {} is unreachable. Disabling for this session.".format(server))
+                Whois.servers.pop(server) # XXX funguje takhle pop, ze vyradi key i item
+            #if self.country == "au":    import ipdb;ipdb.set_trace()
 
-        # sanitize whois mirror failure
-        if not self.country or self.country[0:2].lower() == "eu": #ex: 'EU # Country is really world wide' (64.9.241.202) (Our mirror returned this result sometimes)
-            self.country = getCountry("whois -r " + query, "default") # try worldwide whois, not CZ.NIC-mirror. The default is RIPE, right?
-        
-        # sanitize multiple countries in one line
-        if self.country and len(self.country.split("#")) > 1: # ex: 'NL # BE GB DE LU' -> 'NL' (82.175.175.231)
-            self.country = self.country.split("#")[0].strip(" ")
+            if self.country:
+                # sanitize whois mirror failure XXX
+                if self.country[0:2].lower() == "eu": #ex: 'EU # Country is really world wide' (64.9.241.202) (Our mirror returned this result sometimes)
+                    self.country = ""
+                    continue
 
+                # sanitize multiple countries in one line
+                if len(self.country.split("#")) > 1: # ex: 'NL # BE GB DE LU' -> 'NL' (82.175.175.231)
+                    self.country = self.country.split("#")[0].strip(" ")
+                break
+
+        # XXX ??
         # in the case of 10_16_Honeypot it happened that whois asked we dont know who. We thought it asked ARIN, but it didnt seem to.
-        if not self.country:
-            self.country = getCountry("whois -r -h whois.arin.net " + query, "arin") # I think i dont have to ask ripe because ARIN directly links to it (whois -h whois.arin.net 109.123.209.188 returned RIPE result)
-        if not self.country:
-            self.country = getCountry("whois -r -h whois.lacnic.net " + query, "lacnic")
-        if not self.country:
-            self.country = getCountry("whois -r -h whois.apnic.net " + query, "apnic")
-        if not self.country:
-            self.country = getCountry("whois -r -h whois.afrinic.net " + query, "afrinic")
-
+        # I think i dont have to ask ripe because ARIN directly links to it (whois -h whois.arin.net 109.123.209.188 returned RIPE result)
+        
         if not self.country:
             self.country = "unknown"
         
@@ -147,9 +159,10 @@ class Whois:
         # self.abusemail = self._grepResponse(grep='abuse-mailbox', lastWord=True)
 
         # call whois json api
+        # XXX MAYBE its for nothing, no new results. What about to delete it? Did it help something?
         if not self.abusemail: # slower method, without limits
             url = "https://stat.ripe.net/data/abuse-contact-finder/data.json?resource=" + self.ip
-            jsonp = urllib.request.urlopen(url).read().decode("utf-8").replace("\n", "")
+            jsonp = urllib.request.urlopen(url).read().decode("unicode_escape").replace("\n", "")
             self.stats["ripejson"] += 1
             response = json.loads(jsonp)
             if response["status"] == "ok": # we may fetch: authorities: ripe. Do we want it?
@@ -158,26 +171,29 @@ class Whois:
                     if not self.prefix:
                         self._str2prefix(response["data"]["holder_info"]["resource"]) # "resource": "88.174.0.0 - 88.187.255.255"
                 except IndexError: # 74.221.223.179 doesnt have the contact, "abuse_c": []
-                    pass                                                                            
+                    pass
+                
         if not self.abusemail:
+            self.stats["ripejson (didnt work, debug)"] += 1
             logging.info("whois-json didnt work for " + self.ip)
             self.abusemail = "unknown"
+
+    flag2log = {" -r ": "", " -B ": " B flag", "": " no flag"} # we want to log -B flag, empty flag, but not -r flag.
             
-    def _exec(self, cmd):
-        #if cmd not in Whois._cache:
-        #testing: print("exec: {}".format(cmd))
-        sys.stdout.write('.') # let the user see something is happening (may wont look good)
-        # XXX test: sys.stdout.flush()
-        p = Popen([cmd], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        #print(cmd)
+    def _exec(self, server, query, flag = " -r "):
+        #print("{} {}".format(server, self.flag2log[flag]))
+        #import pudb;pudb.set_trace()
+        self.stats[server + self.flag2log[flag]] += 1
+        self.lastServer = " -h " + Whois.servers[server]
+        p = Popen(["whois " + self.lastServer + flag + query], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         try:
-            self.whoisResponse = p.stdout.read().decode("utf-8").strip().lower() #.replace("\n", " ")
-            self.whoisResponse += p.stderr.read().decode("utf-8").strip().lower()
+            self.whoisResponse = p.stdout.read().decode("unicode_escape").strip().lower() #.replace("\n", " ")
+            self.whoisResponse += p.stderr.read().decode("unicode_escape").strip().lower()
         except UnicodeDecodeError: # ip address 94.230.155.109 had this string 'Jan Krivsky Hl\xc3\x83\x83\xc3\x82\xc2\xa1dkov' and everything failed
             self.whoisResponse = ""
+            logging.warning("Whois response for IP {} on server {} cannot be parsed.".format(ip, server))
         #print("resuls {}".format(str)) #print(ip,str) when multithreaded db ripedb2.nic.cz returned empty plac#
     
-
 
 ### XXX BELOW ARE OLD METHODS
 
@@ -204,4 +220,4 @@ class Whois:
         #cmd = ip + " | strings | grep ^[o,O]rigin | head -1 | cut -d: -f2 | sed 's/^ *//;s/ *$//'"
         #asn = Whois._exec("whois -h ripedb.nic.cz -- " + cmd) # zeptat se rychleho whois-mirroru cz.nic
         #return asn
-        return Whois._exec("whois -h ripedb.nic.cz -- " + ip, grep="^[o,O]rigin", lastWord=True)
+        return Whois._exec("-h ripedb.nic.cz -- " + ip, grep="^[o,O]rigin", lastWord=True)

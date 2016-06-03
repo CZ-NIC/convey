@@ -57,7 +57,7 @@ if __name__ == "__main__":
         if Config.get('testing') == "True":
             print("\n*** TESTING MOD - mails will be send to mail {} ***\n (To cancel the testing mode set testing = False in config.ini.)".format(Config.get('testingMail')))
         stat = csv.getStatsPhrase()
-        print("Statistics overview: " + stat)
+        print("\n Statistics overview:\n" + stat)
         with open(os.path.dirname(file) + "/statistics.txt","w") as f:
                     f.write(stat)
         if csv.reg["local"].stat("records", False):
@@ -82,7 +82,7 @@ if __name__ == "__main__":
         elif option == "4":
             print("1 – Rework whole file again")
             print("2 – Rework again whois only")
-            print("3 – Reload foreign csirtmails from file")
+            print("3 – Reload csirtmails and local cc's from file")
             print("4 – Edit mail texts")
             print("[x] – Cancel")
 
@@ -93,9 +93,9 @@ if __name__ == "__main__":
             if option2 == "1":
                 wrapper.clear()
             elif option2 == "2":
-                csv.launchWhois()
-            elif option2 == "3":
-                csv.buildListWorld()
+                csv.runAnalysis()
+            elif option2 == "3":                
+                [r.update() for r in csv.reg.values()] # XXX doest this work? #csv.buildListWorld()
             elif option2 == "4":
                 csv.reg["local"].mailDraft.guiEdit()
                 csv.reg["foreign"].mailDraft.guiEdit()

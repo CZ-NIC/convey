@@ -17,13 +17,14 @@ import re
 import sys
 import threading
 import logging
+from math import sqrt
 logging.FileHandler('whois.log', 'a')
 
 
 class SourceParser:
-
-    # file information
+    
     def soutInfo(self, clear=True):
+        """ file information """
         if clear:
             sys.stderr.write("\x1b[2J\x1b[H")
             sys.stderr.flush()
@@ -39,17 +40,19 @@ class SourceParser:
         
         if self.hostColumn is not None:
             l.append("Host column: " + self.fields[self.hostColumn])
+        if self.ipColumn is not None:
             l.append("IP column: " + self.fields[self.ipColumn])
         if self.asnColumn is not None:
             l.append("ASN column: " + self.fields[self.asnColumn])
         print(", ".join(l))
         if self.whoisStats:
-            print("During analysis, whois servers were called: " + ", ".join(key+"("+str(val)+"×)" for key,val in self.whoisStats.items()))
-        print("Log lines count: {}".format(self.lineCount))
+            print("During analysis, whois servers were called: " + ", ".join(key+" ("+str(val)+"×)" for key,val in self.whoisStats.items()))
+        if self.lineCount:
+            print("Log lines processed: {}".format(self.lineCount))
         if self.extendCount > 0:
-            print("+ other {} rows, because some domains had multiple IPs".format(extend))
+            print("+ other {} rows, because some domains had multiple IPs".format(self.extendCount))
 
-        print("\nSample:\n" + "\n".join(self.sample.split("\n")[:3]) + "\n") # first 3rd lines first
+        print("\nSample:\n" + "\n".join(self.sample.split("\n")[:3]) + "\n") # show first 3rd lines
 
 
         #if self.reg: # print counters "ru (230), cn (12)"
@@ -58,15 +61,21 @@ class SourceParser:
                 
 
     def askBasics(self):
+        """ Dialog to obtain basic information about CSV - delimiter, header """
         self.delimiter, self.hasHeader = CsvGuesses.guessDelimiter(self.sniffer, self.sample)        
         if not Dialogue.isYes("Is character '{}' delimiter? ".format(self.delimiter)):
             sys.stdout.write("What is delimiter: ")
-            self.delimiter = input()        
+            self.delimiter = input()
+        if not self.delimiter: # "" -> None (.split fn can handle None, it cant handle empty string)
+            self.delimiter = None
         if not Dialogue.isYes("Header " + ("" if self.hasHeader else "not " + "found; ok?")):
             self.hasHeader = not self.hasHeader
         if self.hasHeader == True:
             self.header = self.firstLine
+        #if self.delimiter:
         self.fields = self.firstLine.split(self.delimiter)
+        #else:
+        #    self.fields = [self.firstLine]
 
 
 
@@ -77,8 +86,8 @@ class SourceParser:
         if self.ipColumn:
             print("We can't live without IP/HOST column. Try again or write x for cancellation.")
             return self.askIpCol()
-
-        if not Whois.checkIp(self.sample.split("\n")[1].split(self.delimiter)[self.ipColumn]):# determine if it's IP column or DOMAIN column
+        
+        if not Whois.checkIp(self.sample.split("\n")[1 if self.hasHeader else 0].split(self.delimiter)[self.ipColumn]):# determine if it's IP column or DOMAIN column. I need to skip header. (Note there may be a 1 line file)            
             print("Domains in this column will be translated to IP.")
             self.hostColumn, self.ipColumn = self.ipColumn, -1
             if self.hasHeader == True: # add HOST_IP column
@@ -148,6 +157,7 @@ class SourceParser:
     def _reset(self):
         #cant be pickled: self.reg = namedtuple('SourceParser.registries', 'local foreign')(AbusemailsRegistry(), CountriesRegistry())
         self.reg = { 'local' : AbusemailsRegistry(), "foreign" :CountriesRegistry()}
+        #self.reg = Registries
         self.ranges = {}        
         self.lineCount = 0        
         self.extendCount = 0
@@ -180,6 +190,8 @@ class SourceParser:
         self.lineCount += 1
         if self.lineCount == 1 and self.hasHeader: # skip header
             return
+        if sqrt(self.lineCount) % 1 == 0:
+            self.soutInfo()
         try:
             records = row.split(self.delimiter)
             if self.hostColumn is not None: # if CSV has DOMAIN column that has to be translated to IP column
@@ -202,7 +214,7 @@ class SourceParser:
                     self.ip2asn[ip] = str # key is IP XXX tohle se pouziva?
 
                 found = False
-                for prefix, o in self.ranges.items(): # XXX pomuze mi tohle proti duplikaci IP adres??
+                for prefix, o in self.ranges.items():
                     if ip in prefix:
                         found = True
                         record, kind = o
@@ -215,7 +227,7 @@ class SourceParser:
                         self.ranges[prefix] = record, kind
                     else: # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
                         raise AssertionError("The prefix " + prefix + " shouldnt be already present. Tell the programmer")
-                print("Found: {}, IP: {}, Prefix: {}, Record: {}, Kind: {}".format(found, ip, prefix,record, kind)) # XX put to logging
+                    #print("IP: {}, Prefix: {}, Record: {}, Kind: {}".format(ip, prefix,record, kind)) # XX put to logging
                 method = "a" if self.reg[kind].count(record, ip) else "w"
                 with open(Config.getCacheDir() + record + "." + kind, method) as f:
                     f.write(row + "\n")
