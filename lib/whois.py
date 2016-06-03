@@ -1,4 +1,6 @@
 # Work with Whoisem
+from collections import OrderedDict
+from collections import defaultdict
 import ipaddress
 import ipdb
 import json
@@ -12,7 +14,6 @@ from subprocess import Popen
 import sys
 from urllib.parse import urlparse
 import urllib.request
-from collections import defaultdict, OrderedDict
 logging.FileHandler('whois.log', 'a')
 
 class Whois:
@@ -38,11 +39,16 @@ class Whois:
             return self.prefix, "local", self.abusemail
 
     def resolveUnknownMail(self):
-        """ Forces to load abusemail """
-        self._exec(self.lastServer, flags = "") # no -r flag
+        """ Forces to load abusemail for an IP that has country in CZ. 
+        
+        XX Note that we tries only RIPE server because it's the only one that has flags -r and -B.
+        We try first omit -r flag and then add -B flag.
+        
+        """
+        self._exec(server="ripe (no -r)", serverUrl="whois.ripe.net") # no -r flag
         self._loadAbusemail()
         if self.abusemail == "unknown":
-            self._exec(self.lastServer, flags = " -B ") # with -B flag
+            self._exec(server="ripe (-B flag)", serverUrl="whois.ripe.net -B") # with -B flag
             self._loadAbusemail()
 
 
@@ -50,11 +56,11 @@ class Whois:
         """ Loads prefix from last whois response. """
         self.prefix = ""
         for grep, pattern in [('% abuse contact for', r"for '([^']*)'"),
-                            ('% information related to', r"information related to '([^']*)'"), # ip 151.80.121.243 needed this , % information related to \'151.80.121.224 - 151.80.121.255\'\n\n% no abuse contact registered for 151.80.121.224 - 151.80.121.255
-                            ("inetnum", r"inetnum:\s*(.*)"), # inetnum:        151.80.121.224 - 151.80.121.255
-                            ("netrange", r"netrange:\s*(.*)"),#NetRange:       216.245.0.0 - 216.245.63.255
-                            ("cidr", r"cidr:\s*(.*)")#CIDR:           216.245.0.0/18
-                            ]:
+            ('% information related to', r"information related to '([^']*)'"), # ip 151.80.121.243 needed this , % information related to \'151.80.121.224 - 151.80.121.255\'\n\n% no abuse contact registered for 151.80.121.224 - 151.80.121.255
+            ("inetnum", r"inetnum:\s*(.*)"), # inetnum:        151.80.121.224 - 151.80.121.255
+            ("netrange", r"netrange:\s*(.*)"), #NetRange:       216.245.0.0 - 216.245.63.255
+            ("cidr", r"cidr:\s*(.*)")#CIDR:           216.245.0.0/18
+            ]:
             match = re.search(pattern, self._grepResponse(grep))
             if match:
                 self._str2prefix(match.group(1))
@@ -110,7 +116,8 @@ class Whois:
     servers = OrderedDict()
     if Config.get("whois_mirror"):  # try our fast whois-mirror in cz.nic first
         servers["mirror"] = Config.get("whois_mirror")
-    for name, val in zip(["ripe","arin","lacnic","apnic","afrinic"],["whois.ripe.net", "whois.arin.net", "whois.lacnic.net","whois.apnic.net","whois.afrinic.net"]):
+    for name, val in zip(["ripe", "arin", "lacnic", "apnic", "afrinic"],
+                         ["whois.ripe.net -r", "whois.arin.net", "whois.lacnic.net", "whois.apnic.net", "whois.afrinic.net"]):
         servers[name] = val
     
 
@@ -122,7 +129,7 @@ class Whois:
         for server in self.servers.keys():
             if server != "ripe":
                 import pudb;pudb.set_trace()
-            self._exec(server = server, query = query)
+            self._exec(server=server, query=query)
             self.country = self._grepResponse('(.*)[c,C]ountry(.*)', lastWord=True)
             if self._grepResponse("network is unreachable"):
                 logging.warning("Whois server {} is unreachable. Disabling for this session.".format(server))
@@ -151,7 +158,7 @@ class Whois:
         """ Loads abusemail from last whois response OR from whois json api. """
         self.abusemail = ""
         pattern = '[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}'
-        for grep in [('% abuse contact for'),('orgabuseemail'),('abuse-mailbox')]:
+        for grep in [('% abuse contact for'), ('orgabuseemail'), ('abuse-mailbox')]:
             match = re.search(pattern, self._grepResponse(grep)) # the last whois query was the most successful, it fetched country so that it may have abusemail inside as well
             if match:
                 self.abusemail = match.group(0)
@@ -178,14 +185,16 @@ class Whois:
             logging.info("whois-json didnt work for " + self.ip)
             self.abusemail = "unknown"
 
-    flag2log = {" -r ": "", " -B ": " B flag", "": " no flag"} # we want to log -B flag, empty flag, but not -r flag.
+    #flag2log = {" -r ": "", " -B ": " B flag", "": " no flag"} # we want to log -B flag, empty flag, but not -r flag.
             
-    def _exec(self, server, query, flag = " -r "):
+    def _exec(self, server, query, serverUrl=None):
         #print("{} {}".format(server, self.flag2log[flag]))
         #import pudb;pudb.set_trace()
-        self.stats[server + self.flag2log[flag]] += 1
-        self.lastServer = " -h " + Whois.servers[server]
-        p = Popen(["whois " + self.lastServer + flag + query], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        if not serverUrl:
+            serverUrl = Whois.servers[server]
+        self.stats[server] += 1
+        #self.lastServer =
+        p = Popen(["whois -h " + serverUrl + " -- " + query], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         try:
             self.whoisResponse = p.stdout.read().decode("unicode_escape").strip().lower() #.replace("\n", " ")
             self.whoisResponse += p.stderr.read().decode("unicode_escape").strip().lower()
