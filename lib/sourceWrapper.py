@@ -38,7 +38,7 @@ class SourceWrapper:
             #import pdb;pdb.set_trace()
             try: # try to depickle
                 #self.csv = pickle.load(open(self.cacheFile, "rb"))
-                self.csv = jsonpickle.decode(open(self.cacheFile, "r").read())
+                self.csv = jsonpickle.decode(open(self.cacheFile, "r").read(), keys = True)
             except:
                 #try: # maybe yaml was used for caching
                 #    with open(self.cacheFile, 'r') as f:
@@ -77,7 +77,7 @@ class SourceWrapper:
                 pickle.dump(self.csv, output, -1)
         """
         with open(self.cacheFile, "w") as output: #save cache
-            output.write(jsonpickle.encode(self.csv))
+            output.write(jsonpickle.encode(self.csv, keys = True))
 
     def _treat(self): # process source
         self.csv = SourceParser(self.file)

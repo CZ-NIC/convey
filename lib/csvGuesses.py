@@ -1,4 +1,5 @@
 from lib.dialogue import Dialogue
+from csv import Error
 
 class CsvGuesses:
     def getSample(sourceFile):
@@ -16,16 +17,22 @@ class CsvGuesses:
 
 
     def guessDelimiter(sniffer, sample):
+        delimiter = ""
         try:
             delimiter = sniffer.sniff(sample).delimiter
             hasHeader = sniffer.has_header(sample)
-        except csv.Error: # delimiter failed – maybe there is an empty column: "89.187.1.81,06-05-2016,,CZ,botnet drone"
+        except Error: # delimiter failed – maybe there is an empty column: "89.187.1.81,06-05-2016,,CZ,botnet drone"            
             hasHeader = False # lets just guess the value
             s = sample.split("\n")[1] # we dont take header (there is no empty column for sure)
-            for dl in (",", ";", "|"): # lets suppose the double sign is delimiter
+            for dl in (",", ";", "|"): # lets suppose the doubled sign is delimiter
                 if s.find(dl + dl) > -1:
                     delimiter = dl
-                    break        
+                    break
+            if not delimiter: # try find anything that ressembles delimiter
+                for dl in (",", ";", "|"):
+                    if s.find(dl) > -1:
+                        delimiter = dl
+                        break
         return delimiter, hasHeader
 
     def guessCol(o, colName, checkFn, names):
@@ -39,9 +46,10 @@ class CsvGuesses:
             found = False            
             for colI, fieldname in enumerate(o.fields):
                 field = fieldname.replace(" ", "").replace("'", "").replace('"', "").lower()
-                if o.hasHeader == True: # file has header, crawl it
+                if o.hasHeader == True: # file has header, crawl it                    
                     if field in names: # this may be IP column name
                         found = True
+                        break
                 else: # CSV dont have header -> pgrep IP, or ask user
                     if checkFn(field): # no IP -> error. May want all different shortened version of IP (notably IPv6).
                         found = True

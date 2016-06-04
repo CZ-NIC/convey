@@ -2,6 +2,7 @@
 from collections import defaultdict
 from collections import namedtuple
 import csv
+import ipdb
 import itertools
 from lib.config import Config
 from lib.csvGuesses import CsvGuesses
@@ -10,14 +11,16 @@ from lib.dialogue import Dialogue
 from lib.registry import AbusemailsRegistry
 from lib.registry import CountriesRegistry
 from lib.whois import Whois
-import ntpath
-import os
-import pdb, pudb, ipdb
-import re
-import sys
-import threading
 import logging
 from math import sqrt
+import ntpath
+import os
+import pdb
+import pudb
+import re
+from shutil import move
+import sys
+import threading
 logging.FileHandler('whois.log', 'a')
 
 
@@ -46,7 +49,7 @@ class SourceParser:
             l.append("ASN column: " + self.fields[self.asnColumn])
         print(", ".join(l))
         if self.whoisStats:
-            print("During analysis, whois servers were called: " + ", ".join(key+" ("+str(val)+"×)" for key,val in self.whoisStats.items()))
+            print("During analysis, whois servers were called: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.whoisStats.items()))
         if self.lineCount:
             print("Log lines processed: {}".format(self.lineCount))
         if self.extendCount > 0:
@@ -89,7 +92,7 @@ class SourceParser:
         
         if not Whois.checkIp(self.sample.split("\n")[1 if self.hasHeader else 0].split(self.delimiter)[self.ipColumn]):# determine if it's IP column or DOMAIN column. I need to skip header. (Note there may be a 1 line file)            
             print("Domains in this column will be translated to IP.")
-            self.hostColumn, self.ipColumn = self.ipColumn, -1
+            self.hostColumn, self.ipColumn = self.ipColumn, len(self.fields) #-1
             if self.hasHeader == True: # add HOST_IP column
                 self.header += self.delimiter + "HOST_IP"
 
@@ -156,7 +159,7 @@ class SourceParser:
 
     def _reset(self):
         #cant be pickled: self.reg = namedtuple('SourceParser.registries', 'local foreign')(AbusemailsRegistry(), CountriesRegistry())
-        self.reg = { 'local' : AbusemailsRegistry(), "foreign" :CountriesRegistry()}
+        self.reg = {'local': AbusemailsRegistry(), "foreign":CountriesRegistry()}
         #self.reg = Registries
         self.ranges = {}        
         self.lineCount = 0        
@@ -175,15 +178,18 @@ class SourceParser:
                 self._processLine(line)                
                         
         self.isAnalyzedB = True
-        [r.update() for r in self.reg.values()]        
+        [r.update() for r in self.reg.values()]
+        if self.reg["local"].stat("prefixes", found = False):
+            print("Analysis COMPLETED.\n\n")
+            self.resolveUnknown()
 
     def isAnalyzed(self):
         return self.isAnalyzedB
         
-
-    ## link every line to IP
-    # ranges[range] = name.location (it.foreign, abuse@mail.com.local)
-    def _processLine(self, row):
+    def _processLine(self, row, unknownMode=False):
+        """ Link every line to IP
+            self.ranges[prefix] = record, kind (it,foreign; abuse@mail.com,local)
+        """
         row = row.strip()
         if(row == ""):
             return
@@ -193,33 +199,47 @@ class SourceParser:
         if sqrt(self.lineCount) % 1 == 0:
             self.soutInfo()
         try:
+            # obtain IP from the line. (Or more IPs, if theres host column).
             records = row.split(self.delimiter)
-            if self.hostColumn is not None: # if CSV has DOMAIN column that has to be translated to IP column
+            if not unknownMode and self.hostColumn is not None: # if CSV has DOMAIN column that has to be translated to IP column
                 ips = Whois.url2ip(records[self.hostColumn])
-            else:
-                ips = [records[self.ipColumn].replace(" ", "")] # key taken from IP column
+                if len(ips) > 1:
+                    self.extendCount += len(ips) -1 # count of new lines in logs
+                    print("Host {} has {} IP addresses: {}".format(records[self.hostColumn], len(ips), ips))
+            else: # only one reçord
+                ips = [records[self.ipColumn].replace(" ", "")] # key taken from IP column            
 
-            if len(ips) > 1:
-                self.extendCount += len(ips) -1 # count of new lines in logs
-                print("Host {} has {} IP addresses: {}".format(records[self.hostColumn], len(ips), ips))
+            for ip in ips:
+                if not unknownMode: # (in unknown mode, this was already done)
+                    if self.hostColumn:
+                        row += self.delimiter + ip # append determined IP to the last col
 
-            for ip in ips:                
-                if self.hostColumn:
-                    row += self.delimiter + ip # append determined IP to the last col
+                    if self.asnColumn:
+                        str = records[self.asnColumn].replace(" ", "")
+                        if str[0:2] != "AS":
+                            str = "AS" + str
+                        self.ip2asn[ip] = str # key is IP XXX tohle se pouziva?
 
-                if self.asnColumn:
-                    str = records[self.asnColumn].replace(" ", "")
-                    if str[0:2] != "AS":
-                        str = "AS" + str
-                    self.ip2asn[ip] = str # key is IP XXX tohle se pouziva?
-
+                # determine the prefix
                 found = False
                 for prefix, o in self.ranges.items():
                     if ip in prefix:
                         found = True
                         record, kind = o
                         break
-                if found == False:
+
+                if unknownMode: # force to obtain abusemail
+                    if not found:
+                        raise AssertionError("The prefix for ip " + ip + " should be already present. Tell the programmer.")
+                    if record == "unknown": # prefix is still unknown                                                        
+                        record = Whois(ip).resolveUnknownMail()
+                        if record != "unknown": # update prefix
+                            self.ranges[prefix] = record, kind
+                        else: # the row will be moved to unknown.local file again
+                            print("No success for prefix {}.".format(prefix))
+                    #import ipdb;ipdb.set_trace()
+                
+                elif found == False:
                     prefix, kind, record = Whois(ip).analyze()
                     if not prefix:                        
                         logging.info("No prefix found for IP {}".format(ip))
@@ -228,14 +248,43 @@ class SourceParser:
                     else: # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
                         raise AssertionError("The prefix " + prefix + " shouldnt be already present. Tell the programmer")
                     #print("IP: {}, Prefix: {}, Record: {}, Kind: {}".format(ip, prefix,record, kind)) # XX put to logging
-                method = "a" if self.reg[kind].count(record, ip) else "w"
+
+                # write the row to the appropriate file                
+                method = "a" if self.reg[kind].count(record, ip, prefix) else "w"
                 with open(Config.getCacheDir() + record + "." + kind, method) as f:
+                    if method == "w" and self.hasHeader:
+                        f.write(self.header) # header includes "\n"
                     f.write(row + "\n")
         except Exception as e:
             print("ROW fault" + row)
             pdb.set_trace()
             print("This should not happen. CSV is wrong or tell programmer to repair this.")
             raise
+
+    def resolveUnknown(self):
+        """ Process all prefixes with unknown abusemails. """
+        if self.reg["local"].stat("ips", found=False) < 1:
+            print("No unknown abusemails.")
+            return
+
+        s = "There are {0} IPs in {1} unknown prefixes. Should I proceed additional search for these {1} items?".format(self.reg["local"].stat("ips", found=False), self.reg["local"].stat("prefixes", found=False))
+        if not Dialogue.isYes(s):
+            return
+        
+        temp = Config.getCacheDir() + ".unknown.local.temp"
+        try:
+            move(Config.getCacheDir() + "unknown.local", temp)
+        except FileNotFoundError:
+            print("File with unknown IPs not found. Maybe resolving of unknown abusemails was run it the past and failed. Please run whois analysis again.")
+            return False
+        self.lineCount = 0
+        self.reg["local"].resetUnknowns()
+        with open(temp, "r") as sourceF:
+            for line in sourceF:
+                self._processLine(line, unknownMode=True)        
+
+###### from here down nothing has been edited yet ######
+##### vetsinu smazat, az whois zafunguje ###############
 
     def launchWhois(self): # launches long file processing
         self._lines2logs()
@@ -249,9 +298,6 @@ class SourceParser:
             self.applyCzCcList() # additional Cc contacts to local abusemails
 
         self.buildListWorld() # Foreign -> contacts to other CSIRTs
-
-###### from here down nothing has been edited yet ######
-##### vetsinu smazat, az whois zafunguje ###############
 
 
     # Vypise vetu:

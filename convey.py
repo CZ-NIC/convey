@@ -82,8 +82,9 @@ if __name__ == "__main__":
         elif option == "4":
             print("1 – Rework whole file again")
             print("2 – Rework again whois only")
-            print("3 – Reload csirtmails and local cc's from file")
-            print("4 – Edit mail texts")
+            print("3 – Resolve unknown abusemails")
+            print("4 – Reload csirtmails and local cc's from file")
+            print("5 – Edit mail texts")
             print("[x] – Cancel")
 
             sys.stdout.write("? ")
@@ -94,9 +95,11 @@ if __name__ == "__main__":
                 wrapper.clear()
             elif option2 == "2":
                 csv.runAnalysis()
-            elif option2 == "3":                
-                [r.update() for r in csv.reg.values()] # XXX doest this work? #csv.buildListWorld()
+            elif option2 == "3":
+                csv.resolveUnknown()
             elif option2 == "4":
+                [r.update() for r in csv.reg.values()] # XXX doest this work? #csv.buildListWorld()
+            elif option2 == "5":
                 csv.reg["local"].mailDraft.guiEdit()
                 csv.reg["foreign"].mailDraft.guiEdit()
 

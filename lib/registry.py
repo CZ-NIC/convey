@@ -19,23 +19,32 @@ class _RegistryRecord(set):
         self.counter = set()
 
 class _Registry:
+
+    def resetUnknowns(self):
+        self.unknowns = set()
+        #self.unknowns = defaultdict(set) # self.unknowns[prefix] = set(ip1, ip2) #set()
+        #self.unknownsCount = 0
+        self.unknownPrefixes = set()
     
     def __init__(self):
         self._missing = {"records": 0, "ips": 0}
-        self.records = defaultdict(_RegistryRecord)
-        self.unknowns = set()
+        self.records = defaultdict(_RegistryRecord)        
         self.knowns = set()
         self.total = 0
         self.mailDraft = MailDraft(self.name)
+        self.resetUnknowns()
 
-    def count(self, record, ip):
-        """ Add IPs to this record and returns if it existed before. """
-        existed = record in self.records
+    def count(self, record, ip, prefix):
+        """ Add IPs to this record and returns if it existed before. """        
         if record and record is not "unknown":
+            existed = record in self.records
             self.records[record].counter.add(ip)
-            self.knowns.add(ip)
+            self.knowns.add(ip)            
         else:
-            self.unknowns.add(ip)
+            existed = ip in self.unknowns
+            self.unknownPrefixes.add(prefix)
+            self.unknowns.add(ip)  #self.unknowns[prefix].add(ip) #self.unknowns.add(ip) #
+            #self.unknownsCount += 1
         return existed
 
 
@@ -65,7 +74,7 @@ class _Registry:
 
     def stat(self, kind, found):
         """
-        :param:kind "records"|"ips"
+        :param:kind "records|ips|prefixes"
         :param:found Bool. Returns count of found or not found objects.
         """
         if kind == "ips" and found == "both":
@@ -80,6 +89,8 @@ class _Registry:
             return len(self.unknowns) + self._missing["ips"]
         elif kind == "records" and not found: # unknown country, unknown csirtmail or unknown abusemail for cz
             return int(bool(self.unknowns)) + self._missing["records"]
+        elif kind == "prefixes" and not found:
+            return len(self.unknownPrefixes)
         else:
             ipdb.set_trace()
             raise Error("Statistics key error. Tell the programmer.")

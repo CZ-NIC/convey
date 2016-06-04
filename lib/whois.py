@@ -1,6 +1,5 @@
 # Work with Whoisem
-from collections import OrderedDict
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 import ipaddress
 import ipdb
 import json
@@ -39,17 +38,20 @@ class Whois:
             return self.prefix, "local", self.abusemail
 
     def resolveUnknownMail(self):
-        """ Forces to load abusemail for an IP that has country in CZ. 
-        
-        XX Note that we tries only RIPE server because it's the only one that has flags -r and -B.
+        """ Forces to load abusemail for an IP.
         We try first omit -r flag and then add -B flag.
         
+        XX Note that we tries only RIPE server because it's the only one that has flags -r and -B.
+        If ARIN abusemail is not found, we have no help yet. I dont know if that ever happens.
+                
         """
         self._exec(server="ripe (no -r)", serverUrl="whois.ripe.net") # no -r flag
         self._loadAbusemail()
+        import ipdb;ipdb.set_trace()
         if self.abusemail == "unknown":
             self._exec(server="ripe (-B flag)", serverUrl="whois.ripe.net -B") # with -B flag
             self._loadAbusemail()
+        return self.abusemail
 
 
     def _loadPrefix(self):
@@ -121,15 +123,14 @@ class Whois:
         servers[name] = val
     
 
-    def _loadCountry(self):
-        query = self.ip
+    def _loadCountry(self):        
         self.country = ""
 
         #import pudb;pudb.set_trace()
         for server in self.servers.keys():
             if server != "ripe":
                 import pudb;pudb.set_trace()
-            self._exec(server=server, query=query)
+            self._exec(server=server)
             self.country = self._grepResponse('(.*)[c,C]ountry(.*)', lastWord=True)
             if self._grepResponse("network is unreachable"):
                 logging.warning("Whois server {} is unreachable. Disabling for this session.".format(server))
@@ -187,14 +188,14 @@ class Whois:
 
     #flag2log = {" -r ": "", " -B ": " B flag", "": " no flag"} # we want to log -B flag, empty flag, but not -r flag.
             
-    def _exec(self, server, query, serverUrl=None):
+    def _exec(self, server, serverUrl=None):
         #print("{} {}".format(server, self.flag2log[flag]))
         #import pudb;pudb.set_trace()
         if not serverUrl:
             serverUrl = Whois.servers[server]
-        self.stats[server] += 1
+        self.stats[server] += 1        
         #self.lastServer =
-        p = Popen(["whois -h " + serverUrl + " -- " + query], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        p = Popen(["whois -h " + serverUrl + " -- " + self.ip], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         try:
             self.whoisResponse = p.stdout.read().decode("unicode_escape").strip().lower() #.replace("\n", " ")
             self.whoisResponse += p.stderr.read().decode("unicode_escape").strip().lower()
