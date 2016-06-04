@@ -57,10 +57,10 @@ class _Registry:
             else:
                 return val.mail
 
-    def soutInfo(self):
+    def soutInfo(self, full = False):
         #print (', '.join(key + " ( " + value + ")") for key, value in itertools.chain(self.counters["foreign"],self.counters["local"]))
         l = []
-        if len(self.records) < 100:
+        if len(self.records) < 100 or full:
             for key, o in self.records.items():
                 s = [str(len(o.counter))]
                 o.mail is False and s.append("no mail")

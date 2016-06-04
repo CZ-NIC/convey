@@ -26,7 +26,7 @@ logging.FileHandler('whois.log', 'a')
 
 class SourceParser:
     
-    def soutInfo(self, clear=True):
+    def soutInfo(self, clear=True, full = False):
         """ file information """
         if clear:
             sys.stderr.write("\x1b[2J\x1b[H")
@@ -43,7 +43,7 @@ class SourceParser:
         
         if self.hostColumn is not None:
             l.append("Host column: " + self.fields[self.hostColumn])
-        if self.ipColumn is not None:
+        if self.ipColumn is not None:            
             l.append("IP column: " + self.fields[self.ipColumn])
         if self.asnColumn is not None:
             l.append("ASN column: " + self.fields[self.asnColumn])
@@ -56,27 +56,34 @@ class SourceParser:
             print("+ other {} rows, because some domains had multiple IPs".format(self.extendCount))
 
         print("\nSample:\n" + "\n".join(self.sample.split("\n")[:3]) + "\n") # show first 3rd lines
+        [reg.soutInfo(full) for reg in self.reg.values()]
 
+        if full:
+            print("\nPrefixes encountered:\nprefix | kind | record")
+            for prefix, o in self.ranges.items():                
+                record, kind = o
+                print("{} | {} | {}".format(prefix,kind,record))
 
-        #if self.reg: # print counters "ru (230), cn (12)"
-        [reg.soutInfo() for reg in self.reg.values()]
-            
-                
 
     def askBasics(self):
         """ Dialog to obtain basic information about CSV - delimiter, header """
         self.delimiter, self.hasHeader = CsvGuesses.guessDelimiter(self.sniffer, self.sample)        
         if not Dialogue.isYes("Is character '{}' delimiter? ".format(self.delimiter)):
-            sys.stdout.write("What is delimiter: ")
-            self.delimiter = input()
-        if not self.delimiter: # "" -> None (.split fn can handle None, it cant handle empty string)
-            self.delimiter = None
+            while True:
+                sys.stdout.write("What is delimiter: ")
+                self.delimiter = input()
+                if not self.delimiter: # X"" -> None (.split fn can handle None, it cant handle empty string)
+                    #self.delimiter = None
+                    print("Delimiter can't be empty. Invent one (like ',').")                    
+                else:
+                    break
         if not Dialogue.isYes("Header " + ("" if self.hasHeader else "not " + "found; ok?")):
             self.hasHeader = not self.hasHeader
         if self.hasHeader == True:
-            self.header = self.firstLine
+            self.header = self.firstLine.strip()
         #if self.delimiter:
         self.fields = self.firstLine.split(self.delimiter)
+        self.fields[-1] = self.fields[-1].strip()
         #else:
         #    self.fields = [self.firstLine]
 
@@ -93,8 +100,10 @@ class SourceParser:
         if not Whois.checkIp(self.sample.split("\n")[1 if self.hasHeader else 0].split(self.delimiter)[self.ipColumn]):# determine if it's IP column or DOMAIN column. I need to skip header. (Note there may be a 1 line file)            
             print("Domains in this column will be translated to IP.")
             self.hostColumn, self.ipColumn = self.ipColumn, len(self.fields) #-1
+            self.fields.append("will be fetched")
             if self.hasHeader == True: # add HOST_IP column
-                self.header += self.delimiter + "HOST_IP"
+                dl = self.delimiter if self.delimiter else ","
+                self.header += dl + "HOST_IP"
 
     def askAsnCol(self):
         fn = lambda field: re.search('AS\d+', field) != None
@@ -208,13 +217,14 @@ class SourceParser:
                     print("Host {} has {} IP addresses: {}".format(records[self.hostColumn], len(ips), ips))
             else: # only one reçord
                 ips = [records[self.ipColumn].replace(" ", "")] # key taken from IP column            
-
+            
             for ip in ips:
+                rowNew = row
                 if not unknownMode: # (in unknown mode, this was already done)
-                    if self.hostColumn:
-                        row += self.delimiter + ip # append determined IP to the last col
+                    if self.hostColumn is not None:
+                        rowNew += self.delimiter + ip # append determined IP to the last col
 
-                    if self.asnColumn:
+                    if self.asnColumn  is not None:
                         str = records[self.asnColumn].replace(" ", "")
                         if str[0:2] != "AS":
                             str = "AS" + str
@@ -253,8 +263,8 @@ class SourceParser:
                 method = "a" if self.reg[kind].count(record, ip, prefix) else "w"
                 with open(Config.getCacheDir() + record + "." + kind, method) as f:
                     if method == "w" and self.hasHeader:
-                        f.write(self.header) # header includes "\n"
-                    f.write(row + "\n")
+                        f.write(self.header + "\n")
+                    f.write(rowNew + "\n")
         except Exception as e:
             print("ROW fault" + row)
             pdb.set_trace()
@@ -277,7 +287,7 @@ class SourceParser:
         except FileNotFoundError:
             print("File with unknown IPs not found. Maybe resolving of unknown abusemails was run it the past and failed. Please run whois analysis again.")
             return False
-        self.lineCount = 0
+        self.lineCount = 0 # XX this will mess up lineCount of WhoisAnalysis. Maybe it's a bug.
         self.reg["local"].resetUnknowns()
         with open(temp, "r") as sourceF:
             for line in sourceF:

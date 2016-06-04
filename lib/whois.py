@@ -86,7 +86,9 @@ class Whois:
 
     def url2ip(url):
         """ Shorten URL to domain, find out related IPs list. """
-        recs = socket.getaddrinfo(urlparse(url.strip()).hostname, 0, 0, 0, socket.IPPROTO_TCP)
+        url = urlparse(url.strip()) # "foo.cz/bar" -> "foo.cz", "http://foo.cz/bar" -> "foo.cz"
+        uri = url.hostname if url.scheme else url.path
+        recs = socket.getaddrinfo(uri, 0, 0, 0, socket.IPPROTO_TCP)
         result = []
         for ip in recs:
             result.append(ip[4][0])

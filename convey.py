@@ -66,10 +66,9 @@ if __name__ == "__main__":
             print("Couldn't find {} csirtmails for {}× IP.".format(csv.reg["foreign"].stat("records", False), csv.reg["foreign"].stat("ips", False)))
 
         print("\n Main menu:")
-        print("1 – Send by OTRS...")
-        print("2 – Generate...")  # XXX tuhle moznost celou zrustit? generuje se neco? (file with IP without contact: {})".format(csv.missingFilesInfo()))
-        print("3 – List mails and IP count (internal variables)")
-        print("4 – Rework again...")
+        print("1 – Send by OTRS...")        
+        print("2 – Print all details")
+        print("3 – Rework again...")
         print("x – End")
         sys.stdout.write("? ")
         sys.stdout.flush()
@@ -79,7 +78,7 @@ if __name__ == "__main__":
         if option == "x":
             wrapper.save() # resave cache file
             break
-        elif option == "4":
+        elif option == "3":
             print("1 – Rework whole file again")
             print("2 – Rework again whois only")
             print("3 – Resolve unknown abusemails")
@@ -104,24 +103,8 @@ if __name__ == "__main__":
                 csv.reg["foreign"].mailDraft.guiEdit()
 
             continue        
-        elif option == "3":            
-            csv.soutDetails()
-            continue
         elif option == "2":
-            print("NOTHING")
-            continue
-            # XXX celou sekci zrusit?
-            print("1 - Generate files with IP without contacts {}".format(csv.missingFilesInfo()))
-            print("2 - Generate all files ({} files)".format(len(csv.countries) + len(csv.mailLocal.mails)))
-            print("[x] - Cancel")
-            sys.stdout.write("? ")
-            sys.stdout.flush()
-            option2 = input()
-
-            if option2 == "1":
-                csv.generateFiles(os.path.dirname(file), True)
-            elif option2 == "2":
-                csv.generateFiles(os.path.dirname(file))                                    
+            csv.soutInfo(full = True)
             continue
         elif option == "1":
             MailSender.assureTokens(csv)
