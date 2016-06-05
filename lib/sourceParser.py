@@ -136,6 +136,8 @@ class SourceParser:
             self.isp = {} # isp["AS1025"] = {mail, ips:set() }
             self.ip2asn = dict() # ip2asn[ip] = asn
 
+            self.ipSeen = set()
+
             # OTRS attributes to be linked to CSV
             self.ticketid = False
             self.ticketnum = False
@@ -207,6 +209,7 @@ class SourceParser:
         if self.lineCount == 1 and self.hasHeader: # skip header
             return
         if sqrt(self.lineCount) % 1 == 0:
+        #if self.lineCount % 10 == 0:
             self.soutInfo()
         try:
             # obtain IP from the line. (Or more IPs, if theres host column).
@@ -231,7 +234,11 @@ class SourceParser:
                             str = "AS" + str
                         self.ip2asn[ip] = str # key is IP XXX tohle se pouziva?
 
-                # determine the prefix
+                # determine the prefix                
+                if ip in self.ipSeen and (self.method == "unique_file" or self.method == "unique_ip"):                    
+                    continue
+                else:
+                    self.ipSeen.add(ip)
                 found = False
                 for prefix, o in self.ranges.items():
                     if ip in prefix:
@@ -239,7 +246,7 @@ class SourceParser:
                         record, kind = o
                         break
 
-                if self.method == "unique_file" and found:
+                if self.method == "unique_file" and found:                    
                     continue
 
                 if unknownMode: # force to obtain abusemail
