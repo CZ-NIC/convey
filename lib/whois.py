@@ -129,9 +129,10 @@ class Whois:
         self.country = ""
 
         #import pudb;pudb.set_trace()
+        #import pudb;pudb.set_trace()
         for server in self.servers.keys():
-            if server != "ripe":
-                import pudb;pudb.set_trace()
+            #if server != "ripe":
+            #    import pudb;pudb.set_trace()
             self._exec(server=server)
             self.country = self._grepResponse('(.*)[c,C]ountry(.*)', lastWord=True)
             if self._grepResponse("network is unreachable"):
@@ -142,6 +143,10 @@ class Whois:
             if self.country:
                 # sanitize whois mirror failure XXX
                 if self.country[0:2].lower() == "eu": #ex: 'EU # Country is really world wide' (64.9.241.202) (Our mirror returned this result sometimes)
+                    self.country = ""
+                    continue
+
+                if self.country[0:4].lower() == "wide": #ex: 'EU # Country is really world wide' (the last word)
                     self.country = ""
                     continue
 

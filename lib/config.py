@@ -4,6 +4,7 @@ import ipdb
 
 class Config:
     file = 'config.ini'
+    #cache = {}
     config = configparser.ConfigParser()
     config.read(file)
     #tempCache = {}
@@ -19,6 +20,9 @@ class Config:
         return True if Config.get('testing') == "True" else False
 
     def get(key, section = 'CONVEY'):
+        #if key not in Config.cache:
+        #    Config.cache[key] = Config.config[section][key]
+        #return Config.cache[key]
         return Config.config[section][key]
 
     def getboolean(key):

@@ -37,15 +37,17 @@ class _Registry:
     def count(self, record, ip, prefix):
         """ Add IPs to this record and returns if it existed before. """        
         if record and record is not "unknown":
-            existed = record in self.records
+            file_existed = record in self.records
+            ip_existed = ip in self.records[record].counter
             self.records[record].counter.add(ip)
             self.knowns.add(ip)            
         else:
-            existed = ip in self.unknowns
+            file_existed = bool(self.unknowns)
+            ip_existed = ip in self.unknowns
             self.unknownPrefixes.add(prefix)
             self.unknowns.add(ip)  #self.unknowns[prefix].add(ip) #self.unknowns.add(ip) #
             #self.unknownsCount += 1
-        return existed
+        return file_existed, ip_existed
 
 
     def getMails(self):

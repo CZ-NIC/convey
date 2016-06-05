@@ -113,6 +113,7 @@ class SourceParser:
     def __init__(self, sourceFile):
         print("Processing file.")        
         self.isRepeating = False
+        self.method = Config.get("method")
         while True:
             self._reset()
             #instance attributes init
@@ -238,6 +239,9 @@ class SourceParser:
                         record, kind = o
                         break
 
+                if self.method == "unique_file" and found:
+                    continue
+
                 if unknownMode: # force to obtain abusemail
                     if not found:
                         raise AssertionError("The prefix for ip " + ip + " should be already present. Tell the programmer.")
@@ -259,13 +263,18 @@ class SourceParser:
                         raise AssertionError("The prefix " + prefix + " shouldnt be already present. Tell the programmer")
                     #print("IP: {}, Prefix: {}, Record: {}, Kind: {}".format(ip, prefix,record, kind)) # XX put to logging
 
-                # write the row to the appropriate file                
-                method = "a" if self.reg[kind].count(record, ip, prefix) else "w"
+                # write the row to the appropriate file
+                file_existed, ip_existed = self.reg[kind].count(record, ip, prefix)
+                if self.method == "unique_file" and file_existed:
+                    continue
+                if self.method == "unique_ip" and ip_existed:
+                    continue
+                method = "a" if file_existed else "w"
                 with open(Config.getCacheDir() + record + "." + kind, method) as f:
                     if method == "w" and self.hasHeader:
                         f.write(self.header + "\n")
                     f.write(rowNew + "\n")
-        except Exception as e:
+        except Exception as e: # FileNotExist
             print("ROW fault" + row)
             pdb.set_trace()
             print("This should not happen. CSV is wrong or tell programmer to repair this.")
