@@ -12,7 +12,7 @@ from lib.registry import AbusemailsRegistry
 from lib.registry import CountriesRegistry
 from lib.whois import Whois
 import logging
-from math import sqrt
+from math import sqrt, ceil, log
 import ntpath
 import os
 import pdb
@@ -26,7 +26,7 @@ logging.FileHandler('whois.log', 'a')
 
 class SourceParser:
     
-    def soutInfo(self, clear=True, full = False):
+    def soutInfo(self, clear=True, full=False):
         """ file information """
         if clear:
             sys.stderr.write("\x1b[2J\x1b[H")
@@ -52,8 +52,10 @@ class SourceParser:
             print("During analysis, whois servers were called: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.whoisStats.items()))
         if self.lineCount:
             print("Log lines processed: {}".format(self.lineCount))
-        if self.extendCount > 0:
-            print("+ other {} rows, because some domains had multiple IPs".format(self.extendCount))
+        if self.linesTotal:
+            print("File lines count: {}".format(self.linesTotal))
+        #if self.extendCount > 0:
+        #    print("+ other {} rows, because some domains had multiple IPs".format(self.extendCount))
 
         print("\nSample:\n" + "\n".join(self.sample.split("\n")[:3]) + "\n") # show first 3rd lines
         [reg.soutInfo(full) for reg in self.reg.values()]
@@ -62,7 +64,7 @@ class SourceParser:
             print("\nPrefixes encountered:\nprefix | kind | record")
             for prefix, o in self.ranges.items():                
                 record, kind = o
-                print("{} | {} | {}".format(prefix,kind,record))
+                print("{} | {} | {}".format(prefix, kind, record))
 
 
     def askBasics(self):
@@ -93,7 +95,7 @@ class SourceParser:
         fn = lambda field: Whois.checkIp(field)        
         self.ipColumn = CsvGuesses.guessCol(self, "IP/HOST", fn, ["ip", "sourceipaddress", "ipaddress", "source"])
 
-        if self.ipColumn:
+        if self.ipColumn is None:
             print("We can't live without IP/HOST column. Try again or write x for cancellation.")
             return self.askIpCol()
         
@@ -112,10 +114,8 @@ class SourceParser:
 
     def __init__(self, sourceFile):
         print("Processing file.")        
-        self.isRepeating = False
-        self.method = Config.get("method")
-        while True:
-            self._reset()
+        self.isRepeating = False        
+        while True:                        
             #instance attributes init
             self.multithread = Config.get("multithread") # if True, whois will be asked multithreaded (but we may flood it)
             #self.lines = None #lines of csv file
@@ -136,7 +136,7 @@ class SourceParser:
             self.isp = {} # isp["AS1025"] = {mail, ips:set() }
             self.ip2asn = dict() # ip2asn[ip] = asn
 
-            self.ipSeen = set()
+            self.ipSeen = dict() # ipSeen[ip] = prefix
 
             # OTRS attributes to be linked to CSV
             self.ticketid = False
@@ -148,6 +148,8 @@ class SourceParser:
             self.ticketnum = Config.get("ticketnum", "OTRS")
 
             self.attachmentName = "part-" + ntpath.basename(sourceFile)
+
+            self._reset()
 
             #load CSV            
             self.sourceFile = sourceFile
@@ -172,10 +174,15 @@ class SourceParser:
     def _reset(self):
         #cant be pickled: self.reg = namedtuple('SourceParser.registries', 'local foreign')(AbusemailsRegistry(), CountriesRegistry())
         self.reg = {'local': AbusemailsRegistry(), "foreign":CountriesRegistry()}
-        #self.reg = Registries
+        #self.reg = Registries        
+        Config.hasHeader = self.hasHeader
+        Config.header = self.header
         self.ranges = {}        
-        self.lineCount = 0        
-        self.extendCount = 0
+        self.lineCount = 0
+        self.lineSout = 1
+        self.lineSumCount = 0        
+        self.linesTotal = 0
+        #self.extendCount = 0
         self.isAnalyzedB = False
         self.sums = {}
         self.whoisStats = Whois.stats # so that it is saved
@@ -187,11 +194,12 @@ class SourceParser:
             [r.mailDraft.guiEdit() for r in self.reg.values()]
         with open(self.sourceFile, 'r') as csvfile:
             for line in csvfile:
-                self._processLine(line)                
-                        
+                self._processLine(line)
+
+        self.linesTotal = self.lineCount
         self.isAnalyzedB = True
         [r.update() for r in self.reg.values()]
-        if self.reg["local"].stat("prefixes", found = False):
+        if self.reg["local"].stat("prefixes", found=False):
             print("Analysis COMPLETED.\n\n")
             self.resolveUnknown()
 
@@ -208,83 +216,84 @@ class SourceParser:
         self.lineCount += 1
         if self.lineCount == 1 and self.hasHeader: # skip header
             return
-        if sqrt(self.lineCount) % 1 == 0:
+        #if sqrt(self.lineCount) % 1 == 0:
         #if self.lineCount % 10 == 0:
-            self.soutInfo()
+        #import ipdb;ipdb.set_trace()
+        if self.lineCount == self.lineSout:
+            self.lineSumCount += 1
+            #self.lineSout = ceil(self.lineSumCount + self.lineSumCount * 0.01 * log(self.lineSumCount)) +1
+            self.lineSout = self.lineSumCount + ceil(self.lineSumCount * 0.3 * sqrt(self.lineSumCount))+1
+            self.soutInfo()        
         try:
             # obtain IP from the line. (Or more IPs, if theres host column).
             records = row.split(self.delimiter)
             if not unknownMode and self.hostColumn is not None: # if CSV has DOMAIN column that has to be translated to IP column
-                ips = Whois.url2ip(records[self.hostColumn])
-                if len(ips) > 1:
-                    self.extendCount += len(ips) -1 # count of new lines in logs
-                    print("Host {} has {} IP addresses: {}".format(records[self.hostColumn], len(ips), ips))
+                ip = Whois.url2ip(records[self.hostColumn])
+                #if len(ips) > 1:
+                #    self.extendCount += len(ips) -1 # count of new lines in logs
+                #    print("Host {} has {} IP addresses: {}".format(records[self.hostColumn], len(ips), ips))
             else: # only one reçord
-                ips = [records[self.ipColumn].replace(" ", "")] # key taken from IP column            
-            
-            for ip in ips:
-                rowNew = row
-                if not unknownMode: # (in unknown mode, this was already done)
-                    if self.hostColumn is not None:
-                        rowNew += self.delimiter + ip # append determined IP to the last col
+                ip = records[self.ipColumn].replace(" ", "") # key taken from IP column
+                #ips = [records[self.ipColumn].replace(" ", "")] # key taken from IP column
+            #Xfor ip in ips:
 
-                    if self.asnColumn  is not None:
-                        str = records[self.asnColumn].replace(" ", "")
-                        if str[0:2] != "AS":
-                            str = "AS" + str
-                        self.ip2asn[ip] = str # key is IP XXX tohle se pouziva?
-
-                # determine the prefix                
-                if ip in self.ipSeen and (self.method == "unique_file" or self.method == "unique_ip"):                    
-                    continue
+            # determine the prefix
+            if ip in self.ipSeen:
+                if Config.method == "unique_file" or Config.method == "unique_ip":
+                    return
                 else:
-                    self.ipSeen.add(ip)
+                    found = True
+                    prefix = self.ipSeen[ip]
+                    record, kind = self.ranges[prefix]
+            else:
                 found = False
-                for prefix, o in self.ranges.items():
+                for prefix, o in self.ranges.items(): # search for prefix the slow way. I dont know how to make this shorter because IP can be in shortened form so that in every case I had to put it in full form and then slowly compare strings with prefixes.
                     if ip in prefix:
                         found = True
                         record, kind = o
                         break
+                if Config.method == "unique_file" and found:
+                    return                
 
-                if self.method == "unique_file" and found:                    
-                    continue
+            #rowNew = row
+            if not unknownMode: # (in unknown mode, this was already done)
+                if self.hostColumn is not None:
+                    row += self.delimiter + ip # append determined IP to the last col
 
-                if unknownMode: # force to obtain abusemail
-                    if not found:
-                        raise AssertionError("The prefix for ip " + ip + " should be already present. Tell the programmer.")
-                    if record == "unknown": # prefix is still unknown                                                        
-                        record = Whois(ip).resolveUnknownMail()
-                        if record != "unknown": # update prefix
-                            self.ranges[prefix] = record, kind
-                        else: # the row will be moved to unknown.local file again
-                            print("No success for prefix {}.".format(prefix))
-                    #import ipdb;ipdb.set_trace()
-                
-                elif found == False:
+                if self.asnColumn  is not None:
+                    s = records[self.asnColumn].replace(" ", "")
+                    if s[0:2] != "AS": s = "AS" + s
+                    self.ip2asn[ip] = s # key is IP XXX tohle se pouziva?
+
+
+                if found == False:
                     prefix, kind, record = Whois(ip).analyze()
-                    if not prefix:                        
+                    if not prefix:
                         logging.info("No prefix found for IP {}".format(ip))
                     elif prefix not in self.ranges:
                         self.ranges[prefix] = record, kind
                     else: # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
                         raise AssertionError("The prefix " + prefix + " shouldnt be already present. Tell the programmer")
                     #print("IP: {}, Prefix: {}, Record: {}, Kind: {}".format(ip, prefix,record, kind)) # XX put to logging
+           
+            else: # force to obtain abusemail
+                if not found:
+                    raise AssertionError("The prefix for ip " + ip + " should be already present. Tell the programmer.")
+                if record == "unknown": # prefix is still unknown                                                        
+                    record = Whois(ip).resolveUnknownMail()
+                    if record != "unknown": # update prefix
+                        self.ranges[prefix] = record, kind
+                    else: # the row will be moved to unknown.local file again
+                        print("No success for prefix {}.".format(prefix))
 
-                # write the row to the appropriate file
-                file_existed, ip_existed = self.reg[kind].count(record, ip, prefix)
-                if self.method == "unique_file" and file_existed:
-                    continue
-                if self.method == "unique_ip" and ip_existed:
-                    continue
-                method = "a" if file_existed else "w"
-                with open(Config.getCacheDir() + record + "." + kind, method) as f:
-                    if method == "w" and self.hasHeader:
-                        f.write(self.header + "\n")
-                    f.write(rowNew + "\n")
+            # write the row to the appropriate file
+            self.ipSeen[ip] = prefix
+            self.reg[kind].count(record, ip, prefix, row)
         except Exception as e: # FileNotExist
-            print("ROW fault" + row)
-            pdb.set_trace()
+            print("ROW fault" + row)            
             print("This should not happen. CSV is wrong or tell programmer to repair this.")
+            print(e)
+            pdb.set_trace()
             raise
 
     def resolveUnknown(self):

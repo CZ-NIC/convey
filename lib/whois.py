@@ -88,12 +88,14 @@ class Whois:
         """ Shorten URL to domain, find out related IPs list. """
         url = urlparse(url.strip()) # "foo.cz/bar" -> "foo.cz", "http://foo.cz/bar" -> "foo.cz"
         uri = url.hostname if url.scheme else url.path
-        recs = socket.getaddrinfo(uri, 0, 0, 0, socket.IPPROTO_TCP)
-        result = []
-        for ip in recs:
-            result.append(ip[4][0])
-        return result
-        # X socket.gethostbyname returns 1 adress only, we want all of them
+        return socket.gethostbyname(uri) # returns 1 adress only, we dont want all of them
+        # if we wanted all of the IPs:
+        #recs = socket.getaddrinfo(uri, 0, 0, 0, socket.IPPROTO_TCP)
+        #result = []
+        #for ip in recs:
+        #    result.append(ip[4][0])
+        #return result
+        
 
     def checkIp(ip):
         """ True, if IP is well formated IPv4 or IPv6 """

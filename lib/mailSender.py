@@ -106,27 +106,28 @@ class MailSender():
             logging.warning(str(sys.stderr) + " Unrecognized response: " + title)
             logging.error(response)
             return False
-
-    # send mailList object (mailLocal or mailForeign)
-    def sendList(mailList, csv):
+    
+    def sendList(registry, csv):
+        """ Send a registry (abusemails or csirtmails) """
         if not Config.get("otrs_enabled", "OTRS"):
             print("OTRS is the only implemented option of sending now. Error.")
             return False
 
-        if not len(mailList.mails):
+        if not len(registry.records):
             print("... done. (No mails in the list, nothing to send.)")
             return True
         
         sentMails = 0
         logging.info("sending mails from list...")    
 
-        for mail in mailList.mails:            
+        for registryRecord in registry.records.items():
+            mail = registryRecord.mail
             textVars = {}
             textVars["CONTACTS"] = mail
             textVars["FILENAME"] = csv.attachmentName
             textVars["TICKETNUM"] = csv.ticketnum
-            subject = mailList.getSubject() % textVars
-            body = mailList.getBody() % textVars # format mail template, ex: {FILENAME} in the body will be transformed by the filename
+            subject = registry.mailDraft.getSubject() % textVars
+            body = registry.mailDraft.getBody() % textVars # format mail template, ex: {FILENAME} in the body will be transformed by the filename
             if subject == "" or body == "":
                 print("Missing subject or mail body text.")
                 return False            
@@ -153,11 +154,11 @@ class MailSender():
                       )
 
             if Config.isTesting() == False:
-                if mailList.mails[mail].cc:
-                    fields += (("Cc", mailList.mails[mail].cc),)
+                if registryRecord.cc: # X mailList.mails[mail]
+                    fields += (("Cc", registryRecord.cc),)
             
             # load souboru k zaslani
-            contents = csv.ips2logfile(mailList.mails[mail])
+            contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
             
             logging.info("mail {}".format(mail))            
             print(mail)            
@@ -193,8 +194,8 @@ class MailSender():
             else:
                 sentMails += 1
 
-        print("\nSent: {}/{} mails.".format(sentMails, len(mailList.mails)))
-        return len(mailList.mails) == sentMails
+        print("\nSent: {}/{} mails.".format(sentMails, len(registry.records)))
+        return sentMails == len(registry.records)
 
     def askValue(value, description=""):
         while True:

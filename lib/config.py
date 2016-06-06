@@ -9,6 +9,11 @@ class Config:
     config.read(file)
     #tempCache = {}
 
+    # set by SourceParser and used by Registry
+    hasHeader = False
+    header = ""
+
+
     def errorCatched():
         if Config.isDebug():
             ipdb.set_trace()
@@ -44,4 +49,5 @@ class Config:
     def getCacheDir():
         """ Cache dir with ending slash. """
         return Config.cacheDir
-            
+
+Config.method = Config.get("method") # quick access to the property

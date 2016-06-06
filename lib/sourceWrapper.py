@@ -54,7 +54,7 @@ class SourceWrapper:
                 try:
                     self.csv.soutInfo()
                 except:
-                    ipdb.set_trace()
+                    #ipdb.set_trace()
                     print("Format of the file may have changed since last time. Let's process it all again. If you continue, cache gets deleted.")
                     self._treat()
             else:
@@ -79,7 +79,7 @@ class SourceWrapper:
         with open(self.cacheFile, "w") as output: #save cache
             output.write(jsonpickle.encode(self.csv, keys = True))
 
-    def _treat(self): # process source
+    def _treat(self): # process source        
         self.csv = SourceParser(self.file)
         self.csv.cookie = Config.get("cookie","OTRS")
         self.csv.token = Config.get("token","OTRS")

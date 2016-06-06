@@ -31,11 +31,11 @@ class _Registry:
         self.records = defaultdict(_RegistryRecord)        
         self.knowns = set()
         self.total = 0
-        self.mailDraft = MailDraft(self.name)
+        self.mailDraft = MailDraft(self.name)        
         self.resetUnknowns()
 
-    def count(self, record, ip, prefix):
-        """ Add IPs to this record and returns if it existed before. """        
+    def count(self, record, ip, prefix, row):
+        """ Add IPs to this record and write the row the appropriate file """
         if record and record is not "unknown":
             file_existed = record in self.records
             ip_existed = ip in self.records[record].counter
@@ -47,8 +47,21 @@ class _Registry:
             self.unknownPrefixes.add(prefix)
             self.unknowns.add(ip)  #self.unknowns[prefix].add(ip) #self.unknowns.add(ip) #
             #self.unknownsCount += 1
-        return file_existed, ip_existed
 
+        if Config.method == "unique_file" and file_existed:
+            return
+        if Config.method == "unique_ip" and ip_existed:
+            return
+        method = "a" if file_existed else "w"
+        with open(Config.getCacheDir() + record + "." + self.kind, method) as f:
+            if method == "w" and Config.hasHeader:
+                f.write(Config.header + "\n")
+            f.write(row + "\n")
+
+    def getFileContents(self, record):
+        # XXX ZDEEEEE
+        with open(Config.getCacheDir() + record + "." + self.kind,"r") as f:
+            return f.read()
 
     def getMails(self):
         for key, val in self.records.items():
@@ -112,6 +125,7 @@ class _Registry:
 class AbusemailsRegistry(_Registry):
 
     name = "abusemails"
+    kind = "local"
 
     ##
     # mail = mail@example.com;mail2@example2.com -> [example.com, example2.com]
@@ -142,6 +156,7 @@ class AbusemailsRegistry(_Registry):
 class CountriesRegistry(_Registry):
 
     name = "csirtmails"
+    kind = "foreign"
 
     def update(self):
         """ Search for country contact – from CSV file Config.get("contacts") """

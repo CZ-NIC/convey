@@ -63,7 +63,7 @@ class CsvGuesses:
             print("What is " + colName + " column:\n[0]. no " + colName + " column")
             for i2, fieldname in enumerate(o.fields):# print columns
                 print(str(i2+1) + ". " + fieldname)
-            colI = Dialogue.askNumber(colName + " column: ") - 1
+            colI = Dialogue.askNumber(colName + " column: ") - 1            
 
         if colI == -1:
             colI = None
