@@ -59,7 +59,6 @@ class _Registry:
             f.write(row + "\n")
 
     def getFileContents(self, record):
-        # XXX ZDEEEEE
         with open(Config.getCacheDir() + record + "." + self.kind,"r") as f:
             return f.read()
 

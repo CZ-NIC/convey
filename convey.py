@@ -57,9 +57,12 @@ if __name__ == "__main__":
         if Config.get('testing') == "True":
             print("\n*** TESTING MOD - mails will be send to mail {} ***\n (To cancel the testing mode set testing = False in config.ini.)".format(Config.get('testingMail')))
         stat = csv.getStatsPhrase()
-        print("\n Statistics overview:\n" + stat)
-        with open(os.path.dirname(file) + "/statistics.txt","w") as f:
-                    f.write(stat)
+        if csv.isAnalyzed():
+            print("\n Statistics overview:\n" + stat)
+            with open(os.path.dirname(file) + "/statistics.txt","w") as f:
+                f.write(stat)
+        else:
+            print("\n Not analyzed yet. Rework.")
         if csv.reg["local"].stat("records", False):
             print("Couldn't find {} abusemails for {}× IP.".format(csv.reg["local"].stat("records", False), csv.reg["local"].stat("ips", False)))
         if csv.reg["foreign"].stat("records", False):
@@ -97,7 +100,7 @@ if __name__ == "__main__":
             elif option2 == "3":
                 csv.resolveUnknown()
             elif option2 == "4":
-                [r.update() for r in csv.reg.values()] # XXX doest this work? #csv.buildListWorld()
+                [r.update() for r in csv.reg.values()]
             elif option2 == "5":
                 csv.reg["local"].mailDraft.guiEdit()
                 csv.reg["foreign"].mailDraft.guiEdit()

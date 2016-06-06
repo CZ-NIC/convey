@@ -20,7 +20,7 @@ import pudb
 import re
 from shutil import move
 import sys
-import threading
+import subprocess
 logging.FileHandler('whois.log', 'a')
 
 
@@ -51,9 +51,9 @@ class SourceParser:
         if self.whoisStats:
             print("During analysis, whois servers were called: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.whoisStats.items()))
         if self.lineCount:
-            print("Log lines processed: {}".format(self.lineCount))
-        if self.linesTotal:
-            print("File lines count: {}".format(self.linesTotal))
+            print("Log lines processed: {}/{}".format(self.lineCount, self.linesInFile))
+        else:
+            print("Log lines: {}".format(self.linesInFile))
         #if self.extendCount > 0:
         #    print("+ other {} rows, because some domains had multiple IPs".format(self.extendCount))
 
@@ -132,11 +132,15 @@ class SourceParser:
             self.header = "" # if CSV has header, it's here
             self.fields = []
 
-            # ASN atributy - maybe should be reworked XX
-            self.isp = {} # isp["AS1025"] = {mail, ips:set() }
-            self.ip2asn = dict() # ip2asn[ip] = asn
+            def file_len(fname):
+                p = subprocess.Popen(['wc', '-l', fname], stdout=subprocess.PIPE,
+                                                          stderr=subprocess.PIPE)
+                result, err = p.communicate()
+                if p.returncode != 0:
+                    raise IOError(err)
+                return int(result.strip().split()[0])
+            self.linesInFile = file_len(sourceFile) #sum(1 for line in open(sourceFile))
 
-            self.ipSeen = dict() # ipSeen[ip] = prefix
 
             # OTRS attributes to be linked to CSV
             self.ticketid = False
@@ -160,8 +164,8 @@ class SourceParser:
                     self.soutInfo()
                     fn()
             except Cancelled:
-                print("CANCELLATION, napsal jsem x? XXX DOES IT WORK?")
-                continue # XX But if analysis is in the cache, we maybe want to cancel to main menu. If its not in the cache, we cant get to main menu.
+                print("Cancelled.")
+                return
 
             self.soutInfo()
             if not Dialogue.isYes("Everything set alright?"):
@@ -181,14 +185,22 @@ class SourceParser:
         self.lineCount = 0
         self.lineSout = 1
         self.lineSumCount = 0        
-        self.linesTotal = 0
+        #self.linesTotal = 0
         #self.extendCount = 0
         self.isAnalyzedB = False
         self.sums = {}
         self.whoisStats = Whois.stats # so that it is saved
 
-    ## ma nahradit hodne metod XXX
-    def runAnalysis(self):        
+        # ASN atributy - maybe should be reworked XX
+        self.isp = {} # isp["AS1025"] = {mail, ips:set() }
+        self.ip2asn = dict() # ip2asn[ip] = asn
+
+        self.ipSeen = dict() # ipSeen[ip] = prefix
+    
+    def runAnalysis(self):
+        """ Run main analysis of the file.
+        Grab IP from every line and
+        """
         self._reset()
         if Config.getboolean("autoopen_editor"):
             [r.mailDraft.guiEdit() for r in self.reg.values()]
@@ -196,12 +208,14 @@ class SourceParser:
             for line in csvfile:
                 self._processLine(line)
 
-        self.linesTotal = self.lineCount
+        #self.linesTotal = self.lineCount
         self.isAnalyzedB = True
         [r.update() for r in self.reg.values()]
         if self.reg["local"].stat("prefixes", found=False):
             print("Analysis COMPLETED.\n\n")
             self.resolveUnknown()
+        self.lineCount = 0
+        self.soutInfo()
 
     def isAnalyzed(self):
         return self.isAnalyzedB
@@ -312,11 +326,13 @@ class SourceParser:
         except FileNotFoundError:
             print("File with unknown IPs not found. Maybe resolving of unknown abusemails was run it the past and failed. Please run whois analysis again.")
             return False
-        self.lineCount = 0 # XX this will mess up lineCount of WhoisAnalysis. Maybe it's a bug.
+        self.lineCount = 0
         self.reg["local"].resetUnknowns()
         with open(temp, "r") as sourceF:
             for line in sourceF:
-                self._processLine(line, unknownMode=True)        
+                self._processLine(line, unknownMode=True)
+        self.lineCount = 0
+        self.soutInfo()
 
 ###### from here down nothing has been edited yet ######
 ##### vetsinu smazat, az whois zafunguje ###############
