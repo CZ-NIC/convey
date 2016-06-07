@@ -6,10 +6,10 @@ import jsonpickle
 #import pickle
 #import yaml
     # from yaml import load, dump
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    from yaml import Loader, Dumper
+#try:
+#    from yaml import CLoader as Loader, CDumper as Dumper
+#except ImportError:
+#    from yaml import Loader, Dumper
 import sys
 import ntpath
 import webbrowser
@@ -66,16 +66,7 @@ class SourceWrapper:
     
     ##
     # Store in YAML or pickle.
-    def save(self):
-        """XXX dat pryc a do config jsonpickle?
-        if Config.getboolean("yaml_cache"):
-            with open(self.cacheFile, "w") as output: #save cache
-                print("Saving in slow yaml format...")
-                output.write(yaml.dump(self.csv, Dumper=Dumper))
-        else:
-            with open(self.cacheFile, "wb") as output: #save cache
-                pickle.dump(self.csv, output, -1)
-        """
+    def save(self):        
         with open(self.cacheFile, "w") as output: #save cache
             output.write(jsonpickle.encode(self.csv, keys = True))
 
