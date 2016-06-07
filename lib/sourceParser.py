@@ -214,7 +214,7 @@ class SourceParser:
         #self.linesTotal = self.lineCount
         self.isAnalyzedB = True
         [r.update() for r in self.reg.values()]
-        if self.invalidReg.stat():
+        if self.invalidReg.stat() and Config.redo_invalids:
             print("Analysis COMPLETED.\n\n")
             self.resolveInvalid()
         if self.abuseReg.stat("prefixes", found=False):

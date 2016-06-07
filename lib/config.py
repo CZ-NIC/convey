@@ -57,4 +57,4 @@ class Config:
         return Config.cacheDir
 
 Config.method = Config.get("method") # quick access to the property
-Config.reanalyze_erroneous = Config.get("reanalyze_erroneous") # quick access to the property
+Config.redo_invalids = Config.get("redo_invalids") # quick access to the property

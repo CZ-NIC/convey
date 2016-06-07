@@ -203,7 +203,7 @@ class InvalidRegistry(_Registry):
 
     def count(self, row):
         self.lines += 1
-        if Config.reanalyze_erroneous:
+        if Config.redo_invalids:
             super().count(row)
 
     def stat(self):
