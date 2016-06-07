@@ -8,8 +8,7 @@ from lib.config import Config
 from lib.csvGuesses import CsvGuesses
 from lib.dialogue import Cancelled
 from lib.dialogue import Dialogue
-from lib.registry import AbusemailsRegistry
-from lib.registry import CountriesRegistry
+from lib.registry import AbusemailRegistry, CountryRegistry, InvalidRegistry
 from lib.whois import Whois
 import logging
 from math import sqrt, ceil, log
@@ -99,15 +98,15 @@ class SourceParser:
             print("We can't live without IP/HOST column. Try again or write x for cancellation.")
             return self.askIpCol()
         
-        if not Whois.checkIp(self.sample.split("\n")[1 if self.hasHeader else 0].split(self.delimiter)[self.ipColumn]):# determine if it's IP column or DOMAIN column. I need to skip header. (Note there may be a 1 line file)            
-            print("Domains in this column will be translated to IP.")
+        if not Whois.checkIp(self.sample.split("\n")[1 if self.hasHeader else 0].split(self.delimiter)[self.ipColumn].strip()):# determine if it's IP column or DOMAIN column. I need to skip header. (Note there may be a 1 line file)
+            #print("Domains in this column will be translated to IP.")            
             self.hostColumn, self.ipColumn = self.ipColumn, len(self.fields) #-1
             self.fields.append("will be fetched")
             if self.hasHeader == True: # add HOST_IP column
                 dl = self.delimiter if self.delimiter else ","
                 self.header += dl + "HOST_IP"
 
-    def askAsnCol(self):
+    def askAsnCol(self): # The function is not used now.
         fn = lambda field: re.search('AS\d+', field) != None
         self.asnColumn = CsvGuesses.guessCol(self, "ASN", fn, ["as", "asn", "asnumber"])
 
@@ -160,7 +159,7 @@ class SourceParser:
             self.sniffer = csv.Sniffer()            
             self.firstLine, self.sample = CsvGuesses.getSample(self.sourceFile)
             try:
-                for fn in [self.askBasics, self.askIpCol, self.askAsnCol]: # steps of dialogue
+                for fn in [self.askBasics, self.askIpCol]: # steps of dialogue  Xself.askAsnCol
                     self.soutInfo()
                     fn()
             except Cancelled:
@@ -171,13 +170,16 @@ class SourceParser:
             if not Dialogue.isYes("Everything set alright?"):
                 self.isRepeating = True
                 continue # repeat
-            else:                
-                self.runAnalysis()
+            else:
+                self.isFormattedB = True
                 break
 
     def _reset(self):
-        #cant be pickled: self.reg = namedtuple('SourceParser.registries', 'local foreign')(AbusemailsRegistry(), CountriesRegistry())
-        self.reg = {'local': AbusemailsRegistry(), "foreign":CountriesRegistry()}
+        #cant be pickled: self.reg = namedtuple('SourceParser.registries', 'local foreign')(AbusemailRegistry(), CountryRegistry())
+        self.abuseReg = AbusemailRegistry();
+        self.countryReg = CountryRegistry()
+        self.invalidReg = InvalidRegistry()
+        self.reg = {'local': self.abuseReg, "foreign":self.countryReg, "error": self.invalidReg}
         #self.reg = Registries        
         Config.hasHeader = self.hasHeader
         Config.header = self.header
@@ -188,6 +190,7 @@ class SourceParser:
         #self.linesTotal = 0
         #self.extendCount = 0
         self.isAnalyzedB = False
+        self.isFormattedB = False
         self.sums = {}
         self.whoisStats = Whois.stats # so that it is saved
 
@@ -211,14 +214,20 @@ class SourceParser:
         #self.linesTotal = self.lineCount
         self.isAnalyzedB = True
         [r.update() for r in self.reg.values()]
-        if self.reg["local"].stat("prefixes", found=False):
+        if self.invalidReg.stat():
             print("Analysis COMPLETED.\n\n")
-            self.resolveUnknown()
+            self.resolveInvalid()
+        if self.abuseReg.stat("prefixes", found=False):
+            print("Analysis COMPLETED.\n\n")
+            self.resolveUnknown()        
         self.lineCount = 0
         self.soutInfo()
 
     def isAnalyzed(self):
         return self.isAnalyzedB
+
+    def isFormatted(self):
+        return self.isFormattedB
         
     def _processLine(self, row, unknownMode=False):
         """ Link every line to IP
@@ -262,6 +271,9 @@ class SourceParser:
             else:
                 found = False
                 for prefix, o in self.ranges.items(): # search for prefix the slow way. I dont know how to make this shorter because IP can be in shortened form so that in every case I had to put it in full form and then slowly compare strings with prefixes.
+                    if not Whois.checkIp(ip):
+                        self.invalidReg.count(row)
+                        return
                     if ip in prefix:
                         found = True
                         record, kind = o
@@ -306,50 +318,61 @@ class SourceParser:
         except Exception as e: # FileNotExist
             print("ROW fault" + row)            
             print("This should not happen. CSV is wrong or tell programmer to repair this.")
-            print(e)
-            pdb.set_trace()
-            raise
+            Config.errorCatched()
 
     def resolveUnknown(self):
         """ Process all prefixes with unknown abusemails. """
-        if self.reg["local"].stat("ips", found=False) < 1:
+        if self.abuseReg.stat("ips", found=False) < 1:
             print("No unknown abusemails.")
             return
 
-        s = "There are {0} IPs in {1} unknown prefixes. Should I proceed additional search for these {1} items?".format(self.reg["local"].stat("ips", found=False), self.reg["local"].stat("prefixes", found=False))
+        s = "There are {0} IPs in {1} unknown prefixes. Should I proceed additional search for these {1} items?".format(self.abuseReg.stat("ips", found=False), self.abuseReg.stat("prefixes", found=False))
         if not Dialogue.isYes(s):
             return
         
         temp = Config.getCacheDir() + ".unknown.local.temp"
         try:
-            move(Config.getCacheDir() + "unknown.local", temp)
+            move(self.abuseReg.getUnknownPath(), temp)
         except FileNotFoundError:
             print("File with unknown IPs not found. Maybe resolving of unknown abusemails was run it the past and failed. Please run whois analysis again.")
             return False
         self.lineCount = 0
-        self.reg["local"].resetUnknowns()
+        self.abuseReg.resetUnknowns()
         with open(temp, "r") as sourceF:
             for line in sourceF:
                 self._processLine(line, unknownMode=True)
         self.lineCount = 0
         self.soutInfo()
 
-###### from here down nothing has been edited yet ######
-##### vetsinu smazat, az whois zafunguje ###############
+    def resolveInvalid(self):
+         """ Process all invalid rows. """
+        if self.invalidReg.stat() < 1:
+            print("No invalid rows.")
+            return
 
-    def launchWhois(self): # launches long file processing
-        self._lines2logs()
-        self._logs2countries()
+        while True:
+            s = "There are {0} invalid rows. Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them, or hit n for ignoring them. [o]/y/n ".format(self.invalidReg.stat())
+            res = Dialogue.ask(s)
+            if res == "n":
+                return False
+            elif res == "y":
+                break
+            else:
+                subprocess.Popen(['gedit',self.invalidReg.getPath()], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        self.mailLocal = MailDraft("mail_local_isps", Config.get("mail_template_local")) # local mail
-        self.mailForeign = MailDraft("mail_foreign_csirts", Config.get("mail_template_foreign")) # foreign mail
-
-        if Config.get("local_country") in self.countries: # local -> abuse mails
-            self._buildListCz(self.countries.pop(Config.get("local_country")))
-            self.applyCzCcList() # additional Cc contacts to local abusemails
-
-        self.buildListWorld() # Foreign -> contacts to other CSIRTs
-
+        temp = Config.getCacheDir() + ".invalid.temp"
+        try:
+            move(self.invalidReg.getPath(), temp)
+        except FileNotFoundError:
+            print("File with invalid lines not found. Maybe resolving of it was run it the past and failed. Please run again.")
+            return False
+        self.lineCount = 0
+        self.invalidReg.reset()
+        with open(temp, "r") as sourceF:
+            for line in sourceF:
+                self._processLine(line, unknownMode=True)
+        self.lineCount = 0
+        self.soutInfo()
 
     # Vypise vetu:
     # Celkem 800 unikatnich IP;
@@ -363,19 +386,21 @@ class SourceParser:
         #4. Kontaktovano xy ISP v CR
         #5. Naslo to xy Zemi (ne vsechny Zeme maji narodni/vladni CSIRT, ale to urcite vis)
         #6. Kontaktovano xy Zemi (kam se bude posilat)
-        lo = self.reg["local"].stat
-        fo = self.reg["foreign"].stat
+        ab = self.abuseReg.stat
+        co = self.countryReg.stat
 
-        ipsUnique = lo("ips", "both") + fo("ips", "both")
+        ipsUnique = ab("ips", "both") + co("ips", "both")
 
-        ispCzFound = lo("records", True)
-        ipsCzMissing = lo("ips", False)
-        ipsCzFound = lo("ips", True)
+        ispCzFound = ab("records", True)
+        ipsCzMissing = ab("ips", False)
+        ipsCzFound = ab("ips", True)
 
-        ipsWorldMissing = fo("ips", False)
-        ipsWorldFound = fo("ips", True)
-        countriesMissing = fo("records", False)
-        countriesFound = fo("records", True)
+        ipsWorldMissing = co("ips", False)
+        ipsWorldFound = co("ips", True)
+        countriesMissing = co("records", False)
+        countriesFound = co("records", True)
+
+        invalidLines = self.errorReg.stat()
         
 
         if ipsUnique > 0:
@@ -392,7 +417,9 @@ class SourceParser:
             res += "; {} unique local IPs".format(ipsCzFound) \
             + " distributed for {} ISP".format(ispCzFound)
         if ipsCzMissing:
-            res += " (for {} unique local IPs ISP not found)".format(ipsCzMissing)
+            res += " (for {} unique local IPs ISP not found).".format(ipsCzMissing)
+        if invalidLines:
+            res += "There are {}.".format(invalidLines)
 
         res += "."
         return res

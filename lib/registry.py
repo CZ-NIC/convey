@@ -19,34 +19,29 @@ class _RegistryRecord(set):
         self.counter = set()
 
 class _Registry:
-
-    def resetUnknowns(self):
-        self.unknowns = set()
-        #self.unknowns = defaultdict(set) # self.unknowns[prefix] = set(ip1, ip2) #set()
-        #self.unknownsCount = 0
-        self.unknownPrefixes = set()
     
     def __init__(self):
-        self._missing = {"records": 0, "ips": 0}
+        self._undeliverable = {"records": 0, "ips": 0} # some Countries are undeliverable - we have no csirtmail.
         self.records = defaultdict(_RegistryRecord)        
         self.knowns = set()
         self.total = 0
         self.mailDraft = MailDraft(self.name)        
-        self.resetUnknowns()
 
-    def count(self, record, ip, prefix, row):
+    def count(self, row, record = "", ip = None, prefix = None):
         """ Add IPs to this record and write the row the appropriate file """
         if record and record is not "unknown":
             file_existed = record in self.records
             ip_existed = ip in self.records[record].counter
             self.records[record].counter.add(ip)
             self.knowns.add(ip)            
-        else:
+        elif ip:
             file_existed = bool(self.unknowns)
             ip_existed = ip in self.unknowns
             self.unknownPrefixes.add(prefix)
             self.unknowns.add(ip)  #self.unknowns[prefix].add(ip) #self.unknowns.add(ip) #
             #self.unknownsCount += 1
+        else:
+            file_existed = ip_exited = False
 
         if Config.method == "unique_file" and file_existed:
             return
@@ -96,20 +91,21 @@ class _Registry:
         elif kind == "records" and found == "both":
             return len(self.records) + int(bool(self.unknowns))
         elif kind == "ips" and found:
-            return len(self.knowns) - self._missing["ips"]
+            return len(self.knowns) - self._undeliverable["ips"]
         elif kind == "records" and found:
-            return len(self.records) - self._missing["records"]
+            return len(self.records) - self._undeliverable["records"]
         elif kind == "ips" and not found:
-            return len(self.unknowns) + self._missing["ips"]
+            return len(self.unknowns) + self._undeliverable["ips"]
         elif kind == "records" and not found: # unknown country, unknown csirtmail or unknown abusemail for cz
-            return int(bool(self.unknowns)) + self._missing["records"]
+            return int(bool(self.unknowns)) + self._undeliverable["records"]
         elif kind == "prefixes" and not found:
             return len(self.unknownPrefixes)
         else:
-            ipdb.set_trace()
+            Config.errorCatched()
             raise Error("Statistics key error. Tell the programmer.")
 
     def _update(self, key):
+        """ Update info from external CSV file. """
         file = Config.get(key)
         if os.path.isfile(file) == False: # file with contacts
             print("(Contacts file {} not found on path {}.) ".format(key, file))
@@ -121,10 +117,23 @@ class _Registry:
                 return rows
 
 
-class AbusemailsRegistry(_Registry):
+class AbusemailRegistry(_Registry):
 
     name = "abusemails"
     kind = "local"
+    
+    def __init__(self):
+        super().__init__()
+        self.resetUnknowns()
+
+    def resetUnknowns(self):
+        self.unknowns = set()
+        #self.unknowns = defaultdict(set) # self.unknowns[prefix] = set(ip1, ip2) #set()
+        #self.unknownsCount = 0
+        self.unknownPrefixes = set()
+
+    def getUnknownPath(self):
+        return Config.getCacheDir() + "unknown.local"
 
     ##
     # mail = mail@example.com;mail2@example2.com -> [example.com, example2.com]
@@ -142,7 +151,7 @@ class AbusemailsRegistry(_Registry):
         if abusemails:
             for mail, record in self.records.items(): #check domain mail
                 record.cc = ""
-                for domain in AbusemailsRegistry.getDomains(mail):
+                for domain in AbusemailRegistry.getDomains(mail):
                     if domain in abusemails:
                         record.cc += abusemails[domain] + ";"
                         count += 1
@@ -152,14 +161,14 @@ class AbusemailsRegistry(_Registry):
             else:
                 print("No intersection with local cc contacts, ok.")
 
-class CountriesRegistry(_Registry):
+class CountryRegistry(_Registry):
 
     name = "csirtmails"
     kind = "foreign"
 
     def update(self):
         """ Search for country contact – from CSV file Config.get("contacts") """
-        self._missing = {"records": 0, "ips": 0}
+        self._undeliverable = {"records": 0, "ips": 0}
         missingCountries = set()
         csirtmails = self._update("contacts_foreign")
         if csirtmails:
@@ -169,18 +178,37 @@ class CountriesRegistry(_Registry):
                     record.mail = csirtmails[country]
                 else:
                     missingCountries.add(country)
-                    self._missing["records"] += 1
-                    self._missing["ips"] += len(record.counter)
+                    self._undeliverable["records"] += 1
+                    self._undeliverable["ips"] += len(record.counter)
 
-            if self._missing["records"]:
-                print("Missing csirtmails for {} countries: {}".format(self._missing["records"], ", ".join(missingCountries)))
+            if self._undeliverable["records"]:
+                print("Missing csirtmails for {} countries: {}".format(self._undeliverable["records"], ", ".join(missingCountries)))
                 print("Add csirtmails to the foreign contacts file (see config.ini) and relaunch whois! \n")
             else:
                 print("Foreign whois OK!")
 
-#"""
-#class Registries:
-#     Public access to both local and foreign registries
-#    local = AbusemailsRegistry()
-#    foreign = CountriesRegistry()"""
-#"""
+class InvalidRegistry(_Registry):
+    name = "invalidlines"
+    kind = "invalid"
+
+    def reset(self):
+        self.lines = 0
+
+    def getPath(self):
+        return Config.getCacheDir() + ".invalid"
+
+    def __init__(self):
+        self.reset()
+        super().__init__()
+
+    def count(self, row):
+        self.lines += 1
+        if Config.reanalyze_erroneous:
+            super().count(row)
+
+    def stat(self):
+        """ Returns the number of invalid lines. """
+        return self.lines
+
+    def update(self):
+        pass

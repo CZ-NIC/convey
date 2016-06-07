@@ -1,6 +1,7 @@
 # Source file caching
 from lib.mailDraft import MailDraft
 from lib.sourceParser import SourceParser
+from lib.dialogue import Dialogue
 import os
 import jsonpickle
 #import pickle
@@ -50,9 +51,15 @@ class SourceWrapper:
                 print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
                 ipdb.set_trace()
                 self._treat()
-            if self.csv and self.csv.isAnalyzed():
+            if self.csv:
                 try:
-                    self.csv.soutInfo()
+                    if self.csv.isAnalyzed():
+                        self.csv.soutInfo()
+                    elif self.csv.isFormatted():
+                        self.csv.soutInfo()
+                        s = "It seems the file has been formatted. Continue to analysis (or you'll be asked to do format again)?"
+                        if Dialogue.isYes(s):
+                            self.csv.runAnalysis()
                 except:
                     #ipdb.set_trace()
                     print("Format of the file may have changed since last time. Let's process it all again. If you continue, cache gets deleted.")
@@ -72,6 +79,8 @@ class SourceWrapper:
 
     def _treat(self): # process source        
         self.csv = SourceParser(self.file)
+        self.save()
+        self.csv.runAnalysis()
         self.csv.cookie = Config.get("cookie","OTRS")
         self.csv.token = Config.get("token","OTRS")
         self.save()

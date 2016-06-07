@@ -1,6 +1,5 @@
 # Env config file connection
 import configparser
-import ipdb
 
 class Config:
     file = 'config.ini'
@@ -16,7 +15,14 @@ class Config:
 
     def errorCatched():
         if Config.isDebug():
-            ipdb.set_trace()
+            import ipdb; import traceback; import sys                                    
+            type, value, tb = sys.exc_info()
+            traceback.print_exc()
+            if tb:
+                ipdb.post_mortem(tb)
+            else:
+                print("Lets debug. Hit n to get to the previous scope.")
+                ipdb.set_trace()            
 
     def isDebug():
         return True if Config.get('debug') == "True" else False
@@ -51,3 +57,4 @@ class Config:
         return Config.cacheDir
 
 Config.method = Config.get("method") # quick access to the property
+Config.reanalyze_erroneous = Config.get("reanalyze_erroneous") # quick access to the property

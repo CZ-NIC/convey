@@ -88,7 +88,11 @@ class Whois:
         """ Shorten URL to domain, find out related IPs list. """
         url = urlparse(url.strip()) # "foo.cz/bar" -> "foo.cz", "http://foo.cz/bar" -> "foo.cz"
         uri = url.hostname if url.scheme else url.path
-        return socket.gethostbyname(uri) # returns 1 adress only, we dont want all of them
+        try:
+            return socket.gethostbyname(uri) # returns 1 adress only, we dont want all of them
+        except socket.gaierror as e:
+            logging.warning("Socket gethostbyname error for URI {} .".format(uri))
+            Config.errorCatched()
         # if we wanted all of the IPs:
         #recs = socket.getaddrinfo(uri, 0, 0, 0, socket.IPPROTO_TCP)
         #result = []
@@ -146,10 +150,10 @@ class Whois:
                 #  ** Since we take only last word, only Country "LU" will be taken. **                
                 #if len(self.country.split("#")) > 1: # ex: 'NL # BE GB DE LU' -> 'NL' (82.175.175.231)
                 #    self.country = self.country.split("#")[0].strip(" ")
-                #break
+                break
         
         if not self.country:
-            self.country = "unknown"
+            self.country = "unknown"        
         
     def _loadAbusemail(self):
         """ Loads abusemail from last whois response OR from whois json api. """
