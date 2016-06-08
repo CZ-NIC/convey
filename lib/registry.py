@@ -19,13 +19,21 @@ class _RegistryRecord(set):
         self.counter = set()
 
 class _Registry:
+
+    def resetUnknowns(self):
+        """ Csirtmail rows without csirt. Abusemail rows without abusemail."""
+        self.unknowns = set()
+        #self.unknowns = defaultdict(set) # self.unknowns[prefix] = set(ip1, ip2) #set()
+        #self.unknownsCount = 0
+        self.unknownPrefixes = set()
     
     def __init__(self):
         self._undeliverable = {"records": 0, "ips": 0} # some Countries are undeliverable - we have no csirtmail.
         self.records = defaultdict(_RegistryRecord)        
         self.knowns = set()
         self.total = 0
-        self.mailDraft = MailDraft(self.name)        
+        self.mailDraft = MailDraft(self.name)
+        self.resetUnknowns()
 
     def count(self, row, record = "", ip = None, prefix = None):
         """ Add IPs to this record and write the row the appropriate file """
@@ -34,19 +42,21 @@ class _Registry:
             ip_existed = ip in self.records[record].counter
             self.records[record].counter.add(ip)
             self.knowns.add(ip)            
-        elif ip:
+        else:
             file_existed = bool(self.unknowns)
             ip_existed = ip in self.unknowns
             self.unknownPrefixes.add(prefix)
-            self.unknowns.add(ip)  #self.unknowns[prefix].add(ip) #self.unknowns.add(ip) #
-            #self.unknownsCount += 1
-        else:
-            file_existed = ip_exited = False
+            self.unknowns.add(ip)                    
 
-        if Config.method == "unique_file" and file_existed:
+        if Config.get("conveying") == "no_files":
             return
-        if Config.method == "unique_ip" and ip_existed:
+        if Config.get("conveying") == "unique_file" and file_existed:
             return
+        if Config.get("conveying") == "unique_ip" and ip_existed:
+            return
+        self.saveRow(file_existed, record, row)
+
+    def saveRow(self, file_existed, record, row):
         method = "a" if file_existed else "w"
         with open(Config.getCacheDir() + record + "." + self.kind, method) as f:
             if method == "w" and Config.hasHeader:
@@ -77,6 +87,7 @@ class _Registry:
                 l.append(key + " (" + ", ".join(s) + ")")
         else:# too much of results, print just the count
             l.append(str(len(self.records)) + " " + self.name)
+        
         if self.unknowns:
             l.append("unknown {} ({})".format(self.name, len(self.unknowns)))
         print(", ".join(l))
@@ -121,16 +132,6 @@ class AbusemailRegistry(_Registry):
 
     name = "abusemails"
     kind = "local"
-    
-    def __init__(self):
-        super().__init__()
-        self.resetUnknowns()
-
-    def resetUnknowns(self):
-        self.unknowns = set()
-        #self.unknowns = defaultdict(set) # self.unknowns[prefix] = set(ip1, ip2) #set()
-        #self.unknownsCount = 0
-        self.unknownPrefixes = set()
 
     def getUnknownPath(self):
         return Config.getCacheDir() + "unknown.local"
@@ -195,7 +196,7 @@ class InvalidRegistry(_Registry):
         self.lines = 0
 
     def getPath(self):
-        return Config.getCacheDir() + ".invalid"
+        return Config.getCacheDir() + "unknown.invalid"
 
     def __init__(self):
         self.reset()
@@ -203,8 +204,9 @@ class InvalidRegistry(_Registry):
 
     def count(self, row):
         self.lines += 1
-        if Config.redo_invalids:
-            super().count(row)
+        if Config.get("redo_invalids"):
+            self.saveRow(self.lines > 1, "unknown", row)        
+            #super().count(row)
 
     def stat(self):
         """ Returns the number of invalid lines. """

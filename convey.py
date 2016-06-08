@@ -1,14 +1,14 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 try:
     import traceback
     import os.path
-    import sys, getopt
+    import sys
+    import getopt
     from lib.sourcePicker import SourcePicker
     from lib.sourceWrapper import SourceWrapper
     from lib.mailSender import MailSender
-    from lib.config import Config
-    import logging
+    from lib.config import Config    
 except ImportError:
     traceback.print_exc()
     print("\nTry installing the libraries by install.sh")
@@ -18,7 +18,8 @@ with open("README.md", "r") as f:
     __doc__ = f.read()
 __author__ = "Edvard Rejthar, CSIRT.CZ"
 __date__ = "$Feb 26, 2015 8:13:25 PM$"
-logging.basicConfig(level=logging.DEBUG)
+import logging
+logging.basicConfig(level=logging.DEBUG, filename="convey.log")
 
 if __name__ == "__main__":    
     print(__shortdoc__)
@@ -61,7 +62,7 @@ if __name__ == "__main__":
             with open(os.path.dirname(file) + "/statistics.txt","w") as f:
                 f.write(stat)
         else:
-            print("\n Not analyzed yet. Rework.")
+            print("\n Not analyzed yet. Please rework again.")
         if csv.abuseReg.stat("records", False):
             print("Couldn't find {} abusemails for {}× IP.".format(csv.reg["local"].stat("records", False), csv.reg["local"].stat("ips", False)))
         if csv.countryReg.stat("records", False):

@@ -9,7 +9,7 @@ import sys
 
 
 #RECORD_LABEL = "%(FILENAME)s"
-logging.FileHandler('mailSender.log', 'a')
+#logging.FileHandler('mailSender.log', 'a')
 
 re_title = re.compile('<title>([^<]*)</title>')
 

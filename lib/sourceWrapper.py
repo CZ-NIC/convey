@@ -60,6 +60,8 @@ class SourceWrapper:
                         s = "It seems the file has been formatted. Continue to analysis (or you'll be asked to do format again)?"
                         if Dialogue.isYes(s):
                             self.csv.runAnalysis()
+                        else:
+                            self._treat()
                 except:
                     #ipdb.set_trace()
                     print("Format of the file may have changed since last time. Let's process it all again. If you continue, cache gets deleted.")

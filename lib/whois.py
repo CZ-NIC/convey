@@ -13,7 +13,7 @@ from subprocess import Popen
 import sys
 from urllib.parse import urlparse
 import urllib.request
-logging.FileHandler('whois.log', 'a')
+#logging.FileHandler('whois.log', 'a')
 
 class Whois:
 
@@ -70,9 +70,7 @@ class Whois:
 
     def _str2prefix(self, s):
         """ Accepts formats:
-            88.174.0.0 - 88.187.255.255
-            216.245.0.0/18
-            xxx (ipv6 by melo taky, ne?)
+            88.174.0.0 - 88.187.255.255, 216.245.0.0/18, 2000::/7 ...
         """
         sp = s.split(" - ")
         try:
@@ -99,9 +97,9 @@ class Whois:
         #for ip in recs:
         #    result.append(ip[4][0])
         #return result
-        
 
-    def checkIp(ip):
+
+    def checkIp(ip):        
         """ True, if IP is well formated IPv4 or IPv6 """
         try:
             ipaddress.ip_address(ip)
@@ -134,12 +132,16 @@ class Whois:
     def _loadCountry(self):        
         self.country = ""
 
-        for server in self.servers.keys():
+        for server in list(self.servers):
             self._exec(server=server)
             self.country = self._grepResponse('(.*)[c,C]ountry(.*)', lastWord=True)
-            if self._grepResponse("network is unreachable"):
-                logging.warning("Whois server {} is unreachable. Disabling for this session.".format(server))
-                Whois.servers.pop(server) # XXX funguje takhle pop, ze vyradi key i item            
+            if not self.country:
+                if self._grepResponse("network is unreachable"):
+                    logging.warning("Whois server {} is unreachable. Disabling for this session.".format(self.servers[server]))
+                    Whois.servers.pop(server)
+                if self._grepResponse("access denied"):
+                    logging.warning("Whois server {} access denied. Disabling for this session.".format(self.servers[server]))
+                    Whois.servers.pop(server)
             if self.country:
                 # sanitize whois confusion
                 if self.country[0:4].lower() == "wide": #ex: 'EU # Country is really world wide' (the last word) (64.9.241.202) (Our mirror returned this result sometimes)

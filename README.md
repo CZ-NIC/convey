@@ -1,6 +1,6 @@
 # Convey
 
-Input: Any CSV that has IP or URL column.
+Input: Any CSV that has column with IP addresses or URLs.
 Output: Set of CSV grouped by country AND/OR abusemail related to IPs.
 These CSVs can be automatically send by your OTRS.
 
@@ -15,3 +15,11 @@ These CSVs can be automatically send by your OTRS.
 
  Dependencies needed are installed by install.sh script.
  -h, --help Show help.
+
+
+##
+Formats:
+It is able to parse Apache log format files.
+It can bear ##.##.##.##.port format for ip address.
+If there is invalid lines, they will come to dedicated file to be reprocessed again.
+It connects to all whois servers I know.
