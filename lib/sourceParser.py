@@ -20,6 +20,7 @@ import re
 from shutil import move
 import sys
 import subprocess
+import datetime
 logging.FileHandler('whois.log', 'a')
 
 
@@ -60,9 +61,13 @@ class SourceParser:
                 l.append("(around {} IPs)".format(self.ipCountGuess))
             if self.ipCount:
                 l.append("({} IPs)".format(self.ipCount))
-            print(" ".join(l))
+            sys.stdout.write(" ".join(l))
         else:
-            print("Log lines: {}".format(self.linesTotal))
+            sys.stdout.write("Log lines: {}".format(self.linesTotal))
+        if self.timeEnd:
+             print(" ({})".format(self.timeEnd - self.timeStart))
+        elif self.timeStart:
+             print(" ({})".format(datetime.datetime.now().replace(microsecond=0) - self.timeStart))
         #if self.extendCount > 0:
         #    print("+ other {} rows, because some domains had multiple IPs".format(self.extendCount))
 
@@ -112,7 +117,7 @@ class SourceParser:
         if not Whois.checkIp(ip):# determine if it's IP column or DOMAIN column. I need to skip header. (Note there may be a 1 line file)
             #print("Domains in this column will be translated to IP.")
             Whois.checkIp(ip)
-            if Dialogue.isYes("It seems this is not IP address. Is this URL column?"):
+            if Dialogue.isYes("It seems this is not IP address. Is this URL column? (If not, we'll hope it's IP column.)"):
                 self.urlColumn, self.ipColumn = self.ipColumn, len(self.fields) #-1
                 self.fields.append("will be fetched")
                 if self.hasHeader == True: # add URL_IP column
@@ -208,6 +213,8 @@ class SourceParser:
         self.lineSumCount = 0        
         #self.linesTotal = 0
         #self.extendCount = 0
+        self.timeStart = None
+        self.timeEnd = None
         self.isAnalyzedB = False
         self.isFormattedB = False
         self.sums = {}
@@ -224,10 +231,12 @@ class SourceParser:
         """
         self._reset()
         if Config.getboolean("autoopen_editor"):
-            [r.mailDraft.guiEdit() for r in self.reg.values()]        
+            [r.mailDraft.guiEdit() for r in self.reg.values()]
+        self.timeStart = datetime.datetime.now().replace(microsecond=0)
         with open(self.sourceFile, 'r') as csvfile:
             for line in csvfile:
                 self._processLine(line)
+        self.timeEnd = datetime.datetime.now().replace(microsecond=0)
 
         #self.linesTotal = self.lineCount
         self.isAnalyzedB = True

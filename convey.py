@@ -19,7 +19,7 @@ with open("README.md", "r") as f:
 __author__ = "Edvard Rejthar, CSIRT.CZ"
 __date__ = "$Feb 26, 2015 8:13:25 PM$"
 import logging
-logging.basicConfig(level=logging.DEBUG, filename="convey.log")
+logging.basicConfig(level=logging.DEBUG, filename="convey.log", format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 if __name__ == "__main__":    
     print(__shortdoc__)
