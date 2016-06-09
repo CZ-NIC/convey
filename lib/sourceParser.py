@@ -215,8 +215,9 @@ class SourceParser:
         Config.header = self.header
         self.ranges = {}        
         self.lineCount = 0
+        self.velocity = 0
         self.lineSout = 1
-        self.lineSumCount = 0        
+        #self.lineSumCount = 0
         #self.linesTotal = 0
         #self.extendCount = 0
         self.timeStart = None
@@ -319,20 +320,13 @@ class SourceParser:
             now = datetime.datetime.now()
             delta = (now - self.timeLast).total_seconds()
             self.timeLast = now
-            if delta < 1:
-                self.lineSumCount += 10
-                print("PLUS") #XXX
-            elif delta > 5:
-                self.lineSumCount -= 100
-                print("MINUS") # XXX
-                if self.lineSumCount <= 0:
-                    self.lineSumCount = 1
-            else:
-                self.lineSumCount += 1
+            if delta < 1 or delta > 4:
+                self.velocity = ceil(self.velocity / delta) +1
+            self.lineSout = self.lineCount + 1 +self.velocity
 
-            self.lineSout = self.lineCount + ceil(0.5 * sqrt(self.lineSumCount))
             self.soutInfo()
-            print("delta {}, sum {}, o {}".format(delta, self.lineSumCount,ceil(0.5 * sqrt(self.lineSumCount)))) # XXX
+
+            print("delta {}, velocity {}".format(delta,self.velocity)) # XXX comment it
         try:
             # obtain IP from the line. (Or more IPs, if theres url column).
             records = row.split(self.delimiter)

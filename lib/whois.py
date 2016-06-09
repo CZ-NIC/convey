@@ -187,8 +187,8 @@ class Whois:
         
                 
         if not self.abusemail:
-            self.stats["ripejson (didnt work, debug)"] += 1
-            logging.info("whois-json didnt work for " + self.ip)
+            #self.stats["ripejson (didnt work, debug)"] += 1
+            #logging.info("whois-json didnt work for " + self.ip)
             self.abusemail = "unknown"
             
     def _exec(self, server, serverUrl=None):
