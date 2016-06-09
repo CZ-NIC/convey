@@ -198,16 +198,14 @@ class MailSender():
         return sentMails == len(registry.records)
 
     def askValue(value, description=""):
-        while True:
-            if value != False:
-                sys.stdout.write('Change {} ({})? [y]/n '.format(description, value))
-                if input().lower() not in ("y", ""):
-                    break
-            sys.stdout.write("{}: ".format(description))
-            value = input()
-            if value != False:
-                break
-        return value
+        sys.stdout.write('Change {} ({})? [s]kip or paste it: '.format(description, value))
+        t = input()        
+        if not t or t.lower() == "s":
+            if not value:
+                print("Attention, there should not be an empty value.")
+            return value
+        else:
+            return t
 
     def assureTokens(csv):        
         """ Checknout OTRS credentials """        

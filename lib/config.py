@@ -1,8 +1,10 @@
 # Env config file connection
 import configparser
+import os
 
 class Config:
-    file = 'config.ini'
+    os.chdir(os.path.dirname(__file__)+"/../")
+    file = "config.ini"
     cache = {}
     config = configparser.ConfigParser()
     config.read(file)

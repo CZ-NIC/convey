@@ -214,3 +214,7 @@ class InvalidRegistry(_Registry):
 
     def update(self):
         pass
+
+    def soutInfo(self, full = None):
+        if self.lines:
+            print("{} invalid lines".format(self.lines))

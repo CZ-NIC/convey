@@ -18,6 +18,13 @@ import urllib.request
 class Whois:
 
     stats = defaultdict(int)
+    servers = OrderedDict()
+    if Config.get("whois_mirror"):  # try our fast whois-mirror in cz.nic first
+        servers["mirror"] = Config.get("whois_mirror")
+    for name, val in zip(["ripe", "arin", "lacnic", "apnic", "afrinic"],
+                         ["whois.ripe.net -r", "whois.arin.net", "whois.lacnic.net", "whois.apnic.net", "whois.afrinic.net"]):
+        servers[name] = val
+
 
     def __init__(self, ip):
         self.ip = ip #
@@ -121,14 +128,6 @@ class Whois:
                     return line
         return "" # no grep result found
 
-    servers = OrderedDict()
-    if Config.get("whois_mirror"):  # try our fast whois-mirror in cz.nic first
-        servers["mirror"] = Config.get("whois_mirror")
-    for name, val in zip(["ripe", "arin", "lacnic", "apnic", "afrinic"],
-                         ["whois.ripe.net -r", "whois.arin.net", "whois.lacnic.net", "whois.apnic.net", "whois.afrinic.net"]):
-        servers[name] = val
-    
-
     def _loadCountry(self):        
         self.country = ""
 
@@ -145,6 +144,9 @@ class Whois:
             if self.country:
                 # sanitize whois confusion
                 if self.country[0:4].lower() == "wide": #ex: 'EU # Country is really world wide' (the last word) (64.9.241.202) (Our mirror returned this result sometimes)
+                    self.country = ""
+                    continue
+                if self.country[0:2].lower() == "eu": #ex: 'EU' (89.41.60.38) (RIPE returned this value)
                     self.country = ""
                     continue
 

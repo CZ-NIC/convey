@@ -5,10 +5,10 @@ try:
     import os.path
     import sys
     import getopt
+    from lib.config import Config
     from lib.sourcePicker import SourcePicker
     from lib.sourceWrapper import SourceWrapper
-    from lib.mailSender import MailSender
-    from lib.config import Config    
+    from lib.mailSender import MailSender    
 except ImportError:
     traceback.print_exc()
     print("\nTry installing the libraries by install.sh")
@@ -62,7 +62,7 @@ if __name__ == "__main__":
             with open(os.path.dirname(file) + "/statistics.txt","w") as f:
                 f.write(stat)
         else:
-            print("\n Not analyzed yet. Please rework again.")
+            print("\n Analysis has not been completed. Please rework again.")
         if csv.abuseReg.stat("records", False):
             print("Couldn't find {} abusemails for {}× IP.".format(csv.reg["local"].stat("records", False), csv.reg["local"].stat("ips", False)))
         if csv.countryReg.stat("records", False):
@@ -115,8 +115,8 @@ if __name__ == "__main__":
         elif option == "1":
             MailSender.assureTokens(csv)
             print("\nIn the next step, we connect to OTRS and send e-mails.")
-            print(" Template of local mail starts: {}".format(csv.mailLocal.getMailPreview()))
-            print(" Template of foreign mail starts: {}".format(csv.mailForeign.getMailPreview()))
+            print(" Template of local mail starts: {}".format(csv.abuseReg.mailDraft.getMailPreview()))
+            print(" Template of foreign mail starts: {}".format(csv.countryReg.mailDraft.getMailPreview()))
             print("Do you really want to send e-mails now?")
             print("1 - Send both local and foreign")
             print("2 - Send local only")

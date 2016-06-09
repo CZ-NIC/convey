@@ -117,7 +117,7 @@ class SourceParser:
         if not Whois.checkIp(ip):# determine if it's IP column or DOMAIN column. I need to skip header. (Note there may be a 1 line file)
             #print("Domains in this column will be translated to IP.")
             Whois.checkIp(ip)
-            if Dialogue.isYes("It seems this is not IP address. Is this URL column? (If not, we'll hope it's IP column.)"):
+            if Dialogue.isYes("It seems this is not IP address. Is this a URL column? (If not, we take it as an IP column.)"):
                 self.urlColumn, self.ipColumn = self.ipColumn, len(self.fields) #-1
                 self.fields.append("will be fetched")
                 if self.hasHeader == True: # add URL_IP column
@@ -150,14 +150,15 @@ class SourceParser:
             self.fields = []
 
             def file_len(fname):
-                p = subprocess.Popen(['wc', '-l', fname], stdout=subprocess.PIPE,
-                                                          stderr=subprocess.PIPE)
-                result, err = p.communicate()
-                if p.returncode != 0:
-                    raise IOError(err)
-                return int(result.strip().split()[0])
-            self.linesTotal = file_len(sourceFile) #sum(1 for line in open(sourceFile))
-
+                if self.size < 100*10^6:
+                    p = subprocess.Popen(['wc', '-l', fname], stdout=subprocess.PIPE,
+                                                              stderr=subprocess.PIPE)
+                    result, err = p.communicate()
+                    if p.returncode != 0:
+                        raise IOError(err)
+                    return int(result.strip().split()[0])
+                else:
+                    return ceil(self.size / (len(self.sample) / len(self.sample.split("\n"))) / 1000000) * 1000000
 
             # OTRS attributes to be linked to CSV
             self.ticketid = False
@@ -171,23 +172,27 @@ class SourceParser:
             self.attachmentName = "part-" + ntpath.basename(sourceFile)
 
             self.ipCountGuess = None
-            self.ipCount = None
+            self.ipCount = None            
 
             self._reset()
 
             #load CSV            
             self.sourceFile = sourceFile
+
+            self.size = os.path.getsize(self.sourceFile)
+
             self.sniffer = csv.Sniffer()            
             self.firstLine, self.sample = CsvGuesses.getSample(self.sourceFile)
+            self.linesTotal = file_len(sourceFile) #sum(1 for line in open(sourceFile))
             try:
-                for fn in [self.askBasics, self.askIpCol]: # steps of dialogue  Xself.askAsnCol
+                for fn in [self.askBasics, self.askIpCol, self.sizeCheck]: # steps of dialogue  Xself.askAsnCol
                     self.soutInfo()
                     fn()
             except Cancelled:
                 print("Cancelled.")
                 return
-
             self.soutInfo()
+
             self.guessIpCount()
             if not Dialogue.isYes("Everything set alright?"):
                 self.isRepeating = True
@@ -199,6 +204,7 @@ class SourceParser:
                 break
 
     def _reset(self):
+        """ Reset variables before new analysis. """
         #cant be pickled: self.reg = namedtuple('SourceParser.registries', 'local foreign')(AbusemailRegistry(), CountryRegistry())
         self.abuseReg = AbusemailRegistry();
         self.countryReg = CountryRegistry()
@@ -215,6 +221,7 @@ class SourceParser:
         #self.extendCount = 0
         self.timeStart = None
         self.timeEnd = None
+        self.timeLast = None
         self.isAnalyzedB = False
         self.isFormattedB = False
         self.sums = {}
@@ -232,11 +239,12 @@ class SourceParser:
         self._reset()
         if Config.getboolean("autoopen_editor"):
             [r.mailDraft.guiEdit() for r in self.reg.values()]
-        self.timeStart = datetime.datetime.now().replace(microsecond=0)
+        self.timeStart = self.timeLast = datetime.datetime.now().replace(microsecond=0)
         with open(self.sourceFile, 'r') as csvfile:
             for line in csvfile:
                 self._processLine(line)
         self.timeEnd = datetime.datetime.now().replace(microsecond=0)
+        self.linesTotal = self.lineCount # if we guessed the total of lines, fix the guess now
 
         #self.linesTotal = self.lineCount
         self.isAnalyzedB = True
@@ -250,13 +258,20 @@ class SourceParser:
         self.lineCount = 0
         self.soutInfo()
 
+    def sizeCheck(self):
+        mb = 10
+        if self.size > mb*10^6 and self.conveying == "all":
+            if Dialogue.isYes("The file is > {} MB and conveying method is set to all. Don't want to rather set the method to 'unique_ip' so that every IP had only one line and the amount of information sent diminished?".format(mb)):
+                self.conveying = "unique_ip"
+
     def guessIpCount(self):
         """ Determine how many IPs there are in the file. """
         if self.urlColumn is None:
             try:
-                max = 1000
+                max = 100000
                 i = 0
                 ipSet = set()
+                fraction = None
                 with open(self.sourceFile, 'r') as csvfile:                                   
                     for line in csvfile:
                         i += 1
@@ -264,14 +279,17 @@ class SourceParser:
                             continue
                         ip = line.split(self.delimiter)[self.ipColumn].strip()
                         ipSet.add(ip)
+                        if i == (max - 1000):
+                            fraction = len(ipSet)                            
                         if i == max:
                             break
                 if i != max:
                     self.ipCount = len(ipSet)
                     print("There are {} IPs.".format(self.ipCount))
                 else:                    
-                    self.ipCountGuess = ceil(self.linesTotal * len(ipSet) / i)
-                    print("In the first {} lines, there are {} unique IPs. So there might be around {} IPs in the file.".format(i,len(ipSet),self.ipCountGuess))
+                    delta = len(ipSet) - fraction # determine new IPs in the last portion of the sample
+                    self.ipCountGuess = len(ipSet) + ceil((self.linesTotal - i) * delta / i)                                        
+                    print("In the first {} lines, there are {} unique IPs. There might be around {} IPs in the file.".format(i,len(ipSet),self.ipCountGuess))
             except Exception as e:
                 print("Can't guess IP count.")                
 
@@ -295,11 +313,26 @@ class SourceParser:
         #if sqrt(self.lineCount) % 1 == 0:
         #if self.lineCount % 10 == 0:
         #import ipdb;ipdb.set_trace()
-        if self.lineCount == self.lineSout:
-            self.lineSumCount += 1
+        if self.lineCount == self.lineSout:            
             #self.lineSout = ceil(self.lineSumCount + self.lineSumCount * 0.01 * log(self.lineSumCount)) +1
-            self.lineSout = self.lineSumCount + ceil(self.lineSumCount * 0.3 * sqrt(self.lineSumCount))+1
-            self.soutInfo()        
+            #self.lineSout = self.lineSumCount + ceil(self.lineSumCount * 0.3 * sqrt(self.lineSumCount))+1
+            now = datetime.datetime.now()
+            delta = (now - self.timeLast).total_seconds()
+            self.timeLast = now
+            if delta < 1:
+                self.lineSumCount += 10
+                print("PLUS") #XXX
+            elif delta > 5:
+                self.lineSumCount -= 100
+                print("MINUS") # XXX
+                if self.lineSumCount <= 0:
+                    self.lineSumCount = 1
+            else:
+                self.lineSumCount += 1
+
+            self.lineSout = self.lineCount + ceil(0.5 * sqrt(self.lineSumCount))
+            self.soutInfo()
+            print("delta {}, sum {}, o {}".format(delta, self.lineSumCount,ceil(0.5 * sqrt(self.lineSumCount)))) # XXX
         try:
             # obtain IP from the line. (Or more IPs, if theres url column).
             records = row.split(self.delimiter)
@@ -316,8 +349,8 @@ class SourceParser:
                     return
                 if not Whois.checkIp(ip):
                     try: # format 1.2.3.4.port
-                        m = re.match("(\d{1,3}\.){4}(\d+)",ip)
-                        ip = m.group(2)
+                        m = re.match("((\d{1,3}\.){4})(\d+)",ip)
+                        ip = m.group(1).rstrip(".")
                     except AttributeError:
                         self.invalidReg.count(row)
                         return

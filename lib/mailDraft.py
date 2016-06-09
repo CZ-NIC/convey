@@ -52,8 +52,11 @@ class MailDraft:
 
     def _loadText(self):
         """Loads body text and subject from the file."""
-        with open(self.mailFile, 'r') as f:
-            return f.read()
+        try:
+            with open(self.mailFile, 'r') as f:
+                return f.read()
+        except FileNotFoundError:
+            print("XXX")
 
     # Opens file for mail text to GUI editation.
     # If file doesnt exists, it creates it from the template.
