@@ -51,25 +51,27 @@ class SourceParser:
             l.append("Conveying method: " + self.conveying)
         if self.redo_invalids is not None:
             l.append("Redo invalids: " + str(self.redo_invalids))
-        print(", ".join(l))
-        if self.whoisStats:
-            print("During analysis, whois servers were called: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.whoisStats.items()))
+        sys.stdout.write(", ".join(l))
+        l = []
         if self.lineCount:
-            l = []
-            l.append("Log lines processed: {}/{}, {} %".format(self.lineCount, self.linesTotal, ceil(100 * self.lineCount / self.linesTotal)))
-            if self.ipCountGuess:
-                l.append("(around {} IPs)".format(self.ipCountGuess))
             if self.ipCount:
-                l.append("({} IPs)".format(self.ipCount))
-            sys.stdout.write(" ".join(l))
+                sys.stdout.write(", {} IPs".format(self.ipCount))
+            elif self.ipCountGuess:
+                sys.stdout.write(", around {} IPs".format(self.ipCountGuess))
+            l.append("\nLog lines processed: {}/{}, {} %".format(self.lineCount, self.linesTotal, ceil(100 * self.lineCount / self.linesTotal)))
+            
         else:
-            sys.stdout.write("Log lines: {}".format(self.linesTotal))
+            l.append("\nLog lines: {}".format(self.linesTotal))
         if self.timeEnd:
-             print(" ({})".format(self.timeEnd - self.timeStart))
+            l.append("{}".format(self.timeEnd - self.timeStart))
         elif self.timeStart:
-             print(" ({})".format(datetime.datetime.now().replace(microsecond=0) - self.timeStart))
+            l.append("{}".format(datetime.datetime.now().replace(microsecond=0) - self.timeStart))
+            l.append("{} lines / s".format(self.velocity))
+        sys.stdout.write(", ".join(l) + "\n")
         #if self.extendCount > 0:
         #    print("+ other {} rows, because some domains had multiple IPs".format(self.extendCount))
+        if self.whoisStats:
+            print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.whoisStats.items()))
 
         print("\nSample:\n" + "\n".join(self.sample.split("\n")[:3]) + "\n") # show first 3rd lines
         [reg.soutInfo(full) for reg in self.reg.values()]
@@ -148,6 +150,11 @@ class SourceParser:
             self.hasHeader = None
             self.header = "" # if CSV has header, it's here
             self.fields = []
+            
+            self.redo_invalids = Config.getboolean("redo_invalids")
+            self.conveying = Config.get("conveying")
+            if not self.conveying: # default
+                self.conveying = "all"
 
             def file_len(fname):
                 if self.size < 100*10^6:
@@ -198,9 +205,7 @@ class SourceParser:
                 self.isRepeating = True
                 continue # repeat
             else:
-                self.isFormattedB = True
-                Config.set("conveying", self.conveying) # used by Registry class
-                Config.set("redo_invalids", self.redo_invalids) # used by Registry class
+                self.isFormattedB = True                
                 break
 
     def _reset(self):
@@ -227,11 +232,10 @@ class SourceParser:
         self.isFormattedB = False
         self.sums = {}
         self.whoisStats = Whois.stats # so that it is saved
-        self.ipSeen = dict() # ipSeen[ip] = prefix        
-        self.redo_invalids = Config.getboolean("redo_invalids")
-        self.conveying = Config.get("conveying")
-        if not self.conveying: # default
-            self.conveying = "all"
+        self.ipSeen = dict() # ipSeen[ip] = prefix
+        self.abuseReg.conveying = self.conveying
+        self.countryReg.conveying = self.conveying
+        self.invalidReg.redo_invalids = self.redo_invalids
     
     def runAnalysis(self):
         """ Run main analysis of the file.
@@ -241,6 +245,7 @@ class SourceParser:
         if Config.getboolean("autoopen_editor"):
             [r.mailDraft.guiEdit() for r in self.reg.values()]
         self.timeStart = self.timeLast = datetime.datetime.now().replace(microsecond=0)
+
         with open(self.sourceFile, 'r') as csvfile:
             for line in csvfile:
                 self._processLine(line)
@@ -264,6 +269,9 @@ class SourceParser:
         if self.size > mb*10^6 and self.conveying == "all":
             if Dialogue.isYes("The file is > {} MB and conveying method is set to all. Don't want to rather set the method to 'unique_ip' so that every IP had only one line and the amount of information sent diminished?".format(mb)):
                 self.conveying = "unique_ip"
+        if self.size > mb*10^6 and self.redo_invalids == True:
+            if Dialogue.isYes("The file is > {} MB and redo_invalids is True. Don't want to rather set it to False and ignore all invalids? It may be faster.".format(mb)):
+                self.redo_invalids = False
 
     def guessIpCount(self):
         """ Determine how many IPs there are in the file. """
@@ -300,7 +308,10 @@ class SourceParser:
 
     def isFormatted(self):
         return self.isFormattedB
-        
+
+
+    ipRe = re.compile("((\d{1,3}\.){4})(\d+)")
+
     def _processLine(self, row, unknownMode=False):
         """ Link every line to IP
             self.ranges[prefix] = record, kind (it,foreign; abuse@mail.com,local)
@@ -320,13 +331,15 @@ class SourceParser:
             now = datetime.datetime.now()
             delta = (now - self.timeLast).total_seconds()
             self.timeLast = now
-            if delta < 1 or delta > 4:
-                self.velocity = ceil(self.velocity / delta) +1
+            if delta < 1 or delta > 2:
+                newVel = ceil(self.velocity / delta) +1
+                if abs(newVel - self.velocity) > 100 and self.velocity < newVel: # smaller accelerating of velocity (decelerating is alright)
+                    self.velocity += 100
+                else:
+                    self.velocity = newVel
             self.lineSout = self.lineCount + 1 +self.velocity
 
-            self.soutInfo()
-
-            print("delta {}, velocity {}".format(delta,self.velocity)) # XXX comment it
+            self.soutInfo()            
         try:
             # obtain IP from the line. (Or more IPs, if theres url column).
             records = row.split(self.delimiter)
@@ -341,9 +354,12 @@ class SourceParser:
                 except IndexError:
                     self.invalidReg.count(row)
                     return
-                if not Whois.checkIp(ip):
+                if not Whois.checkIp(ip):                    
                     try: # format 1.2.3.4.port
-                        m = re.match("((\d{1,3}\.){4})(\d+)",ip)
+                        # XX maybe it would be a good idea to count it as invalidReg directly. In case of huge files. Would it be much quicker?
+                        # This is 2 times quicker than regulars (but regulars can be cached). if(ip.count(".") == 5): ip = ip[:ip.rfind(".")]
+                        #
+                        m = ipRe.match(ip)
                         ip = m.group(1).rstrip(".")
                     except AttributeError:
                         self.invalidReg.count(row)
@@ -404,6 +420,24 @@ class SourceParser:
             print("ROW fault" + row)            
             print("This should not happen. CSV is wrong or tell programmer to repair this.")
             Config.errorCatched()
+        except KeyboardInterrupt:
+            print("CATCHED")
+            try:
+                print("{} line number, {} ip".format(self.lineCount, ip))
+            except:
+                pass
+            o = Dialogue.ask("Catched keyboard interrupt. Options: continue (default, do the line again), [s]kip the line, [d]ebug, [q]uit: ")
+            if o == "d":
+                print("Maybe you should hit n multiple times because pdb takes you to the wrong scope.") # I dont know why.
+                import ipdb;ipdb.set_trace()
+            elif o == "s":
+                return # skip to the next line
+            elif o == "q":
+                quit()
+            else:  # continue from last row
+                self.lineCount -= 1 # let's pretend we didnt just do this row before
+                return self._processLine(row, unknownMode = unknownMode)
+
 
     def resolveUnknown(self):
         """ Process all prefixes with unknown abusemails. """

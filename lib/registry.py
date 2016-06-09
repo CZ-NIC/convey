@@ -20,6 +20,8 @@ class _RegistryRecord(set):
 
 class _Registry:
 
+    conveying = None
+
     def resetUnknowns(self):
         """ Csirtmail rows without csirt. Abusemail rows without abusemail."""
         self.unknowns = set()
@@ -46,15 +48,15 @@ class _Registry:
             file_existed = bool(self.unknowns)
             ip_existed = ip in self.unknowns
             self.unknownPrefixes.add(prefix)
-            self.unknowns.add(ip)                    
-
-        if Config.get("conveying") == "no_files":
+            self.unknowns.add(ip)                            
+        if self.conveying == "no_files":
             return
-        if Config.get("conveying") == "unique_file" and file_existed:
+        elif self.conveying == "unique_file" and file_existed:
             return
-        if Config.get("conveying") == "unique_ip" and ip_existed:
+        elif self.conveying == "unique_ip" and ip_existed:
             return
-        self.saveRow(file_existed, record, row)
+        else:
+            self.saveRow(file_existed, record, row)
 
     def saveRow(self, file_existed, record, row):
         method = "a" if file_existed else "w"
@@ -191,6 +193,7 @@ class CountryRegistry(_Registry):
 class InvalidRegistry(_Registry):
     name = "invalidlines"
     kind = "invalid"
+    redo_invalids = None
 
     def reset(self):
         self.lines = 0
@@ -204,7 +207,7 @@ class InvalidRegistry(_Registry):
 
     def count(self, row):
         self.lines += 1
-        if Config.get("redo_invalids"):
+        if self.redo_invalids:
             self.saveRow(self.lines > 1, "unknown", row)        
             #super().count(row)
 
@@ -217,4 +220,4 @@ class InvalidRegistry(_Registry):
 
     def soutInfo(self, full = None):
         if self.lines:
-            print("{} invalid lines".format(self.lines))
+            print("invalid lines {}".format(self.lines))

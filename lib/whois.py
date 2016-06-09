@@ -192,10 +192,13 @@ class Whois:
             self.abusemail = "unknown"
             
     def _exec(self, server, serverUrl=None):
+        """
+        Query whois server.
+        """
         if not serverUrl:
             serverUrl = Whois.servers[server]
         self.stats[server] += 1        
-        p = Popen(["whois -h " + serverUrl + " -- " + self.ip], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        p = Popen(["whois -t 3 -h " + serverUrl + " -- " + self.ip], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         try:
             self.whoisResponse = p.stdout.read().decode("unicode_escape").strip().lower() #.replace("\n", " ")
             self.whoisResponse += p.stderr.read().decode("unicode_escape").strip().lower()

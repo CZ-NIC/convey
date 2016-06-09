@@ -4,6 +4,7 @@ from lib.sourceParser import SourceParser
 from lib.dialogue import Dialogue
 import os
 import jsonpickle
+from bdb import BdbQuit
 #import pickle
 #import yaml
     # from yaml import load, dump
@@ -62,9 +63,13 @@ class SourceWrapper:
                             self.csv.runAnalysis()
                         else:
                             self._treat()
-                except:
+                except BdbQuit: # we do not want to catch quit() signal from ipdb
+                    print("Stopping.")
+                    quit()
+                except Exception as e:
                     #ipdb.set_trace()
-                    print("Format of the file may have changed since last time. Let's process it all again. If you continue, cache gets deleted.")
+                    print(e)
+                    print("Format of the file may have changed since last time. Let's process it all again. If you continue, cache gets deleted.")                    
                     self._treat()
             else:
                 self._treat() # process file

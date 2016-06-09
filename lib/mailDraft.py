@@ -34,8 +34,8 @@ class MailDraft:
         return (self.getSubject() + ": " + self.getBody()[0:50] + "... ").replace("\n"," ").replace("\r"," ")
 
     def _assureMailContents(self):
-        self.text = self._loadText() # XX some text is always returned, following lines that manually edits text, will likely never be executed
-        if self.text == False: # user didn't fill files in GUI
+        self.text = self._loadText()
+        if not self.text: # user didn't fill files in GUI
             print("Empty body text. Do you wish to open GUI for editation? [y]/n")
             if input().lower() in ("y",""):                
                 self.guiEdit()
@@ -56,7 +56,7 @@ class MailDraft:
             with open(self.mailFile, 'r') as f:
                 return f.read()
         except FileNotFoundError:
-            print("XXX")
+            return None
 
     # Opens file for mail text to GUI editation.
     # If file doesnt exists, it creates it from the template.
