@@ -53,8 +53,7 @@ class Whois:
                 
         """
         self._exec(server="ripe (no -r)", serverUrl="whois.ripe.net") # no -r flag
-        self._loadAbusemail()
-        import ipdb;ipdb.set_trace()
+        self._loadAbusemail()        
         if self.abusemail == "unknown":
             self._exec(server="ripe (-B flag)", serverUrl="whois.ripe.net -B") # with -B flag
             self._loadAbusemail()
@@ -192,13 +191,11 @@ class Whois:
             self.abusemail = "unknown"
             
     def _exec(self, server, serverUrl=None):
-        """
-        Query whois server.
-        """
+        """ Query whois server """
         if not serverUrl:
             serverUrl = Whois.servers[server]
         self.stats[server] += 1        
-        p = Popen(["whois -t 3 -h " + serverUrl + " -- " + self.ip], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        p = Popen(["whois -h " + serverUrl + " -- " + self.ip], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         try:
             self.whoisResponse = p.stdout.read().decode("unicode_escape").strip().lower() #.replace("\n", " ")
             self.whoisResponse += p.stderr.read().decode("unicode_escape").strip().lower()

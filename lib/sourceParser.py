@@ -58,8 +58,7 @@ class SourceParser:
                 sys.stdout.write(", {} IPs".format(self.ipCount))
             elif self.ipCountGuess:
                 sys.stdout.write(", around {} IPs".format(self.ipCountGuess))
-            l.append("\nLog lines processed: {}/{}, {} %".format(self.lineCount, self.linesTotal, ceil(100 * self.lineCount / self.linesTotal)))
-            
+            l.append("\nLog lines processed: {}/{}, {} %".format(self.lineCount, self.linesTotal, ceil(100 * self.lineCount / self.linesTotal)))            
         else:
             l.append("\nLog lines: {}".format(self.linesTotal))
         if self.timeEnd:
@@ -157,7 +156,7 @@ class SourceParser:
                 self.conveying = "all"
 
             def file_len(fname):
-                if self.size < 100*10^6:
+                if self.size < 100*10**6:
                     p = subprocess.Popen(['wc', '-l', fname], stdout=subprocess.PIPE,
                                                               stderr=subprocess.PIPE)
                     result, err = p.communicate()
@@ -256,20 +255,22 @@ class SourceParser:
         self.isAnalyzedB = True
         [r.update() for r in self.reg.values()]
         if self.invalidReg.stat() and self.redo_invalids:
+            self.soutInfo()
             print("Analysis COMPLETED.\n\n")
             self.resolveInvalid()
         if self.abuseReg.stat("prefixes", found=False):
+            self.soutInfo()
             print("Analysis COMPLETED.\n\n")
             self.resolveUnknown()        
         self.lineCount = 0
         self.soutInfo()
 
     def sizeCheck(self):
-        mb = 10
-        if self.size > mb*10^6 and self.conveying == "all":
+        mb = 10        
+        if self.size > mb*10**6 and self.conveying == "all":
             if Dialogue.isYes("The file is > {} MB and conveying method is set to all. Don't want to rather set the method to 'unique_ip' so that every IP had only one line and the amount of information sent diminished?".format(mb)):
                 self.conveying = "unique_ip"
-        if self.size > mb*10^6 and self.redo_invalids == True:
+        if self.size > mb*10**6 and self.redo_invalids == True:
             if Dialogue.isYes("The file is > {} MB and redo_invalids is True. Don't want to rather set it to False and ignore all invalids? It may be faster.".format(mb)):
                 self.redo_invalids = False
 
@@ -371,7 +372,7 @@ class SourceParser:
                     return
                 else:
                     found = True
-                    prefix = self.ipSeen[ip]
+                    prefix = self.ipSeen[ip]                    
                     record, kind = self.ranges[prefix]
             else:
                 found = False
@@ -379,6 +380,7 @@ class SourceParser:
                     if ip in prefix:
                         found = True
                         record, kind = o
+                        self.ipSeen[ip] = prefix
                         break
                 if self.conveying == "unique_file" and found:
                     return                
@@ -395,12 +397,13 @@ class SourceParser:
 
                 if found == False:
                     prefix, kind, record = Whois(ip).analyze()
+                    self.ipSeen[ip] = prefix                    
                     if not prefix:
                         logging.info("No prefix found for IP {}".format(ip))
-                    elif prefix not in self.ranges:
-                        self.ranges[prefix] = record, kind
-                    else: # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
-                        raise AssertionError("The prefix " + prefix + " shouldnt be already present. Tell the programmer")
+                    elif prefix in self.ranges:
+                        # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
+                        raise AssertionError("The prefix " + prefix + " shouldn't be already present. Tell the programmer")
+                    self.ranges[prefix] = record, kind
                     #print("IP: {}, Prefix: {}, Record: {}, Kind: {}".format(ip, prefix,record, kind)) # XX put to logging
            
             else: # force to obtain abusemail
@@ -413,8 +416,7 @@ class SourceParser:
                     else: # the row will be moved to unknown.local file again
                         print("No success for prefix {}.".format(prefix))
 
-            # write the row to the appropriate file
-            self.ipSeen[ip] = prefix
+            # write the row to the appropriate file            
             self.reg[kind].count(row, record, ip, prefix)
         except Exception as e: # FileNotExist
             print("ROW fault" + row)            
