@@ -6,8 +6,6 @@ from optparse import OptionParser
 import re
 import sys
 
-#logging.FileHandler('mailSender.log', 'a')
-
 re_title = re.compile('<title>([^<]*)</title>')
 
 class MailSender():    
