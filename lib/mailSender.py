@@ -88,8 +88,8 @@ class MailSender():
             return False
 
         title = mo.group(1)
-
-        if title in ('Forward - Ticket - OTRS', 'P\xc5\x99edat - Tiket - OTRS'): # XX r with caron make nb-python fail. Does this work?
+        #import ipdb;ipdb.set_trace()
+        if title in ('Forward - Ticket -  OTRS', b'P\xc5\x99edat - Tiket -  OTRS'.decode("utf-8")): # XX r with caron make nb-python fail. Does this work?
             return True
 
         elif title == 'Login - OTRS':
@@ -120,8 +120,7 @@ class MailSender():
         sentMails = 0
         logging.info("sending mails from list...")    
 
-        for registryRecord in registry.records.items():
-            mail = registryRecord.mail
+        for mail, cc, contents in registry.getMails(): #Xrecords.items():
             textVars = {}
             textVars["CONTACTS"] = mail
             textVars["FILENAME"] = csv.attachmentName
@@ -134,6 +133,7 @@ class MailSender():
 
             if Config.isTesting():
                 mailFinal = Config.get('testingMail')
+                body = "This is testing mail only from Convey. Don't be afraid, it wasn't delivered to {} .\n".format(mail) + body
                 print("***************************************\n*** TESTING MOD - mails will be sent to mail {} ***\n (For turning off testing mode set testing = False in config.ini.)".format(mailFinal))
             else:
                 mailFinal = mail
@@ -154,11 +154,11 @@ class MailSender():
                       )
 
             if Config.isTesting() == False:
-                if registryRecord.cc: # X mailList.mails[mail]
-                    fields += (("Cc", registryRecord.cc),)
+                if cc: # X mailList.mails[mail]
+                    fields += (("Cc", cc),)
             
             # load souboru k zaslani
-            contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
+            #contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
             
             logging.info("mail {}".format(mail))            
             print(mail)            
@@ -171,17 +171,13 @@ class MailSender():
             cookies = (('Cookie', 'Session=%s' % csv.cookie),)
 
             if Config.isTesting():
-                print(" Testing info:")
-                print (str(sys.stderr) + ' Fields: ' + str(fields))
-                print (str(sys.stderr) + ' Files: ' + str(files))
-                print (str(sys.stderr) + ' Cookies: ' + str(cookies))
-            #print record_label % lrecord
-
+                print(" Testing info:")                
+                print (' Fields: ' + str(fields))
+                print (' Files: ' + str(files))
+                print (' Cookies: ' + str(cookies))
+                # str(sys.stderr)
             
             #print encode_multipart_formdata(fields, files)
-            #import pdb;pdb.set_trace();
-
-
 
             res = MailSender._post_multipart(Config.get("host", "OTRS"),
                                              Config.get("baseuri", "OTRS"),
@@ -189,7 +185,7 @@ class MailSender():
                                              files=files,
                                              cookies=cookies)
             if not res or not MailSender._check_response (res.read()):
-                print("Sending failure, see mailSender.log.")
+                print("Sending failure, see convey.log.")
                 break
             else:
                 sentMails += 1

@@ -114,9 +114,16 @@ if __name__ == "__main__":
             continue
         elif option == "1":
             MailSender.assureTokens(csv)
+            wrapper.save()
             print("\nIn the next step, we connect to OTRS and send e-mails.")
-            print(" Template of local mail starts: {}".format(csv.abuseReg.mailDraft.getMailPreview()))
-            print(" Template of foreign mail starts: {}".format(csv.countryReg.mailDraft.getMailPreview()))
+            if csv.abuseReg.getMailCount() > 0:
+                print(" Template of local mail starts: {}".format(csv.abuseReg.mailDraft.getMailPreview()))
+            else:
+                print(" No local mail in the set.")
+            if csv.countryReg.getMailCount() > 0:
+                print(" Template of foreign mail starts: {}".format(csv.countryReg.mailDraft.getMailPreview()))
+            else:
+                print(" No foreign mail in the set.")
             print("Do you really want to send e-mails now?")
             print("1 - Send both local and foreign")
             print("2 - Send local only")
@@ -127,11 +134,11 @@ if __name__ == "__main__":
             option = input()
             if option == "1" or option == "2":
                 print("Sending to local country...")
-                if not MailSender.sendList(csv.mailLocal, csv): 
+                if not MailSender.sendList(csv.abuseReg, csv):
                     print("Couldn't send all local mails. (Details in mailSender.log.)")
             if option == "1" or option == "3":
                 print("Sending to foreigns...")
-                if not MailSender.sendList(csv.mailForeign, csv): 
+                if not MailSender.sendList(csv.countryReg, csv):
                     print("Couldn't send all foreign e-mails. (Details in mailSender.log.)")
             continue
         elif option == "debug":

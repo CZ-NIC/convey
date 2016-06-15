@@ -20,7 +20,7 @@ class _RegistryRecord(set):
 
 class _Registry:
 
-    conveying = None
+    conveying = None # mode - we may convey eg. every line or just a single line for an IP
 
     def resetUnknowns(self):
         """ Csirtmail rows without csirt. Abusemail rows without abusemail."""
@@ -41,7 +41,7 @@ class _Registry:
         """ Add IPs to this record and write the row the appropriate file """
         if record and record is not "unknown":
             file_existed = record in self.records
-            ip_existed = ip in self.records[record].counter
+            ip_existed = ip in self.records[record].counter            
             self.records[record].counter.add(ip)
             self.knowns.add(ip)            
         else:
@@ -65,18 +65,19 @@ class _Registry:
                 f.write(Config.header + "\n")
             f.write(row + "\n")
 
-    def getFileContents(self, record):
+    def _getFileContents(self, record):
         with open(Config.getCacheDir() + record + "." + self.kind,"r") as f:
             return f.read()
 
     def getMails(self):
+        """ Returns tuples (mail, cc, fileContents) """
         for key, val in self.records.items():
             if val.mail is None:
-                yield key
+                yield key, val.cc, self._getFileContents(key)
             elif val.mail is False:
                 continue
             else:
-                return val.mail
+                yield val.mail, val.cc, self._getFileContents(key)
 
     def soutInfo(self, full = False):
         #print (', '.join(key + " ( " + value + ")") for key, value in itertools.chain(self.counters["foreign"],self.counters["local"]))
@@ -93,6 +94,9 @@ class _Registry:
         if self.unknowns:
             l.append("unknown {} ({})".format(self.name, len(self.unknowns)))
         print(", ".join(l))
+
+    def getMailCount(self):
+        return self.stat(kind = "records", found = True)
 
     def stat(self, kind, found):
         """
