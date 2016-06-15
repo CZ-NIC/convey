@@ -4,3 +4,4 @@
 contacts_local.csv
 contacts_foreign.csv
 /nbproject/
+*.log
