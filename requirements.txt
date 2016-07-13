@@ -1,1 +1,4 @@
 netaddr
+jsonpickle
+ipdb
+pudb
