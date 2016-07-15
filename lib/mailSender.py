@@ -82,9 +82,8 @@ class MailSender():
             logging.error(response)
             return False
 
-        title = mo.group(1)
-        #import ipdb;ipdb.set_trace()
-        if title in ('Forward - Ticket -  OTRS', b'P\xc5\x99edat - Tiket -  OTRS'.decode("utf-8")): # XX r with caron make nb-python fail. Does this work?
+        title = mo.group(1)        
+        if b'P\xc5\x99edat - Tiket -  OTRS'.decode("utf-8") in title or 'Forward - Ticket -  OTRS' in title: # XX r with caron make nb-python fail. 2nd: once, the subject was: <title>20160715228000147 - Předat - Tiket -  OTRS</title>
             return True
 
         elif title == 'Login - OTRS':
