@@ -132,6 +132,15 @@ class MailSender():
             else:
                 mailFinal = mail
 
+            from email.utils import parseaddr
+            # check e-mail is valid
+            if not '@' in parseaddr("invalid-email")[1]:
+                # XXX shouldnt we check all mails are valid before?
+                print("ERRONEOUS EMAIL!")
+                print(mail)
+                logging.error("erroneous mail {}".format(mail))
+                continue
+
             fields = (
                       ("Action", "AgentTicketForward"),
                       ("Subaction", "SendEmail"),

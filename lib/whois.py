@@ -30,19 +30,19 @@ class Whois:
         self.ip = ip #
 
     ## 
-    # returns prefix, local|foreign, country|abusemail
-    def analyze(self):
+    # returns prefix, local|foreign, country|abusemail, asn
+    def analyze(self):        
         self._loadCountry()
         #print("country loaded {}".format(self.country))
         self._loadPrefix()
         #print("prefix loaded {}".format(self.prefix))
         if not self.country in Config.get("local_country"):
-            return self.prefix, "foreign", self.country
+            return self.prefix, "foreign", self.country, self.asn, self.netname
         else:
             #print("Abusemail: ")
             self._loadAbusemail()
             #print("abusemail loaded {}".format(self.abusemail))
-            return self.prefix, "local", self.abusemail
+            return self.prefix, "local", self.abusemail, self.asn, self.netname
 
     def resolveUnknownMail(self):
         """ Forces to load abusemail for an IP.
@@ -133,6 +133,8 @@ class Whois:
         for server in list(self.servers):
             self._exec(server=server)
             self.country = self._grepResponse('(.*)[c,C]ountry(.*)', lastWord=True)
+            self.asn = self._grepResponse('^origin(.*)', lastWord=True)
+            self.netname = self._grepResponse('^netname(.*)', lastWord=True)
             if not self.country:
                 if self._grepResponse("network is unreachable"):
                     logging.warning("Whois server {} is unreachable. Disabling for this session.".format(self.servers[server]))

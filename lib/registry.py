@@ -48,10 +48,13 @@ class _Registry:
             file_existed = bool(self.unknowns)
             ip_existed = ip in self.unknowns
             self.unknownPrefixes.add(prefix)
-            self.unknowns.add(ip)                            
+            self.unknowns.add(ip)
+        if True or self.conveying == "unique_file":
+            record = "unique_file_only" # XX testing unique_file directive. Cant be in config/conveying, cause to konkurovalo unique_row a unique_ip direktivam.
+            self.kind = "csv" # XX testing only
         if self.conveying == "no_files":
             return
-        elif self.conveying == "unique_file" and file_existed:
+        elif self.conveying == "unique_row" and file_existed:
             return
         elif self.conveying == "unique_ip" and ip_existed:
             return
@@ -60,6 +63,9 @@ class _Registry:
 
     def saveRow(self, file_existed, record, row):
         method = "a" if file_existed else "w"
+        print(method)
+        method = "a" # XXX SMAZAT
+        
         with open(Config.getCacheDir() + record + "." + self.kind, method) as f:
             if method == "w" and Config.hasHeader:
                 f.write(Config.header + "\n")
