@@ -2,87 +2,91 @@
 from collections import defaultdict
 from collections import namedtuple
 import csv
+import datetime
 import ipdb
 import itertools
 from lib.config import Config
 from lib.csvGuesses import CsvGuesses
 from lib.dialogue import Cancelled
 from lib.dialogue import Dialogue
-from lib.registry import AbusemailRegistry, CountryRegistry, InvalidRegistry
+from lib.informer import Informer
+from lib.processer import Processer
+from lib.registry import AbusemailRegistry
+from lib.registry import CountryRegistry
+from lib.registry import InvalidRegistry
 from lib.whois import Whois
 import logging
-from math import sqrt, ceil, log
+from math import ceil
+from math import log
+from math import sqrt
 import ntpath
 import os
 import pdb
 import pudb
 import re
 from shutil import move
-import sys
 import subprocess
-import datetime
+import sys
 logging.FileHandler('whois.log', 'a')
 
 
 class SourceParser:
     
-    def soutInfo(self, clear=True, full=False):
-        """ file information """
-        if clear:
-            sys.stderr.write("\x1b[2J\x1b[H")
-            sys.stderr.flush()
-            #os.system('cls' if os.name == 'nt' else 'clear')
-        #sys.stderr.write("\x1b[2J\x1b[H") # clears gnome-terminal
-        #print(chr(27) + "[2J")
-        l = []
-        l.append("Source file: " + self.sourceFile)        
-        if self.delimiter:
-            l.append("delimiter: '" + self.delimiter + "'")
-        if self.hasHeader is not None:
-            l.append("header: " + ("used" if self.hasHeader else "not used"))
-        
-        if self.urlColumn is not None:
-            l.append("Url column: " + self.fields[self.urlColumn])
-        if self.ipColumn is not None:            
-            l.append("IP column: " + self.fields[self.ipColumn])
-        if self.asnColumn is not None:
-            l.append("ASN column: " + self.fields[self.asnColumn])
-        if self.conveying is not None:
-            l.append("Conveying method: " + self.conveying)
-        if self.redo_invalids is not None:
-            l.append("Redo invalids: " + str(self.redo_invalids))
-        sys.stdout.write(", ".join(l))
-        l = []
-        if self.lineCount:
-            if self.ipCount:
-                sys.stdout.write(", {} IPs".format(self.ipCount))
-            elif self.ipCountGuess:
-                sys.stdout.write(", around {} IPs".format(self.ipCountGuess))
-            l.append("\nLog lines processed: {}/{}, {} %".format(self.lineCount, self.linesTotal, ceil(100 * self.lineCount / self.linesTotal)))            
-        else:
-            l.append("\nLog lines: {}".format(self.linesTotal))
-        if self.timeEnd:
-            l.append("{}".format(self.timeEnd - self.timeStart))
-        elif self.timeStart:
-            l.append("{}".format(datetime.datetime.now().replace(microsecond=0) - self.timeStart))
-            l.append("{} lines / s".format(self.velocity))
-        sys.stdout.write(", ".join(l) + "\n")
-        #if self.extendCount > 0:
-        #    print("+ other {} rows, because some domains had multiple IPs".format(self.extendCount))
-        if self.whoisStats:
-            print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.whoisStats.items()))
+    def __init__(self, sourceFile):
+        print("Processing file.")
+        self.isRepeating = False
+        while True:
+            #instance attributes init
+            #self.multithread = Config.get("multithread") # if True, whois will be asked multithreaded (but we may flood it)            
+            self.ipColumn = None # IP column position
+            self.asnColumn = None # AS number collumn position
+            self.urlColumn = None # URL column position, to be translated to IP
+            self.delimiter = None  # CSV dialect
+            self.hasHeader = None # CSV has header
+            self.header = "" # if CSV has header, it's here
+            self.fields = [] # CSV columns
+            self.redo_invalids = Config.getboolean("redo_invalids")
+            self.conveying = Config.get("conveying")
+            if not self.conveying: # default
+                self.conveying = "all"
+            
+            # OTRS attributes to be linked to CSV
+            self.ticketid = False
+            self.ticketnum = False
+            self.cookie = False
+            self.token = False
+            self.ticketid = Config.get("ticketid", "OTRS")
+            self.ticketnum = Config.get("ticketnum", "OTRS")
+            self.attachmentName = "part-" + ntpath.basename(sourceFile)
+            self.ipCountGuess = None
+            self.ipCount = None
+            self._reset()
 
-        print("\nSample:\n" + "\n".join(self.sample.split("\n")[:3]) + "\n") # show first 3rd lines
-        [reg.soutInfo(full) for reg in self.reg.values()]
+            #load CSV
+            self.sourceFile = sourceFile
+            self.size = os.path.getsize(self.sourceFile)
+            self.sniffer = csv.Sniffer()
+            self.firstLine, self.sample = CsvGuesses.getSample(self.sourceFile)
+            self.linesTotal = Informer.fileLen(sourceFile) #sum(1 for line in open(sourceFile))
+            try:
+                for fn in [self._askBasics, self._askIpCol, self._sizeCheck, self._askOptions]: # steps of dialogue  Xself.askAsnCol
+                    Informer.soutInfo(self)
+                    fn()
+            except Cancelled:
+                print("Cancelled.")
+                return
+            Informer.soutInfo(self)
 
-        if full:
-            print("\nPrefixes encountered:\nprefix | location | record | asn | netname")
-            for prefix, o in self.ranges.items():                
-                record, location, asn, netname = o
-                print("{} | {} | {}".format(prefix, location, record, asn, netname))
+            self._guessIpCount()
+            if not Dialogue.isYes("Everything set alright?"):
+                self.isRepeating = True
+                continue # repeat
+            else:
+                self.isFormattedB = True
+                break
 
 
-    def askBasics(self):
+    def _askBasics(self):
         """ Dialog to obtain basic information about CSV - delimiter, header """
         self.delimiter, self.hasHeader = CsvGuesses.guessDelimiter(self.sniffer, self.sample)        
         if not Dialogue.isYes("Is character '{}' delimiter? ".format(self.delimiter)):
@@ -106,7 +110,7 @@ class SourceParser:
 
 
 
-    def askIpCol(self):
+    def _askIpCol(self):
         fn = lambda field: Whois.checkIp(field)        
         self.ipColumn = CsvGuesses.guessCol(self, "IP/URL", fn, ["ip", "sourceipaddress", "ipaddress", "source"])
 
@@ -125,87 +129,11 @@ class SourceParser:
                     dl = self.delimiter if self.delimiter else ","
                     self.header += dl + "URL_IP"
 
-    def askAsnCol(self): # The function is not used now.
+    def _askAsnCol(self): # The function is not used now.
         fn = lambda field: re.search('AS\d+', field) != None
         self.asnColumn = CsvGuesses.guessCol(self, "ASN", fn, ["as", "asn", "asnumber"])
 
 
-    def __init__(self, sourceFile):
-        print("Processing file.")        
-        self.isRepeating = False        
-        while True:                        
-            #instance attributes init
-            #self.multithread = Config.get("multithread") # if True, whois will be asked multithreaded (but we may flood it)
-            #self.lines = None #lines of csv file
-            self.logs = defaultdict(set) # logs[145.1.2.3] = {logline, ...}
-            self.countries = defaultdict(set) # countries[gb] = {ip, ...} MailDraft structure takes IPs here.
-            self.countriesMissing = defaultdict(set) # elements from self.countries that couldn't be triaged to MailDraft by whois
-
-            self.ipColumn = None # IP column position
-            self.asnColumn = None # AS number collumn position
-            self.urlColumn = None # URL column position, to be translated to IP
-            self.delimiter = None  #CSV dialect
-            #self.whoisBCount = 0
-            self.hasHeader = None
-            self.header = "" # if CSV has header, it's here
-            self.fields = []
-            
-            self.redo_invalids = Config.getboolean("redo_invalids")
-            self.conveying = Config.get("conveying")
-            if not self.conveying: # default
-                self.conveying = "all"
-
-            def file_len(fname):
-                if self.size < 100*10**6:
-                    p = subprocess.Popen(['wc', '-l', fname], stdout=subprocess.PIPE,
-                                                              stderr=subprocess.PIPE)
-                    result, err = p.communicate()
-                    if p.returncode != 0:
-                        raise IOError(err)
-                    return int(result.strip().split()[0])
-                else:
-                    return ceil(self.size / (len(self.sample) / len(self.sample.split("\n"))) / 1000000) * 1000000
-
-            # OTRS attributes to be linked to CSV
-            self.ticketid = False
-            self.ticketnum = False
-            self.cookie = False
-            self.token = False
-
-            self.ticketid = Config.get("ticketid", "OTRS")
-            self.ticketnum = Config.get("ticketnum", "OTRS")
-
-            self.attachmentName = "part-" + ntpath.basename(sourceFile)
-
-            self.ipCountGuess = None
-            self.ipCount = None            
-
-            self._reset()
-
-            #load CSV            
-            self.sourceFile = sourceFile
-
-            self.size = os.path.getsize(self.sourceFile)
-
-            self.sniffer = csv.Sniffer()            
-            self.firstLine, self.sample = CsvGuesses.getSample(self.sourceFile)
-            self.linesTotal = file_len(sourceFile) #sum(1 for line in open(sourceFile))
-            try:
-                for fn in [self.askBasics, self.askIpCol, self.sizeCheck]: # steps of dialogue  Xself.askAsnCol
-                    self.soutInfo()
-                    fn()
-            except Cancelled:
-                print("Cancelled.")
-                return
-            self.soutInfo()
-
-            self.guessIpCount()
-            if not Dialogue.isYes("Everything set alright?"):
-                self.isRepeating = True
-                continue # repeat
-            else:
-                self.isFormattedB = True                
-                break
 
     def _reset(self):
         """ Reset variables before new analysis. """
@@ -221,6 +149,9 @@ class SourceParser:
         self.lineCount = 0
         self.velocity = 0
         self.lineSout = 1
+        self.appendFields = {'asn': False, "netname": False, "domain": False, "ip": False} # fields included in CSV
+     nacist z config.ini. Ma to by zde nebo v __init?
+
         #self.lineSumCount = 0
         #self.linesTotal = 0
         #self.extendCount = 0
@@ -247,34 +178,38 @@ class SourceParser:
 
         with open(self.sourceFile, 'r') as csvfile:
             for line in csvfile:
-                self.Processer.processLine(self,line)
+                Processer.processLine(self, line)
         self.timeEnd = datetime.datetime.now().replace(microsecond=0)
         self.linesTotal = self.lineCount # if we guessed the total of lines, fix the guess now
 
-        #self.linesTotal = self.lineCount
         self.isAnalyzedB = True
         [r.update() for r in self.reg.values()]
         if self.invalidReg.stat() and self.redo_invalids:
-            self.soutInfo()
+            Informer.soutInfo(self)
             print("Analysis COMPLETED.\n\n")
             self.resolveInvalid()
         if self.abuseReg.stat("prefixes", found=False):
-            self.soutInfo()
+            Informer.soutInfo(self)
             print("Analysis COMPLETED.\n\n")
             self.resolveUnknown()        
         self.lineCount = 0
-        self.soutInfo()
+        Informer.soutInfo(self)
 
-    def sizeCheck(self):
+    def _sizeCheck(self):
         mb = 10        
-        if self.size > mb*10**6 and self.conveying == "all":
+        if self.size > mb * 10 ** 6 and self.conveying == "all":
             if Dialogue.isYes("The file is > {} MB and conveying method is set to all. Don't want to rather set the method to 'unique_ip' so that every IP had only one line and the amount of information sent diminished?".format(mb)):
                 self.conveying = "unique_ip"
-        if self.size > mb*10**6 and self.redo_invalids == True:
+        if self.size > mb * 10 ** 6 and self.redo_invalids == True:
             if Dialogue.isYes("The file is > {} MB and redo_invalids is True. Don't want to rather set it to False and ignore all invalids? It may be faster.".format(mb)):
                 self.redo_invalids = False
 
-    def guessIpCount(self):
+    def _askOptions(self):
+        """ Asks user for other parameters. They can change conveying method and included columns. """
+        # XXX
+        pass
+
+    def _guessIpCount(self):
         """ Determine how many IPs there are in the file. """
         if self.urlColumn is None:
             try:
@@ -299,7 +234,7 @@ class SourceParser:
                 else:                    
                     delta = len(ipSet) - fraction # determine new IPs in the last portion of the sample
                     self.ipCountGuess = len(ipSet) + ceil((self.linesTotal - i) * delta / i)                                        
-                    print("In the first {} lines, there are {} unique IPs. There might be around {} IPs in the file.".format(i,len(ipSet),self.ipCountGuess))
+                    print("In the first {} lines, there are {} unique IPs. There might be around {} IPs in the file.".format(i, len(ipSet), self.ipCountGuess))
             except Exception as e:
                 print("Can't guess IP count.")                
 
@@ -309,158 +244,7 @@ class SourceParser:
 
     def isFormatted(self):
         return self.isFormattedB
-
-    reIpWithPort = re.compile("((\d{1,3}\.){4})(\d+)")
-    reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")
-    class Processer:
-
-        ## XX lets divide this monolith into 4 other methods...
-        def processLine(self, row, reprocessing=False):
-            """ Link every line to IP
-                self.ranges[prefix] = record, location (it,foreign; abuse@mail.com,local), asn, netname
-
-                Arguments:
-                    row - current line
-                    reprocessing - True, if we just want to force abusemail fetching. The line has been processed before and prefix should be present.
-            """
-            # premature returns            
-            row = row.strip()            
-            if(row == ""):
-                return
-            self.lineCount += 1
-            if self.lineCount == 1 and self.hasHeader: # skip header
-                return
-            # display infopanel
-            if self.lineCount == self.lineSout:
-                #self.lineSout = ceil(self.lineSumCount + self.lineSumCount * 0.01 * log(self.lineSumCount)) +1
-                #self.lineSout = self.lineSumCount + ceil(self.lineSumCount * 0.3 * sqrt(self.lineSumCount))+1
-                now = datetime.datetime.now()
-                delta = (now - self.timeLast).total_seconds()
-                self.timeLast = now
-                if delta < 1 or delta > 2:
-                    newVel = ceil(self.velocity / delta) +1
-                    if abs(newVel - self.velocity) > 100 and self.velocity < newVel: # smaller accelerating of velocity (decelerating is alright)
-                        self.velocity += 100
-                    else:
-                        self.velocity = newVel
-                self.lineSout = self.lineCount + 1 +self.velocity
-                self.soutInfo()
-
-            # process row
-            try:
-                # obtain IP from the line. (Or more IPs, if theres url column).
-                records = row.split(self.delimiter)
-                if not reprocessing and self.urlColumn is not None: # if CSV has DOMAIN column that has to be translated to IP column                    
-                    ip = Whois.url2ip(records[self.urlColumn])
-                    #if len(ips) > 1:
-                    #    self.extendCount += len(ips) -1 # count of new lines in logs
-                    #    print("Url {} has {} IP addresses: {}".format(records[self.urlColumn], len(ips), ips))
-                else: # only one record
-                    try:
-                        ip = records[self.ipColumn].strip() # key taken from IP column
-                    except IndexError:
-                        self.invalidReg.count(row)
-                        return
-                    if not Whois.checkIp(ip):
-                        # format 1.2.3.4.port
-                        # XX maybe it would be a good idea to count it as invalidReg directly. In case of huge files. Would it be much quicker?
-                        # This is 2 times quicker than regulars (but regulars can be cached). if(ip.count(".") == 5): ip = ip[:ip.rfind(".")]
-                        #
-                        #print(ip)
-                        #import ipdb;ipdb.set_trace()
-                        print("ip:", ip) # XX
-                        m = self.reIpWithPort.match(ip)
-                        if m:
-                            # 91.222.204.175.23 -> 91.222.204.175
-                            ip = m.group(1).rstrip(".")
-                        else:
-                            m = self.reAnyIp.match(ip)
-                            if m:
-                                # "91.222.204.175 93.171.205.34" -> "91.222.204.175", '"1.2.3.4"' -> 1.2.3.4
-                                ip = m.group(1)
-                            else:
-                                #except AttributeError:
-                                self.invalidReg.count(row)
-                                return
-
-
-                #print(ip)
-                #import ipdb;ipdb.set_trace()
-                
-                # remember the prefix
-                if ip in self.ipSeen:
-                    # ip has been seen in the past
-                    if self.conveying == "unique_row" or self.conveying == "unique_ip":
-                        return
-                    else:
-                        found = True
-                        prefix = self.ipSeen[ip]
-                        record, location, asn, netname = self.ranges[prefix]
-                else:
-                    found = False
-                    for prefix, o in self.ranges.items(): # search for prefix the slow way. I dont know how to make this shorter because IP can be in shortened form so that in every case I had to put it in full form and then slowly compare strings with prefixes.
-                        if ip in prefix:
-                            found = True
-                            record, location, asn, netname = o
-                            self.ipSeen[ip] = prefix
-                            break
-                    if self.conveying == "unique_row" and found:
-                        return
-
-                # assure prefix (abusemail)
-                if not reprocessing: # (in unknown mode, this was already done)
-                    if self.urlColumn is not None:
-                        row += self.delimiter + ip # append determined IP to the last col
-
-                    if found == False:
-                        prefix, location, record, asn, netname = Whois(ip).analyze()
-                        self.ipSeen[ip] = prefix
-                        if not prefix:
-                            logging.info("No prefix found for IP {}".format(ip))
-                        elif prefix in self.ranges:
-                            # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
-                            raise AssertionError("The prefix " + prefix + " shouldn't be already present. Tell the programmer")
-                        self.ranges[prefix] = record, location, asn, netname
-                        #print("IP: {}, Prefix: {}, Record: {}, Kind: {}".format(ip, prefix,record, location)) # XX put to logging
-
-                else: # force to obtain abusemail
-                    if not found:
-                        raise AssertionError("The prefix for ip " + ip + " should be already present. Tell the programmer.")
-                    if record == "unknown": # prefix is still unknown
-                        record = Whois(ip).resolveUnknownMail()
-                        if record != "unknown": # update prefix
-                            self.ranges[prefix] = record, location, asn, netname
-                        else: # the row will be moved to unknown.local file again
-                            print("No success for prefix {}.".format(prefix))
-
-                # write the row to the appropriate file                
-                if asn:
-                    row += self.delimiter + asn
-                if netname:
-                    row += self.delimiter + netname
-                self.reg[location].count(row, record, ip, prefix)
-            except Exception as e: # FileNotExist
-                print("ROW fault" + row)
-                print("This should not happen. CSV is wrong or tell programmer to repair this.")
-                Config.errorCatched()
-            except KeyboardInterrupt:
-                print("CATCHED")
-                try:
-                    print("{} line number, {} ip".format(self.lineCount, ip))
-                except:
-                    pass
-                o = Dialogue.ask("Catched keyboard interrupt. Options: continue (default, do the line again), [s]kip the line, [d]ebug, [q]uit: ")
-                if o == "d":
-                    print("Maybe you should hit n multiple times because pdb takes you to the wrong scope.") # I dont know why.
-                    import ipdb;ipdb.set_trace()
-                elif o == "s":
-                    return # skip to the next line
-                elif o == "q":
-                    quit()
-                else:  # continue from last row
-                    self.lineCount -= 1 # let's pretend we didnt just do this row before
-                    return self._processLine(row, unknownMode = reprocessing)
-
+    
 
     def resolveUnknown(self):
         """ Process all prefixes with unknown abusemails. """
@@ -482,9 +266,9 @@ class SourceParser:
         self.abuseReg.resetUnknowns()
         with open(temp, "r") as sourceF:
             for line in sourceF:
-                self.Processer.processLine(self,line, reprocessing=True)
+                Processer.processLine(self, line, reprocessing=True)
         self.lineCount = 0
-        self.soutInfo()
+        Informer.soutInfo(self)
 
     def resolveInvalid(self):
         """ Process all invalid rows. """
@@ -500,7 +284,7 @@ class SourceParser:
             elif res == "y":
                 break
             else:
-                subprocess.Popen(['gedit',self.invalidReg.getPath()], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.Popen(['gedit', self.invalidReg.getPath()], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         temp = Config.getCacheDir() + ".unknown.invalid.temp"
         try:
@@ -512,45 +296,6 @@ class SourceParser:
         self.invalidReg.reset()
         with open(temp, "r") as sourceF:
             for line in sourceF:
-                self.Processer.processLine(self,line)
+                Processer.processLine(self, line)
         self.lineCount = 0
-        self.soutInfo()
-
-    def getStatsPhrase(self, generate=False):
-        """ Prints phrase "Totally {} of unique IPs in {} countries...": """
-        ab = self.abuseReg.stat
-        co = self.countryReg.stat
-
-        ipsUnique = ab("ips", "both") + co("ips", "both")
-
-        ispCzFound = ab("records", True)
-        ipsCzMissing = ab("ips", False)
-        ipsCzFound = ab("ips", True)
-
-        ipsWorldMissing = co("ips", False)
-        ipsWorldFound = co("ips", True)
-        countriesMissing = co("records", False)
-        countriesFound = co("records", True)
-
-        invalidLines = self.invalidReg.stat()
-        
-
-        if ipsUnique > 0:
-            res = "Totally {} of unique IPs".format(ipsUnique)
-        else:
-            res = "No IP addresses"
-        if ipsWorldFound or countriesFound:
-            res += "; information sent to {} countries".format(countriesFound) \
-            + " ({} unique IPs)".format(ipsWorldFound)
-        if ipsWorldMissing or countriesMissing:
-            res += ", to {} countries without national/goverment CSIRT didn't send".format(countriesMissing) \
-            + " ({} unique IPs)".format(ipsWorldMissing)        
-        if ipsCzFound or ispCzFound:
-            res += "; {} unique local IPs".format(ipsCzFound) \
-            + " distributed for {} ISP".format(ispCzFound)
-        if ipsCzMissing:
-            res += " (for {} unique local IPs ISP not found).".format(ipsCzMissing)
-        if invalidLines:
-            res += "\nThere were {} invalid lines in {} file.".format(invalidLines, self.invalidReg.getPath())
-
-        return res
+        Informer.soutInfo(self)

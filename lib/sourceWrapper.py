@@ -1,6 +1,7 @@
 # Source file caching
 from lib.mailDraft import MailDraft
 from lib.sourceParser import SourceParser
+from lib.informer import Informer
 from lib.dialogue import Dialogue
 import os
 import jsonpickle
@@ -55,9 +56,9 @@ class SourceWrapper:
             if self.csv:
                 try:
                     if self.csv.isAnalyzed():
-                        self.csv.soutInfo()
+                        Informer.soutInfo(self.csv)
                     elif self.csv.isFormatted():
-                        self.csv.soutInfo()
+                        Informer.soutInfo(self.csv)
                         s = "It seems the file has been formatted. Continue to analysis (or you'll be asked to do format again)?"
                         if Dialogue.isYes(s):
                             self.csv.runAnalysis()

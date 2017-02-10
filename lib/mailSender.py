@@ -17,6 +17,9 @@ class MailSender():
         files is a sequence of (name, filename, value) elements for data to be uploaded as files.
         Return an appropriate http.client.HTTPResponse object.
         """
+        
+        import ssl; ssl._create_default_https_context = ssl._create_unverified_context  # XX once upon a day (10.2.2017), the certificate stopped working or whatever. This is an ugly solution - i think we may delete this line in few weeks
+        
         content_type, body = MailSender._encode_multipart_formdata(fields, files)
         body = bytes(body, "UTF-8")
         protocol = host.split(':')[0]        

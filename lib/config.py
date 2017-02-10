@@ -19,7 +19,7 @@ class Config:
 
     def errorCatched():
         if Config.isDebug():
-            import ipdb; import traceback; import sys                                    
+            import ipdb; import traceback; import sys
             type, value, tb = sys.exc_info()
             traceback.print_exc()
             if tb:
@@ -27,7 +27,7 @@ class Config:
                 ipdb.post_mortem(tb)
             else:
                 print("Lets debug. Hit n to get to the previous scope.")
-                ipdb.set_trace()            
+                ipdb.set_trace()
 
     def isDebug():
         return True if Config.get('debug') == "True" else False
@@ -46,13 +46,13 @@ class Config:
 
     #def setTemp(key,val):
     #    Config.tempCache[key] = val
-    
+
     def set(key, val, section = 'CONVEY'):
         Config.config.set(section,key,str(val))
         # Can't update the file now, it would kill comments in config.ini :(
         # XAnd I dont want to can do the update because Whois may set whois_mirror value and this change is meant to be temporary only (for the single run of program)
         #with open(Config.file,"w") as f:
-            #Config.config.write(f)    
+            #Config.config.write(f)
 
     cacheDir = ""
     def setCacheDir(dir):
