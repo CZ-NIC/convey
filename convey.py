@@ -8,7 +8,7 @@ try:
     from lib.config import Config
     from lib.sourcePicker import SourcePicker
     from lib.sourceWrapper import SourceWrapper
-    from lib.mailSender import MailSender    
+    from lib.mailSender import MailSender
 except ImportError:
     traceback.print_exc()
     print("\nTry installing the libraries by install.sh")
@@ -21,7 +21,7 @@ __date__ = "$Feb 26, 2015 8:13:25 PM$"
 import logging
 logging.basicConfig(level=logging.DEBUG, filename="convey.log", format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-if __name__ == "__main__":    
+if __name__ == "__main__":
     print(__shortdoc__)
 
     #command line flags - it controls the program flow; parameters --id, --ticket, --cookie --token --attachmentName
@@ -36,12 +36,12 @@ if __name__ == "__main__":
     try:
         opts, args = getopt.getopt(sys.argv[1:], "", ["","id=", "num=","cookie=","token="])
     except getopt.GetoptError:
-        print(__doc__)        
+        print(__doc__)
         sys.exit(2)
-    for opt, arg in opts:        
+    for opt, arg in opts:
         if opt in ("--id"):
             csv.ticketid = arg
-            print("Ticket id: {}".format(arg))            
+            print("Ticket id: {}".format(arg))
         elif opt in ("--num"):
             csv.ticketnum = arg
             print("Ticket num: {}".format(arg))
@@ -50,13 +50,13 @@ if __name__ == "__main__":
             print("OTRS cookie: {}".format(arg))
         elif opt in ("--token"):
             csv.token = arg
-            print("OTRS token: {}".format(arg))        
+            print("OTRS token: {}".format(arg))
 
     #menu
-    while True:                
+    while True:
         if Config.get('testing') == "True":
             print("\n*** TESTING MOD - mails will be send to mail {} ***\n (To cancel the testing mode set testing = False in config.ini.)".format(Config.get('testingMail')))
-        stat = csv.getStatsPhrase()
+        stat = csv.informer.getStatsPhrase()
         if csv.isAnalyzed():
             print("\n Statistics overview:\n" + stat)
             with open(os.path.dirname(file) + "/statistics.txt","w") as f:
@@ -69,7 +69,7 @@ if __name__ == "__main__":
             print("Couldn't find {} csirtmails for {}× IP.".format(csv.reg["foreign"].stat("records", False), csv.reg["foreign"].stat("ips", False)))
 
         print("\n Main menu:")
-        print("1 – Send by OTRS...")        
+        print("1 – Send by OTRS...")
         print("2 – Print all details")
         print("3 – Rework again...")
         print("x – End")
@@ -108,7 +108,7 @@ if __name__ == "__main__":
                 csv.reg["local"].mailDraft.guiEdit()
                 csv.reg["foreign"].mailDraft.guiEdit()
 
-            continue        
+            continue
         elif option == "2":
             csv.soutInfo(full = True)
             continue
@@ -147,4 +147,4 @@ if __name__ == "__main__":
             continue #repeat options
 
 
-    print("Finished.")    
+    print("Finished.")

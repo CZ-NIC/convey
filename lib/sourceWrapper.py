@@ -35,7 +35,7 @@ class SourceWrapper:
         # cache-file s metadaty zdrojoveho souboru
         Config.setCacheDir(os.path.dirname(file) + "/" + ntpath.basename(self.file) + self.hash + "/")
         self.cacheFile = Config.getCacheDir() + ntpath.basename(self.file) + ".cache" #"cache/" +
-        
+
         if os.path.isfile(self.cacheFile):
             print("File {} has already been processed.".format(self.file))
             #import pdb;pdb.set_trace()
@@ -56,9 +56,9 @@ class SourceWrapper:
             if self.csv:
                 try:
                     if self.csv.isAnalyzed():
-                        Informer.soutInfo(self.csv)
+                        self.csv.informer.soutInfo()
                     elif self.csv.isFormatted():
-                        Informer.soutInfo(self.csv)
+                        self.csv.informer.soutInfo()
                         s = "It seems the file has been formatted. Continue to analysis (or you'll be asked to do format again)?"
                         if Dialogue.isYes(s):
                             self.csv.runAnalysis()
@@ -70,7 +70,7 @@ class SourceWrapper:
                 except Exception as e:
                     #ipdb.set_trace()
                     print(e)
-                    print("Format of the file may have changed since last time. Let's process it all again. If you continue, cache gets deleted.")                    
+                    print("Format of the file may have changed since last time. Let's process it all again. If you continue, cache gets deleted.")
                     self._treat()
             else:
                 self._treat() # process file
@@ -78,21 +78,21 @@ class SourceWrapper:
             if not os.path.exists(Config.getCacheDir()):
                 os.makedirs(Config.getCacheDir())
             self._treat() # process file
-    
+
     ##
     # Store in YAML or pickle.
-    def save(self):        
+    def save(self):
         with open(self.cacheFile, "w") as output: #save cache
             output.write(jsonpickle.encode(self.csv, keys = True))
 
-    def _treat(self): # process source        
+    def _treat(self): # process source
         self.csv = SourceParser(self.file)
         self.save()
         self.csv.runAnalysis()
         self.csv.cookie = Config.get("cookie","OTRS")
         self.csv.token = Config.get("token","OTRS")
         self.save()
-        
-        
+
+
     def clear(self): # clear mezivysledky and processes file again
         self._treat()

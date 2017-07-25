@@ -5,10 +5,12 @@ import logging
 from optparse import OptionParser
 import re
 import sys
+import smtplib
+from email.mime.text import MIMEText
 
 re_title = re.compile('<title>([^<]*)</title>')
 
-class MailSender():    
+class MailSender():
 
     def _post_multipart(host, selector, fields, files, cookies):
         """
@@ -17,13 +19,13 @@ class MailSender():
         files is a sequence of (name, filename, value) elements for data to be uploaded as files.
         Return an appropriate http.client.HTTPResponse object.
         """
-        
+
         import ssl; ssl._create_default_https_context = ssl._create_unverified_context  # XX once upon a day (10.2.2017), the certificate stopped working or whatever. This is an ugly solution - i think we may delete this line in few weeks
-        
+
         content_type, body = MailSender._encode_multipart_formdata(fields, files)
         body = bytes(body, "UTF-8")
-        protocol = host.split(':')[0]        
-        h = http.client.HTTPSConnection(host)        
+        protocol = host.split(':')[0]
+        h = http.client.HTTPSConnection(host)
         if Config.isTesting():
             h.debuglevel = 100
         h.putrequest('POST', selector)
@@ -31,12 +33,12 @@ class MailSender():
         h.putheader('Content-Length', str(len(body)))
         for key, value in cookies:
             h.putheader(key, value)
-        h.endheaders()        
+        h.endheaders()
         h.send(body)
         response = h.getresponse()
         return response
 
-    def _encode_multipart_formdata(fields, files):        
+    def _encode_multipart_formdata(fields, files):
         """
         fields is a sequence of (name, value) elements for regular form fields.
         files is a sequence of (name, filename, value) elements for data to be uploaded as files.
@@ -85,7 +87,7 @@ class MailSender():
             logging.error(response)
             return False
 
-        title = mo.group(1)        
+        title = mo.group(1)
         if b'P\xc5\x99edat - Tiket -  OTRS'.decode("utf-8") in title or 'Forward - Ticket -  OTRS' in title: # XX r with caron make nb-python fail. 2nd: once, the subject was: <title>20160715228000147 - Předat - Tiket -  OTRS</title>
             return True
 
@@ -103,7 +105,7 @@ class MailSender():
             logging.warning(str(sys.stderr) + " Unrecognized response: " + title)
             logging.error(response)
             return False
-    
+
     def sendList(registry, csv):
         """ Send a registry (abusemails or csirtmails) """
         if not Config.get("otrs_enabled", "OTRS"):
@@ -113,20 +115,26 @@ class MailSender():
         if not len(registry.records):
             print("... done. (No mails in the list, nothing to send.)")
             return True
-        
-        sentMails = 0
-        logging.info("sending mails from list...")    
 
+        sentMails = 0
+        logging.info("sending mails from list...")
+
+        MailSender.smtpObj = smtplib.SMTP('otrs.nic.cz') # XXX CMS
         for mail, cc, contents in registry.getMails(): #Xrecords.items():
-            textVars = {}
-            textVars["CONTACTS"] = mail
-            textVars["FILENAME"] = csv.attachmentName
-            textVars["TICKETNUM"] = csv.ticketnum
-            subject = registry.mailDraft.getSubject() % textVars
-            body = registry.mailDraft.getBody() % textVars # format mail template, ex: {FILENAME} in the body will be transformed by the filename
-            if subject == "" or body == "":
-                print("Missing subject or mail body text.")
-                return False            
+            if 0: # XXX sending CMS
+                textVars = {}
+                textVars["CONTACTS"] = mail
+                textVars["FILENAME"] = csv.attachmentName
+                textVars["TICKETNUM"] = csv.ticketnum
+                subject = registry.mailDraft.getSubject() % textVars
+                body = registry.mailDraft.getBody() % textVars # format mail template, ex: {FILENAME} in the body will be transformed by the filename
+                if subject == "" or body == "":
+                    print("Missing subject or mail body text.")
+                    return False
+            else:
+                subject, body = MailSender.cmsMail(contents)
+                csv.attachmentName = "" # no attachment
+                mail = mail #.split(",")
 
             if Config.isTesting():
                 mailFinal = Config.get('testingMail')
@@ -137,71 +145,83 @@ class MailSender():
 
             from email.utils import parseaddr
             # check e-mail is valid
-            if not '@' in parseaddr("invalid-email")[1]:
+            if not '@' in parseaddr(mailFinal)[1]:
                 # XXX shouldnt we check all mails are valid before?
+                # XXX a tohle stejne nefunguje, prosel mail s diakritikou
                 print("ERRONEOUS EMAIL!")
-                print(mail)
-                logging.error("erroneous mail {}".format(mail))
+                print(mailFinal)
+                logging.error("erroneous mail {}".format(mailFinal))
                 continue
 
-            fields = (
-                      ("Action", "AgentTicketForward"),
-                      ("Subaction", "SendEmail"),
-                      ("TicketID", str(csv.ticketid)),
-                      ("Email", Config.get("ticketemail", "OTRS")),
-                      ("From", Config.get("fromaddr", "OTRS")),
-                      ("To", mailFinal), # X "edvard.rejthar+otrs_test@nic.cz" sem ma prijit mail (nebo maily oddelene carkou ci strednikem, primo z whois), po otestovani. XX Jdou pouzit maily oddelene strednikem i vice stredniky? mail;mail2;;mail3 (kvuli retezeni v cc pro pripad, ze je vic domen)
-                      ("Subject", subject),
-                      ("SignKeyID", Config.get("signkeyid", "OTRS")),
-                      ("Body", body),
-                      ("ArticleTypeID", "1"), # mail-external
-                      ("ComposeStateID", "4"), # open
-                      ("ChallengeToken", csv.token),
-                      )
+            logging.info("mail {}".format(mail))
+            if 1: # XXX CMS
+                if MailSender.smtpSend(subject, body, mailFinal):
+                    sentMails += 1
+                    logging.info("ok {}".format(mail))
+            else: # XXX
+                fields = (
+                          ("Action", "AgentTicketForward"),
+                          ("Subaction", "SendEmail"),
+                          ("TicketID", str(csv.ticketid)),
+                          ("Email", Config.get("ticketemail", "OTRS")),
+                          ("From", Config.get("fromaddr", "OTRS")),
+                          ("To", mailFinal), # X "edvard.rejthar+otrs_test@nic.cz" sem ma prijit mail (nebo maily oddelene carkou ci strednikem, primo z whois), po otestovani. XX Jdou pouzit maily oddelene strednikem i vice stredniky? mail;mail2;;mail3 (kvuli retezeni v cc pro pripad, ze je vic domen)
+                          ("Subject", subject),
+                          ("Body", body),
+                          ("ArticleTypeID", "1"), # mail-external
+                          ("ComposeStateID", "4"), # open
+                          ("ChallengeToken", csv.token),
+                          )
 
-            if Config.isTesting() == False:
-                if cc: # X mailList.mails[mail]
-                    fields += (("Cc", cc),)
-            
-            # load souboru k zaslani
-            #contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
-            
-            logging.info("mail {}".format(mail))            
-            print(mail)            
-            
-            if csv.attachmentName and contents != "":
-                files = (("FileUpload", csv.attachmentName, contents),)
-            else:
-                files = ()
+                try:
+                    fields += ("SignKeyID", Config.get("signkeyid", "OTRS"))
+                except KeyError:
+                    pass
 
-            cookies = (('Cookie', 'Session=%s' % csv.cookie),)
+                if Config.isTesting() == False:
+                    if cc: # X mailList.mails[mail]
+                        fields += (("Cc", cc),)
 
-            if Config.isTesting():
-                print(" Testing info:")                
-                print (' Fields: ' + str(fields))
-                print (' Files: ' + str(files))
-                print (' Cookies: ' + str(cookies))
-                # str(sys.stderr)
-            
-            #print encode_multipart_formdata(fields, files)
+                # load souboru k zaslani
+                #contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
 
-            res = MailSender._post_multipart(Config.get("host", "OTRS"),
-                                             Config.get("baseuri", "OTRS"),
-                                             fields=fields,
-                                             files=files,
-                                             cookies=cookies)
-            if not res or not MailSender._check_response (res.read()):
-                print("Sending failure, see convey.log.")
-                break
-            else:
-                sentMails += 1
+                logging.info("mail {}".format(mail))
+                #print(mail)
 
+                if csv.attachmentName and contents != "":
+                    files = (("FileUpload", csv.attachmentName, contents),)
+                else:
+                    files = ()
+
+                cookies = (('Cookie', 'Session=%s' % csv.cookie),)
+
+                if Config.isTesting():
+                    print(" **** Testing info:")
+                    print (' ** Fields: ' + str(fields))
+                    print (' ** Files: ' + str(files))
+                    print (' ** Cookies: ' + str(cookies))
+                    # str(sys.stderr)
+
+                #print encode_multipart_formdata(fields, files)
+
+                res = MailSender._post_multipart(Config.get("host", "OTRS"),
+                                                 Config.get("baseuri", "OTRS"),
+                                                 fields=fields,
+                                                 files=files,
+                                                 cookies=cookies)
+                if not res or not MailSender._check_response (res.read()):
+                    print("Sending failure, see convey.log.")
+                    break
+                else:
+                    sentMails += 1
+
+        MailSender.smtpObj.quit() # XXX CMS
         print("\nSent: {}/{} mails.".format(sentMails, len(registry.records)))
         return sentMails == len(registry.records)
 
     def askValue(value, description=""):
         sys.stdout.write('Change {} ({})? [s]kip or paste it: '.format(description, value))
-        t = input()        
+        t = input()
         if not t or t.lower() == "s":
             if not value:
                 print("Attention, there should not be an empty value.")
@@ -209,8 +229,8 @@ class MailSender():
         else:
             return t
 
-    def assureTokens(csv):        
-        """ Checknout OTRS credentials """        
+    def assureTokens(csv):
+        """ Checknout OTRS credentials """
         force = False
         while True:
             if(force or csv.ticketid == False or csv.ticketnum == False or csv.cookie == False or csv.token == False or csv.attachmentName == False):
@@ -228,3 +248,58 @@ class MailSender():
             else:
                 force = True
                 continue
+
+    def smtpSend(subject, body, mailFinal): # XXX zatim jen kvuli posilani CMS
+        sender = Config.get("ticketemail", "OTRS")
+
+        message = MIMEText(body)
+        message["Subject"] = subject
+        message["From"] = Config.get("fromaddr", "OTRS")
+        message["To"] = mailFinal
+
+        try:
+
+           #smtpObj.send_message(sender, mailFinal, MIMEText(message,"plain","utf-8"))
+           MailSender.smtpObj.send_message(message)
+
+           #print ("Successfully sent email")
+           return 1
+        except Exception as e:
+            print(e)
+            import ipdb; ipdb.set_trace()
+            print ("Error: unable to send email")
+
+
+    def cmsMail(contents): # XXX jen kvuli posilani CMS
+        subject = "Upozornění na zastaralé CMS"
+        signature = """
+
+--
+S pozdravem,
+tým CSIRT.CZ a CZ.NIC-CSIRT
+
+CZ.NIC, z.s.p.o.
+Milešovská 1136/5, 130 00 Praha 3
+Tel.: +420 910 101 010
+
+CZ.NIC, z.s.p.o. provozuje registr doménových jmen .CZ a zabezpečuje provoz domény nejvyšší úrovně .CZ.
+Sdružení provozuje také interní bezpečnostní tým CZ.NIC-CSIRT a od roku 2011 Národní CSIRT tým České republiky – CSIRT.CZ."""
+
+        rows = contents.strip().split("\n")
+        if len(rows) == 1:
+            multiple = 0
+            mail, domain, cms = rows[0].split("|")
+        elif len(rows) > 1:
+            multiple = 1
+            mail, domain, cms = "","",""
+        else:
+            print("ERROR NO ROWS")
+            import ipdb; ipdb.set_trace()
+
+        body = "Vážený držiteli " + ["domény " + domain, "domén .cz"][multiple] + ",\n\n" + "obracíme se na Vás v souvislosti s provozem webových stránek umístěných " + ["na doméně " + domain, "na doménách, které najdete níže"][multiple] + ". V rámci testování prováděného bezpečnostními týmy CSIRT.CZ a CZ.NIC-CSIRT jsme zjistili, že Vaše stránky jsou provozovány "+["na zastaralé verzi CMS " + cms, "na zastaralých verzích CMS"][multiple] +". Provozování webových stránek na zastaralém CMS je bezpečnostním rizikem. Doporučujeme situaci konzultovat s Vaším správcem IT a případně provést upgrade Vašeho CMS na novější verzi. Pokud o riziku víte, prosím považujte tuto zprávu za bezpředmětnou. Více info na https://csirt.cz/cms/ . V případě dotazů nás můžete kontaktovat na adrese security-scan@csirt.cz."
+
+        if multiple:
+            body += "\n\n"
+            for row in rows:
+                body += ": ".join(row.split("|")[1:]) + "\n"
+        return subject, body + signature

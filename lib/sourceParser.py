@@ -17,8 +17,6 @@ from lib.registry import InvalidRegistry
 from lib.whois import Whois
 import logging
 from math import ceil
-from math import log
-from math import sqrt
 import ntpath
 import os
 import pdb
@@ -31,13 +29,13 @@ logging.FileHandler('whois.log', 'a')
 
 
 class SourceParser:
-    
+
     def __init__(self, sourceFile):
         print("Processing file.")
         self.isRepeating = False
         while True:
             #instance attributes init
-            #self.multithread = Config.get("multithread") # if True, whois will be asked multithreaded (but we may flood it)            
+            #self.multithread = Config.get("multithread") # if True, whois will be asked multithreaded (but we may flood it)
             self.ipColumn = None # IP column position
             self.asnColumn = None # AS number collumn position
             self.urlColumn = None # URL column position, to be translated to IP
@@ -49,7 +47,7 @@ class SourceParser:
             self.conveying = Config.get("conveying")
             if not self.conveying: # default
                 self.conveying = "all"
-            
+
             # OTRS attributes to be linked to CSV
             self.ticketid = False
             self.ticketnum = False
@@ -67,15 +65,17 @@ class SourceParser:
             self.size = os.path.getsize(self.sourceFile)
             self.sniffer = csv.Sniffer()
             self.firstLine, self.sample = CsvGuesses.getSample(self.sourceFile)
-            self.linesTotal = Informer.fileLen(sourceFile) #sum(1 for line in open(sourceFile))
+            self.processer = Processer(self)
+            self.informer = Informer(self)
+            self.linesTotal = self.informer.fileLen(sourceFile) #sum(1 for line in open(sourceFile))
             try:
-                for fn in [self._askBasics, self._askIpCol, self._sizeCheck, self._askOptions]: # steps of dialogue  Xself.askAsnCol
-                    Informer.soutInfo(self)
+                for fn in [self._askBasics, self._askPivotCol, self._sizeCheck, self._askOptions]: # steps of dialogue  Xself.askAsnCol
+                    self.informer.soutInfo()
                     fn()
             except Cancelled:
                 print("Cancelled.")
                 return
-            Informer.soutInfo(self)
+            self.informer.soutInfo()
 
             self._guessIpCount()
             if not Dialogue.isYes("Everything set alright?"):
@@ -88,14 +88,14 @@ class SourceParser:
 
     def _askBasics(self):
         """ Dialog to obtain basic information about CSV - delimiter, header """
-        self.delimiter, self.hasHeader = CsvGuesses.guessDelimiter(self.sniffer, self.sample)        
+        self.delimiter, self.hasHeader = CsvGuesses.guessDelimiter(self.sniffer, self.sample)
         if not Dialogue.isYes("Is character '{}' delimiter? ".format(self.delimiter)):
             while True:
                 sys.stdout.write("What is delimiter: ")
                 self.delimiter = input()
                 if not self.delimiter: # X"" -> None (.split fn can handle None, it cant handle empty string)
                     #self.delimiter = None
-                    print("Delimiter can't be empty. Invent one (like ',').")                    
+                    print("Delimiter can't be empty. Invent one (like ',').")
                 else:
                     break
         if not Dialogue.isYes("Header " + ("" if self.hasHeader else "not " + "found; ok?")):
@@ -110,8 +110,8 @@ class SourceParser:
 
 
 
-    def _askIpCol(self):
-        fn = lambda field: Whois.checkIp(field)        
+    def _askPivotCol(self):
+        fn = lambda field: Whois.checkIp(field)
         self.ipColumn = CsvGuesses.guessCol(self, "IP/URL", fn, ["ip", "sourceipaddress", "ipaddress", "source"])
 
         if self.ipColumn is None:
@@ -142,15 +142,15 @@ class SourceParser:
         self.countryReg = CountryRegistry()
         self.invalidReg = InvalidRegistry()
         self.reg = {'local': self.abuseReg, "foreign":self.countryReg, "error": self.invalidReg}
-        #self.reg = Registries        
+        #self.reg = Registries
         Config.hasHeader = self.hasHeader
         Config.header = self.header
-        self.ranges = {}        
+        self.ranges = {}
         self.lineCount = 0
         self.velocity = 0
         self.lineSout = 1
         self.appendFields = {'asn': False, "netname": False, "domain": False, "ip": False} # fields included in CSV
-     nacist z config.ini. Ma to by zde nebo v __init?
+        # XXX: nacist z config.ini. Ma to by zde nebo v __init?
 
         #self.lineSumCount = 0
         #self.linesTotal = 0
@@ -166,7 +166,7 @@ class SourceParser:
         self.abuseReg.conveying = self.conveying
         self.countryReg.conveying = self.conveying
         self.invalidReg.redo_invalids = self.redo_invalids
-    
+
     def runAnalysis(self):
         """ Run main analysis of the file.
         Grab IP from every line and
@@ -176,27 +176,25 @@ class SourceParser:
             [r.mailDraft.guiEdit() for r in self.reg.values()]
         self.timeStart = self.timeLast = datetime.datetime.now().replace(microsecond=0)
 
-        with open(self.sourceFile, 'r') as csvfile:
-            for line in csvfile:
-                Processer.processLine(self, line)
+        self.processer.processFile(self.sourceFile)
         self.timeEnd = datetime.datetime.now().replace(microsecond=0)
         self.linesTotal = self.lineCount # if we guessed the total of lines, fix the guess now
 
         self.isAnalyzedB = True
         [r.update() for r in self.reg.values()]
         if self.invalidReg.stat() and self.redo_invalids:
-            Informer.soutInfo(self)
+            self.informer.soutInfo()
             print("Analysis COMPLETED.\n\n")
             self.resolveInvalid()
         if self.abuseReg.stat("prefixes", found=False):
-            Informer.soutInfo(self)
+            self.informer.soutInfo()
             print("Analysis COMPLETED.\n\n")
-            self.resolveUnknown()        
+            self.resolveUnknown()
         self.lineCount = 0
-        Informer.soutInfo(self)
+        self.informer.soutInfo()
 
     def _sizeCheck(self):
-        mb = 10        
+        mb = 10
         if self.size > mb * 10 ** 6 and self.conveying == "all":
             if Dialogue.isYes("The file is > {} MB and conveying method is set to all. Don't want to rather set the method to 'unique_ip' so that every IP had only one line and the amount of information sent diminished?".format(mb)):
                 self.conveying = "unique_ip"
@@ -217,7 +215,7 @@ class SourceParser:
                 i = 0
                 ipSet = set()
                 fraction = None
-                with open(self.sourceFile, 'r') as csvfile:                                   
+                with open(self.sourceFile, 'r') as csvfile:
                     for line in csvfile:
                         i += 1
                         if self.hasHeader and i == 1:
@@ -225,18 +223,18 @@ class SourceParser:
                         ip = line.split(self.delimiter)[self.ipColumn].strip()
                         ipSet.add(ip)
                         if i == (max - 1000):
-                            fraction = len(ipSet)                            
+                            fraction = len(ipSet)
                         if i == max:
                             break
                 if i != max:
                     self.ipCount = len(ipSet)
                     print("There are {} IPs.".format(self.ipCount))
-                else:                    
+                else:
                     delta = len(ipSet) - fraction # determine new IPs in the last portion of the sample
-                    self.ipCountGuess = len(ipSet) + ceil((self.linesTotal - i) * delta / i)                                        
+                    self.ipCountGuess = len(ipSet) + ceil((self.linesTotal - i) * delta / i)
                     print("In the first {} lines, there are {} unique IPs. There might be around {} IPs in the file.".format(i, len(ipSet), self.ipCountGuess))
             except Exception as e:
-                print("Can't guess IP count.")                
+                print("Can't guess IP count.")
 
 
     def isAnalyzed(self):
@@ -244,7 +242,7 @@ class SourceParser:
 
     def isFormatted(self):
         return self.isFormattedB
-    
+
 
     def resolveUnknown(self):
         """ Process all prefixes with unknown abusemails. """
@@ -255,7 +253,7 @@ class SourceParser:
         s = "There are {0} IPs in {1} unknown prefixes. Should I proceed additional search for these {1} items?".format(self.abuseReg.stat("ips", found=False), self.abuseReg.stat("prefixes", found=False))
         if not Dialogue.isYes(s):
             return
-        
+
         temp = Config.getCacheDir() + ".unknown.local.temp"
         try:
             move(self.abuseReg.getUnknownPath(), temp)
@@ -264,11 +262,9 @@ class SourceParser:
             return False
         self.lineCount = 0
         self.abuseReg.resetUnknowns()
-        with open(temp, "r") as sourceF:
-            for line in sourceF:
-                Processer.processLine(self, line, reprocessing=True)
+        self.processer.processFile(temp, reprocessing=True)
         self.lineCount = 0
-        Informer.soutInfo(self)
+        self.informer.soutInfo()
 
     def resolveInvalid(self):
         """ Process all invalid rows. """
@@ -294,8 +290,6 @@ class SourceParser:
             return False
         self.lineCount = 0
         self.invalidReg.reset()
-        with open(temp, "r") as sourceF:
-            for line in sourceF:
-                Processer.processLine(self, line)
+        self.processer.processFile(temp)
         self.lineCount = 0
-        Informer.soutInfo(self)
+        self.informer.soutInfo()

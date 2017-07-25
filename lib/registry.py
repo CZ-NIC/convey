@@ -28,10 +28,10 @@ class _Registry:
         #self.unknowns = defaultdict(set) # self.unknowns[prefix] = set(ip1, ip2) #set()
         #self.unknownsCount = 0
         self.unknownPrefixes = set()
-    
+
     def __init__(self):
         self._undeliverable = {"records": 0, "ips": 0} # some Countries are undeliverable - we have no csirtmail.
-        self.records = defaultdict(_RegistryRecord)        
+        self.records = defaultdict(_RegistryRecord)
         self.knowns = set()
         self.total = 0
         self.mailDraft = MailDraft(self.name)
@@ -41,15 +41,15 @@ class _Registry:
         """ Add IPs to this record and write the row the appropriate file """
         if record and record is not "unknown":
             file_existed = record in self.records
-            ip_existed = ip in self.records[record].counter            
+            ip_existed = ip in self.records[record].counter
             self.records[record].counter.add(ip)
-            self.knowns.add(ip)            
+            self.knowns.add(ip)
         else:
             file_existed = bool(self.unknowns)
             ip_existed = ip in self.unknowns
             self.unknownPrefixes.add(prefix)
             self.unknowns.add(ip)
-        if True or self.conveying == "unique_file":
+        if self.conveying == "unique_file": # XX True or
             record = "unique_file_only" # XX testing unique_file directive. Cant be in config/conveying, cause to konkurovalo unique_row a unique_ip direktivam.
             self.kind = "csv" # XX testing only
         if self.conveying == "no_files":
@@ -63,9 +63,9 @@ class _Registry:
 
     def saveRow(self, file_existed, record, row):
         method = "a" if file_existed else "w"
-        print(method)
+        #print(method)
         method = "a" # XXX SMAZAT
-        
+
         with open(Config.getCacheDir() + record + "." + self.kind, method) as f:
             if method == "w" and Config.hasHeader:
                 f.write(Config.header + "\n")
@@ -96,7 +96,7 @@ class _Registry:
                 l.append(key + " (" + ", ".join(s) + ")")
         else:# too much of results, print just the count
             l.append(str(len(self.records)) + " " + self.name)
-        
+
         if self.unknowns:
             l.append("unknown {} ({})".format(self.name, len(self.unknowns)))
         print(", ".join(l))
@@ -218,7 +218,7 @@ class InvalidRegistry(_Registry):
     def count(self, row):
         self.lines += 1
         if self.redo_invalids:
-            self.saveRow(self.lines > 1, "unknown", row)        
+            self.saveRow(self.lines > 1, "unknown", row)
             #super().count(row)
 
     def stat(self):
