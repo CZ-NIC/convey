@@ -6,3 +6,4 @@ contacts_foreign.csv
 /nbproject/
 /__pycache__/
 *.log
+*.pyc
