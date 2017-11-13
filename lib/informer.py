@@ -23,16 +23,21 @@ class Informer:
         if self.csv.hasHeader is not None:
             l.append("header: " + ("used" if self.csv.hasHeader else "not used"))
 
-        if self.csv.urlColumn is not None:
-            l.append("Url column: " + self.csv.fields[self.csv.urlColumn])
-        if self.csv.ipColumn is not None:
-            l.append("IP column: " + self.csv.fields[self.csv.ipColumn])
-        if self.csv.asnColumn is not None:
-            l.append("ASN column: " + self.csv.fields[self.csv.asnColumn])
-        if self.csv.conveying is not None:
-            l.append("Conveying method: " + self.csv.conveying)
-        if self.csv.redo_invalids is not None:
-            l.append("Redo invalids: " + str(self.csv.redo_invalids))
+        for col, i, b in self.csv.settings["add"] or []:
+            l.append("{} column from: {}".format(col, self.csv.fields[i]))                    
+        if self.csv.settings["filter"]:
+            l.append("Filtering")
+            [l.append(f) for f in self.csv.settings["filter"]]
+        #if self.csv.settings["unique"]:
+        #    l.append("Uniquing")
+        #    [l.append(self.csv.fields[f]) for f in self.csv.settings["unique"]]
+        # XX
+        if self.csv.settings["chosen_cols"]:
+            l.append("only some cols chosen")        
+        
+        # XX
+        #if self.csv.redo_invalids is not None:
+        #    l.append("Redo invalids: " + str(self.csv.redo_invalids))        
         sys.stdout.write(", ".join(l))
         l = []
         if self.csv.lineCount:
@@ -48,14 +53,15 @@ class Informer:
         elif self.csv.timeStart:
             l.append("{}".format(datetime.datetime.now().replace(microsecond=0) - self.csv.timeStart))
             l.append("{} lines / s".format(self.csv.velocity))
-        sys.stdout.write(", ".join(l) + "\n")
-        #if self.extendCount > 0:
-        #    print("+ other {} rows, because some domains had multiple IPs".format(self.extendCount))
+        sys.stdout.write(", ".join(l) + "\n")        
         if self.csv.whoisStats:
             print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whoisStats.items()))
 
         print("\nSample:\n" + "\n".join(self.csv.sample.split("\n")[:3]) + "\n") # show first 3rd lines
+        """
+        XX
         [reg.soutInfo(full) for reg in self.csv.reg.values()]
+        """
 
         if full:
             print("\nPrefixes encountered:\nprefix | location | record | asn | netname")
@@ -65,21 +71,21 @@ class Informer:
 
     def getStatsPhrase(self, generate=False):
         """ Prints phrase "Totally {} of unique IPs in {} countries...": """
-        ab = self.csv.abuseReg.stat
-        co = self.csv.countryReg.stat
+        csv = self.csv
 
-        ipsUnique = ab("ips", "both") + co("ips", "both")
+        ipsUnique = len(csv.stats["ipsUnique"])
 
-        ispCzFound = ab("records", True)
-        ipsCzMissing = ab("ips", False)
-        ipsCzFound = ab("ips", True)
+        ispCzFound = len(csv.stats["ispCzFound"])
+        ipsCzMissing = len(csv.stats["ipsCzMissing"])
+        ipsCzFound = len(csv.stats["ipsCzFound"])
+        ipsWorldMissing = len(csv.stats["ipsWorldMissing"])
+        ipsWorldFound = len(csv.stats["ipsWorldFound"])
+        countriesMissing = len(csv.stats["countriesMissing"])
+        countriesFound = len(csv.stats["countriesFound"])
 
-        ipsWorldMissing = co("ips", False)
-        ipsWorldFound = co("ips", True)
-        countriesMissing = co("records", False)
-        countriesFound = co("records", True)
-
+        """         XX
         invalidLines = self.csv.invalidReg.stat()
+        """
 
 
         if ipsUnique > 0:
@@ -97,8 +103,11 @@ class Informer:
             + " distributed for {} ISP".format(ispCzFound)
         if ipsCzMissing:
             res += " (for {} unique local IPs ISP not found).".format(ipsCzMissing)
+            
+            
+        """ XX
         if invalidLines:
-            res += "\nThere were {} invalid lines in {} file.".format(invalidLines, self.csv.invalidReg.getPath())
+            res += "\nThere were {} invalid lines in {} file.".format(invalidLines, self.csv.invalidReg.getPath())"""        
 
         return res
 

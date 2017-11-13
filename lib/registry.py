@@ -39,6 +39,12 @@ class _Registry:
 
     def count(self, row, record = "", ip = None, prefix = None):
         """ Add IPs to this record and write the row the appropriate file """
+        
+        # XXX this functionality is fully taken by Processer.csirt-mail
+        #
+        # migrate out mailDraft etc and delete the class code
+        #
+        
         if record and record is not "unknown":
             file_existed = record in self.records
             ip_existed = ip in self.records[record].counter
@@ -52,16 +58,10 @@ class _Registry:
         if self.conveying == "unique_file": # XX True or
             record = "unique_file_only" # XX testing unique_file directive. Cant be in config/conveying, cause to konkurovalo unique_row a unique_ip direktivam.
             self.kind = "csv" # XX testing only
-        if self.conveying == "no_files":
-            return
-        elif self.conveying == "unique_row" and file_existed:
-            return
-        elif self.conveying == "unique_ip" and ip_existed:
-            return
-        else:
-            self.saveRow(file_existed, record, row)
+                        
+        # X self.saveRow(file_existed, record, row)
 
-    def saveRow(self, file_existed, record, row):
+    """def saveRow(self, file_existed, record, row):
         method = "a" if file_existed else "w"
         #print(method)
         method = "a" # XXX SMAZAT
@@ -69,7 +69,7 @@ class _Registry:
         with open(Config.getCacheDir() + record + "." + self.kind, method) as f:
             if method == "w" and Config.hasHeader:
                 f.write(Config.header + "\n")
-            f.write(row + "\n")
+            f.write(row + "\n")"""
 
     def _getFileContents(self, record):
         with open(Config.getCacheDir() + record + "." + self.kind,"r") as f:
@@ -180,7 +180,7 @@ class CountryRegistry(_Registry):
     kind = "foreign"
 
     def update(self):
-        """ Search for country contact – from CSV file Config.get("contacts") """
+        """ Search for country contact - from CSV file Config.get("contacts") """
         self._undeliverable = {"records": 0, "ips": 0}
         missingCountries = set()
         csirtmails = self._update("contacts_foreign")

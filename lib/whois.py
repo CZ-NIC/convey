@@ -1,8 +1,6 @@
 # Work with Whoisem
 from collections import OrderedDict, defaultdict
 import ipaddress
-import ipdb
-import json
 from lib.config import Config
 import logging
 from netaddr import *
@@ -10,14 +8,14 @@ import re
 import socket
 from subprocess import PIPE
 from subprocess import Popen
-import sys
 from urllib.parse import urlparse
-import urllib.request
 #logging.FileHandler('whois.log', 'a')
 
 class Whois:
 
     stats = defaultdict(int)
+    ranges = {}
+    ipSeen = {} # ipSeen[ip] = prefix
     servers = OrderedDict()
     if Config.get("whois_mirror"):  # try our fast whois-mirror in cz.nic first
         servers["mirror"] = Config.get("whois_mirror")
@@ -29,31 +27,64 @@ class Whois:
     def __init__(self, ip):
         self.ip = ip #
 
-    ## 
+    def get(self):
+        """ returns mail, location, asn, netname, country
+        """
+        if self.ip in self.ipSeen: # ip has been seen in the past
+            prefix = self.ipSeen[self.ip]
+            return self.ranges[prefix]
+        else:
+            for prefix, o in self.ranges.items(): # search for prefix the slow way. I dont know how to make this shorter because IP can be in shortened form so that in every case I had to put it in full form and then slowly compare strings with prefixes.
+                if self.ip in prefix:
+                    mail, location, asn, netname, country = o
+                    self.ipSeen[self.ip] = prefix
+                    return self.ranges[prefix]
+
+            prefix, location, mail, asn, netname, country = Whois(self.ip).analyze()
+            self.ipSeen[self.ip] = prefix
+            if not prefix:
+                logging.info("No prefix found for IP {}".format(self.ip))
+                return False
+            elif prefix in self.ranges:
+                # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
+                raise AssertionError("The prefix " + prefix + " shouldn't be already present. Tell the programmer")
+            self.ranges[prefix] = mail, location, asn, netname, country
+            return self.ranges[prefix]
+            #print("IP: {}, Prefix: {}, Record: {}, Kind: {}".format(ip, prefix,record, location)) # XX put to logging
+
+    def url2hostname(self):
+        print("XXX TBImplemented")
+        return False
+
+    def hostname2ip(self):
+        print("XXX TBImplemented")
+        return False
+
+    ##
     # returns prefix, local|foreign, country|abusemail, asn
-    def analyze(self):        
+    def analyze(self):
         self._loadCountry()
         #print("country loaded {}".format(self.country))
         self._loadPrefix()
         #print("prefix loaded {}".format(self.prefix))
         if not self.country in Config.get("local_country"):
-            return self.prefix, "foreign", self.country, self.asn, self.netname
+            return self.prefix, "foreign", self.country, self.asn, self.netname,  self.country
         else:
             #print("Abusemail: ")
             self._loadAbusemail()
             #print("abusemail loaded {}".format(self.abusemail))
-            return self.prefix, "local", self.abusemail, self.asn, self.netname
+            return self.prefix, "local", self.abusemail, self.asn, self.netname, self.country
 
     def resolveUnknownMail(self):
         """ Forces to load abusemail for an IP.
         We try first omit -r flag and then add -B flag.
-        
+
         XX Note that we tries only RIPE server because it's the only one that has flags -r and -B.
         If ARIN abusemail is not found, we have no help yet. I dont know if that ever happens.
-                
+
         """
         self._exec(server="ripe (no -r)", serverUrl="whois.ripe.net") # no -r flag
-        self._loadAbusemail()        
+        self._loadAbusemail()
         if self.abusemail == "unknown":
             self._exec(server="ripe (-B flag)", serverUrl="whois.ripe.net -B") # with -B flag
             self._loadAbusemail()
@@ -105,7 +136,7 @@ class Whois:
         #return result
 
 
-    def checkIp(ip):        
+    def checkIp(ip):
         """ True, if IP is well formated IPv4 or IPv6 """
         try:
             ipaddress.ip_address(ip)
@@ -127,7 +158,7 @@ class Whois:
                     return line
         return "" # no grep result found
 
-    def _loadCountry(self):        
+    def _loadCountry(self):
         self.country = ""
 
         for server in list(self.servers):
@@ -152,14 +183,14 @@ class Whois:
                     continue
 
                 # sanitize multiple countries in one line
-                #  ** Since we take only last word, only Country "LU" will be taken. **                
+                #  ** Since we take only last word, only Country "LU" will be taken. **
                 #if len(self.country.split("#")) > 1: # ex: 'NL # BE GB DE LU' -> 'NL' (82.175.175.231)
                 #    self.country = self.country.split("#")[0].strip(" ")
                 break
-        
+
         if not self.country:
-            self.country = "unknown"        
-        
+            self.country = "unknown"
+
     def _loadAbusemail(self):
         """ Loads abusemail from last whois response OR from whois json api. """
         self.abusemail = ""
@@ -168,9 +199,8 @@ class Whois:
             match = re.search(pattern, self._grepResponse(grep)) # the last whois query was the most successful, it fetched country so that it may have abusemail inside as well
             if match:
                 self.abusemail = match.group(0)
-                return        
+                return
 
-        
         # call whois json api
         # ** I think its for nothing, no new results. What about to delete it? Did it help something? **
 #        if not self.abusemail: # slower method, without limits
@@ -185,22 +215,22 @@ class Whois:
 #                        self._str2prefix(response["data"]["holder_info"]["resource"]) # "resource": "88.174.0.0 - 88.187.255.255"
 #                except IndexError: # 74.221.223.179 doesnt have the contact, "abuse_c": []
 #                    pass"""
-        
-                
+
+
         if not self.abusemail:
             #self.stats["ripejson (didnt work, debug)"] += 1
             #logging.info("whois-json didnt work for " + self.ip)
             self.abusemail = "unknown"
-            
+
     def _exec(self, server, serverUrl=None):
         """ Query whois server """
         if not serverUrl:
             serverUrl = Whois.servers[server]
-        self.stats[server] += 1        
+        self.stats[server] += 1
         p = Popen(["whois -h " + serverUrl + " -- " + self.ip], shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         try:
             self.whoisResponse = p.stdout.read().decode("unicode_escape").strip().lower() #.replace("\n", " ")
             self.whoisResponse += p.stderr.read().decode("unicode_escape").strip().lower()
         except UnicodeDecodeError: # ip address 94.230.155.109 had this string 'Jan Krivsky Hl\xc3\x83\x83\xc3\x82\xc2\xa1dkov' and everything failed
             self.whoisResponse = ""
-            logging.warning("Whois response for IP {} on server {} cannot be parsed.".format(ip, server))        
+            logging.warning("Whois response for IP {} on server {} cannot be parsed.".format(ip, server))

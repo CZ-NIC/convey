@@ -1,21 +1,24 @@
+from lib.config import Config
 from lib.informer import Informer
+from lib.dialogue import Dialogue
 import datetime
 from math import log, sqrt, ceil
 import re
+from collections import defaultdict
+from bdb import BdbQuit
+import logging
 
 class Processer:
     """ Processes the csv lines.
         For every line, it contants whois and sends it to registry.
     """
 
-    reIpWithPort = re.compile("((\d{1,3}\.){4})(\d+)")
-    reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")
-
     def __init__(self, csv):
         self.csv = csv
 
-    def processFile(self, file, reprocessing=False):
+    def processFile(self, file):
         csv = self.csv
+        settings = csv.settings
         with open(file, "r") as sourceF:
             for row in sourceF:
                  # skip blanks and header
@@ -40,13 +43,15 @@ class Processer:
                     csv.informer.soutInfo()
                 # process the line (IP, ASN, ...)
                 try:
-                    if False:
-                        Processer.processLine(csv, row, reprocessing=reprocessing)
-                    else: # XXX Varianta pro posilani CMS
-                        csv.reg["local"].count(row, row.split(csv.delimiter)[csv.urlColumn])
+                    self.processLine(csv, row, settings)
+                    # X else: Varianta pro posilani CMS csv.reg["local"].count(row, row.split(csv.delimiter)[csv.urlColumn])r
+                except BdbQuit as e: # not sure if working, may delete
+                    print("BdbQuit called")
+                    raise
                 except Exception as e: # FileNotExist
                     print("ROW fault" + row)
                     print("This should not happen. CSV is wrong or tell programmer to repair this.")
+                    print(e)
                     Config.errorCatched()
                 except KeyboardInterrupt:
                     print("CATCHED")
@@ -59,27 +64,142 @@ class Processer:
                         print("Maybe you should hit n multiple times because pdb takes you to the wrong scope.") # I dont know why.
                         import ipdb;ipdb.set_trace()
                     elif o == "s":
-                        return # skip to the next line
+                        continue # skip to the next line
                     elif o == "q":
                         quit()
+                        self._closeDescriptors()
                     else:  # continue from last row
                         csv.lineCount -= 1 # let's pretend we didnt just do this row before
-                        return Processer.processLine(csv, row, reprocessing=reprocessing)
+                        return self.processLine(csv, row, settings)
+        self._closeDescriptors()
 
+    def _closeDescriptors(self):
+        """ Descriptors have to be closed (flushed) """
+        for f in self.descriptors.values():
+            f.close()
+        #print("CHECK CLOSING DESCRITOP")
+        #import ipdb; ipdb.set_trace()
 
-    def processLine(csv, row, reprocessing=False):
-        """ Link every line to IP
-            self.ranges[prefix] = mail, location (it is foreign; abuse@mail.com is local), asn, netname
+    # XX predelat asi do csv.
+    uniqueSets = defaultdict(set)
+    filesCreated = set()
+
+    descriptors_max = 1000 # XX should be given by the system, ex 1024
+    descriptors_count = 0
+    descriptorsStatsOpen =  {} # defaultdict(int) # location => count XX lets google for SortedDict
+    descriptorsStatsAll = defaultdict(int)
+    descriptors =  {} # location => file_descriptor
+
+    def processLine(self, csv, line, settings):
+        """ XX
+            self.ranges[prefix] = mail, location (foreign | local), asn, netname
 
             Arguments:
-                row - current line
-                reprocessing - True, if we just want to force abusemail fetching. The line has been processed before and prefix should be present.
+                line - current processed line
+                settings - defaultdict(bool)
+
+                XX
+                1. compute["netname", 20, [lambda x, ...]]; filters.add([20, "value"])
+                2. add netname ze sloupce 20 .. chosenColumns.add(20)
+                3. processing: cols[20] = val = lambda x(compute[1])
+                4. filters[ cols[20] ]
+
+                csv.chosen_cols
+                uniqueSets
+                filesCreated (set)
+                settings["filter"...]
+                split_by_col (int)
         """
-        ######
-        # Row processing
-        ######
-        # obtain IP from the line. (Or more IPs, if theres url column).
-        records = row.split(csv.delimiter)
+        fields = line.split(csv.delimiter) # Parse line
+
+        # add fields
+        for col in settings["add"]: # [("netname", 20, [lambda x, lambda x...]), ...]
+            val = fields[col[1]]
+            for l in col[2]:
+                val = l(val)
+            fields.append(val)
+
+        # inclusive filter
+        for f in settings["filter"]: # list of tuples (col, value): [(23, "passed-value"), (13, "another-value")]
+            if f[1] != fields[f[0]]:
+                return False
+
+        #import ipdb; ipdb.set_trace()
+        # unique columns
+        if settings["unique"]:
+            #import ipdb; ipdb.set_trace()
+            for u in settings["unique"]: # list of uniqued columns [2, 3, 5, ...]
+                if fields[u] in self.uniqueSets[u]: # skip line
+                    return False
+            else: # do not skip line
+                for u in settings["unique"]:
+                    self.uniqueSets[u].add(fields[u])
+
+        # pick or delete columns
+        if settings["chosen_cols"]:
+            chosen_fields = [fields[i] for i in settings["chosen_cols"]] # chosen_cols = [3, 9, 12]
+        else:
+            chosen_fields = fields
+
+        if settings["do_statistics"]:
+            ip_col = 4 # XX
+
+            ip = fields[ip_col]
+            csv.stats["ipsUnique"].add(ip)
+            if fields[csirt-mail]:
+                country_code, mail = fields[csirt-mail]
+                if country_code == "local":
+                    if mail == "unknown":
+                        csv.stats["ipsCzMissing"].add(ip)
+                    else:
+                        csv.stats["ipsCzFound"].add(ip)
+                        csv.stats["ispCzFound"].add(mail)
+                else:
+                    if mail == "unknown":
+                        csv.stats["ipsWorldMissing"].add(ip)
+                        csv.stats["countriesMissing"].add(country_code)
+                    else:
+                        csv.stats["countriesFound"].add(country_code)
+                        csv.stats["ipsWorldFound"].add(ip)
+                # XX invalidLines if raised an exception
+
+        # split
+        location = fields[settings["split"]] if type(settings["split"]) == int else "processed_file.csv"
+        if not location:
+            return
+        elif location in self.filesCreated:
+            method = "a"
+        else:
+            method = "w"
+            #print("File created", location, csv.delimiter.join(chosen_fields))
+            self.filesCreated.add(location)
+
+        # choose the right file descriptor for saving
+        # (we do not close descriptors immediately, if needed we close the one the least used)
+        if location not in self.descriptorsStatsOpen:
+            if self.descriptors_count >= self.descriptors_max: # too many descriptors open, we have to close the least used
+                key = min(self.descriptorsStatsOpen, key=self.descriptorsStatsOpen.get)
+                self.descriptors[key].close()
+                #print("Closing", key, self.descriptorsStatsOpen[key])
+                del self.descriptorsStatsOpen[key]
+                self.descriptors_count -= 1
+            #print("Opening", location)
+            self.descriptors[location] = open(Config.getCacheDir() + location, method)
+            self.descriptors_count += 1
+        #print("Printing", location)
+        self.descriptorsStatsAll[location] += 1
+        self.descriptorsStatsOpen[location] = self.descriptorsStatsAll[location]
+        f = self.descriptors[location]
+        if method == "w" and Config.hasHeader:
+            f.write(Config.header + "\n")
+        #import ipdb; ipdb.set_trace()
+        f.write(csv.delimiter.join(chosen_fields) + "\n")
+
+
+
+
+    def XXnotMigratedFunctionality(self):
+        ## XX OLD
         if not reprocessing and csv.urlColumn is not None: # if CSV has DOMAIN column that has to be translated to IP column
             ip = Whois.url2ip(records[csv.urlColumn])
             #if len(ips) > 1:
@@ -113,31 +233,6 @@ class Processer:
                         csv.invalidReg.count(row)
                         return
 
-        #print(ip)
-        #import ipdb;ipdb.set_trace()
-
-        ######
-        # PREFIX REMEMBERING
-        ######
-        if ip in csv.ipSeen:
-            # ip has been seen in the past
-            if csv.conveying == "unique_row" or csv.conveying == "unique_ip":
-                return
-            else:
-                found = True
-                prefix = csv.ipSeen[ip]
-                mail, location, asn, netname = csv.ranges[prefix]
-        else:
-            found = False
-            for prefix, o in csv.ranges.items(): # search for prefix the slow way. I dont know how to make this shorter because IP can be in shortened form so that in every case I had to put it in full form and then slowly compare strings with prefixes.
-                if ip in prefix:
-                    found = True
-                    mail, location, asn, netname = o
-                    csv.ipSeen[ip] = prefix
-                    break
-            if csv.conveying == "unique_row" and found:
-                return
-
         ######
         # ASSURING THE EXISTENCE OF PREFIX (abusemail)
         ######
@@ -145,16 +240,6 @@ class Processer:
             if csv.urlColumn is not None:
                 row += csv.delimiter + ip # append determined IP to the last col
 
-            if found == False:
-                prefix, location, mail, asn, netname = Whois(ip).analyze()
-                csv.ipSeen[ip] = prefix
-                if not prefix:
-                    logging.info("No prefix found for IP {}".format(ip))
-                elif prefix in csv.ranges:
-                    # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
-                    raise AssertionError("The prefix " + prefix + " shouldn't be already present. Tell the programmer")
-                csv.ranges[prefix] = mail, location, asn, netname
-                #print("IP: {}, Prefix: {}, Record: {}, Kind: {}".format(ip, prefix,record, location)) # XX put to logging
 
         else: # force to obtain abusemail
             if not found:

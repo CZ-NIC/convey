@@ -1,7 +1,6 @@
 # Source file parsing
 from collections import defaultdict
 from collections import namedtuple
-import csv
 import datetime
 import ipdb
 import itertools
@@ -36,25 +35,24 @@ class SourceParser:
         while True:
             #instance attributes init
             #self.multithread = Config.get("multithread") # if True, whois will be asked multithreaded (but we may flood it)
-            self.ipColumn = None # IP column position
-            self.asnColumn = None # AS number collumn position
-            self.urlColumn = None # URL column position, to be translated to IP
+            #self.ipColumn = None # IP column position
+            #self.asnColumn = None # AS number collumn position
+            #self.urlColumn = None # URL column position, to be translated to IP
+            self.settings = defaultdict(list) # for processer
             self.delimiter = None  # CSV dialect
             self.hasHeader = None # CSV has header
             self.header = "" # if CSV has header, it's here
             self.fields = [] # CSV columns
             self.redo_invalids = Config.getboolean("redo_invalids")
-            self.conveying = Config.get("conveying")
-            if not self.conveying: # default
-                self.conveying = "all"
+            #self.conveying = Config.get("conveying")
+            #if not self.conveying: # default
+            #    self.conveying = "all"
 
             # OTRS attributes to be linked to CSV
-            self.ticketid = False
-            self.ticketnum = False
-            self.cookie = False
-            self.token = False
-            self.ticketid = Config.get("ticketid", "OTRS")
-            self.ticketnum = Config.get("ticketnum", "OTRS")
+            self.otrs_cookie = False
+            self.otrs_ticketid = Config.get("ticketid", "OTRS")
+            self.otrs_token = False
+            self.otrs_ticketnum = Config.get("ticketnum", "OTRS")
             self.attachmentName = "part-" + ntpath.basename(sourceFile)
             self.ipCountGuess = None
             self.ipCount = None
@@ -62,33 +60,33 @@ class SourceParser:
 
             #load CSV
             self.sourceFile = sourceFile
-            self.size = os.path.getsize(self.sourceFile)
-            self.sniffer = csv.Sniffer()
-            self.firstLine, self.sample = CsvGuesses.getSample(self.sourceFile)
+            self.size = os.path.getsize(self.sourceFile)            
             self.processer = Processer(self)
-            self.informer = Informer(self)
+            self.informer = Informer(self)            
+            self.guesses = CsvGuesses(self)
+            self.firstLine, self.sample = self.guesses.getSample(self.sourceFile)
             self.linesTotal = self.informer.fileLen(sourceFile) #sum(1 for line in open(sourceFile))
             try:
-                for fn in [self._askBasics, self._askPivotCol, self._sizeCheck, self._askOptions]: # steps of dialogue  Xself.askAsnCol
-                    self.informer.soutInfo()
-                    fn()
+                ##for fn in [, self._askPivotCol, self._sizeCheck, self._askOptions]: # steps of dialogue
+                self.informer.soutInfo()
+                self._askBasics()
             except Cancelled:
                 print("Cancelled.")
                 return
             self.informer.soutInfo()
 
-            self._guessIpCount()
+            # X self._guessIpCount()
             if not Dialogue.isYes("Everything set alright?"):
                 self.isRepeating = True
-                continue # repeat
+                continue
             else:
-                self.isFormattedB = True
+                self.isFormattedB = True # delimiter and header has been detected etc.
                 break
 
 
     def _askBasics(self):
         """ Dialog to obtain basic information about CSV - delimiter, header """
-        self.delimiter, self.hasHeader = CsvGuesses.guessDelimiter(self.sniffer, self.sample)
+        self.delimiter, self.hasHeader = self.guesses.guessDelimiter(self.sample)        
         if not Dialogue.isYes("Is character '{}' delimiter? ".format(self.delimiter)):
             while True:
                 sys.stdout.write("What is delimiter: ")
@@ -105,11 +103,12 @@ class SourceParser:
         #if self.delimiter:
         self.fields = self.firstLine.split(self.delimiter)
         self.fields[-1] = self.fields[-1].strip()
+        self.guesses.identifyCols()
         #else:
         #    self.fields = [self.firstLine]
 
 
-
+    """
     def _askPivotCol(self):
         fn = lambda field: Whois.checkIp(field)
         self.ipColumn = CsvGuesses.guessCol(self, "IP/URL", fn, ["ip", "sourceipaddress", "ipaddress", "source"])
@@ -132,24 +131,26 @@ class SourceParser:
     def _askAsnCol(self): # The function is not used now.
         fn = lambda field: re.search('AS\d+', field) != None
         self.asnColumn = CsvGuesses.guessCol(self, "ASN", fn, ["as", "asn", "asnumber"])
-
+    """
 
 
     def _reset(self):
-        """ Reset variables before new analysis. """
+        """ Reset variables before new analysis. """        
+        self.stats = defaultdict(set)
+                
         #cant be pickled: self.reg = namedtuple('SourceParser.registries', 'local foreign')(AbusemailRegistry(), CountryRegistry())
-        self.abuseReg = AbusemailRegistry();
-        self.countryReg = CountryRegistry()
-        self.invalidReg = InvalidRegistry()
-        self.reg = {'local': self.abuseReg, "foreign":self.countryReg, "error": self.invalidReg}
+        #self.abuseReg = AbusemailRegistry();
+        #self.countryReg = CountryRegistry()
+        #self.invalidReg = InvalidRegistry()
+        #self.reg = {'local': self.abuseReg, "foreign":self.countryReg, "error": self.invalidReg}
         #self.reg = Registries
         Config.hasHeader = self.hasHeader
         Config.header = self.header
-        self.ranges = {}
+        self.ranges = Whois.ranges # so that it is saved
         self.lineCount = 0
         self.velocity = 0
         self.lineSout = 1
-        self.appendFields = {'asn': False, "netname": False, "domain": False, "ip": False} # fields included in CSV
+        #self.appendFields = {'asn': False, "netname": False, "domain": False, "ip": False} # fields included in CSV
         # XXX: nacist z config.ini. Ma to by zde nebo v __init?
 
         #self.lineSumCount = 0
@@ -161,19 +162,21 @@ class SourceParser:
         self.isAnalyzedB = False
         self.isFormattedB = False
         self.sums = {}
-        self.whoisStats = Whois.stats # so that it is saved
-        self.ipSeen = dict() # ipSeen[ip] = prefix
-        self.abuseReg.conveying = self.conveying
-        self.countryReg.conveying = self.conveying
-        self.invalidReg.redo_invalids = self.redo_invalids
+        self.whoisStats = Whois.stats # so that it is saved        
+        Whois.ipSeen = dict() # Xself.ipSeen # ipSeen[ip] = prefix
+        #self.abuseReg.conveying = self.conveying
+        #self.countryReg.conveying = self.conveying
+        #self.invalidReg.redo_invalids = self.redo_invalids
 
     def runAnalysis(self):
         """ Run main analysis of the file.
         Grab IP from every line and
         """
         self._reset()
+        """
         if Config.getboolean("autoopen_editor"):
             [r.mailDraft.guiEdit() for r in self.reg.values()]
+        """
         self.timeStart = self.timeLast = datetime.datetime.now().replace(microsecond=0)
 
         self.processer.processFile(self.sourceFile)
@@ -181,6 +184,7 @@ class SourceParser:
         self.linesTotal = self.lineCount # if we guessed the total of lines, fix the guess now
 
         self.isAnalyzedB = True
+        """
         [r.update() for r in self.reg.values()]
         if self.invalidReg.stat() and self.redo_invalids:
             self.informer.soutInfo()
@@ -190,9 +194,11 @@ class SourceParser:
             self.informer.soutInfo()
             print("Analysis COMPLETED.\n\n")
             self.resolveUnknown()
+        """
         self.lineCount = 0
         self.informer.soutInfo()
 
+    """
     def _sizeCheck(self):
         mb = 10
         if self.size > mb * 10 ** 6 and self.conveying == "all":
@@ -203,9 +209,10 @@ class SourceParser:
                 self.redo_invalids = False
 
     def _askOptions(self):
-        """ Asks user for other parameters. They can change conveying method and included columns. """
+        "" Asks user for other parameters. They can change conveying method and included columns. ""
         # XXX
         pass
+    """
 
     def _guessIpCount(self):
         """ Determine how many IPs there are in the file. """
