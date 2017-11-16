@@ -1,26 +1,18 @@
 # Source file parsing
 from collections import defaultdict
-from collections import namedtuple
 import datetime
 import ipdb
-import itertools
 from lib.config import Config
 from lib.csvGuesses import CsvGuesses
 from lib.dialogue import Cancelled
 from lib.dialogue import Dialogue
 from lib.informer import Informer
 from lib.processer import Processer
-from lib.registry import AbusemailRegistry
-from lib.registry import CountryRegistry
-from lib.registry import InvalidRegistry
 from lib.whois import Whois
 import logging
 from math import ceil
 import ntpath
 import os
-import pdb
-import pudb
-import re
 from shutil import move
 import subprocess
 import sys
@@ -38,7 +30,6 @@ class SourceParser:
             #self.ipColumn = None # IP column position
             #self.asnColumn = None # AS number collumn position
             #self.urlColumn = None # URL column position, to be translated to IP
-            self.settings = defaultdict(list) # for processer
             self.delimiter = None  # CSV dialect
             self.hasHeader = None # CSV has header
             self.header = "" # if CSV has header, it's here
@@ -57,12 +48,13 @@ class SourceParser:
             self.ipCountGuess = None
             self.ipCount = None
             self._reset()
+            self.resetSettings()
 
             #load CSV
             self.sourceFile = sourceFile
-            self.size = os.path.getsize(self.sourceFile)            
+            self.size = os.path.getsize(self.sourceFile)
             self.processer = Processer(self)
-            self.informer = Informer(self)            
+            self.informer = Informer(self)
             self.guesses = CsvGuesses(self)
             self.firstLine, self.sample = self.guesses.getSample(self.sourceFile)
             self.linesTotal = self.informer.fileLen(sourceFile) #sum(1 for line in open(sourceFile))
@@ -86,7 +78,7 @@ class SourceParser:
 
     def _askBasics(self):
         """ Dialog to obtain basic information about CSV - delimiter, header """
-        self.delimiter, self.hasHeader = self.guesses.guessDelimiter(self.sample)        
+        self.delimiter, self.hasHeader = self.guesses.guessDelimiter(self.sample)
         if not Dialogue.isYes("Is character '{}' delimiter? ".format(self.delimiter)):
             while True:
                 sys.stdout.write("What is delimiter: ")
@@ -134,36 +126,36 @@ class SourceParser:
     """
 
 
+    def resetWhois(self):
+        self.ranges = {}
+        self.whoisStats = defaultdict(int)
+        self.whoisIpSeen = {}
+        Whois.init(self)
+
+    def resetSettings(self):
+        self.settings = defaultdict(list) # for processer
+
+    def _resetOutput(self):
+        self.lineCount = 0
+        self.lineSout = 1
+        self.velocity = 0
+
+
     def _reset(self):
-        """ Reset variables before new analysis. """        
+        """ Reset variables before new analysis. """
         self.stats = defaultdict(set)
-                
-        #cant be pickled: self.reg = namedtuple('SourceParser.registries', 'local foreign')(AbusemailRegistry(), CountryRegistry())
-        #self.abuseReg = AbusemailRegistry();
-        #self.countryReg = CountryRegistry()
-        #self.invalidReg = InvalidRegistry()
-        #self.reg = {'local': self.abuseReg, "foreign":self.countryReg, "error": self.invalidReg}
-        #self.reg = Registries
+        self.invalidLinesCount = 0
+
         Config.hasHeader = self.hasHeader
         Config.header = self.header
-        self.ranges = Whois.ranges # so that it is saved
-        self.lineCount = 0
-        self.velocity = 0
-        self.lineSout = 1
-        #self.appendFields = {'asn': False, "netname": False, "domain": False, "ip": False} # fields included in CSV
-        # XXX: nacist z config.ini. Ma to by zde nebo v __init?
+        self._resetOutput()
 
-        #self.lineSumCount = 0
-        #self.linesTotal = 0
-        #self.extendCount = 0
         self.timeStart = None
         self.timeEnd = None
         self.timeLast = None
         self.isAnalyzedB = False
         self.isFormattedB = False
-        self.sums = {}
-        self.whoisStats = Whois.stats # so that it is saved        
-        Whois.ipSeen = dict() # Xself.ipSeen # ipSeen[ip] = prefix
+        self.resetWhois()
         #self.abuseReg.conveying = self.conveying
         #self.countryReg.conveying = self.conveying
         #self.invalidReg.redo_invalids = self.redo_invalids
@@ -178,23 +170,22 @@ class SourceParser:
             [r.mailDraft.guiEdit() for r in self.reg.values()]
         """
         self.timeStart = self.timeLast = datetime.datetime.now().replace(microsecond=0)
-
+        Config.update()
         self.processer.processFile(self.sourceFile)
         self.timeEnd = datetime.datetime.now().replace(microsecond=0)
         self.linesTotal = self.lineCount # if we guessed the total of lines, fix the guess now
-
         self.isAnalyzedB = True
-        """
-        [r.update() for r in self.reg.values()]
-        if self.invalidReg.stat() and self.redo_invalids:
+
+        if self.invalidLinesCount:
             self.informer.soutInfo()
-            print("Analysis COMPLETED.\n\n")
+            print("Whois analysis COMPLETED.\n\n")
             self.resolveInvalid()
-        if self.abuseReg.stat("prefixes", found=False):
+
+        if self.stats["czUnknownPrefixes"]:
             self.informer.soutInfo()
-            print("Analysis COMPLETED.\n\n")
+            print("Whois analysis COMPLETED.\n\n")
             self.resolveUnknown()
-        """
+
         self.lineCount = 0
         self.informer.soutInfo()
 
@@ -253,50 +244,57 @@ class SourceParser:
 
     def resolveUnknown(self):
         """ Process all prefixes with unknown abusemails. """
-        if self.abuseReg.stat("ips", found=False) < 1:
+
+        if len(self.stats["ipsCzMissing"]) < 1:
             print("No unknown abusemails.")
             return
 
-        s = "There are {0} IPs in {1} unknown prefixes. Should I proceed additional search for these {1} items?".format(self.abuseReg.stat("ips", found=False), self.abuseReg.stat("prefixes", found=False))
+        s = "There are {0} IPs in {1} unknown prefixes. Should I proceed additional search for these {1} items?".format(
+            len(self.stats["ipsCzMissing"]), len(self.stats["czUnknownPrefixes"]))
         if not Dialogue.isYes(s):
             return
 
         temp = Config.getCacheDir() + ".unknown.local.temp"
         try:
-            move(self.abuseReg.getUnknownPath(), temp)
+            move(Config.getCacheDir() + "unknown", temp)
         except FileNotFoundError:
             print("File with unknown IPs not found. Maybe resolving of unknown abusemails was run it the past and failed. Please run whois analysis again.")
             return False
-        self.lineCount = 0
-        self.abuseReg.resetUnknowns()
-        self.processer.processFile(temp, reprocessing=True)
-        self.lineCount = 0
+        self._resetOutput()
+        self.stats["ipsCzMissing"] = set()
+        self.stats["czUnknownPrefixes"] = set()
+        Whois.unknownMode = True
+        self.processer.processFile(temp)
+        os.remove(temp)
+        self._resetOutput()
         self.informer.soutInfo()
 
     def resolveInvalid(self):
         """ Process all invalid rows. """
-        if self.invalidReg.stat() < 1:
+        if not self.invalidLinesCount:
             print("No invalid rows.")
             return
 
+        path = Config.getCacheDir() + "invalidlines.tmp"
         while True:
-            s = "There were {0} invalid rows. Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them, or hit n for ignoring them. [o]/y/n ".format(self.invalidReg.stat())
+            s = "There were {0} invalid rows. Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them, or hit n for ignoring them. [o]/y/n ".format(self.invalidLinesCount)
             res = Dialogue.ask(s)
             if res == "n":
                 return False
             elif res == "y":
                 break
             else:
-                subprocess.Popen(['gedit', self.invalidReg.getPath()], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.Popen(['xdg-open', path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         temp = Config.getCacheDir() + ".unknown.invalid.temp"
         try:
-            move(self.invalidReg.getPath(), temp)
+            move(path, temp)
         except FileNotFoundError:
             print("File with invalid lines not found. Maybe resolving of it was run it the past and failed. Please run again.")
             return False
-        self.lineCount = 0
-        self.invalidReg.reset()
+        self._resetOutput()
+        self.invalidLinesCount = 0
         self.processer.processFile(temp)
-        self.lineCount = 0
+        os.remove(temp)
+        self._resetOutput()
         self.informer.soutInfo()

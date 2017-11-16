@@ -1,4 +1,6 @@
-# Source file choice
+"""
+ Choose the right file to process
+"""
 import os.path
 import sys
 import configparser
@@ -10,7 +12,7 @@ __author__ = "Edvard Rejthar, CSIRT.CZ"
 __date__ = "$Mar 23, 2015 10:36:35 PM$"
 
 def SourcePicker():
-     
+
     file = ""
     if (len(sys.argv) > 1) and (sys.argv[-1] != ""):
         file = sys.argv[-1]

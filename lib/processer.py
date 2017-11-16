@@ -15,9 +15,21 @@ class Processer:
 
     def __init__(self, csv):
         self.csv = csv
+        self.filesCreated = set()
+        self.reset()
+
+    def reset(self):
+        self.uniqueSets = defaultdict(set)
+
+        self.descriptors_max = 1000 # XX should be given by the system, ex 1024
+        self.descriptors_count = 0
+        self.descriptorsStatsOpen =  {} # defaultdict(int) # location => count XX lets google for SortedDict
+        self.descriptorsStatsAll = defaultdict(int)
+        self.descriptors = {} # location => file_descriptor
 
     def processFile(self, file):
         csv = self.csv
+        self.reset()
         settings = csv.settings
         with open(file, "r") as sourceF:
             for row in sourceF:
@@ -41,18 +53,11 @@ class Processer:
                             csv.velocity = newVel
                     csv.lineSout = csv.lineCount + 1 +csv.velocity
                     csv.informer.soutInfo()
-                # process the line (IP, ASN, ...)
                 try:
                     self.processLine(csv, row, settings)
-                    # X else: Varianta pro posilani CMS csv.reg["local"].count(row, row.split(csv.delimiter)[csv.urlColumn])r
                 except BdbQuit as e: # not sure if working, may delete
                     print("BdbQuit called")
                     raise
-                except Exception as e: # FileNotExist
-                    print("ROW fault" + row)
-                    print("This should not happen. CSV is wrong or tell programmer to repair this.")
-                    print(e)
-                    Config.errorCatched()
                 except KeyboardInterrupt:
                     print("CATCHED")
                     try:
@@ -77,18 +82,6 @@ class Processer:
         """ Descriptors have to be closed (flushed) """
         for f in self.descriptors.values():
             f.close()
-        #print("CHECK CLOSING DESCRITOP")
-        #import ipdb; ipdb.set_trace()
-
-    # XX predelat asi do csv.
-    uniqueSets = defaultdict(set)
-    filesCreated = set()
-
-    descriptors_max = 1000 # XX should be given by the system, ex 1024
-    descriptors_count = 0
-    descriptorsStatsOpen =  {} # defaultdict(int) # location => count XX lets google for SortedDict
-    descriptorsStatsAll = defaultdict(int)
-    descriptors =  {} # location => file_descriptor
 
     def processLine(self, csv, line, settings):
         """ XX
@@ -97,6 +90,11 @@ class Processer:
             Arguments:
                 line - current processed line
                 settings - defaultdict(bool)
+                    chosen_cols
+                    uniqueSets
+                    filesCreated (set)
+                    settings["filter"...]
+                    split_by_col (int)
 
                 XX
                 1. compute["netname", 20, [lambda x, ...]]; filters.add([20, "value"])
@@ -104,67 +102,77 @@ class Processer:
                 3. processing: cols[20] = val = lambda x(compute[1])
                 4. filters[ cols[20] ]
 
-                csv.chosen_cols
-                uniqueSets
-                filesCreated (set)
-                settings["filter"...]
-                split_by_col (int)
         """
-        fields = line.split(csv.delimiter) # Parse line
+        try:
+            fields = line.split(csv.delimiter) # Parse line
 
-        # add fields
-        for col in settings["add"]: # [("netname", 20, [lambda x, lambda x...]), ...]
-            val = fields[col[1]]
-            for l in col[2]:
-                val = l(val)
-            fields.append(val)
-
-        # inclusive filter
-        for f in settings["filter"]: # list of tuples (col, value): [(23, "passed-value"), (13, "another-value")]
-            if f[1] != fields[f[0]]:
-                return False
-
-        #import ipdb; ipdb.set_trace()
-        # unique columns
-        if settings["unique"]:
+            # add fields
+            whois = None
             #import ipdb; ipdb.set_trace()
-            for u in settings["unique"]: # list of uniqued columns [2, 3, 5, ...]
-                if fields[u] in self.uniqueSets[u]: # skip line
+            for col in settings["add"]: # [("netname", 20, [lambda x, lambda x...]), ...]
+                val = fields[col[1]]
+                for l in col[2]:
+                    val = l(val)
+                if isinstance(val,tuple): # we get whois info-tuple
+                    whois = val[0]
+                    fields.append(val[1])
+                else:
+                    fields.append(val)
+
+            # inclusive filter
+            for f in settings["filter"]: # list of tuples (col, value): [(23, "passed-value"), (13, "another-value")]
+                if f[1] != fields[f[0]]:
                     return False
-            else: # do not skip line
-                for u in settings["unique"]:
-                    self.uniqueSets[u].add(fields[u])
 
-        # pick or delete columns
-        if settings["chosen_cols"]:
-            chosen_fields = [fields[i] for i in settings["chosen_cols"]] # chosen_cols = [3, 9, 12]
-        else:
-            chosen_fields = fields
+            # unique columns
+            if settings["unique"]:
+                for u in settings["unique"]: # list of uniqued columns [2, 3, 5, ...]
+                    if fields[u] in self.uniqueSets[u]: # skip line
+                        return False
+                else: # do not skip line
+                    for u in settings["unique"]:
+                        self.uniqueSets[u].add(fields[u])
 
-        if settings["do_statistics"]:
-            ip_col = 4 # XX
+            # pick or delete columns
+            if settings["chosen_cols"]:
+                chosen_fields = [fields[i] for i in settings["chosen_cols"]] # chosen_cols = [3, 9, 12]
+            else:
+                chosen_fields = fields
 
-            ip = fields[ip_col]
-            csv.stats["ipsUnique"].add(ip)
-            if fields[csirt-mail]:
-                country_code, mail = fields[csirt-mail]
-                if country_code == "local":
+            if whois:
+                csv.stats["ipsUnique"].add(whois.ip)
+                mail = whois.get[2]
+                if whois.get[1] == "local":
                     if mail == "unknown":
-                        csv.stats["ipsCzMissing"].add(ip)
+                        chosen_fields = [line] # reset to the original line (will be reprocessed)
+                        csv.stats["ipsCzMissing"].add(whois.ip)
+                        csv.stats["czUnknownPrefixes"].add(whois.get[0])
                     else:
-                        csv.stats["ipsCzFound"].add(ip)
+                        csv.stats["ipsCzFound"].add(whois.ip)
                         csv.stats["ispCzFound"].add(mail)
                 else:
-                    if mail == "unknown":
-                        csv.stats["ipsWorldMissing"].add(ip)
-                        csv.stats["countriesMissing"].add(country_code)
+                    country = whois.get[5]
+                    if country not in Config.csirtmails:
+                        csv.stats["ipsWorldMissing"].add(whois.ip)
+                        csv.stats["countriesMissing"].add(country)
                     else:
-                        csv.stats["countriesFound"].add(country_code)
-                        csv.stats["ipsWorldFound"].add(ip)
+                        csv.stats["countriesFound"].add(country)
+                        csv.stats["ipsWorldFound"].add(whois.ip)
                 # XX invalidLines if raised an exception
 
-        # split
-        location = fields[settings["split"]] if type(settings["split"]) == int else "processed_file.csv"
+            # split
+            location = fields[settings["split"]] if type(settings["split"]) == int else "processed_file.csv"
+        except Exception as e:
+            if isinstance(e, BdbQuit):
+                raise # BdbQuit and KeyboardInterrupt catched higher
+            else:
+                import traceback
+                traceback.print_exc()
+                import ipdb; ipdb.set_trace() # XX get rid of it
+                csv.invalidLinesCount += 1
+                location = "invalidlines.tmp"
+                chosen_fields = [line] # reset the original line (will be reprocessed)
+
         if not location:
             return
         elif location in self.filesCreated:
@@ -232,30 +240,3 @@ class Processer:
                         #except AttributeError:
                         csv.invalidReg.count(row)
                         return
-
-        ######
-        # ASSURING THE EXISTENCE OF PREFIX (abusemail)
-        ######
-        if not reprocessing: # (in 'reprocessing unknown' mode, this was already done)
-            if csv.urlColumn is not None:
-                row += csv.delimiter + ip # append determined IP to the last col
-
-
-        else: # force to obtain abusemail
-            if not found:
-                raise AssertionError("The prefix for ip " + ip + " should be already present. Tell the programmer.")
-            if mail == "unknown": # prefix is still unknown
-                mail = Whois(ip).resolveUnknownMail()
-                if mail != "unknown": # update prefix
-                    csv.ranges[prefix] = mail, location, asn, netname
-                else: # the row will be moved to unknown.local file again
-                    print("No success for prefix {}.".format(prefix))
-
-        ######
-        # WRITE THE ROW TO THE APPROPRIATE FILE
-        ######
-        if csv.appendFields["asn"]:
-            row += csv.delimiter + asn
-        if csv.appendFields["netname"]:
-            row += csv.delimiter + netname
-        csv.reg[location].count(row, mail, ip, prefix)

@@ -2,6 +2,7 @@ import re
 from csv import Error, Sniffer
 from lib.dialogue import Dialogue
 from lib.whois import Whois
+from lib.config import Config
 
 reIpWithPort = re.compile("((\d{1,3}\.){4})(\d+)")
 reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")
@@ -9,7 +10,7 @@ reFqdn = re.compile("^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+
 reUrl = re.compile('[a-z]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
 
 guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], Whois.checkIp),
-        "portIP": ([], reIpWithPort.match), 
+        "portIP": ([], reIpWithPort.match),
         "anyIP": ([], reAnyIp.match),
         "hostname": (["fqdn", "hostname", "domain"], reFqdn.match),
         "url": (["url", "uri", "location"], reUrl.match),
@@ -17,14 +18,14 @@ guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], Whois.checkI
         }
 
 class CsvGuesses:
-    """ 
+    """
      guesses - ways to identify a column (usual names, method to identify)
     """
-        
+
     def __init__(self, csv):
         self.csv = csv
 
-    
+
     def getSample(self, sourceFile):
         sample = ""
         with open(sourceFile, 'r') as csvfile:
@@ -58,32 +59,33 @@ class CsvGuesses:
                         delimiter = dl
                         break
         return delimiter, hasHeader
-    
+
     # these are known methods to make a field from another field
     methods = {("anyIP", "ip"): lambda x: "Not yet implemented", # any IP: "91.222.204.175 93.171.205.34" -> "91.222.204.175" OR '"1.2.3.4"' -> 1.2.3.4
     ("portIP", "ip"): lambda x: "Not yet implemented", # IP psaná s portem 91.222.204.175.23 -> 91.222.204.175
     ("url", "hostname"): lambda x: Whois.url2hostname(x),
     ("hostname", "ip"): lambda x: Whois.hostname2ip(x),
-    ("url", "ip"): lambda x: Whois.url2ip(x),    
-    ("ip", "whois"): lambda x: Whois(x).get(),
-    ("whois", "prefix"): lambda x: "Not yet implemented", # XX
-    ("whois", "asn"): lambda x: x[2],
-    ("whois", "whois-abuse"): lambda x: x[0],
-    ("whois", "country"): lambda x:  x[4],
-    ("whois", "netname"): lambda x:  x[3],
-    ("whois", "csirt-mail"): lambda x: x.getCsirtMail(), # vraci tuple (local|country_code, whois-mail|abuse-contact)
-    ("whois", "abuse-contact"): lambda x: x[1],
+    ("url", "ip"): lambda x: Whois.url2ip(x),
+    ("ip", "whois"): lambda x: Whois(x),
+    ("whois", "prefix"): lambda x: (x, x.get[0]), # XX
+    ("whois", "asn"): lambda x: (x, x.get[3]),
+    ("whois", "abusemail"): lambda x: (x, x.getAbusemail()),
+    ("whois", "country"): lambda x: (x, x.get[5]),
+    ("whois", "netname"): lambda x: (x, x.get[4]),
+    ("whois", "csirt-contact"): lambda x: (x, Config.csirtmails[x.get[5]] if x.get[5] in Config.csirtmails else "-"), # vraci tuple (local|country_code, whois-mail|abuse-contact)
+    ("whois", "legal-contact"): lambda x: (x, x.get[2]),
     ("url", "cms"): lambda x: "Not yet implemented",
     ("hostname", "cms"): lambda x: "Not yet implemented"}
 
+    f = lambda x: (lambda x,ip: x, ip, x[4])(x.get(), x.ip)
 
     # these fields can be added (e.g. whois is a temporary made up field, in can't be added to CSV)
-    extendable_fields = ["url", "hostname", "prefix", "ip", "asn", "country", "whois-abuse", "csirt-mail", "abuse-contact"]
-    
-    def identifyCols(self):        
+    extendable_fields = ["url", "hostname", "prefix", "ip", "asn", "country", "abusemail", "csirt-contact", "legal-contact"]
+
+    def identifyCols(self):
         self.fieldType = {k:[] for k in self.csv.fields} # {fieldName: [type1, another possible type, ...], "a field name": ["url", "hostname"]}
         samples = [[] for _ in self.csv.fields]
-                
+
         for line in self.csv.sample.split("\n")[1:]:
             for i,val in enumerate(line.split(self.csv.delimiter)):
                 samples[i].append(val)
@@ -105,23 +107,23 @@ class CsvGuesses:
                             hits += 1
                     if hits/len(samples[i]) > 0.6:
                         print("Function match", field, checkFn)
-                        self.fieldType[field].append(key)                    
-                    print("hits", hits)                
-            
+                        self.fieldType[field].append(key)
+                    print("hits", hits)
+
 
     def guessCol(csv, colName, checkFn, names, autodetect=True):
         """
         :param o current object of SourceParser
         :param colName "ASN" or "IP"
         :param checkFn auto-checker function so that it knows it guessed right
-        :param names - possible IP column names - no space                
+        :param names - possible IP column names - no space
         """
         guesses = []
         info = None
         if csv.isRepeating == False: # dialog goes for first time -> autodetect
             found = False
             for colI, fieldname in enumerate(csv.fields):
-                field = fieldname.replace(" ", "").replace("'", "").replace('"', "").lower()                
+                field = fieldname.replace(" ", "").replace("'", "").replace('"', "").lower()
                 if (csv.hasHeader and field in names) or checkFn(field): # file has header, crawl it OR pgrep IP # no IP -> error. May want all different shortened version of IP (notably IPv6).
                     found = True
                     guesses.append(colI)
@@ -130,7 +132,7 @@ class CsvGuesses:
 
             if found and Dialogue.isYes("Does {}. {} column contains {}?".format(*info)):
                 return info[0]
-        
+
         # col not found automatically -> ask user
-        print("What is " + colName + " column:\n[0]. no " + colName + " column")        
+        print("What is " + colName + " column:\n[0]. no " + colName + " column")
         return Dialogue.pickOption(csv.fields, guesses=guesses, colName=colName)

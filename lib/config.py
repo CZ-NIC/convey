@@ -1,6 +1,7 @@
 # Env config file connection
 import configparser
 import os
+import csv
 
 class Config:
     os.chdir(os.path.dirname(__file__)+"/../")
@@ -61,3 +62,23 @@ class Config:
     def getCacheDir():
         """ Cache dir with ending slash. """
         return Config.cacheDir
+
+
+    def update():
+        """
+         * Refreshes Cc of the mails in the results (config key contacts_local)
+         * Search for country contact (config key contacts_foreign) """
+        Config.abusemails = Config._update("contacts_local")
+        Config.csirtmails = Config._update("contacts_foreign")
+
+    def _update(key):
+        """ Update info from external CSV file. """
+        file = Config.get(key)
+        if os.path.isfile(file) == False: # file with contacts
+            print("(Contacts file {} not found on path {}.) ".format(key, file))
+            return False
+        else:
+            with open(file, 'r') as csvfile:
+                reader = csv.reader(csvfile)
+                rows = {rows[0]:rows[1] for rows in reader}
+                return rows

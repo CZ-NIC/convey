@@ -1,4 +1,6 @@
-# Source file caching
+"""
+    Source file caching - load, save
+"""
 from lib.mailDraft import MailDraft
 from lib.sourceParser import SourceParser
 from lib.informer import Informer
@@ -15,7 +17,7 @@ __date__ = "$Mar 23, 2015 8:33:24 PM$"
 
 
 class SourceWrapper:
-    def __init__(self, file):
+    def __init__(self, file, fresh=False):
         self.file = file
         info = os.stat(self.file)
         self.hash = str(hash(info.st_size + round(info.st_mtime))) # Why round: during file copying we may cut mikrosecond part behind mantisa.
@@ -27,12 +29,12 @@ class SourceWrapper:
         Config.setCacheDir(os.path.dirname(file) + "/" + ntpath.basename(self.file) + self.hash + "/")
         self.cacheFile = Config.getCacheDir() + ntpath.basename(self.file) + ".cache" #"cache/" +
 
-        if os.path.isfile(self.cacheFile):
+        if os.path.isfile(self.cacheFile) and not fresh:
             print("File {} has already been processed.".format(self.file))
             #import pdb;pdb.set_trace()
             try: # try to depickle
                 self.csv = jsonpickle.decode(open(self.cacheFile, "r").read(), keys = True)
-            except:                
+            except:
                 print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
                 ipdb.set_trace()
                 self._treat()

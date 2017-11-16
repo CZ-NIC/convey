@@ -24,20 +24,23 @@ class Informer:
             l.append("header: " + ("used" if self.csv.hasHeader else "not used"))
 
         for col, i, b in self.csv.settings["add"] or []:
-            l.append("{} column from: {}".format(col, self.csv.fields[i]))                    
+            l.append("{} column from: {}".format(col, self.csv.fields[i]))
         if self.csv.settings["filter"]:
-            l.append("Filtering")
-            [l.append(f) for f in self.csv.settings["filter"]]
-        #if self.csv.settings["unique"]:
-        #    l.append("Uniquing")
-        #    [l.append(self.csv.fields[f]) for f in self.csv.settings["unique"]]
-        # XX
+            l2 = []
+            [l2.append(f) for f in self.csv.settings["filter"]]
+            l.append("Filter: " + ",".join(l2))
+        if self.csv.settings["unique"]:
+            l2 = []
+            [l2.append(self.csv.fields[f]) for f in self.csv.settings["unique"]]
+            l.append("Unique col: " + ",".join(l2))
         if self.csv.settings["chosen_cols"]:
-            l.append("only some cols chosen")        
-        
+            l.append("only some cols chosen")
+        if self.csv.settings["split"]:
+            l.append("Split by: {}".format(self.csv.fields[self.csv.settings["split"]]))
+
         # XX
         #if self.csv.redo_invalids is not None:
-        #    l.append("Redo invalids: " + str(self.csv.redo_invalids))        
+        #    l.append("Redo invalids: " + str(self.csv.redo_invalids))
         sys.stdout.write(", ".join(l))
         l = []
         if self.csv.lineCount:
@@ -53,7 +56,7 @@ class Informer:
         elif self.csv.timeStart:
             l.append("{}".format(datetime.datetime.now().replace(microsecond=0) - self.csv.timeStart))
             l.append("{} lines / s".format(self.csv.velocity))
-        sys.stdout.write(", ".join(l) + "\n")        
+        sys.stdout.write(", ".join(l) + "\n")
         if self.csv.whoisStats:
             print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whoisStats.items()))
 
@@ -66,8 +69,8 @@ class Informer:
         if full:
             print("\nPrefixes encountered:\nprefix | location | record | asn | netname")
             for prefix, o in self.csv.ranges.items():
-                record, location, asn, netname = o
-                print("{} | {} | {}".format(prefix, location, record, asn, netname))
+                prefix, location, abusemail, asn, netname, country = o
+                print("{} | {} | {}".format(prefix, location, abusemail or country))
 
     def getStatsPhrase(self, generate=False):
         """ Prints phrase "Totally {} of unique IPs in {} countries...": """
@@ -103,11 +106,11 @@ class Informer:
             + " distributed for {} ISP".format(ispCzFound)
         if ipsCzMissing:
             res += " (for {} unique local IPs ISP not found).".format(ipsCzMissing)
-            
-            
+
+
         """ XX
         if invalidLines:
-            res += "\nThere were {} invalid lines in {} file.".format(invalidLines, self.csv.invalidReg.getPath())"""        
+            res += "\nThere were {} invalid lines in {} file.".format(invalidLines, self.csv.invalidReg.getPath())"""
 
         return res
 
