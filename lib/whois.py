@@ -91,7 +91,7 @@ class Whois:
         """
         self._exec(server="ripe (no -r)", serverUrl="whois.ripe.net") # no -r flag
         self.getAbusemail(True)
-        if self.abusemail == "unknown":
+        if self.abusemail == Config.UNKNOWN_NAME:
             self._exec(server="ripe (-B flag)", serverUrl="whois.ripe.net -B") # with -B flag
             self.getAbusemail(True)
         return self.abusemail
@@ -194,7 +194,7 @@ class Whois:
                 break
 
         if not country:
-            country = "unknown"
+            country = Config.UNKNOWN_NAME
         return country
 
     reAbuse = re.compile('[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}')
@@ -227,7 +227,7 @@ class Whois:
         if not self.abusemail:
             #self.stats["ripejson (didnt work, debug)"] += 1
             #logging.info("whois-json didnt work for " + self.ip)
-            self.abusemail = "unknown"
+            self.abusemail = Config.UNKNOWN_NAME
         return self.abusemail
 
     def _exec(self, server, serverUrl=None):

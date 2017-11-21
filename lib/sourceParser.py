@@ -9,6 +9,7 @@ from lib.dialogue import Dialogue
 from lib.informer import Informer
 from lib.processer import Processer
 from lib.whois import Whois
+from lib.contacts import Contacts
 import logging
 from math import ceil
 import ntpath
@@ -165,10 +166,11 @@ class SourceParser:
         Grab IP from every line and
         """
         self._reset()
-        """
+
         if Config.getboolean("autoopen_editor"):
-            [r.mailDraft.guiEdit() for r in self.reg.values()]
-        """
+            Contacts.mailDraft["local"].guiEdit()
+            Contacts.mailDraft["foreign"].guiEdit()
+
         self.timeStart = self.timeLast = datetime.datetime.now().replace(microsecond=0)
         Config.update()
         self.processer.processFile(self.sourceFile)
@@ -260,7 +262,7 @@ class SourceParser:
         except FileNotFoundError:
             print("File with unknown IPs not found. Maybe resolving of unknown abusemails was run it the past and failed. Please run whois analysis again.")
             return False
-        self._resetOutput()
+        self._resetOutput() # XX linesTotal shows bad number
         self.stats["ipsCzMissing"] = set()
         self.stats["czUnknownPrefixes"] = set()
         Whois.unknownMode = True
@@ -269,13 +271,14 @@ class SourceParser:
         self._resetOutput()
         self.informer.soutInfo()
 
+
     def resolveInvalid(self):
         """ Process all invalid rows. """
         if not self.invalidLinesCount:
             print("No invalid rows.")
             return
 
-        path = Config.getCacheDir() + "invalidlines.tmp"
+        path = Config.getCacheDir() + Config.INVALID_NAME
         while True:
             s = "There were {0} invalid rows. Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them, or hit n for ignoring them. [o]/y/n ".format(self.invalidLinesCount)
             res = Dialogue.ask(s)
@@ -298,3 +301,28 @@ class SourceParser:
         os.remove(temp)
         self._resetOutput()
         self.informer.soutInfo()
+
+    def _getFileContents(self, record):
+        with open(Config.getCacheDir() + record,"r") as f:
+            return f.read()
+
+    def getMailsForeign(self):
+        # XXX totez co getMailsLocal, ale k tomu jeste preklad z csirtmailu nebo ceho
+        pass
+
+    def getMailsLocal(self):
+        """ Returns tuples (mail, cc, fileContents) """
+        for mail in self.stats["ispCzFound"]:
+            cc = None
+            # XXX cc FROM jak to dela registry
+            if mail not in self.processer.filesCreated:
+                continue
+            yield mail, cc, self._getFileContents(mail)
+
+            if mail is None:
+                continue
+                yield key, val.cc, self._getFileContents(key)
+            elif val.mail is False:
+                continue
+            else:
+                yield val.mail, val.cc, self._getFileContents(key)

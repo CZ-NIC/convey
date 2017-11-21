@@ -3,7 +3,8 @@ import os.path
 from collections import defaultdict
 from lib.config import Config
 from sys import exit
-from lib.dialogue import Dialogue, Cancelled, Debugged
+from lib.contacts import Contacts
+from lib.dialogue import Cancelled, Debugged, Dialogue, Menu
 from lib.sourcePicker import SourcePicker
 from lib.sourceWrapper import SourceWrapper
 from lib.mailSender import MailSender
@@ -27,6 +28,7 @@ class Controller:
         file = SourcePicker() # source file path
         self.wrapper = SourceWrapper(file, args.fresh)
         csv = self.csv = self.wrapper.csv
+        Contacts.refresh()
 
         # load flags
         if args.otrs_id:
@@ -42,7 +44,6 @@ class Controller:
             csv.token = args.otrs_token
             print("OTRS token: {}".format(args.otrs_token))
 
-        fn = lambda: print("Not yet implemented!")
         #self.csv.settings = defaultdict(list) # every program launch, the settings resets
 
         # main menu
@@ -69,33 +70,92 @@ class Controller:
             #    print("\n Analysis has not been completed. Please rework again.")
 
             # XX list actions
-            menu = []
-            menu.append(("1","Pick or delete columns", self.choseCols))
-            menu.append(("2","Add a column",self.addColumn))
-            menu.append(("3","Unique filter", self.addUniquing)) # XXX Dialogue.pickOption from csv.fields + netname, asn... and other computable
-            menu.append(("4","Value filter", self.addFiltering))
-            menu.append(("5","Split by a column", self.addSplitting))
-            menu.append(("p","process", csv.runAnalysis) if self.processable else (None, "process  (choose some actions)", None))
-            menu.append(("s","send", fn) if csv.isAnalyzedB else (None, "send (split first)", None))
-            menu.append(("d","show all details", lambda: csv.soutInfo(full=True)) if csv.isAnalyzedB else (None, "show all details (process first)", None))
-            menu.append(("r","Refresh...", self.refreshMenu))
-            menu.append(("x","exit", self.close))
+            menu = Menu(title="Main menu - how the file should be processed?")
+            menu.add("Pick or delete columns", self.choseCols)
+            menu.add("Add a column",self.addColumn)
+            menu.add("Unique filter", self.addUniquing)
+            menu.add("Value filter", self.addFiltering)
+            menu.add("Split by a column", self.addSplitting)
+            if self.processable:
+                menu.add("process", csv.runAnalysis, key="p")
+            else:
+                menu.add("process  (choose some actions)")
+            if csv.isAnalyzedB:
+                menu.add("send", self.sendMenu, key="s")
+                menu.add("show all details", lambda: csv.informer.soutInfo(full=True), key="d")
+            else:
+                menu.add("send (split first)")
+                menu.add("show all details (process first)")
+            menu.add("Refresh...", self.refreshMenu, key="r")
+            menu.add("exit", self.close, key="x")
 
             try:
-                Dialogue.tupled_menu(menu, title="Main menu - how the file should be processed?")
+                menu.sout()
             except Cancelled as e:
                 print(e)
                 pass
             except Debugged as e:
                 import ipdb; ipdb.set_trace()
 
+    def sendMenuOtrs(self):
+        menu = Menu("Do you really want to send e-mails now?", callbacks=False)
+
+        MailSender.assureTokens(self.csv)
+        self.wrapper.save()
+        print("\nIn the next step, we connect to OTRS and send e-mails.")
+        a = b = False
+        if self.csv.stats["ispCzFound"]:
+            print(" Template of local mail starts: {}".format(Contacts.mailDraft["local"].getMailPreview()))
+            a = True
+        else:
+            print(" No local mail in the set.")
+        if self.csv.stats["countriesFound"]:
+            print(" Template of foreign mail starts: {}".format(Contacts.mailDraft["local"].getMailPreview()))
+            b = True
+        else:
+            print(" No foreign mail in the set.")
+
+        if a and b:
+            menu.add("Send both local and foreign", key=1)
+        if a:
+            menu.add("Send local only", key=2)
+        if b:
+            menu.add("Send foreign only", key=3)
+
+        option = menu.sout()
+        if option == "x":
+            return
+        if option == "1" or option == "2":
+            print("Sending to local country...")
+            if not MailSender.sendList(self.csv,
+                    Contacts.getContacts(self.csv.stats["ispCzFound"]),
+                    Contacts.mailDraft["local"],
+                    len(self.csv.stats["ispCzFound"])):
+                print("Couldn't send all local mails. (Details in mailSender.log.)")
+        if option == "1" or option == "3":
+            print("Sending to foreigns...")
+            if not MailSender.sendList(self.csv,
+                    Contacts.getContacts(self.csv.stats["countriesFound"], checkCountries=True),
+                    Contacts.mailDraft["foreign"],
+                    len(self.csv.stats["countriesFound"])):
+                print("Couldn't send all foreign e-mails. (Details in mailSender.log.)")
+
+    def sendMenu(self):
+        menu = Menu(title="What should be reprocessed?")
+        fn = lambda: print("TBD")
+        menu.add("Send by SMTP...", fn)
+        menu.add("Send by OTRS...", self.sendMenuOtrs)
+        menu.sout()
 
     def refreshMenu(self):
-        menu = []
-        menu.append(("1", "Rework whole file again", self.wrapper.clear))
-        menu.append(("2", "Delete processing settings", self.csv.resetSettings))
-        menu.append(("3", "Delete whois cache", self.csv.resetWhois))
-        Dialogue.tupled_menu(menu, title="What should be reprocessed?")
+        menu = Menu(title="What should be reprocessed?")
+        menu.add("Rework whole file again", self.wrapper.clear)
+        menu.add("Delete processing settings", self.csv.resetSettings)
+        menu.add("Delete whois cache", self.csv.resetWhois)
+        menu.add("Resolve unknown abusemails", self.csv.resolveUnknown)
+        menu.add("Resolve invalid lines", self.csv.resolveInvalid)
+        menu.add("Edit mail texts", lambda: Contacts.mailDraft["local"].guiEdit() and Contacts.mailDraft["foreign"].guiEdit())
+        menu.sout()
 
 
     def extendColumn(self, new_field):
@@ -108,15 +168,16 @@ class Controller:
 
         validTypes = list(g.dijkstra(new_field))
         possibleCols = []
-        for key, types in self.csv.guesses.fieldType.items():
+        for (i, key), types in self.csv.guesses.fieldType.items():
             for val in types:
                 if val in validTypes:
-                    possibleCols.append(key)
+                    possibleCols.append(i)
+                    break
         sourceColI = Dialogue.pickOption(self.csv.fields, colName="Searching source for "+new_field, guesses=possibleCols)
 
         try:
             _min = 999, None
-            for _type in self.csv.guesses.fieldType[self.csv.fields[sourceColI]]:
+            for _type in self.csv.guesses.fieldType[sourceColI, self.csv.fields[sourceColI]]:
                 # a column may have multiple types (url, hostname), use the best
                 if _type not in g.dijkstra(new_field):
                     continue

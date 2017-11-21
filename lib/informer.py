@@ -61,12 +61,26 @@ class Informer:
             print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whoisStats.items()))
 
         print("\nSample:\n" + "\n".join(self.csv.sample.split("\n")[:3]) + "\n") # show first 3rd lines
-        """
-        XX
-        [reg.soutInfo(full) for reg in self.csv.reg.values()]
-        """
 
         if full:
+            """
+            [reg.soutInfo(full) for reg in self.csv.reg.values()] do this:
+                    #print (', '.join(key + " ( " + value + ")") for key, value in itertools.chain(self.counters["foreign"],self.counters["local"]))
+                    l = []
+                    if len(self.records) < 100 or full:
+                        for key, o in self.records.items():
+                            s = [str(len(o.counter))]
+                            o.mail is False and s.append("no mail")
+                            o.cc and s.append("cc " + o.cc)
+                            l.append(key + " (" + ", ".join(s) + ")")
+                    else:# too much of results, print just the count
+                        l.append(str(len(self.records)) + " " + self.name)
+
+                    if self.unknowns:
+                        l.append("unknown {} ({})".format(self.name, len(self.unknowns)))
+                    print(", ".join(l))
+            """
+
             print("\nPrefixes encountered:\nprefix | location | record | asn | netname")
             for prefix, o in self.csv.ranges.items():
                 prefix, location, abusemail, asn, netname, country = o

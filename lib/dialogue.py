@@ -20,7 +20,7 @@ class Dialogue:
             #ipdb.set_trace()
         return txt
 
-    def askNumber(text, default=None):
+    def askNumber(text):
         """
         Let user write number. Empty input = 0.
         """
@@ -28,59 +28,87 @@ class Dialogue:
             try:
                 t = Dialogue.ask(text=text)
                 if not t:
-                    t = default or 0
+                    return 0
                 return int(t)
             except ValueError:
                 print("This is not a number")
 
-    def tupled_menu(menu, title = None, repeat=False):
-        """ menu of tuples [(key, title, f), ("1", "First option", lambda), ...] """
-        while True:
-            if title:
-                print("\n" + title)
-            for key, name, f in menu:
-                if key is None:
-                    print("~) {}".format(name))
-                else:
-                    print("{}) {}".format(key, name))
-            ans = input("? ")
-            print()
-            if ans == "x" and repeat:
-                return
-            elif ans == "debug":
-                import ipdb; ipdb.set_trace()
-            for key, name, f in menu:
-                if key == ans and f:
-                    f()
-                    if not repeat:
-                        return True
-                    else:
-                        break
-            else:
-                print("Not valid option")
-
-
-
-    def pickOption(options, guesses=[], colName=""):
+    def pickOption(options, colName="", guesses=[]):
         """ Loop all options
-         guesses = list of columns that should be highlighted
+         guesses = indices of options that should be highlighted
          returns option number OR None
         """
-        cols = []
         for i, fieldname in enumerate(options):# print columns
-            if fieldname in guesses:
-                guesses.remove(fieldname)
-                cols.append(i)
+            if i in guesses:
                 print("* {}. {} *".format(i + 1, fieldname))
             else:
                 print("{}. {}".format(i + 1, fieldname))
-        default = cols[0] if (len(cols) == 1) else None # XX defaulting now doesnt work at all
-        colI = Dialogue.askNumber(colName + " column: ", default) - 1
+        colI = Dialogue.askNumber(colName + " column: ") - 1
 
         if colI == -1:
+            if guesses: # default value
+                return guesses[0]
             raise Cancelled(".. no column chosen")
         if colI > len(options):
             print("Not found")
             return Dialogue.pickOption(options, guesses, colName)
 
         return colI
+
+
+class Menu:
+    def __init__(self, title=None, callbacks=True):
+        """ self.menu of tuples [(key, title, f), ("1", "First option", lambda), ...] """
+        self.title = title
+        self.menu = []
+        self.callbacks = callbacks
+        self._keyCount = 0
+
+
+    def add(self, title, fn=None, key=None):
+        """ Add new item to the menu.
+
+            key - available through this letter
+                - if no key set, it will be available through the add order number
+                - if False, not available
+
+            """
+        #if key is False or not fn:
+        #    key = None
+        #elif key is None:
+        #    key = str(len(self.menu))
+        if key is None:
+            self._keyCount += 1
+            key = self._keyCount
+        self.menu.append((str(key), title, fn))
+
+    def sout(self):
+        while True:
+            if self.title:
+                print("\n" + self.title)
+            for key, name, f in self.menu:
+                if key is False or (self.callbacks and not f):
+                    print("~) {}".format(name))
+                    continue
+                print("{}) {}".format(key, name))
+            try:
+                ans = input("? ")
+            except EOFError:
+                ans = "x"
+            print()
+            for key, name, f in self.menu:
+                if key == ans:
+                    if self.callbacks:
+                        if not f:
+                            continue
+                        f()
+                        return True
+                    else:
+                        return key
+
+            else:
+                if ans == "x":
+                    return
+                elif ans == "debug":
+                    import ipdb; ipdb.set_trace()
+                print("Not valid option")

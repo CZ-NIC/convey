@@ -83,7 +83,7 @@ class CsvGuesses:
     extendable_fields = ["url", "hostname", "prefix", "ip", "asn", "country", "abusemail", "csirt-contact", "legal-contact"]
 
     def identifyCols(self):
-        self.fieldType = {k:[] for k in self.csv.fields} # {fieldName: [type1, another possible type, ...], "a field name": ["url", "hostname"]}
+        self.fieldType = {(i,k):[] for i,k in enumerate(self.csv.fields)} # { (colI, fieldName): [type1, another possible type, ...], (2, "a field name"): ["url", "hostname", ...], ...}
         samples = [[] for _ in self.csv.fields]
 
         for line in self.csv.sample.split("\n")[1:]:
@@ -97,7 +97,7 @@ class CsvGuesses:
                 # guess field type by name
                 if self.csv.hasHeader and field.replace(" ", "").replace("'", "").replace('"', "").lower() in names:
                     print("HEADER match", field, names)
-                    self.fieldType[field].append(key)
+                    self.fieldType[i,field].append(key)
                 else:
                     # guess field type by few values
                     hits = 0
@@ -107,7 +107,7 @@ class CsvGuesses:
                             hits += 1
                     if hits/len(samples[i]) > 0.6:
                         print("Function match", field, checkFn)
-                        self.fieldType[field].append(key)
+                        self.fieldType[i,field].append(key)
                     print("hits", hits)
 
 

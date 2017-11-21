@@ -106,35 +106,30 @@ class MailSender():
             logging.error(response)
             return False
 
-    def sendList(registry, csv):
+    def sendList(csv, mails, mailDraft, totalCount):
         """ Send a registry (abusemails or csirtmails) """
         if not Config.get("otrs_enabled", "OTRS"):
             print("OTRS is the only implemented option of sending now. Error.")
             return False
 
-        if not len(registry.records):
+        if not totalCount:
             print("... done. (No mails in the list, nothing to send.)")
             return True
 
         sentMails = 0
         logging.info("sending mails from list...")
 
-        MailSender.smtpObj = smtplib.SMTP('otrs.nic.cz') # XXX CMS
-        for mail, cc, contents in registry.getMails(): #Xrecords.items():
-            if 0: # XXX sending CMS
-                textVars = {}
-                textVars["CONTACTS"] = mail
-                textVars["FILENAME"] = csv.attachmentName
-                textVars["TICKETNUM"] = csv.ticketnum
-                subject = registry.mailDraft.getSubject() % textVars
-                body = registry.mailDraft.getBody() % textVars # format mail template, ex: {FILENAME} in the body will be transformed by the filename
-                if subject == "" or body == "":
-                    print("Missing subject or mail body text.")
-                    return False
-            else:
-                subject, body = MailSender.cmsMail(contents)
-                csv.attachmentName = "" # no attachment
-                mail = mail #.split(",")
+        """ MailSender.smtpObj = smtplib.SMTP('otrs.nic.cz') XXX SMTP """
+        for mail, cc, contents in mails: #Xregistry.getMails():
+            textVars = {}
+            textVars["CONTACTS"] = mail
+            textVars["FILENAME"] = csv.attachmentName
+            textVars["TICKETNUM"] = csv.otrs_ticketnum
+            subject = mailDraft.getSubject() % textVars
+            body = mailDraft.getBody() % textVars # format mail template, ex: {FILENAME} in the body will be transformed by the filename
+            if subject == "" or body == "":
+                print("Missing subject or mail body text.")
+                return False
 
             if Config.isTesting():
                 mailFinal = Config.get('testingMail')
@@ -154,15 +149,15 @@ class MailSender():
                 continue
 
             logging.info("mail {}".format(mail))
-            if 1: # XXX CMS
+            if 0: # XXX SMTP
                 if MailSender.smtpSend(subject, body, mailFinal):
                     sentMails += 1
                     logging.info("ok {}".format(mail))
-            else: # XXX
+            else:
                 fields = (
                           ("Action", "AgentTicketForward"),
                           ("Subaction", "SendEmail"),
-                          ("TicketID", str(csv.ticketid)),
+                          ("TicketID", str(csv.otrs_ticketid)),
                           ("Email", Config.get("ticketemail", "OTRS")),
                           ("From", Config.get("fromaddr", "OTRS")),
                           ("To", mailFinal), # X "edvard.rejthar+otrs_test@nic.cz" sem ma prijit mail (nebo maily oddelene carkou ci strednikem, primo z whois), po otestovani. XX Jdou pouzit maily oddelene strednikem i vice stredniky? mail;mail2;;mail3 (kvuli retezeni v cc pro pripad, ze je vic domen)
@@ -170,7 +165,7 @@ class MailSender():
                           ("Body", body),
                           ("ArticleTypeID", "1"), # mail-external
                           ("ComposeStateID", "4"), # open
-                          ("ChallengeToken", csv.token),
+                          ("ChallengeToken", csv.otrs_token),
                           )
 
                 try:
@@ -193,7 +188,7 @@ class MailSender():
                 else:
                     files = ()
 
-                cookies = (('Cookie', 'Session=%s' % csv.cookie),)
+                cookies = (('Cookie', 'Session=%s' % csv.otrs_cookie),)
 
                 if Config.isTesting():
                     print(" **** Testing info:")
@@ -215,9 +210,9 @@ class MailSender():
                 else:
                     sentMails += 1
 
-        MailSender.smtpObj.quit() # XXX CMS
-        print("\nSent: {}/{} mails.".format(sentMails, len(registry.records)))
-        return sentMails == len(registry.records)
+        """ MailSender.smtpObj.quit() # XXX CMS """
+        print("\nSent: {}/{} mails.".format(sentMails, totalCount))
+        return sentMails == totalCount
 
     def askValue(value, description=""):
         sys.stdout.write('Change {} ({})? [s]kip or paste it: '.format(description, value))
@@ -233,16 +228,16 @@ class MailSender():
         """ Checknout OTRS credentials """
         force = False
         while True:
-            if(force or csv.ticketid == False or csv.ticketnum == False or csv.cookie == False or csv.token == False or csv.attachmentName == False):
-                csv.ticketid = MailSender.askValue(csv.ticketid, "ticket url-id")
-                csv.ticketnum = MailSender.askValue(csv.ticketnum, "ticket long-num")
-                csv.cookie = MailSender.askValue(csv.cookie, "cookie")
-                csv.token = MailSender.askValue(csv.token, "token")
+            if(force or csv.otrs_ticketid == False or csv.otrs_ticketnum == False or csv.otrs_cookie == False or csv.otrs_token == False or csv.attachmentName == False):
+                csv.otrs_ticketid = MailSender.askValue(csv.otrs_ticketid, "ticket url-id")
+                csv.otrs_ticketnum = MailSender.askValue(csv.otrs_ticketnum, "ticket long-num")
+                csv.otrs_cookie = MailSender.askValue(csv.otrs_cookie, "cookie")
+                csv.otrs_token = MailSender.askValue(csv.otrs_token, "token")
                 csv.attachmentName = MailSender.askValue(csv.attachmentName, "attachment name")
                 if csv.attachmentName[-4:] != ".txt":
                     csv.attachmentName += ".txt"
 
-            sys.stdout.write("Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachmentName = {}.\nWas that correct? [y]/n ".format(csv.ticketid, csv.ticketnum, csv.cookie, csv.token, csv.attachmentName))
+            sys.stdout.write("Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachmentName = {}.\nWas that correct? [y]/n ".format(csv.otrs_ticketid, csv.otrs_ticketnum, csv.otrs_cookie, csv.otrs_token, csv.attachmentName))
             if input().lower() in ("y", ""):
                 return True
             else:
@@ -258,7 +253,6 @@ class MailSender():
         message["To"] = mailFinal
 
         try:
-
            #smtpObj.send_message(sender, mailFinal, MIMEText(message,"plain","utf-8"))
            MailSender.smtpObj.send_message(message)
 
@@ -268,38 +262,3 @@ class MailSender():
             print(e)
             import ipdb; ipdb.set_trace()
             print ("Error: unable to send email")
-
-
-    def cmsMail(contents): # XXX jen kvuli posilani CMS
-        subject = "Upozornění na zastaralé CMS"
-        signature = """
-
---
-S pozdravem,
-tým CSIRT.CZ a CZ.NIC-CSIRT
-
-CZ.NIC, z.s.p.o.
-Milešovská 1136/5, 130 00 Praha 3
-Tel.: +420 910 101 010
-
-CZ.NIC, z.s.p.o. provozuje registr doménových jmen .CZ a zabezpečuje provoz domény nejvyšší úrovně .CZ.
-Sdružení provozuje také interní bezpečnostní tým CZ.NIC-CSIRT a od roku 2011 Národní CSIRT tým České republiky – CSIRT.CZ."""
-
-        rows = contents.strip().split("\n")
-        if len(rows) == 1:
-            multiple = 0
-            mail, domain, cms = rows[0].split("|")
-        elif len(rows) > 1:
-            multiple = 1
-            mail, domain, cms = "","",""
-        else:
-            print("ERROR NO ROWS")
-            import ipdb; ipdb.set_trace()
-
-        body = "Vážený držiteli " + ["domény " + domain, "domén .cz"][multiple] + ",\n\n" + "obracíme se na Vás v souvislosti s provozem webových stránek umístěných " + ["na doméně " + domain, "na doménách, které najdete níže"][multiple] + ". V rámci testování prováděného bezpečnostními týmy CSIRT.CZ a CZ.NIC-CSIRT jsme zjistili, že Vaše stránky jsou provozovány "+["na zastaralé verzi CMS " + cms, "na zastaralých verzích CMS"][multiple] +". Provozování webových stránek na zastaralém CMS je bezpečnostním rizikem. Doporučujeme situaci konzultovat s Vaším správcem IT a případně provést upgrade Vašeho CMS na novější verzi. Pokud o riziku víte, prosím považujte tuto zprávu za bezpředmětnou. Více info na https://csirt.cz/cms/ . V případě dotazů nás můžete kontaktovat na adrese security-scan@csirt.cz."
-
-        if multiple:
-            body += "\n\n"
-            for row in rows:
-                body += ": ".join(row.split("|")[1:]) + "\n"
-        return subject, body + signature

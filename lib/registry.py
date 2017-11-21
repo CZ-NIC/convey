@@ -1,10 +1,11 @@
+DEPRECATED CLASS
+
 from lib.config import Config
 from lib.mailDraft import MailDraft
 from collections import defaultdict
 import os
 import csv
 import re
-import pdb, ipdb
 
 class _RegistryRecord(set):
     def __init__(self):
@@ -34,17 +35,17 @@ class _Registry:
         self.records = defaultdict(_RegistryRecord)
         self.knowns = set()
         self.total = 0
-        self.mailDraft = MailDraft(self.name)
+        Contacts.mailDraft = MailDraft(self.name)
         self.resetUnknowns()
 
     def count(self, row, record = "", ip = None, prefix = None):
         """ Add IPs to this record and write the row the appropriate file """
-        
+
         # XXX this functionality is fully taken by Processer.csirt-mail
         #
         # migrate out mailDraft etc and delete the class code
         #
-        
+
         if record and record is not "unknown":
             file_existed = record in self.records
             ip_existed = ip in self.records[record].counter
@@ -58,7 +59,7 @@ class _Registry:
         if self.conveying == "unique_file": # XX True or
             record = "unique_file_only" # XX testing unique_file directive. Cant be in config/conveying, cause to konkurovalo unique_row a unique_ip direktivam.
             self.kind = "csv" # XX testing only
-                        
+
         # X self.saveRow(file_existed, record, row)
 
     """def saveRow(self, file_existed, record, row):
@@ -148,12 +149,11 @@ class AbusemailRegistry(_Registry):
     def getUnknownPath(self):
         return Config.getCacheDir() + "unknown.local"
 
-    ##
-    # mail = mail@example.com;mail2@example2.com -> [example.com, example2.com]
-    def getDomains(mail):
+    def getDomains(mailStr):
+        """ mail = mail@example.com;mail2@example2.com -> [example.com, example2.com] """
         try:
             #return set(re.findall("@([\w.]+)", mail))
-            return set([x[0] for x in re.findall("@(([A-Za-z0-9-]{1,63}\.)+[A-Za-z]{2,6})", mail)])
+            return set([x[0] for x in re.findall("@(([A-Za-z0-9-]{1,63}\.)+[A-Za-z]{2,6})", mailStr)])
         except AttributeError:
             return []
 

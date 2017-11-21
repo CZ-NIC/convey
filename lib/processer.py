@@ -170,7 +170,7 @@ class Processer:
                 traceback.print_exc()
                 import ipdb; ipdb.set_trace() # XX get rid of it
                 csv.invalidLinesCount += 1
-                location = "invalidlines.tmp"
+                location = Config.INVALID_NAME
                 chosen_fields = [line] # reset the original line (will be reprocessed)
 
         if not location:

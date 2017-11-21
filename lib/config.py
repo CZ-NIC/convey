@@ -17,6 +17,9 @@ class Config:
     #conveying = "all" # quick access to the property
     #redo_invalids = True # quick access to the property
 
+    INVALID_NAME = ".invalidlines.tmp"
+    UNKNOWN_NAME = "unknown"
+
 
     def errorCatched():
         if Config.isDebug():

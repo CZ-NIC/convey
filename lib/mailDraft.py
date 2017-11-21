@@ -1,30 +1,24 @@
-# Mail management data structure
-from collections import defaultdict
+""" Mail management data structure """
 import os
-import webbrowser
 import subprocess
-import re
 from lib.config import Config
 
-
 class MailDraft:
-
-    """ Mail management data structure """
     def __init__(self, filename):
-        self.text = False                
-        self.templateFile = Config.get("mail_template_local")
+        self.text = False
+        self.templateFile = Config.get(filename)
         self.mailFile = Config.getCacheDir() + filename + ".txt" # ex: csirt/2015/mail_cz5615616.txt XMailDraft.dir +  + MailDraft.hash
         #self.guiEdit()
 
-    # get body text
     def getBody(self):
+        """ get body text """
         if self._assureMailContents() == True:
             CRLF = '\r\n'
             return CRLF.join(self.text.splitlines()[1:])
         else:
             return ""
 
-    def getSubject(self):        
+    def getSubject(self):
         if self._assureMailContents() == True:
             return self.text.splitlines()[0]
         else:
@@ -37,7 +31,7 @@ class MailDraft:
         self.text = self._loadText()
         if not self.text: # user didn't fill files in GUI
             print("Empty body text. Do you wish to open GUI for editation? [y]/n")
-            if input().lower() in ("y",""):                
+            if input().lower() in ("y",""):
                 self.guiEdit()
                 print("Come back after filling in the mail.")
                 return False # user fill GUI file, saves it and manually comes here to the method
@@ -58,14 +52,10 @@ class MailDraft:
         except FileNotFoundError:
             return None
 
-    # Opens file for mail text to GUI editation.
-    # If file doesnt exists, it creates it from the template.
-    def guiEdit(self):        
+    def guiEdit(self):
+        """ Opens file for mail text to GUI editation. Created from the template if not exist. """
         if os.path.isfile(self.mailFile) == False:
             with open(self.templateFile, 'r') as template, open(self.mailFile , 'w+') as file:
                 file.write(template.read())
 
-        #webbrowser.open(mailFile) X this preferred method didnt work, console was fullfilled by errors
-        subprocess.Popen(['gedit',self.mailFile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-
+        subprocess.Popen(['xdg-open',self.mailFile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
