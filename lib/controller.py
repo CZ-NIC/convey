@@ -17,11 +17,13 @@ class Controller:
     def __init__(self):
         parser = argparse.ArgumentParser(description=__doc__)
         parser.add_argument('file', nargs='?')
-        parser.add_argument('--fresh', help="Do not attempt to load previous results", default=False, action="store_true")
-        parser.add_argument('--otrs_id')
-        parser.add_argument('--otrs_num')
-        parser.add_argument('--otrs_cookie')
-        parser.add_argument('--otrs_token')
+        parser.add_argument('--fresh', help="Do not attempt to load any previous settings / results", default=False, action="store_true")
+        flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"), ("otrs_token", "OTRS token")]
+
+        for flag in flags:
+            parser.add_argument('--'+flag[0], help=flag[1])
+
+        parser.add_argument('--csirt-incident', action="store_true", help="Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country or csirt contact for foreign countries) and send everything by OTRS. You set local countries in config.ini, currently set to: {}".format(Config.get("local_country")))
         args = parser.parse_args()
         self.processable = False
 
@@ -31,28 +33,24 @@ class Controller:
         Contacts.refresh()
 
         # load flags
-        if args.otrs_id:
-            csv.otrs_ticketid = args.otrs_id
-            print("Ticket id: {}".format(args.otrs_id))
-        elif args.otrs_num:
-            csv.otrs_ticketnum = args.otrs_num
-            print("Ticket num: {}".format(args.otrs_num))
-        elif args.otrs_cookie:
-            csv.cookie = args.otrs_cookie
-            print("OTRS cookie: {}".format(args.otrs_cookie))
-        elif args.otrs_token:
-            csv.token = args.otrs_token
-            print("OTRS token: {}".format(args.otrs_token))
+        for flag in flags:
+            if args.__dict__[flag[0]]:
+                csv.__dict__[flag[0]] = args.__dict__[flag[0]]
+                print("{}: {}".format(flag[1], flag[0]))
 
         #self.csv.settings = defaultdict(list) # every program launch, the settings resets
+        if args.csirt_incident and not csv.isAnalyzed():
+            csv.settings["split"] = self.extendColumn("incident-contact", add=False)
+            self.processable = True
+            csv.runAnalysis()
 
         # main menu
         while True:
             csv.informer.soutInfo()
             if Config.get('testing') == "True":
                 print("\n*** TESTING MOD - mails will be send to mail {} ***\n (To cancel the testing mode set testing = False in config.ini.)".format(Config.get('testingMail')))
-            #print("Settings", self.csv.settings)
-            #print("Fields", csv.fields)
+            print(" XX Settings", self.csv.settings)
+            print(" XX Fields", csv.fields)
 
             #else:
             #    print("\n Analysis has not been completed. Please rework again.")
@@ -60,7 +58,7 @@ class Controller:
             # XX list actions
             menu = Menu(title="Main menu - how the file should be processed?")
             menu.add("Pick or delete columns", self.chooseCols)
-            menu.add("Add a column",self.addColumn)
+            menu.add("Add a column", self.addColumn)
             menu.add("Unique filter", self.addUniquing)
             menu.add("Value filter", self.addFiltering)
             menu.add("Split by a column", self.addSplitting)
@@ -91,9 +89,9 @@ class Controller:
             menu.add("Send by SMTP...")
             menu.add("Send by OTRS...")
             o = menu.sout()
-            if o == 1:
+            if o == '1':
                 method = "smtp"
-            elif o == 2:
+            elif o == '2':
                 method = "otrs"
             else:
                 print("Unknown option")
@@ -156,8 +154,10 @@ class Controller:
         menu.sout()
 
 
-    def extendColumn(self, new_field):
-        """ we know what is new column, now determine how we should extend it """
+    def extendColumn(self, new_field, add=None):
+        """ We know what is new column, now determine how we should extend it
+                add - bool if the column should be added to the table; None ask
+        """
         print("\nWhat column we base {} on?".format(new_field))
 
         g = Graph()
@@ -201,11 +201,12 @@ class Controller:
 
         self.csv.settings["add"].append((new_field, sourceColI, methods))
         self.csv.fields.append(new_field)
+        print("New field added: {}".format(new_field))
 
-        if input("Do you want to include this field as a new column? [y]/n") in ["n","no"]:
+        if add is False or (add is None and input("Do you want to include this field as a new column? [y]/n ") in ["n","no"]):
             if not self.csv.settings["chosen_cols"]:
-                self.csv.settings["chosen_cols"] = [True] * (len(self.csv.fields) -1)
-            self.csv.settings["chosen_cols"].append(False)
+                self.csv.settings["chosen_cols"] = list(range(len(self.csv.fields) -1))
+            #self.csv.settings["chosen_cols"].append(False)
         return len(self.csv.fields) - 1 #+ len(self.csv.settings["add"]) - 1
 
 
@@ -224,8 +225,9 @@ class Controller:
         fields = [] + (self.csv.fields if not only_extendables else [])
         fields += ["COMPUTED " + x for x in self.csv.guesses.extendable_fields]
         colI = Dialogue.pickOption(fields, colName)
-        if colI >= len(self.csv.fields):
-            colI = self.extendColumn(self.csv.guesses.extendable_fields[colI - len(self.csv.fields)])
+        if only_extendables or colI >= len(self.csv.fields):
+            new_fieldI = colI if only_extendables else colI - len(self.csv.fields)
+            colI = self.extendColumn(self.csv.guesses.extendable_fields[new_fieldI])
         return colI
 
     def addFiltering(self):
@@ -240,7 +242,7 @@ class Controller:
 
     def addColumn(self):
         colI = self.selectCol("new column", only_extendables=True)
-        self.extendColumn(self.csv.guesses.extendable_fields[colI])
+        #self.extendColumn(self.csv.guesses.extendable_fields[colI])
         self.processable = True
 
     def addUniquing(self):

@@ -62,7 +62,7 @@ class Informer:
         if self.csv.whoisStats:
             print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whoisStats.items()))
 
-        print("\nSample:\n" + "\n".join(self.csv.sample.split("\n")[:3]) + "\n") # show first 3rd lines
+        print("\nSample:\n" + "\n".join(self.csv.sample.split("\n")[:4]) + "\n") # show first 3rd lines
 
         if self.csv.isAnalyzed():
             print("** Processing completed **")

@@ -35,6 +35,7 @@ class SourceParser:
             self.hasHeader = None # CSV has header
             self.header = "" # if CSV has header, it's here
             self.fields = [] # CSV columns
+            self.settings = defaultdict(list)
             self.redo_invalids = Config.getboolean("redo_invalids")
             #self.conveying = Config.get("conveying")
             #if not self.conveying: # default
@@ -42,13 +43,12 @@ class SourceParser:
 
             # OTRS attributes to be linked to CSV
             self.otrs_cookie = False
-            self.otrs_ticketid = Config.get("ticketid", "OTRS")
+            self.otrs_id = Config.get("ticketid", "OTRS")
             self.otrs_token = False
-            self.otrs_ticketnum = Config.get("ticketnum", "OTRS")
+            self.otrs_num = Config.get("ticketnum", "OTRS")
             self.attachmentName = "part-" + ntpath.basename(sourceFile)
             self.ipCountGuess = None
             self.ipCount = None
-            self.resetSettings()
             self._reset()
 
             #load CSV
@@ -93,10 +93,9 @@ class SourceParser:
             self.hasHeader = not self.hasHeader
         if self.hasHeader == True:
             self.header = self.firstLine.strip()
-        #if self.delimiter:
-        self.fields = self.firstLine.split(self.delimiter)
-        self.fields[-1] = self.fields[-1].strip()
+        self.resetSettings()
         self.guesses.identifyCols()
+        #self.fields[-1] = self.fields[-1].strip()
         #else:
         #    self.fields = [self.firstLine]
 
@@ -134,7 +133,8 @@ class SourceParser:
         Whois.init(self)
 
     def resetSettings(self):
-        self.settings = defaultdict(list) # for processer
+        self.settings = defaultdict(list)
+        self.fields = self.firstLine.split(self.delimiter)
 
     def _resetOutput(self):
         self.lineCount = 0
@@ -149,8 +149,16 @@ class SourceParser:
 
         Config.hasHeader = self.hasHeader
         if self.delimiter:
-            h = self.header.split(self.delimiter)
-            Config.header = self.delimiter.join([h[i] for i in self.settings["chosen_cols"]]) if self.settings["chosen_cols"] else self.header
+            #h = self.header.split(self.delimiter)
+            #print("HEJ")
+            #print(self.delimiter, self.settings["chosen_cols"], self.header)
+            #import ipdb; ipdb.set_trace()
+            #Config.header = self.delimiter.join([h[i] for i in self.settings["chosen_cols"]]) if self.settings["chosen_cols"] else self.header + [s[0] for s in self.settings["add"]]
+
+            if self.settings["chosen_cols"]:
+                Config.header = self.delimiter.join([self.fields[i] for i in self.settings["chosen_cols"]])
+            else:
+                Config.header = self.delimiter.join(self.fields)
         self._resetOutput()
 
         self.timeStart = None
@@ -327,3 +335,14 @@ class SourceParser:
                 continue
             else:
                 yield val.mail, val.cc, self._getFileContents(key)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['informer']
+        del state['processer']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.informer = Informer(self)
+        self.processer = Processer(self)

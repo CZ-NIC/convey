@@ -14,7 +14,10 @@ class Dialogue:
         return Dialogue.ask(text = text + " [y]/n: ").lower() in ("y", "yes", "")
 
     def ask(text=None):
-        txt = input(text) if text else input()
+        try:
+            txt = input(text) if text else input()
+        except EOFError:
+            txt = "x"
         if txt == "x":
             raise Cancelled(".. cancelled")
         if txt == "debug":
@@ -82,7 +85,7 @@ class Menu:
         #    key = str(len(self.menu))
         if key is None:
             self._keyCount += 1
-            key = self._keyCount
+            key = str(self._keyCount)
         self.menu.append((str(key), title, fn))
 
     def sout(self):
@@ -99,7 +102,7 @@ class Menu:
                 print("{}) {}".format(key, name))
             try:
                 if self.fullscreen:
-                    code, ans = d.radiolist(self.title, choices=l)
+                    code, ans = dialog.radiolist(self.title, choices=l)
                     if code != "ok":
                         return
                 else:

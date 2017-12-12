@@ -9,6 +9,10 @@ reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")
 reFqdn = re.compile("^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+){1,63}\.))+){1,255}$")
 reUrl = re.compile('[a-z]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
 
+"""
+     guesses - ways to identify a column
+        name: ([usual names], method to identify)
+"""
 guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], Whois.checkIp),
         "portIP": ([], reIpWithPort.match),
         "anyIP": ([], reAnyIp.match),
@@ -18,9 +22,6 @@ guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], Whois.checkI
         }
 
 class CsvGuesses:
-    """
-     guesses - ways to identify a column (usual names, method to identify)
-    """
 
     def __init__(self, csv):
         self.csv = csv
@@ -35,7 +36,7 @@ class CsvGuesses:
                 sample += row
                 if(i == 8): #sniffer needs 7+ lines to determine dialect, not only 3 (/mnt/csirt-rook/2015/06_08_Ramnit/zdroj), I dont know why
                     break
-        return firstLine, sample
+        return firstLine.strip(), sample
         #csvfile.seek(0)
         #csvfile.close()
 
@@ -73,14 +74,14 @@ class CsvGuesses:
     ("whois", "country"): lambda x: (x, x.get[5]),
     ("whois", "netname"): lambda x: (x, x.get[4]),
     ("whois", "csirt-contact"): lambda x: (x, Config.csirtmails[x.get[5]] if x.get[5] in Config.csirtmails else "-"), # vraci tuple (local|country_code, whois-mail|abuse-contact)
-    ("whois", "legal-contact"): lambda x: (x, x.get[2]),
+    ("whois", "incident-contact"): lambda x: (x, x.get[2]),
     ("url", "cms"): lambda x: "Not yet implemented",
     ("hostname", "cms"): lambda x: "Not yet implemented"}
 
     f = lambda x: (lambda x,ip: x, ip, x[4])(x.get(), x.ip)
 
     # these fields can be added (e.g. whois is a temporary made up field, in can't be added to CSV)
-    extendable_fields = ["url", "hostname", "prefix", "ip", "asn", "country", "abusemail", "csirt-contact", "legal-contact"]
+    extendable_fields = ["url", "hostname", "prefix", "ip", "asn", "country", "abusemail", "csirt-contact", "incident-contact"]
 
     def identifyCols(self):
         self.fieldType = {(i,k):[] for i,k in enumerate(self.csv.fields)} # { (colI, fieldName): [type1, another possible type, ...], (2, "a field name"): ["url", "hostname", ...], ...}

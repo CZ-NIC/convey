@@ -7,6 +7,7 @@ import re
 import sys
 import smtplib
 from email.mime.text import MIMEText
+import lepl.apps.rfc3696
 
 re_title = re.compile('<title>([^<]*)</title>')
 
@@ -111,6 +112,8 @@ class MailSender():
 
             method - smtp OR otrs
         """
+        email_validator = lepl.apps.rfc3696.Email()
+
         if method == "otrs" and not Config.get("otrs_enabled", "OTRS"):
             print("OTRS is the only implemented option of sending now. Error.")
             return False
@@ -128,7 +131,7 @@ class MailSender():
             textVars = {}
             textVars["CONTACTS"] = mail
             textVars["FILENAME"] = csv.attachmentName
-            textVars["TICKETNUM"] = csv.otrs_ticketnum
+            textVars["TICKETNUM"] = csv.otrs_num
             subject = mailDraft.getSubject() % textVars
             body = mailDraft.getBody() % textVars # format mail template, ex: {FILENAME} in the body will be transformed by the filename
             if subject == "" or body == "":
@@ -142,13 +145,8 @@ class MailSender():
             else:
                 mailFinal = mail
 
-            from email.utils import parseaddr
-            # check e-mail is valid
-            if not '@' in parseaddr(mailFinal)[1]:
-                # XXX shouldnt we check all mails are valid before?
-                # XXX a tohle stejne nefunguje, prosel mail s diakritikou
-                print("ERRONEOUS EMAIL!")
-                print(mailFinal)
+            if not email_validator(mailFinal):
+                print("ERRONEOUS EMAIL!", mailFinal)
                 logging.error("erroneous mail {}".format(mailFinal))
                 continue
 
@@ -157,14 +155,14 @@ class MailSender():
                 if MailSender.smtpSend(subject, body, mailFinal):
                     sentMails += 1
                     logging.info("ok {}".format(mail))
-            else:
+            elif method == "otrs":
                 fields = (
                           ("Action", "AgentTicketForward"),
                           ("Subaction", "SendEmail"),
-                          ("TicketID", str(csv.otrs_ticketid)),
+                          ("TicketID", str(csv.otrs_id)),
                           ("Email", Config.get("ticketemail", "SMTP")),
                           ("From", Config.get("fromaddr", "SMTP")),
-                          ("To", mailFinal), # X "edvard.rejthar+otrs_test@nic.cz" sem ma prijit mail (nebo maily oddelene carkou ci strednikem, primo z whois), po otestovani. XX Jdou pouzit maily oddelene strednikem i vice stredniky? mail;mail2;;mail3 (kvuli retezeni v cc pro pripad, ze je vic domen)
+                          ("To", mailFinal), # mails can be delimited by comma or semicolon
                           ("Subject", subject),
                           ("Body", body),
                           ("ArticleTypeID", "1"), # mail-external
@@ -214,6 +212,9 @@ class MailSender():
                 else:
                     sentMails += 1
 
+            else:
+                print("Unknown method")
+
         if method == "smtp":
             MailSender.smtpObj.quit()
         print("\nSent: {}/{} mails.".format(sentMails, totalCount))
@@ -233,16 +234,16 @@ class MailSender():
         """ Checknout OTRS credentials """
         force = False
         while True:
-            if(force or csv.otrs_ticketid == False or csv.otrs_ticketnum == False or csv.otrs_cookie == False or csv.otrs_token == False or csv.attachmentName == False):
-                csv.otrs_ticketid = MailSender.askValue(csv.otrs_ticketid, "ticket url-id")
-                csv.otrs_ticketnum = MailSender.askValue(csv.otrs_ticketnum, "ticket long-num")
+            if(force or csv.otrs_id == False or csv.otrs_num == False or csv.otrs_cookie == False or csv.otrs_token == False or csv.attachmentName == False):
+                csv.otrs_id = MailSender.askValue(csv.otrs_id, "ticket url-id")
+                csv.otrs_num = MailSender.askValue(csv.otrs_num, "ticket long-num")
                 csv.otrs_cookie = MailSender.askValue(csv.otrs_cookie, "cookie")
                 csv.otrs_token = MailSender.askValue(csv.otrs_token, "token")
                 csv.attachmentName = MailSender.askValue(csv.attachmentName, "attachment name")
                 if csv.attachmentName[-4:] != ".txt":
                     csv.attachmentName += ".txt"
 
-            sys.stdout.write("Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachmentName = {}.\nWas that correct? [y]/n ".format(csv.otrs_ticketid, csv.otrs_ticketnum, csv.otrs_cookie, csv.otrs_token, csv.attachmentName))
+            sys.stdout.write("Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachmentName = {}.\nWas that correct? [y]/n ".format(csv.otrs_id, csv.otrs_num, csv.otrs_cookie, csv.otrs_token, csv.attachmentName))
             if input().lower() in ("y", ""):
                 return True
             else:
