@@ -40,7 +40,6 @@ class CsvGuesses:
         #csvfile.seek(0)
         #csvfile.close()
 
-
     def guessDelimiter(self, sample):
         sniffer = Sniffer()
         delimiter = ""
@@ -68,7 +67,7 @@ class CsvGuesses:
     ("hostname", "ip"): lambda x: Whois.hostname2ip(x),
     ("url", "ip"): lambda x: Whois.url2ip(x),
     ("ip", "whois"): lambda x: Whois(x),
-    ("whois", "prefix"): lambda x: (x, x.get[0]), # XX
+    ("whois", "prefix"): lambda x: (x, x.get[0]),
     ("whois", "asn"): lambda x: (x, x.get[3]),
     ("whois", "abusemail"): lambda x: (x, x.getAbusemail()),
     ("whois", "country"): lambda x: (x, x.get[5]),

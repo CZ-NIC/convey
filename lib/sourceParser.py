@@ -1,7 +1,6 @@
 # Source file parsing
 from collections import defaultdict
 import datetime
-import ipdb
 from lib.config import Config
 from lib.csvGuesses import CsvGuesses
 from lib.dialogue import Cancelled
@@ -19,30 +18,19 @@ import subprocess
 import sys
 logging.FileHandler('whois.log', 'a')
 
-
 class SourceParser:
 
     def __init__(self, sourceFile):
         print("Processing file.")
         self.isRepeating = False
         while True:
-            #instance attributes init
-            #self.multithread = Config.get("multithread") # if True, whois will be asked multithreaded (but we may flood it)
-            #self.ipColumn = None # IP column position
-            #self.asnColumn = None # AS number collumn position
-            #self.urlColumn = None # URL column position, to be translated to IP
             self.delimiter = None  # CSV dialect
             self.hasHeader = None # CSV has header
             self.header = "" # if CSV has header, it's here
             self.fields = [] # CSV columns
             self.settings = defaultdict(list)
             self.redo_invalids = Config.getboolean("redo_invalids")
-            #self.conveying = Config.get("conveying")
-            #if not self.conveying: # default
-            #    self.conveying = "all"
-
-            # OTRS attributes to be linked to CSV
-            self.otrs_cookie = False
+            self.otrs_cookie = False # OTRS attributes to be linked to CSV
             self.otrs_id = Config.get("ticketid", "OTRS")
             self.otrs_token = False
             self.otrs_num = Config.get("ticketnum", "OTRS")
@@ -98,7 +86,6 @@ class SourceParser:
         #self.fields[-1] = self.fields[-1].strip()
         #else:
         #    self.fields = [self.firstLine]
-
 
     """
     def _askPivotCol(self):

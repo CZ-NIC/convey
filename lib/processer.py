@@ -166,9 +166,10 @@ class Processer:
             if isinstance(e, BdbQuit):
                 raise # BdbQuit and KeyboardInterrupt catched higher
             else:
-                import traceback
-                traceback.print_exc()
-                import ipdb; ipdb.set_trace() # XX get rid of it
+                if Config.isDebug():
+                    import traceback
+                    traceback.print_exc()
+                    import ipdb; ipdb.set_trace()
                 csv.invalidLinesCount += 1
                 location = Config.INVALID_NAME
                 chosen_fields = [line] # reset the original line (will be reprocessed)

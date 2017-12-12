@@ -66,7 +66,6 @@ class Config:
         """ Cache dir with ending slash. """
         return Config.cacheDir
 
-
     def update():
         """
          * Refreshes Cc of the mails in the results (config key contacts_local)

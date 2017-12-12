@@ -266,5 +266,6 @@ class MailSender():
            return 1
         except Exception as e:
             print(e)
-            import ipdb; ipdb.set_trace()
+            if Config.isDebug():
+                import ipdb; ipdb.set_trace()
             print ("Error: unable to send email")

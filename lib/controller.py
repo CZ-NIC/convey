@@ -17,15 +17,16 @@ class Controller:
     def __init__(self):
         parser = argparse.ArgumentParser(description=__doc__)
         parser.add_argument('file', nargs='?')
+        parser.add_argument('--debug', help="On error, enter ipdb session", default=False, action="store_true")
         parser.add_argument('--fresh', help="Do not attempt to load any previous settings / results", default=False, action="store_true")
         flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"), ("otrs_token", "OTRS token")]
-
         for flag in flags:
             parser.add_argument('--'+flag[0], help=flag[1])
-
         parser.add_argument('--csirt-incident', action="store_true", help="Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country or csirt contact for foreign countries) and send everything by OTRS. You set local countries in config.ini, currently set to: {}".format(Config.get("local_country")))
         args = parser.parse_args()
         self.processable = False
+        if args.debug:
+            Config.set("debug", True)
 
         file = SourcePicker() # source file path
         self.wrapper = SourceWrapper(file, args.fresh)
@@ -50,8 +51,9 @@ class Controller:
             csv.informer.soutInfo()
             if Config.get('testing') == "True":
                 print("\n*** TESTING MOD - mails will be send to mail {} ***\n (To cancel the testing mode set testing = False in config.ini.)".format(Config.get('testingMail')))
-            print(" XX Settings", self.csv.settings)
-            print(" XX Fields", csv.fields)
+            if Config.isDebug():
+                print(" XX Settings", self.csv.settings)
+                print(" XX Fields", csv.fields)
 
             #else:
             #    print("\n Analysis has not been completed. Please rework again.")
@@ -156,7 +158,6 @@ class Controller:
 
         #import ipdb; ipdb.set_trace()
 
-
     def extendColumn(self, new_field, add=None):
         """ We know what is new column, now determine how we should extend it
                 add - bool if the column should be added to the table; None ask
@@ -224,13 +225,13 @@ class Controller:
             self.processable = True
 
 
-    def selectCol(self, colName="", only_extendables=False):
+    def selectCol(self, colName="", only_extendables=False, add=None):
         fields = [] + (self.csv.fields if not only_extendables else [])
         fields += ["COMPUTED " + x for x in self.csv.guesses.extendable_fields]
         colI = Dialogue.pickOption(fields, colName)
         if only_extendables or colI >= len(self.csv.fields):
             new_fieldI = colI if only_extendables else colI - len(self.csv.fields)
-            colI = self.extendColumn(self.csv.guesses.extendable_fields[new_fieldI])
+            colI = self.extendColumn(self.csv.guesses.extendable_fields[new_fieldI], add=add)
         return colI
 
     def addFiltering(self):
@@ -244,7 +245,7 @@ class Controller:
         self.processable = True
 
     def addColumn(self):
-        colI = self.selectCol("new column", only_extendables=True)
+        colI = self.selectCol("new column", only_extendables=True, add=True)
         #self.extendColumn(self.csv.guesses.extendable_fields[colI])
         self.processable = True
 
