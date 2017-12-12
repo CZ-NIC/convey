@@ -1,5 +1,4 @@
 import argparse
-import os.path
 from collections import defaultdict
 from lib.config import Config
 from sys import exit
@@ -10,6 +9,7 @@ from lib.sourceWrapper import SourceWrapper
 from lib.mailSender import MailSender
 from lib.whois import Whois
 from lib.graph import Graph
+from dialog import Dialog
 
 
 class Controller:
@@ -48,30 +48,18 @@ class Controller:
 
         # main menu
         while True:
+            csv.informer.soutInfo()
             if Config.get('testing') == "True":
                 print("\n*** TESTING MOD - mails will be send to mail {} ***\n (To cancel the testing mode set testing = False in config.ini.)".format(Config.get('testingMail')))
-            if csv.isAnalyzed():
-                stat = csv.informer.getStatsPhrase()
-                print("\n Statistics overview:\n" + stat)
-                with open(os.path.dirname(file) + "/statistics.txt","w") as f:
-                    f.write(stat)
-                """
-                XX
-                if csv.abuseReg.stat("records", False):
-                    print("Couldn't find {} abusemails for {}× IP.".format(csv.reg["local"].stat("records", False), csv.reg["local"].stat("ips", False)))
-                if csv.countryReg.stat("records", False):
-                    print("Couldn't find {} csirtmails for {}× IP.".format(csv.reg["foreign"].stat("records", False), csv.reg["foreign"].stat("ips", False)))
-                """
-            print("Settings", self.csv.settings)
-
-            print("Fields", csv.fields)
+            #print("Settings", self.csv.settings)
+            #print("Fields", csv.fields)
 
             #else:
             #    print("\n Analysis has not been completed. Please rework again.")
 
             # XX list actions
             menu = Menu(title="Main menu - how the file should be processed?")
-            menu.add("Pick or delete columns", self.choseCols)
+            menu.add("Pick or delete columns", self.chooseCols)
             menu.add("Add a column",self.addColumn)
             menu.add("Unique filter", self.addUniquing)
             menu.add("Value filter", self.addFiltering)
@@ -80,7 +68,7 @@ class Controller:
                 menu.add("process", csv.runAnalysis, key="p")
             else:
                 menu.add("process  (choose some actions)")
-            if csv.isAnalyzedB:
+            if csv.isAnalyzed():
                 menu.add("send", self.sendMenu, key="s")
                 menu.add("show all details", lambda: csv.informer.soutInfo(full=True), key="d")
             else:
@@ -97,7 +85,22 @@ class Controller:
             except Debugged as e:
                 import ipdb; ipdb.set_trace()
 
-    def sendMenuOtrs(self):
+    def sendMenu(self):
+        if Config.get("otrs_enabled", "OTRS"):
+            menu = Menu(title="What sending method do we want to use?", callbacks=False, fullscreen=True)
+            menu.add("Send by SMTP...")
+            menu.add("Send by OTRS...")
+            o = menu.sout()
+            if o == 1:
+                method = "smtp"
+            elif o == 2:
+                method = "otrs"
+            else:
+                print("Unknown option")
+                return
+        else:
+            method = "smtp"
+
         menu = Menu("Do you really want to send e-mails now?", callbacks=False)
 
         MailSender.assureTokens(self.csv)
@@ -130,25 +133,20 @@ class Controller:
             if not MailSender.sendList(self.csv,
                     Contacts.getContacts(self.csv.stats["ispCzFound"]),
                     Contacts.mailDraft["local"],
-                    len(self.csv.stats["ispCzFound"])):
+                    len(self.csv.stats["ispCzFound"]),
+                    method=method):
                 print("Couldn't send all local mails. (Details in mailSender.log.)")
         if option == "1" or option == "3":
             print("Sending to foreigns...")
             if not MailSender.sendList(self.csv,
                     Contacts.getContacts(self.csv.stats["countriesFound"], checkCountries=True),
                     Contacts.mailDraft["foreign"],
-                    len(self.csv.stats["countriesFound"])):
+                    len(self.csv.stats["countriesFound"]),
+                    method=method):
                 print("Couldn't send all foreign e-mails. (Details in mailSender.log.)")
 
-    def sendMenu(self):
-        menu = Menu(title="What should be reprocessed?")
-        fn = lambda: print("TBD")
-        menu.add("Send by SMTP...", fn)
-        menu.add("Send by OTRS...", self.sendMenuOtrs)
-        menu.sout()
-
     def refreshMenu(self):
-        menu = Menu(title="What should be reprocessed?")
+        menu = Menu(title="What should be reprocessed?", fullscreen=True)
         menu.add("Rework whole file again", self.wrapper.clear)
         menu.add("Delete processing settings", self.csv.resetSettings)
         menu.add("Delete whois cache", self.csv.resetWhois)
@@ -184,14 +182,16 @@ class Controller:
                 i = g.dijkstra(new_field)[_type]
                 if i < _min[0]:
                     _min = i, _type
+            if _min[1] is None:
+                raise KeyError
             path = g.dijkstra(new_field, start= _min[1]) # list of method-names to calculate new fields
         except KeyError:
-            print("No known method for making {} from {}".format(new_field,sourceColI))
+            print("No known method for making {} from {}".format(new_field, self.csv.fields[sourceColI]))
             input()
             # XX ask how should be treated the column as, even it seems not valid (if as a hostname, url...)
             return
         except:
-            print("Error finding a method for making {} from {}".format(new_field,sourceColI))
+            print("Error finding a method for making {} from {}".format(new_field, self.csv.fields[sourceColI]))
             input()
             return
 
@@ -201,13 +201,23 @@ class Controller:
 
         self.csv.settings["add"].append((new_field, sourceColI, methods))
         self.csv.fields.append(new_field)
+
+        if input("Do you want to include this field as a new column? [y]/n") in ["n","no"]:
+            if not self.csv.settings["chosen_cols"]:
+                self.csv.settings["chosen_cols"] = [True] * (len(self.csv.fields) -1)
+            self.csv.settings["chosen_cols"].append(False)
         return len(self.csv.fields) - 1 #+ len(self.csv.settings["add"]) - 1
 
 
-    def choseCols(self):
-        print("TBD XX")
-        # XX maybe use python library dialog for multiple choice or something
-        pass
+    def chooseCols(self):
+        # XX possibility un/check all
+        chosens = [(str(i+1),f,i in self.csv.settings["chosen_cols"] if self.csv.settings["chosen_cols"] else True) for i,f in enumerate(self.csv.fields)]
+        d = Dialog()
+        ret, values = d.checklist("What fields should be included in the output file?",
+            choices=chosens)
+        if ret == "ok":
+            self.csv.settings["chosen_cols"] = [int(v)-1 for v in values]
+            self.processable = True
 
 
     def selectCol(self, colName="", only_extendables=False):

@@ -106,9 +106,12 @@ class MailSender():
             logging.error(response)
             return False
 
-    def sendList(csv, mails, mailDraft, totalCount):
-        """ Send a registry (abusemails or csirtmails) """
-        if not Config.get("otrs_enabled", "OTRS"):
+    def sendList(csv, mails, mailDraft, totalCount, method="smtp"):
+        """ Send a registry (abusemails or csirtmails)
+
+            method - smtp OR otrs
+        """
+        if method == "otrs" and not Config.get("otrs_enabled", "OTRS"):
             print("OTRS is the only implemented option of sending now. Error.")
             return False
 
@@ -119,7 +122,8 @@ class MailSender():
         sentMails = 0
         logging.info("sending mails from list...")
 
-        """ MailSender.smtpObj = smtplib.SMTP('otrs.nic.cz') XXX SMTP """
+        if method == "smtp":
+            MailSender.smtpObj = smtplib.SMTP(Config.get("host", "SMTP"))
         for mail, cc, contents in mails: #Xregistry.getMails():
             textVars = {}
             textVars["CONTACTS"] = mail
@@ -149,7 +153,7 @@ class MailSender():
                 continue
 
             logging.info("mail {}".format(mail))
-            if 0: # XXX SMTP
+            if method == "smtp":
                 if MailSender.smtpSend(subject, body, mailFinal):
                     sentMails += 1
                     logging.info("ok {}".format(mail))
@@ -158,8 +162,8 @@ class MailSender():
                           ("Action", "AgentTicketForward"),
                           ("Subaction", "SendEmail"),
                           ("TicketID", str(csv.otrs_ticketid)),
-                          ("Email", Config.get("ticketemail", "OTRS")),
-                          ("From", Config.get("fromaddr", "OTRS")),
+                          ("Email", Config.get("ticketemail", "SMTP")),
+                          ("From", Config.get("fromaddr", "SMTP")),
                           ("To", mailFinal), # X "edvard.rejthar+otrs_test@nic.cz" sem ma prijit mail (nebo maily oddelene carkou ci strednikem, primo z whois), po otestovani. XX Jdou pouzit maily oddelene strednikem i vice stredniky? mail;mail2;;mail3 (kvuli retezeni v cc pro pripad, ze je vic domen)
                           ("Subject", subject),
                           ("Body", body),
@@ -199,7 +203,7 @@ class MailSender():
 
                 #print encode_multipart_formdata(fields, files)
 
-                res = MailSender._post_multipart(Config.get("host", "OTRS"),
+                res = MailSender._post_multipart(Config.get("host", "SMTP"),
                                                  Config.get("baseuri", "OTRS"),
                                                  fields=fields,
                                                  files=files,
@@ -210,7 +214,8 @@ class MailSender():
                 else:
                     sentMails += 1
 
-        """ MailSender.smtpObj.quit() # XXX CMS """
+        if method == "smtp":
+            MailSender.smtpObj.quit()
         print("\nSent: {}/{} mails.".format(sentMails, totalCount))
         return sentMails == totalCount
 
@@ -244,12 +249,12 @@ class MailSender():
                 force = True
                 continue
 
-    def smtpSend(subject, body, mailFinal): # XXX zatim jen kvuli posilani CMS
-        sender = Config.get("ticketemail", "OTRS")
+    def smtpSend(subject, body, mailFinal):
+        sender = Config.get("ticketemail", "SMTP")
 
         message = MIMEText(body)
         message["Subject"] = subject
-        message["From"] = Config.get("fromaddr", "OTRS")
+        message["From"] = Config.get("fromaddr", "SMTP")
         message["To"] = mailFinal
 
         try:

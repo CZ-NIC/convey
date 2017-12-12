@@ -3,7 +3,7 @@
 import traceback
 import sys
 try:
-    pass
+    from dialog import Dialog
     #import networkx as nx ## networkx - XX if implemented without networkx, we may suppress the dependency (2 MB)
 except ImportError:
     traceback.print_exc()

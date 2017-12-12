@@ -1,4 +1,6 @@
 import ipdb
+from dialog import Dialog
+dialog = Dialog()
 
 class Cancelled(Exception):
     pass
@@ -57,12 +59,13 @@ class Dialogue:
 
 
 class Menu:
-    def __init__(self, title=None, callbacks=True):
+    def __init__(self, title=None, callbacks=True, fullscreen=False):
         """ self.menu of tuples [(key, title, f), ("1", "First option", lambda), ...] """
         self.title = title
         self.menu = []
         self.callbacks = callbacks
         self._keyCount = 0
+        self.fullscreen = fullscreen
 
 
     def add(self, title, fn=None, key=None):
@@ -86,13 +89,21 @@ class Menu:
         while True:
             if self.title:
                 print("\n" + self.title)
+            l = []
             for key, name, f in self.menu:
                 if key is False or (self.callbacks and not f):
+                    l.append(("~", name, False))
                     print("~) {}".format(name))
                     continue
+                l.append((key, name, False))
                 print("{}) {}".format(key, name))
             try:
-                ans = input("? ")
+                if self.fullscreen:
+                    code, ans = d.radiolist(self.title, choices=l)
+                    if code != "ok":
+                        return
+                else:
+                    ans = input("? ")
             except EOFError:
                 ans = "x"
             print()

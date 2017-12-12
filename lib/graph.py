@@ -18,7 +18,7 @@ class Graph:
 
 
     def dijkstra(self, target, start=None):
-        """ 
+        """
         Performs Dijkstra's algorithm and returns
             [start node, ... , target node] (if start specified)
         OR
@@ -29,7 +29,7 @@ class Graph:
 
         nodes = set(self.nodes)
 
-        while nodes: 
+        while nodes:
             min_node = None
             for node in nodes:
                 if node in visited:
@@ -63,7 +63,7 @@ class Graph:
                 path.append(pivot)
 
                 if i > 10:
-                    print("ne",path, target)
+                    print("cycles",path, target)
                     break
             return path
 

@@ -1,6 +1,8 @@
 import subprocess, sys
+import os.path
 import datetime
 from math import log, sqrt, ceil
+from lib.config import Config
 
 class Informer:
     """ Prints analysis data in nice manner. """
@@ -62,6 +64,21 @@ class Informer:
 
         print("\nSample:\n" + "\n".join(self.csv.sample.split("\n")[:3]) + "\n") # show first 3rd lines
 
+        if self.csv.isAnalyzed():
+            print("** Processing completed **")
+            print("Result file(s) in {}".format(Config.getCacheDir()))
+            stat = self.getStatsPhrase()
+            print("\n Statistics overview:\n" + stat)
+            # XX will we write it again to a file? with open(os.path.dirname(file) + "/statistics.txt","w") as f:
+            #    f.write(stat)
+            """
+            XX
+            if csv.abuseReg.stat("records", False):
+                print("Couldn't find {} abusemails for {}× IP.".format(csv.reg["local"].stat("records", False), csv.reg["local"].stat("ips", False)))
+            if csv.countryReg.stat("records", False):
+                print("Couldn't find {} csirtmails for {}× IP.".format(csv.reg["foreign"].stat("records", False), csv.reg["foreign"].stat("ips", False)))
+            """
+
         if full:
             """
             [reg.soutInfo(full) for reg in self.csv.reg.values()] do this:
@@ -81,17 +98,19 @@ class Informer:
                     print(", ".join(l))
             """
 
+            print("\nResult file(s) in {}".format(Config.getCacheDir()))
+
             print("\nPrefixes encountered:\nprefix | location | record | asn | netname")
-            for prefix, o in self.csv.ranges.items():
-                prefix, location, abusemail, asn, netname, country = o
-                print("{} | {} | {}".format(prefix, location, abusemail or country))
+            if self.csv.ranges.items():
+                for prefix, o in self.csv.ranges.items():
+                    prefix, location, abusemail, asn, netname, country = o
+                    print("{} | {} | {}".format(prefix, location, abusemail or country))
 
     def getStatsPhrase(self, generate=False):
         """ Prints phrase "Totally {} of unique IPs in {} countries...": """
         csv = self.csv
 
         ipsUnique = len(csv.stats["ipsUnique"])
-
         ispCzFound = len(csv.stats["ispCzFound"])
         ipsCzMissing = len(csv.stats["ipsCzMissing"])
         ipsCzFound = len(csv.stats["ipsCzFound"])

@@ -48,8 +48,8 @@ class SourceParser:
             self.attachmentName = "part-" + ntpath.basename(sourceFile)
             self.ipCountGuess = None
             self.ipCount = None
-            self._reset()
             self.resetSettings()
+            self._reset()
 
             #load CSV
             self.sourceFile = sourceFile
@@ -148,7 +148,9 @@ class SourceParser:
         self.invalidLinesCount = 0
 
         Config.hasHeader = self.hasHeader
-        Config.header = self.header
+        if self.delimiter:
+            h = self.header.split(self.delimiter)
+            Config.header = self.delimiter.join([h[i] for i in self.settings["chosen_cols"]]) if self.settings["chosen_cols"] else self.header
         self._resetOutput()
 
         self.timeStart = None
@@ -189,7 +191,6 @@ class SourceParser:
             self.resolveUnknown()
 
         self.lineCount = 0
-        self.informer.soutInfo()
 
     """
     def _sizeCheck(self):
