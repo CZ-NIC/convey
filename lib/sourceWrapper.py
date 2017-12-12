@@ -26,7 +26,7 @@ class SourceWrapper:
         #MailDraft.setDir(os.path.dirname(file) + "/")
 
         # cache-file s metadaty zdrojoveho souboru
-        Config.setCacheDir(os.path.dirname(file) + "/" + ntpath.basename(self.file) + self.hash + "/")
+        Config.setCacheDir(os.path.dirname(file) + "/" + ntpath.basename(self.file) + "_convey" + self.hash + "/")
         self.cacheFile = Config.getCacheDir() + ntpath.basename(self.file) + ".cache" #"cache/" +
 
         if os.path.isfile(self.cacheFile) and not fresh:

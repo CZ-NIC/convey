@@ -311,31 +311,6 @@ class SourceParser:
         self._resetOutput()
         self.informer.soutInfo()
 
-    def _getFileContents(self, record):
-        with open(Config.getCacheDir() + record,"r") as f:
-            return f.read()
-
-    def getMailsForeign(self):
-        # XXX totez co getMailsLocal, ale k tomu jeste preklad z csirtmailu nebo ceho
-        pass
-
-    def getMailsLocal(self):
-        """ Returns tuples (mail, cc, fileContents) """
-        for mail in self.stats["ispCzFound"]:
-            cc = None
-            # XXX cc FROM jak to dela registry
-            if mail not in self.processer.filesCreated:
-                continue
-            yield mail, cc, self._getFileContents(mail)
-
-            if mail is None:
-                continue
-                yield key, val.cc, self._getFileContents(key)
-            elif val.mail is False:
-                continue
-            else:
-                yield val.mail, val.cc, self._getFileContents(key)
-
     def __getstate__(self):
         state = self.__dict__.copy()
         del state['informer']

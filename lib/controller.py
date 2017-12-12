@@ -46,6 +46,7 @@ class Controller:
 
         # main menu
         while True:
+            csv = self.csv = self.wrapper.csv # may be changed by reprocessing
             csv.informer.soutInfo()
             if Config.get('testing') == "True":
                 print("\n*** TESTING MOD - mails will be send to mail {} ***\n (To cancel the testing mode set testing = False in config.ini.)".format(Config.get('testingMail')))
@@ -103,7 +104,7 @@ class Controller:
 
         MailSender.assureTokens(self.csv)
         self.wrapper.save()
-        print("\nIn the next step, we connect to OTRS and send e-mails.")
+        print("\nIn the next step, we connect to server to send e-mails.")
         a = b = False
         if self.csv.stats["ispCzFound"]:
             print(" Template of local mail starts: {}".format(Contacts.mailDraft["local"].getMailPreview()))
@@ -152,6 +153,8 @@ class Controller:
         menu.add("Resolve invalid lines", self.csv.resolveInvalid)
         menu.add("Edit mail texts", lambda: Contacts.mailDraft["local"].guiEdit() and Contacts.mailDraft["foreign"].guiEdit())
         menu.sout()
+
+        #import ipdb; ipdb.set_trace()
 
 
     def extendColumn(self, new_field, add=None):
