@@ -5,7 +5,7 @@ A tool for information conveying – CSV swiss knife brought by [CSIRT.cz](https
 It takes any CSV (any delimiter, header or whatever) and perform one or more actions:
 
 1) **Pick or delete columns** (if only some columns are needed)
-2) **Add a column** (computes *url, hostname, prefix, ip, asn, country, abuse mail, csirt contact, or incident contact* from chosen field)
+2) **Add a column** (computes a field another chosen – see below)
 3) **Unique filter** (no value duplicates)
 4) **Value filter** (only fields with a specific values are preserved)
 5) **Split by a column** (produce separate files instead of single file; these can e then send by generic SMTP or through OTRS)
@@ -21,6 +21,18 @@ install.sh # on first run we assure some dependencies
 convey.py [filename] # program start
 convey.py --help # see some flags that help you further automating
 ``` 
+
+## Computable fields
+
+* **abusemail** – got abuse e-mail contact from whois
+* **ans** – got from whois
+* **country** – country code from whois
+* **csirt-contact** – e-mail addres corresponding with country code, taken from your personal contacts_foreign CSV in the format `country,abusemail`. Path to this file has to be specified in `config.ini » contacts_foreign`
+* **hostname** – domain from url
+* **incident-contact** – if the IP comes from local country (specified in `config.ini » local_country`) the field gets *abusemail*, otherwise we get *country*. When splitting by this field, convey is subsequently able to send the splitted files to local abuse and foreign csirt contacts 
+* **ip** – translated from url
+* **netname** – got from whois
+* **prefix** – got from whois
 
 ## Usecase
 We are using the tool to automate incident handling tasks. The input is any CSV we receive from partners; there is at least one column with IP addresses or URLs. We fetch whois information and produce a set of CSV grouped by country AND/OR abusemail related to IPs. These CSVs are then sent by our OTRS via HTTP from within the tool.
