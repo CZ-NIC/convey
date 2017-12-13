@@ -73,13 +73,14 @@ class Whois:
         prefix = self._loadPrefix()
         #print("prefix loaded {}".format(self.prefix))
         if not country in Config.get("local_country"):
-            return prefix, "foreign", country, self.asn, self.netname, country
+            return prefix, "foreign", country, self.asn, self.netname, country, self.getAbusemail()
         else:
             #print("Abusemail: ")
             #print("abusemail loaded {}".format(self.abusemail))
             if Whois.unknownMode:
                 self.resolveUnknownMail()
-            return prefix, "local", self.getAbusemail(), self.asn, self.netname, country
+            ab = self.getAbusemail()
+            return prefix, "local", ab, self.asn, self.netname, country, ab
 
     def resolveUnknownMail(self):
         """ Forces to load abusemail for an IP.

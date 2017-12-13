@@ -25,18 +25,21 @@ class Informer:
         if self.csv.hasHeader is not None:
             l.append("header: " + ("used" if self.csv.hasHeader else "not used"))
 
-        for col, i, b in self.csv.settings["add"] or []:
-            l.append("{} column from: {}".format(col, self.csv.fields[i]))
+        if self.csv.settings["add"]:
+            l2 = []
+            for col, i, b in self.csv.settings["add"] or []:
+                l2.append("{} (from {})".format(col, self.csv.fields[i]))
+            l.append("computed columns: " + ", ".join(l2))
         if self.csv.settings["filter"]:
             l2 = []
             [l2.append(f) for f in self.csv.settings["filter"]]
-            l.append("Filter: " + ",".join(l2))
+            l.append("Filter: " + ", ".join(l2))
         if self.csv.settings["unique"]:
             l2 = []
             [l2.append(self.csv.fields[f]) for f in self.csv.settings["unique"]]
-            l.append("Unique col: " + ",".join(l2))
-        if self.csv.settings["chosen_cols"]:
-            l.append("only some cols chosen")
+            l.append("Unique col: " + ", ".join(l2))
+        #if self.csv.settings["chosen_cols"]:
+        #    l.append("only some cols chosen")
         if self.csv.settings["split"]:
             l.append("Split by: {}".format(self.csv.fields[self.csv.settings["split"]]))
 
@@ -64,9 +67,18 @@ class Informer:
 
         print("\nSample:\n" + "\n".join(self.csv.sample.split("\n")[:4]) + "\n") # show first 3rd lines
 
-        if self.csv.isAnalyzed():
-            print("** Processing completed **")
-            print("Result file(s) in {}".format(Config.getCacheDir()))
+        if not (len(self.csv.fields) == len(self.csv.settings["chosen_cols"])) == len(self.csv.firstLine.split(self.csv.delimiter)):
+            ar = []
+            for i,f in enumerate(self.csv.fields):
+                if i not in self.csv.settings["chosen_cols"]:
+                    ar.append("\x1b[9m" + f + "\x1b[0m")
+                else:
+                    ar.append(f)
+            print("Fields after processing:", ", ".join(ar))
+        #if Config.isDebug(): print("Debug – Settings", self.csv.settings)
+
+        if self.csv.isAnalyzed:
+            print("** Processing completed: Result file(s) in {}".format(Config.getCacheDir()))
             stat = self.getStatsPhrase()
             print("\n Statistics overview:\n" + stat)
             # XX will we write it again to a file? with open(os.path.dirname(file) + "/statistics.txt","w") as f:

@@ -23,46 +23,46 @@ class SourceParser:
     def __init__(self, sourceFile):
         print("Processing file.")
         self.isRepeating = False
-        while True:
-            self.delimiter = None  # CSV dialect
-            self.hasHeader = None # CSV has header
-            self.header = "" # if CSV has header, it's here
-            self.fields = [] # CSV columns
-            self.settings = defaultdict(list)
-            self.redo_invalids = Config.getboolean("redo_invalids")
-            self.otrs_cookie = False # OTRS attributes to be linked to CSV
-            self.otrs_id = Config.get("ticketid", "OTRS")
-            self.otrs_token = False
-            self.otrs_num = Config.get("ticketnum", "OTRS")
-            self.attachmentName = "part-" + ntpath.basename(sourceFile)
-            self.ipCountGuess = None
-            self.ipCount = None
-            self._reset()
+        #while True:
+        self.delimiter = None  # CSV dialect
+        self.hasHeader = None # CSV has header
+        self.header = "" # if CSV has header, it's here
+        self.fields = [] # CSV columns
+        self.settings = defaultdict(list)
+        self.redo_invalids = Config.getboolean("redo_invalids")
+        self.otrs_cookie = False # OTRS attributes to be linked to CSV
+        self.otrs_id = Config.get("ticketid", "OTRS")
+        self.otrs_token = False
+        self.otrs_num = Config.get("ticketnum", "OTRS")
+        self.attachmentName = "part-" + ntpath.basename(sourceFile)
+        self.ipCountGuess = None
+        self.ipCount = None
+        self._reset()
 
-            #load CSV
-            self.sourceFile = sourceFile
-            self.size = os.path.getsize(self.sourceFile)
-            self.processer = Processer(self)
-            self.informer = Informer(self)
-            self.guesses = CsvGuesses(self)
-            self.firstLine, self.sample = self.guesses.getSample(self.sourceFile)
-            self.linesTotal = self.informer.fileLen(sourceFile) #sum(1 for line in open(sourceFile))
-            try:
-                ##for fn in [, self._askPivotCol, self._sizeCheck, self._askOptions]: # steps of dialogue
-                self.informer.soutInfo()
-                self._askBasics()
-            except Cancelled:
-                print("Cancelled.")
-                return
+        #load CSV
+        self.sourceFile = sourceFile
+        self.size = os.path.getsize(self.sourceFile)
+        self.processer = Processer(self)
+        self.informer = Informer(self)
+        self.guesses = CsvGuesses(self)
+        self.firstLine, self.sample = self.guesses.getSample(self.sourceFile)
+        self.linesTotal = self.informer.fileLen(sourceFile) #sum(1 for line in open(sourceFile))
+        try:
+            ##for fn in [, self._askPivotCol, self._sizeCheck, self._askOptions]: # steps of dialogue
             self.informer.soutInfo()
+            self._askBasics()
+        except Cancelled:
+            print("Cancelled.")
+            return
+        self.informer.soutInfo()
 
-            # X self._guessIpCount()
-            if not Dialogue.isYes("Everything set alright?"):
-                self.isRepeating = True
-                continue
-            else:
-                self.isFormattedB = True # delimiter and header has been detected etc.
-                break
+        # X self._guessIpCount()
+        #if not Dialogue.isYes("Everything set alright?"):
+        #    self.isRepeating = True
+        #    continue
+        #else:
+        self.isFormatted = True # delimiter and header has been detected etc.
+        #break
 
 
     def _askBasics(self):
@@ -122,6 +122,7 @@ class SourceParser:
     def resetSettings(self):
         self.settings = defaultdict(list)
         self.fields = self.firstLine.split(self.delimiter)
+        self.settings["chosen_cols"] = list(range(len(self.fields)))
 
     def _resetOutput(self):
         self.lineCount = 0
@@ -151,12 +152,10 @@ class SourceParser:
         self.timeStart = None
         self.timeEnd = None
         self.timeLast = None
-        self.isAnalyzedB = False
-        self.isFormattedB = False
+        self.isAnalyzed = False
+        self.isProcessable = False
+        self.isFormatted = False
         self.resetWhois()
-        #self.abuseReg.conveying = self.conveying
-        #self.countryReg.conveying = self.conveying
-        #self.invalidReg.redo_invalids = self.redo_invalids
 
     def runAnalysis(self):
         """ Run main analysis of the file.
@@ -173,7 +172,7 @@ class SourceParser:
         self.processer.processFile(self.sourceFile)
         self.timeEnd = datetime.datetime.now().replace(microsecond=0)
         self.linesTotal = self.lineCount # if we guessed the total of lines, fix the guess now
-        self.isAnalyzedB = True
+        self.isAnalyzed = True
 
         if self.invalidLinesCount:
             self.informer.soutInfo()
@@ -233,11 +232,6 @@ class SourceParser:
                 print("Can't guess IP count.")
 
 
-    def isAnalyzed(self):
-        return self.isAnalyzedB
-
-    def isFormatted(self):
-        return self.isFormattedB
 
 
     def resolveUnknown(self):

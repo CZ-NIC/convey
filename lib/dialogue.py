@@ -1,6 +1,6 @@
 import ipdb
 from dialog import Dialog
-dialog = Dialog()
+dialog = Dialog(autowidgetsize=True)
 
 class Cancelled(Exception):
     pass
@@ -38,27 +38,36 @@ class Dialogue:
             except ValueError:
                 print("This is not a number")
 
-    def pickOption(options, colName="", guesses=[]):
+    def pickOption(options, title="", guesses=[]):
         """ Loop all options
          guesses = indices of options that should be highlighted
          returns option number OR None
         """
-        for i, fieldname in enumerate(options):# print columns
-            if i in guesses:
-                print("* {}. {} *".format(i + 1, fieldname))
-            else:
-                print("{}. {}".format(i + 1, fieldname))
-        colI = Dialogue.askNumber(colName + " column: ") - 1
+        choices = []
+        if guesses:
+            title += "\n\nAutomatically detected fields on the top"
+            for i, fieldname in enumerate(options):# print columns
+                if i in guesses:
+                    choices.append((str(i + 1), "* {} *".format(fieldname)))
+            choices.append(("-","-----"))
+        for i, fieldname in enumerate(options):
+            choices.append((str(i+1),fieldname))
 
-        if colI == -1:
+        code, colI = dialog.menu(title or " ", choices=choices)
+        if code != "ok":
+            raise Cancelled(".. no column chosen")
+        #colI = Dialogue.askNumber(colName + " column: ") - 1
+
+        """if colI == -1:
             if guesses: # default value
                 return guesses[0]
             raise Cancelled(".. no column chosen")
         if colI > len(options):
             print("Not found")
             return Dialogue.pickOption(options, guesses, colName)
+        """
 
-        return colI
+        return int(colI) -1
 
 
 class Menu:
@@ -102,7 +111,7 @@ class Menu:
                 print("{}) {}".format(key, name))
             try:
                 if self.fullscreen:
-                    code, ans = dialog.radiolist(self.title, choices=l)
+                    code, ans = dialog.menu(self.title, choices=[(it[0], it[1]) for it in l])
                     if code != "ok":
                         return
                 else:
@@ -125,4 +134,5 @@ class Menu:
                     return
                 elif ans == "debug":
                     import ipdb; ipdb.set_trace()
+                    return
                 print("Not valid option")

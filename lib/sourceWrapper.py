@@ -41,9 +41,9 @@ class SourceWrapper:
                 self._treat()
             if self.csv:
                 try:
-                    if self.csv.isAnalyzed():
+                    if self.csv.isAnalyzed:
                         self.csv.informer.soutInfo()
-                    elif self.csv.isFormatted():
+                    elif self.csv.isFormatted:
                         self.csv.informer.soutInfo()
                         s = "It seems the file has already been formatted." # X Continue to analysis (or you'll be asked to do format again)?"
                         print(s)

@@ -30,15 +30,29 @@ class Processer:
     def processFile(self, file):
         csv = self.csv
         self.reset()
-        settings = csv.settings
+        settings = csv.settings.copy()
+
+        # convert settings["add"] to lambdas
+        adds = []
+        for it in settings["add"]: # [("netname", 20, [lambda x, lambda x...]), ...]
+            methods = self.csv.guesses.getMethodsFrom(it[0], it[2])
+            adds.append((it[0], it[1], methods))
+        del settings["add"]
+        settings["addByMethod"] = adds
+
+        if len(settings["chosen_cols"]) == len(csv.fields):
+            del settings["chosen_cols"]
+
         with open(file, "r") as sourceF:
             for row in sourceF:
                  # skip blanks and header
                 row = row.strip()
                 if(row == ""):
                     continue
+                #import ipdb; ipdb.set_trace()
                 csv.lineCount += 1
                 if csv.lineCount == 1 and csv.hasHeader:
+                    csv.lineSout += 1
                     continue
                 # display infopanel
                 if csv.lineCount == csv.lineSout:
@@ -109,7 +123,7 @@ class Processer:
             # add fields
             whois = None
             #import ipdb; ipdb.set_trace()
-            for col in settings["add"]: # [("netname", 20, [lambda x, lambda x...]), ...]
+            for col in settings["addByMethod"]: # [("netname", 20, [lambda x, lambda x...]), ...]
                 val = fields[col[1]]
                 for l in col[2]:
                     val = l(val)

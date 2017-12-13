@@ -19,6 +19,7 @@ class Config:
 
     INVALID_NAME = ".invalidlines.tmp"
     UNKNOWN_NAME = "unknown"
+    PROJECT_SITE = "https://github.com/CZ-NIC/convey/"
 
 
     def errorCatched():

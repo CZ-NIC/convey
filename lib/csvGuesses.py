@@ -3,6 +3,7 @@ from csv import Error, Sniffer
 from lib.dialogue import Dialogue
 from lib.whois import Whois
 from lib.config import Config
+from lib.graph import Graph
 
 reIpWithPort = re.compile("((\d{1,3}\.){4})(\d+)")
 reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")
@@ -25,6 +26,27 @@ class CsvGuesses:
 
     def __init__(self, csv):
         self.csv = csv
+        self.graph = None
+        self.private_fields = ["whois"] # these fields cannot be added (e.g. whois is a temporary made up field, in can't be added to CSV)
+        self.extendable_fields = sorted(set([k for _,k in self.methods.keys() if k not in self.private_fields]))
+
+
+    def getGraph(self):
+        """
+          returns instance of Graph class with methods converting a field to another
+        """
+        if not self.graph:
+            self.graph = Graph()
+            for m in self.methods:
+                self.graph.add_edge(*m[:2])
+        return self.graph
+
+    def getMethodsFrom(self, target, start):
+        methods = [] # list of lambdas to calculate new field
+        path = self.graph.dijkstra(target, start=start) # list of method-names to calculate new fields
+        for i in range(len(path)-1):
+            methods.append(self.methods[path[i],path[i+1]])
+        return methods
 
 
     def getSample(self, sourceFile):
@@ -69,18 +91,16 @@ class CsvGuesses:
     ("ip", "whois"): lambda x: Whois(x),
     ("whois", "prefix"): lambda x: (x, x.get[0]),
     ("whois", "asn"): lambda x: (x, x.get[3]),
-    ("whois", "abusemail"): lambda x: (x, x.getAbusemail()),
+    ("whois", "abusemail"): lambda x: (x, x.get[6]),
     ("whois", "country"): lambda x: (x, x.get[5]),
     ("whois", "netname"): lambda x: (x, x.get[4]),
     ("whois", "csirt-contact"): lambda x: (x, Config.csirtmails[x.get[5]] if x.get[5] in Config.csirtmails else "-"), # vraci tuple (local|country_code, whois-mail|abuse-contact)
     ("whois", "incident-contact"): lambda x: (x, x.get[2]),
-    ("url", "cms"): lambda x: "Not yet implemented",
-    ("hostname", "cms"): lambda x: "Not yet implemented"}
+    # XX ("url", "cms"): lambda x: "Not yet implemented",
+    # XX ("hostname", "cms"): lambda x: "Not yet implemented"
+    }
 
-    f = lambda x: (lambda x,ip: x, ip, x[4])(x.get(), x.ip)
-
-    # these fields can be added (e.g. whois is a temporary made up field, in can't be added to CSV)
-    extendable_fields = ["url", "hostname", "prefix", "ip", "asn", "country", "abusemail", "csirt-contact", "incident-contact"]
+    #f = lambda x: (lambda x,ip: x, ip, x[4])(x.get(), x.ip)
 
     def identifyCols(self):
         self.fieldType = {(i,k):[] for i,k in enumerate(self.csv.fields)} # { (colI, fieldName): [type1, another possible type, ...], (2, "a field name"): ["url", "hostname", ...], ...}
@@ -134,5 +154,4 @@ class CsvGuesses:
                 return info[0]
 
         # col not found automatically -> ask user
-        print("What is " + colName + " column:\n[0]. no " + colName + " column")
-        return Dialogue.pickOption(csv.fields, guesses=guesses, colName=colName)
+        return Dialogue.pickOption(csv.fields, title="What is " + colName + " column:\n[0]. no " + colName + " column", guesses=guesses)
