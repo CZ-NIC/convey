@@ -1,26 +1,33 @@
 import re
-from csv import Error, Sniffer
-from lib.dialogue import Dialogue
+import base64
+from csv import Error, Sniffer, reader
 from lib.whois import Whois
 from lib.config import Config
 from lib.graph import Graph
 
 reIpWithPort = re.compile("((\d{1,3}\.){4})(\d+)")
 reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")
-reFqdn = re.compile("^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+){1,63}\.))+){1,255}$")
+reFqdn = re.compile("(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)") # Xtoo long, infinite loop: ^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+){1,63}\.))+){1,255}$
 reUrl = re.compile('[a-z]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
+reBase64 = re.compile('^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$')
 
 """
      guesses - ways to identify a column
         name: ([usual names], method to identify)
 """
-guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], Whois.checkIp),
-        "portIP": ([], reIpWithPort.match),
-        "anyIP": ([], reAnyIp.match),
-        "hostname": (["fqdn", "hostname", "domain"], reFqdn.match),
-        "url": (["url", "uri", "location"], reUrl.match),
-        "asn": (["as", "asn", "asnumber"], lambda field: re.search('AS\d+', field) != None)
+guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], Whois.checkIp, "valid IP addres"),
+        "portIP": ([], reIpWithPort.match, "IP in the form 1.2.3.4.port"),
+        "anyIP": ([], reAnyIp.match, "IP in the form 'any text 1.2.3.4 any text'"),
+        "hostname": (["fqdn", "hostname", "domain"], reFqdn.match, "2nd or 3rd domain name"),
+        "url": (["url", "uri", "location"], reUrl.match, "URL starting with http/https"),
+        "asn": (["as", "asn", "asnumber"], lambda field: re.search('AS\d+', field) != None, "AS Number"),
+        "base64": (["base64"], lambda field: bool(reBase64.search(field)), "Text encoded with Base64")
         }
+
+#descriptions = defaultdict(str, {
+#"ip": "ip address"
+#})
+
 
 class CsvGuesses:
 
@@ -36,7 +43,7 @@ class CsvGuesses:
           returns instance of Graph class with methods converting a field to another
         """
         if not self.graph:
-            self.graph = Graph()
+            self.graph = Graph(self.private_fields)
             for m in self.methods:
                 self.graph.add_edge(*m[:2])
         return self.graph
@@ -62,15 +69,15 @@ class CsvGuesses:
         #csvfile.seek(0)
         #csvfile.close()
 
-    def guessDelimiter(self, sample):
+    def guessDialect(self, sample):
         sniffer = Sniffer()
-        delimiter = ""
         try:
-            delimiter = sniffer.sniff(sample).delimiter
+            dialect = sniffer.sniff(sample)
             hasHeader = sniffer.has_header(sample)
         except Error: # delimiter failed – maybe there is an empty column: "89.187.1.81,06-05-2016,,CZ,botnet drone"
             hasHeader = False # lets just guess the value
             s = sample.split("\n")[1] # we dont take header (there is no empty column for sure)
+            delimiter = ""
             for dl in (",", ";", "|"): # lets suppose the doubled sign is delimiter
                 if s.find(dl + dl) > -1:
                     delimiter = dl
@@ -80,7 +87,11 @@ class CsvGuesses:
                     if s.find(dl) > -1:
                         delimiter = dl
                         break
-        return delimiter, hasHeader
+            dialect = csv.unix_dialect
+            dialect.delimiter = delimiter
+        if not dialect.escapechar:
+            dialect.escapechar = '\\'
+        return dialect, hasHeader
 
     # these are known methods to make a field from another field
     methods = {("anyIP", "ip"): lambda x: "Not yet implemented", # any IP: "91.222.204.175 93.171.205.34" -> "91.222.204.175" OR '"1.2.3.4"' -> 1.2.3.4
@@ -96,23 +107,27 @@ class CsvGuesses:
     ("whois", "netname"): lambda x: (x, x.get[4]),
     ("whois", "csirt-contact"): lambda x: (x, Config.csirtmails[x.get[5]] if x.get[5] in Config.csirtmails else "-"), # vraci tuple (local|country_code, whois-mail|abuse-contact)
     ("whois", "incident-contact"): lambda x: (x, x.get[2]),
+    ("base64", "plaintext"): lambda x: base64.b64decode(x),
     # XX ("url", "cms"): lambda x: "Not yet implemented",
     # XX ("hostname", "cms"): lambda x: "Not yet implemented"
     }
 
     #f = lambda x: (lambda x,ip: x, ip, x[4])(x.get(), x.ip)
 
+    def getDescription(self, column):
+        return guesses[column][2]
+
     def identifyCols(self):
         self.fieldType = {(i,k):[] for i,k in enumerate(self.csv.fields)} # { (colI, fieldName): [type1, another possible type, ...], (2, "a field name"): ["url", "hostname", ...], ...}
         samples = [[] for _ in self.csv.fields]
 
-        for line in self.csv.sample.split("\n")[1:]:
-            for i,val in enumerate(line.split(self.csv.delimiter)):
+        for line in reader(self.csv.sample.split("\n")[1:]):
+            for i,val in enumerate(line):
                 samples[i].append(val)
 
         for i, field in enumerate(self.csv.fields):
             print("FIEld", field)
-            for key, (names, checkFn) in guesses.items():
+            for key, (names, checkFn, desc) in guesses.items():
                 print("Guess:",key,names,checkFn)
                 # guess field type by name
                 if self.csv.hasHeader and field.replace(" ", "").replace("'", "").replace('"', "").lower() in names:
@@ -131,13 +146,14 @@ class CsvGuesses:
                     print("hits", hits)
 
 
+"""
     def guessCol(csv, colName, checkFn, names, autodetect=True):
-        """
+        "" "
         :param o current object of SourceParser
         :param colName "ASN" or "IP"
         :param checkFn auto-checker function so that it knows it guessed right
         :param names - possible IP column names - no space
-        """
+        "" "
         guesses = []
         info = None
         if csv.isRepeating == False: # dialog goes for first time -> autodetect
@@ -155,3 +171,4 @@ class CsvGuesses:
 
         # col not found automatically -> ask user
         return Dialogue.pickOption(csv.fields, title="What is " + colName + " column:\n[0]. no " + colName + " column", guesses=guesses)
+        """

@@ -36,6 +36,7 @@ class SourceWrapper:
                 self.csv = jsonpickle.decode(open(self.cacheFile, "r").read(), keys = True)
             except:
                 print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
+                input()
                 if Config.isDebug():
                     ipdb.set_trace()
                 self._treat()

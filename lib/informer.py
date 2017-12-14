@@ -20,8 +20,9 @@ class Informer:
         #print(chr(27) + "[2J")
         l = []
         l.append("Source file: " + self.csv.sourceFile)
-        if self.csv.delimiter:
-            l.append("delimiter: '" + self.csv.delimiter + "'")
+        if self.csv.dialect:
+            l.append("delimiter: '" + self.csv.dialect.delimiter + "'")
+            l.append("quoting: '" + self.csv.dialect.quotechar + "'")
         if self.csv.hasHeader is not None:
             l.append("header: " + ("used" if self.csv.hasHeader else "not used"))
 
@@ -31,13 +32,9 @@ class Informer:
                 l2.append("{} (from {})".format(col, self.csv.fields[i]))
             l.append("computed columns: " + ", ".join(l2))
         if self.csv.settings["filter"]:
-            l2 = []
-            [l2.append(f) for f in self.csv.settings["filter"]]
-            l.append("Filter: " + ", ".join(l2))
+            l.append("Filter: " + ", ".join(["{}({})".format(self.csv.fields[f],val) for f, val in self.csv.settings["filter"]]))
         if self.csv.settings["unique"]:
-            l2 = []
-            [l2.append(self.csv.fields[f]) for f in self.csv.settings["unique"]]
-            l.append("Unique col: " + ", ".join(l2))
+            l.append("Unique col: " + ", ".join([self.csv.fields[f] for f in self.csv.settings["unique"]]))
         #if self.csv.settings["chosen_cols"]:
         #    l.append("only some cols chosen")
         if self.csv.settings["split"]:
@@ -67,7 +64,7 @@ class Informer:
 
         print("\nSample:\n" + "\n".join(self.csv.sample.split("\n")[:4]) + "\n") # show first 3rd lines
 
-        if not (len(self.csv.fields) == len(self.csv.settings["chosen_cols"])) == len(self.csv.firstLine.split(self.csv.delimiter)):
+        if not (len(self.csv.fields) == len(self.csv.settings["chosen_cols"])) == len(self.csv.firstLineFields):
             ar = []
             for i,f in enumerate(self.csv.fields):
                 if i not in self.csv.settings["chosen_cols"]:

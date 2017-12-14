@@ -40,22 +40,25 @@ class Dialogue:
 
     def pickOption(options, title="", guesses=[]):
         """ Loop all options
-         guesses = indices of options that should be highlighted
-         returns option number OR None
+            options tuples of items and descriptions: [("url", "this is url")]
+            guesses = indices of options that should be highlighted
+            returns option number OR None
         """
         choices = []
         if guesses:
             title += "\n\nAutomatically detected fields on the top"
-            for i, fieldname in enumerate(options):# print columns
+            for i, (fieldname, desc) in enumerate(options):# print columns
                 if i in guesses:
-                    choices.append((str(i + 1), "* {} *".format(fieldname)))
+                    choices.append(("{} * {} *".format(i + 1, fieldname), desc))
             choices.append(("-","-----"))
-        for i, fieldname in enumerate(options):
-            choices.append((str(i+1),fieldname))
+        for i, (fieldname, desc) in enumerate(options):
+            choices.append(("{} {}".format(i + 1, fieldname), desc))
 
         code, colI = dialog.menu(title or " ", choices=choices)
         if code != "ok":
             raise Cancelled(".. no column chosen")
+        
+        colI = colI.split(" ")[0]
         #colI = Dialogue.askNumber(colName + " column: ") - 1
 
         """if colI == -1:

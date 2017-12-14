@@ -1,11 +1,10 @@
 from lib.config import Config
-from lib.informer import Informer
 from lib.dialogue import Dialogue
 import datetime
-from math import log, sqrt, ceil
-import re
+from math import ceil
 from collections import defaultdict
 from bdb import BdbQuit
+from csv import reader as csvreader, writer as csvwriter
 import logging
 
 class Processer:
@@ -25,7 +24,7 @@ class Processer:
         self.descriptors_count = 0
         self.descriptorsStatsOpen =  {} # defaultdict(int) # location => count XX lets google for SortedDict
         self.descriptorsStatsAll = defaultdict(int)
-        self.descriptors = {} # location => file_descriptor
+        self.descriptors = {} # location => file_descriptor, his csvwriter
 
     def processFile(self, file):
         csv = self.csv
@@ -44,10 +43,14 @@ class Processer:
             del settings["chosen_cols"]
 
         with open(file, "r") as sourceF:
-            for row in sourceF:
-                 # skip blanks and header
-                row = row.strip()
-                if(row == ""):
+            reader = csvreader(sourceF, dialect=csv.dialect)
+            if csv.hasHeader: # skip header
+                reader.__next__()
+            for row in reader:
+                #row = row.strip()
+                #if(row == ""):
+                #    continue
+                if not row: # skip blank
                     continue
                 #import ipdb; ipdb.set_trace()
                 csv.lineCount += 1
@@ -95,7 +98,7 @@ class Processer:
     def _closeDescriptors(self):
         """ Descriptors have to be closed (flushed) """
         for f in self.descriptors.values():
-            f.close()
+            f[0].close()
 
     def processLine(self, csv, line, settings):
         """ XX
@@ -118,7 +121,8 @@ class Processer:
 
         """
         try:
-            fields = line.split(csv.delimiter) # Parse line
+            #fields = line.split(csv.delimiter) # Parse line
+            fields = line.copy()
 
             # add fields
             whois = None
@@ -202,21 +206,22 @@ class Processer:
         if location not in self.descriptorsStatsOpen:
             if self.descriptors_count >= self.descriptors_max: # too many descriptors open, we have to close the least used
                 key = min(self.descriptorsStatsOpen, key=self.descriptorsStatsOpen.get)
-                self.descriptors[key].close()
+                self.descriptors[key][0].close()
                 #print("Closing", key, self.descriptorsStatsOpen[key])
                 del self.descriptorsStatsOpen[key]
                 self.descriptors_count -= 1
             #print("Opening", location)
-            self.descriptors[location] = open(Config.getCacheDir() + location, method)
+            t = open(Config.getCacheDir() + location, method)
+            self.descriptors[location] = t, csvwriter(t, dialect=csv.dialect)
             self.descriptors_count += 1
         #print("Printing", location)
         self.descriptorsStatsAll[location] += 1
         self.descriptorsStatsOpen[location] = self.descriptorsStatsAll[location]
         f = self.descriptors[location]
         if method == "w" and Config.hasHeader:
-            f.write(Config.header + "\n")
+            f[0].write(Config.header)
         #import ipdb; ipdb.set_trace()
-        f.write(csv.delimiter.join(chosen_fields) + "\n")
+        f[1].writerow(chosen_fields) # X csv.delimiter.join(chosen_fields) + "\n"
 
 
 

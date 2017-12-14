@@ -1,10 +1,11 @@
 from collections import defaultdict
 
 class Graph:
-    def __init__(self):
+    def __init__(self, private_nodes=set()):
             self.nodes = set()
             self.edges = defaultdict(list)
             self.distances = {}
+            self.private_nodes = private_nodes
 
     def add_node(self, value):
             self.nodes.add(value)
@@ -17,12 +18,14 @@ class Graph:
             self.distances[(from_node, to_node)] = distance
 
 
-    def dijkstra(self, target, start=None):
+    def dijkstra(self, target, start=None, ignore_private=False):
         """
         Performs Dijkstra's algorithm and returns
             [start node, ... , target node] (if start specified)
         OR
             {"node": distance to target, ...}
+
+            ignore_private = True - do not return private notes within results (ex. whois)
         """
         visited = {target: 0}
         tree = {}
@@ -67,4 +70,10 @@ class Graph:
                     break
             return path
 
-        return visited
+
+        if ignore_private:
+            for node in self.private_nodes:
+                if node in visited:
+                    del visited[node]
+
+        return dict((k,v) for (k,v) in visited.items() if v > 0) # skip the same node

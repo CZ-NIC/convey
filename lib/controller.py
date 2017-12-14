@@ -1,13 +1,16 @@
 import argparse
 from collections import defaultdict
-from lib.config import Config
+from dialog import Dialog
+from heapq import nsmallest
 from sys import exit
+
+from lib.config import Config
 from lib.contacts import Contacts
 from lib.dialogue import Cancelled, Debugged, Dialogue, Menu
 from lib.sourcePicker import SourcePicker
 from lib.sourceWrapper import SourceWrapper
 from lib.mailSender import MailSender
-from dialog import Dialog
+
 
 
 class Controller:
@@ -166,8 +169,9 @@ class Controller:
                 if val in validTypes:
                     possibleCols.append(i)
                     break
-        sourceColI = Dialogue.pickOption(self.csv.fields, title="Searching source for "+new_field, guesses=possibleCols)
+        sourceColI = Dialogue.pickOption(self.csv.getFieldsWithAutodetection(), title="Searching source for "+new_field, guesses=possibleCols)
 
+        dialog = Dialog()
         try:
             _min = 999
             method =None
@@ -181,14 +185,11 @@ class Controller:
             if method is None:
                 raise KeyError
         except KeyError:
-            from dialog import Dialog
-            dialog = Dialog()
-
             # ask how should be treated the column as, even it seems not valid
             # list all known methods to compute the desired new_field (e.g. for incident-contact it is: ip, hostname, ...)
-            choices = [(k,"") for k,v in sorted(self.csv.guesses.getGraph().dijkstra(new_field).items(), key=lambda v:v[1], reverse=True) if v > 0 and k != "whois"] # whois is an internal keyword
+            choices = [(k,self.csv.guesses.getDescription(k)) for k, _ in sorted(self.csv.guesses.getGraph().dijkstra(new_field, ignore_private=True).items(), key=lambda v:v[1], reverse=True)] # whois is an internal keyword
             if choices:
-                title="No known method for making {} from {} because the field wasn't identified. How should I treat the field?".format(new_field, self.csv.fields[sourceColI])
+                title="Choose the right method\n\nNo known method for making {} from column {} because the column type wasn't identified. How should I treat the column?".format(new_field, self.csv.fields[sourceColI])
                 button, method = dialog.menu(title, choices=choices)
                 if button == "cancel":
                     return
@@ -201,9 +202,12 @@ class Controller:
 
         self.csv.settings["add"].append((new_field, sourceColI, method))
         self.csv.fields.append(new_field)
-        print("New field added: {}".format(new_field))
 
-        if add is True or (add is None and input("Do you want to include this field as a new column? [y]/n ") not in ["n","no"]):
+        if add is None:
+            if dialog.yesno("New field added: {}\n\nDo you want to include this field as a new column?".format(new_field)) == "ok":
+                add = True
+
+        if add is True: # or (add is None and input("Do you want to include this field as a new column? [y]/n ") not in ["n","no"]):
             self.csv.settings["chosen_cols"].append(len(self.csv.fields)-1)
         #if add is False or (add is None and input("Do you want to include this field as a new column? [y]/n ") in ["n","no"]):
             #self.csv.settings["chosen_cols"].append(False)
@@ -222,8 +226,13 @@ class Controller:
 
 
     def selectCol(self, colName="", only_extendables=False, add=None):
-        fields = [] + (self.csv.fields if not only_extendables else [])
-        fields += ["new " + x + "..." for x in self.csv.guesses.extendable_fields]
+        fields = self.csv.getFieldsWithAutodetection() if not only_extendables else []
+        for f in self.csv.guesses.extendable_fields:
+            d = self.csv.guesses.getGraph().dijkstra(f, ignore_private=True)
+            s = "from " + ", ".join(sorted([k for k in nsmallest(3, d, key=d.get)]))
+            if len(d) > 3:
+                s += "..."
+            fields.append(("new " + f + "...", s))
         colI = Dialogue.pickOption(fields, colName)
         if only_extendables or colI >= len(self.csv.fields):
             new_fieldI = colI if only_extendables else colI - len(self.csv.fields)
