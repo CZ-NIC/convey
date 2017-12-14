@@ -258,6 +258,7 @@ class SourceParser:
         Whois.unknownMode = True
         self.processer.processFile(temp)
         os.remove(temp)
+        Whois.unknownMode = False
         self._resetOutput()
         self.informer.soutInfo()
 

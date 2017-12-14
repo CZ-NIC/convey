@@ -5,10 +5,10 @@ A tool for information conveying – CSV swiss knife brought by [CSIRT.cz](https
 It takes any CSV (any delimiter, header or whatever) and perform one or more actions:
 
 1) **Pick or delete columns** (if only some columns are needed)
-2) **Add a column** (computes a field another chosen – see below)
+2) **Add a column** (computes one field from another – see below)
 3) **Unique filter** (no value duplicates)
-4) **Value filter** (only fields with a specific values are preserved)
-5) **Split by a column** (produce separate files instead of single file; these can e then send by generic SMTP or through OTRS)
+4) **Value filter** (only rows with a specific values are preserved)
+5) **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
 
 ## Installation and first run
 
