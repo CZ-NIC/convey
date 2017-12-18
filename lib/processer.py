@@ -54,9 +54,9 @@ class Processer:
                     continue
                 #import ipdb; ipdb.set_trace()
                 csv.lineCount += 1
-                if csv.lineCount == 1 and csv.hasHeader:
-                    csv.lineSout += 1
-                    continue
+                #if csv.lineCount == 1 and csv.hasHeader:
+                #    csv.lineSout += 1
+                #    continue
                 # display infopanel
                 if csv.lineCount == csv.lineSout:
                     now = datetime.datetime.now()
@@ -222,7 +222,6 @@ class Processer:
             f[0].write(Config.header)
         #import ipdb; ipdb.set_trace()
         f[1].writerow(chosen_fields) # X csv.delimiter.join(chosen_fields) + "\n"
-
 
 
 

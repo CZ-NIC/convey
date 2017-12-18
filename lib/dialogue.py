@@ -46,10 +46,16 @@ class Dialogue:
         """
         choices = []
         if guesses:
+            # X SORTED GUESSES:
+            opts = [it for it in enumerate(options)]
+            for g in guesses:
+                if g < len(opts):
+                    choices.append(("{} * {} *".format(g + 1, opts[g][1][0]), opts[g][1][1]))
+
             title += "\n\nAutomatically detected fields on the top"
-            for i, (fieldname, desc) in enumerate(options):# print columns
-                if i in guesses:
-                    choices.append(("{} * {} *".format(i + 1, fieldname), desc))
+            #for i, (fieldname, desc) in enumerate(options):# print columns
+            #    if i in guesses:
+            #        choices.append(("{} * {} *".format(i + 1, fieldname), desc))
             choices.append(("-","-----"))
         for i, (fieldname, desc) in enumerate(options):
             choices.append(("{} {}".format(i + 1, fieldname), desc))
@@ -57,7 +63,7 @@ class Dialogue:
         code, colI = dialog.menu(title or " ", choices=choices)
         if code != "ok":
             raise Cancelled(".. no column chosen")
-        
+
         colI = colI.split(" ")[0]
         #colI = Dialogue.askNumber(colName + " column: ") - 1
 
