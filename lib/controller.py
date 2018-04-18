@@ -161,8 +161,6 @@ class Controller:
                  lambda: Contacts.mailDraft["local"].guiEdit() and Contacts.mailDraft["foreign"].guiEdit())
         menu.sout()
 
-        # import ipdb; ipdb.set_trace()
-
     def extendColumn(self, newField, add=None):
         """ We know what is new column, now determine how we should extend it
                 add - bool if the column should be added to the table; None ask
@@ -179,7 +177,7 @@ class Controller:
         sourceColI = Dialogue.pickOption(self.csv.getFieldsWithAutodetection(),
                                          title="Searching source for " + newField, guesses=sorted(possibleCols, key=possibleCols.get, reverse=True))
 
-        dialog = Dialog()
+        dialog = Dialog(autowidgetsize=True)
         method = self.csv.guesses.getBestMethod(sourceColI, newField)
         if method is None:
             # ask how should be treated the column as, even it seems not valid
@@ -214,7 +212,7 @@ class Controller:
     def chooseCols(self):
         # XX possibility un/check all
         chosens = [(str(i + 1), f, i in self.csv.settings["chosen_cols"]) for i, f in enumerate(self.csv.fields)]
-        d = Dialog()
+        d = Dialog(autowidgetsize=True)
         ret, values = d.checklist("What fields should be included in the output file?",
                                   choices=chosens)
         if ret == "ok":

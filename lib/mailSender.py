@@ -175,15 +175,14 @@ class MailSender():
                 except KeyError:
                     pass
 
-                if Config.isTesting() == False:
+                if not Config.isTesting():
                     if cc: # X mailList.mails[mail]
                         fields += (("Cc", cc),)
 
                 # load souboru k zaslani
-                #contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
+                # contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
 
                 logging.info("mail {}".format(mail))
-                #print(mail)
 
                 if csv.attachmentName and contents != "":
                     files = (("FileUpload", csv.attachmentName, contents),)

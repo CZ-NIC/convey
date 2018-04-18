@@ -103,7 +103,7 @@ class CsvGuesses:
         if not dialect.escapechar:
             dialect.escapechar = '\\'
         # dialect.quoting = 3
-        # dialect.doublequote = True
+        dialect.doublequote = True
         return dialect, hasHeader
 
     # these are known methods to make a field from another field
@@ -124,7 +124,7 @@ class CsvGuesses:
                    x, Config.csirtmails[x.get[5]] if x.get[5] in Config.csirtmails else "-"),
                # vraci tuple (local|country_code, whois-mail|abuse-contact)
                ("whois", "incident-contact"): lambda x: (x, x.get[2]),
-               ("base64", "plaintext"): lambda x: base64.b64decode(x),
+               ("base64", "plaintext"): lambda x: base64.b64decode(x).decode("UTF-8").replace("\n","\\n"),
                # XX ("url", "cms"): lambda x: "Not yet implemented",
                # XX ("hostname", "cms"): lambda x: "Not yet implemented"
                }
