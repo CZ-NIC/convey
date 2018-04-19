@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.DEBUG, filename="convey.log", format='%(asctim
 if __name__ == "__main__":
     print(__shortdoc__),
 
-    #command line flags - it controls the program flow; parameters --id, --ticket, --cookie --token --attachmentName
+    #command line flags - it controls the program flow; parameters --id, --ticket, --cookie --token --attachment_name
     #if set(["-h", "--help", "-?", "?", "/?"]).intersection(sys.argv):
     #    print(__doc__)
     #    quit()
@@ -37,11 +37,12 @@ if __name__ == "__main__":
     except:
         import traceback
         try:
-            import pudb
-            m = pudb
-        except:
-            import pdb
-            m = pdb
+            import pudb as mod
+        except ImportError:
+            try:
+                import ipdb as mod
+            except ImportError:
+                import pdb as mod
         type, value, tb = sys.exc_info()
         traceback.print_exc()
-        m.post_mortem(tb)
+        mod.post_mortem(tb)

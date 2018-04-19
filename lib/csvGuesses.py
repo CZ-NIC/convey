@@ -1,9 +1,10 @@
-import re
 import base64
+import re
 from csv import Error, Sniffer, reader
-from lib.whois import Whois
+
 from lib.config import Config
 from lib.graph import Graph
+from lib.whois import Whois
 
 reIpWithPort = re.compile("((\d{1,3}\.){4})(\d+)")
 reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")
@@ -22,7 +23,8 @@ guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], Whois.checkI
            "hostname": (["fqdn", "hostname", "domain"], reFqdn.match, "2nd or 3rd domain name"),
            "url": (["url", "uri", "location"], reUrl.match, "URL starting with http/https"),
            "asn": (["as", "asn", "asnumber"], lambda field: re.search('AS\d+', field) != None, "AS Number"),
-           "base64": (["base64"], lambda field: bool(reBase64.search(field)), "Text encoded with Base64")
+           "base64": (["base64"], lambda field: bool(reBase64.search(field)), "Text encoded with Base64"),
+           "plaintext": (["plaintext", "text"], lambda field: False, "Plain text")
            }
 
 
@@ -49,7 +51,7 @@ class CsvGuesses:
             "whois"]  # these fields cannot be added (e.g. whois is a temporary made up field, in can't be added to CSV)
         self.extendable_fields = sorted(set([k for _, k in self.methods.keys() if k not in self.private_fields]))
 
-    def getGraph(self):
+    def get_graph(self):
         """
           returns instance of Graph class with methods converting a field to another
         """
@@ -59,34 +61,33 @@ class CsvGuesses:
                 self.graph.add_edge(*m[:2])
         return self.graph
 
-    def getMethodsFrom(self, target, start):
+    def get_methods_from(self, target, start):
         methods = []  # list of lambdas to calculate new field
         path = self.graph.dijkstra(target, start=start)  # list of method-names to calculate new fields
         for i in range(len(path) - 1):
             methods.append(self.methods[path[i], path[i + 1]])
         return methods
 
-    def getSample(self, sourceFile):
+    def get_sample(self, source_file):
         sample = ""
-        with open(sourceFile, 'r') as csvfile:
-            for i, row in enumerate(csvfile):
-                if (i == 0):
-                    firstLine = row
+        with open(source_file, 'r') as csv_file:
+            for i, row in enumerate(csv_file):
+                if i == 0:
+                    first_line = row
                 sample += row
-                if (
-                        i == 8):  # sniffer needs 7+ lines to determine dialect, not only 3 (/mnt/csirt-rook/2015/06_08_Ramnit/zdroj), I dont know why
+                if i == 8:  # sniffer needs 7+ lines to determine dialect, not only 3 (/mnt/csirt-rook/2015/06_08_Ramnit/zdroj), I dont know why
                     break
-        return firstLine.strip(), sample
+        return first_line.strip(), sample
         # csvfile.seek(0)
         # csvfile.close()
 
-    def guessDialect(self, sample):
+    def guess_dialect(self, sample):
         sniffer = Sniffer()
         try:
             dialect = sniffer.sniff(sample)
-            hasHeader = sniffer.has_header(sample)
+            has_header = sniffer.has_header(sample)
         except Error:  # delimiter failed – maybe there is an empty column: "89.187.1.81,06-05-2016,,CZ,botnet drone"
-            hasHeader = False  # lets just guess the value
+            has_header = False  # lets just guess the value
             s = sample.split("\n")[1]  # we dont take header (there is no empty column for sure)
             delimiter = ""
             for dl in (",", ";", "|"):  # lets suppose the doubled sign is delimiter
@@ -104,7 +105,7 @@ class CsvGuesses:
             dialect.escapechar = '\\'
         # dialect.quoting = 3
         dialect.doublequote = True
-        return dialect, hasHeader
+        return dialect, has_header
 
     # these are known methods to make a field from another field
     methods = {("anyIP", "ip"): lambda x: "Not yet implemented",
@@ -124,23 +125,25 @@ class CsvGuesses:
                    x, Config.csirtmails[x.get[5]] if x.get[5] in Config.csirtmails else "-"),
                # vraci tuple (local|country_code, whois-mail|abuse-contact)
                ("whois", "incident-contact"): lambda x: (x, x.get[2]),
-               ("base64", "plaintext"): lambda x: base64.b64decode(x).decode("UTF-8").replace("\n","\\n"),
+               ("base64", "plaintext"): lambda x: base64.b64decode(x).decode("UTF-8").replace("\n", "\\n"),
+               ("plaintext", "base64"): lambda x: base64.b64encode(x.encode("UTF-8")).decode("UTF-8"),
+               # ("ip", "plaintext"): lambda x: x,
                # XX ("url", "cms"): lambda x: "Not yet implemented",
                # XX ("hostname", "cms"): lambda x: "Not yet implemented"
                }
 
     # f = lambda x: (lambda x,ip: x, ip, x[4])(x.get(), x.ip)
 
-    def getDescription(self, column):
+    def get_description(self, column):
         return guesses[column][2]
 
-    def identifyCols(self):
+    def identify_cols(self):
         """
          Higher score mean bigger probability that the field is of that type
-         self.fieldType = { (colI, fieldName): [ {type1: score}, {another possible type: 2}, ...], (2, "a field name"): [{"url": 3}, {"hostname": 1}, ...], ...}
+         self.field_type = { (colI, fieldName): [ {type1: score}, {another possible type: 2}, ...], (2, "a field name"): [{"url": 3}, {"hostname": 1}, ...], ...}
 
         """
-        self.fieldType = {(i, k): {} for i, k in enumerate(self.csv.fields)}
+        self.field_type = {(i, k): {} for i, k in enumerate(self.csv.fields)}
         samples = [[] for _ in self.csv.fields]
 
         for line in reader(self.csv.sample.split("\n")[1:]):
@@ -153,14 +156,14 @@ class CsvGuesses:
                 score = 0
                 print("Guess:", key, names, checkFn)
                 # guess field type by name
-                if self.csv.hasHeader:
+                if self.csv.has_header:
                     s = field.replace(" ", "").replace("'", "").replace('"', "").lower()
                     for n in names:
                         if s in n or n in s:
                             print("HEADER match", field, names)
                             score += 1
                             break
-                #else:
+                # else:
                 # guess field type by few values
                 hits = 0
                 for val in samples[i]:
@@ -175,21 +178,25 @@ class CsvGuesses:
                     score += 1
                     if perc > 0.8:
                         score += 1
-                self.fieldType[i, field][key] = score
+                self.field_type[i, field][key] = score
                 print("hits", hits)
-        #from pprint import pprint
-        #pprint(self.fieldType)
-        #import ipdb; ipdb.set_trace()
+        # from pprint import pprint
+        # pprint(self.field_type)
+        # import ipdb; ipdb.set_trace()
 
-    def getBestMethod(self, sourceColI, newField):
+    def get_best_method(self, sourceColI, newField):
         """ return best suited method for given column """
         _min = 999
         method = None
-        for _type in self.csv.guesses.fieldType[sourceColI, self.csv.fields[sourceColI]]:
+        try:
+            key = self.csv.guesses.field_type[sourceColI, self.csv.fields[sourceColI]]
+        except KeyError:  # dynamically added fields
+            key = self.csv.fields[sourceColI]  # its name is directly given from self.methods
+        for _type in key:
             # a column may have multiple types (url, hostname), use the best
-            if _type not in self.getGraph().dijkstra(newField):
+            if _type not in self.get_graph().dijkstra(newField):
                 continue
-            i = self.getGraph().dijkstra(newField)[_type]
+            i = self.get_graph().dijkstra(newField)[_type]
             if i < _min:
                 _min, method = i, _type
         return method
@@ -205,11 +212,11 @@ class CsvGuesses:
         "" "
         guesses = []
         info = None
-        if csv.isRepeating == False: # dialog goes for first time -> autodetect
+        if csv.is_repeating == False: # dialog goes for first time -> autodetect
             found = False
             for colI, fieldname in enumerate(csv.fields):
                 field = fieldname.replace(" ", "").replace("'", "").replace('"', "").lower()
-                if (csv.hasHeader and field in names) or checkFn(field): # file has header, crawl it OR pgrep IP # no IP -> error. May want all different shortened version of IP (notably IPv6).
+                if (csv.has_header and field in names) or checkFn(field): # file has header, crawl it OR pgrep IP # no IP -> error. May want all different shortened version of IP (notably IPv6).
                     found = True
                     guesses.append(colI)
                     if not info:

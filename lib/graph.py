@@ -1,22 +1,22 @@
 from collections import defaultdict
 
+
 class Graph:
     def __init__(self, private_nodes=set()):
-            self.nodes = set()
-            self.edges = defaultdict(list)
-            self.distances = {}
-            self.private_nodes = private_nodes
+        self.nodes = set()
+        self.edges = defaultdict(list)
+        self.distances = {}
+        self.private_nodes = private_nodes
 
     def add_node(self, value):
-            self.nodes.add(value)
+        self.nodes.add(value)
 
     def add_edge(self, to_node, from_node, distance=1):
-            self.edges[from_node].append(to_node)
-            self.edges[to_node].append(from_node)
-            self.add_node(from_node)
-            self.add_node(to_node)
-            self.distances[(from_node, to_node)] = distance
-
+        self.edges[from_node].append(to_node)
+        self.edges[to_node].append(from_node)
+        self.add_node(from_node)
+        self.add_node(to_node)
+        self.distances[(from_node, to_node)] = distance
 
     def dijkstra(self, target, start=None, ignore_private=False):
         """
@@ -66,14 +66,13 @@ class Graph:
                 path.append(pivot)
 
                 if i > 10:
-                    print("cycles",path, target)
+                    print("cycles", path, target)
                     break
             return path
-
 
         if ignore_private:
             for node in self.private_nodes:
                 if node in visited:
                     del visited[node]
 
-        return dict((k,v) for (k,v) in visited.items() if v > 0) # skip the same node
+        return dict((k, v) for (k, v) in visited.items() if v > 0)  # skip the same node

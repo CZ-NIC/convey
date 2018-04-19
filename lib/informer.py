@@ -1,8 +1,10 @@
-import subprocess, sys
-import os.path
 import datetime
-from math import log, sqrt, ceil
+import subprocess
+import sys
+from math import ceil
+
 from lib.config import Config
+import csv
 
 class Informer:
     """ Prints analysis data in nice manner. """
@@ -10,72 +12,75 @@ class Informer:
     def __init__(self, csv):
         self.csv = csv
 
-    def soutInfo(self, clear=True, full=False):
+    def sout_info(self, clear=True, full=False):
         """ Prints file information on the display. """
         if clear:
             sys.stderr.write("\x1b[2J\x1b[H")
             sys.stderr.flush()
-            #os.system('cls' if os.name == 'nt' else 'clear')
-        #sys.stderr.write("\x1b[2J\x1b[H") # clears gnome-terminal
-        #print(chr(27) + "[2J")
+            # os.system('cls' if os.name == 'nt' else 'clear')
+        # sys.stderr.write("\x1b[2J\x1b[H") # clears gnome-terminal
+        # print(chr(27) + "[2J")
         l = []
-        l.append("Source file: " + self.csv.sourceFile)
+        l.append("Source file: " + self.csv.source_file)
         if self.csv.dialect:
             l.append("delimiter: '" + self.csv.dialect.delimiter + "'")
             l.append("quoting: '" + self.csv.dialect.quotechar + "'")
-        if self.csv.hasHeader is not None:
-            l.append("header: " + ("used" if self.csv.hasHeader else "not used"))
+        if self.csv.has_header is not None:
+            l.append("header: " + ("used" if self.csv.has_header else "not used"))
+        if self.csv.settings["filter"]:
+            l.append("Filter: " + ", ".join(["{}({})".format(self.csv.fields[f], val) for f, val in self.csv.settings["filter"]]))
+        if self.csv.settings["unique"]:
+            l.append("Unique col: " + ", ".join([self.csv.fields[f] for f in self.csv.settings["unique"]]))
+        if self.csv.settings["split"]:
+            l.append("Split by: {}".format(self.csv.fields[self.csv.settings["split"]]))
+
+        # XX
+        # if self.csv.redo_invalids is not None:
+        #    l.append("Redo invalids: " + str(self.csv.redo_invalids))
+        sys.stdout.write(", ".join(l))
 
         if self.csv.settings["add"]:
             l2 = []
             for col, i, b in self.csv.settings["add"] or []:
                 l2.append("{} (from {})".format(col, self.csv.fields[i]))
-            l.append("computed columns: " + ", ".join(l2))
-        if self.csv.settings["filter"]:
-            l.append("Filter: " + ", ".join(["{}({})".format(self.csv.fields[f],val) for f, val in self.csv.settings["filter"]]))
-        if self.csv.settings["unique"]:
-            l.append("Unique col: " + ", ".join([self.csv.fields[f] for f in self.csv.settings["unique"]]))
-        #if self.csv.settings["chosen_cols"]:
-        #    l.append("only some cols chosen")
-        if self.csv.settings["split"]:
-            l.append("Split by: {}".format(self.csv.fields[self.csv.settings["split"]]))
-
-        # XX
-        #if self.csv.redo_invalids is not None:
-        #    l.append("Redo invalids: " + str(self.csv.redo_invalids))
-        sys.stdout.write(", ".join(l))
+            sys.stdout.write("\nComputed columns: " + ", ".join(l2))
         l = []
-        if self.csv.lineCount:
-            if self.csv.ipCount:
-                sys.stdout.write(", {} IPs".format(self.csv.ipCount))
-            elif self.csv.ipCountGuess:
-                sys.stdout.write(", around {} IPs".format(self.csv.ipCountGuess))
-            l.append("\nLog lines processed: {}/{}, {} %".format(self.csv.lineCount, self.csv.linesTotal, ceil(100 * self.csv.lineCount / self.csv.linesTotal)))
+        if self.csv.line_count:
+            if self.csv.ip_count:
+                sys.stdout.write(", {} IPs".format(self.csv.ip_count))
+            elif self.csv.ip_count_guess:
+                sys.stdout.write(", around {} IPs".format(self.csv.ip_count_guess))
+            l.append("\nLog lines processed: {}/{}, {} %".format(self.csv.line_count, self.csv.lines_total,
+                                                                 ceil(100 * self.csv.line_count / self.csv.lines_total)))
         else:
-            l.append("\nLog lines: {}".format(self.csv.linesTotal))
-        if self.csv.timeEnd:
-            l.append("{}".format(self.csv.timeEnd - self.csv.timeStart))
-        elif self.csv.timeStart:
-            l.append("{}".format(datetime.datetime.now().replace(microsecond=0) - self.csv.timeStart))
+            l.append("\nLog lines: {}".format(self.csv.lines_total))
+        if self.csv.time_end:
+            l.append("{}".format(self.csv.time_end - self.csv.time_start))
+        elif self.csv.time_start:
+            l.append("{}".format(datetime.datetime.now().replace(microsecond=0) - self.csv.time_start))
             l.append("{} lines / s".format(self.csv.velocity))
         sys.stdout.write(", ".join(l) + "\n")
-        if self.csv.whoisStats:
-            print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whoisStats.items()))
+        if self.csv.whois_stats:
+            print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whois_stats.items()))
 
-        print("\nSample:\n" + "\n".join(self.csv.sample.split("\n")[:4]) + "\n") # show first 3rd lines
+        print("\nSample:\n" + "\n".join(self.csv.sample.split("\n")[:4]) + "\n")  # show first 3rd lines
 
-        if not (len(self.csv.fields) == len(self.csv.settings["chosen_cols"])) == len(self.csv.firstLineFields):
+        if self.csv.settings["dialect"] or not (len(self.csv.fields) == len(self.csv.settings["chosen_cols"])) == len(self.csv.first_line_fields):
             ar = []
-            for i,f in enumerate(self.csv.fields):
+            for i, f in enumerate(self.csv.fields):
                 if i not in self.csv.settings["chosen_cols"]:
-                    ar.append("\x1b[9m" + f + "\x1b[0m")
+                    ar.append(" \x1b[9m{}\x1b[0m".format(f or "empty"))
                 else:
-                    ar.append(f)
-            print("Fields after processing:", ", ".join(ar))
-        #if Config.isDebug(): print("Debug – Settings", self.csv.settings)
+                    ar.append(" " + f)
+            print("Fields after processing:", end="")
+            csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect).writerow(ar)
+        # if Config.isDebug(): print("Debug – Settings", self.csv.settings)
 
-        if self.csv.isAnalyzed:
-            print("** Processing completed: Result file(s) in {}".format(Config.getCacheDir()))
+        if self.csv.is_analyzed:
+            if self.csv.target_file:
+                print("** Processing completed: Result file in {}/{}".format(Config.getCacheDir(), self.csv.target_file))
+            else:
+                print("** Processing completed: Result files in {}".format(Config.getCacheDir()))
             stat = self.getStatsPhrase()
             print("\n Statistics overview:\n" + stat)
             # XX will we write it again to a file? with open(os.path.dirname(file) + "/statistics.txt","w") as f:
@@ -90,7 +95,7 @@ class Informer:
 
         if full:
             """
-            [reg.soutInfo(full) for reg in self.csv.reg.values()] do this:
+            [reg.sout_info(full) for reg in self.csv.reg.values()] do this:
                     #print (', '.join(key + " ( " + value + ")") for key, value in itertools.chain(self.counters["foreign"],self.counters["local"]))
                     l = []
                     if len(self.records) < 100 or full:
@@ -132,23 +137,21 @@ class Informer:
         invalidLines = self.csv.invalidReg.stat()
         """
 
-
         if ipsUnique > 0:
             res = "Totally {} of unique IPs".format(ipsUnique)
         else:
             res = "No IP addresses"
         if ipsWorldFound or countriesFound:
             res += "; information sent to {} countries".format(countriesFound) \
-            + " ({} unique IPs)".format(ipsWorldFound)
+                   + " ({} unique IPs)".format(ipsWorldFound)
         if ipsWorldMissing or countriesMissing:
             res += ", to {} countries without national/goverment CSIRT didn't send".format(countriesMissing) \
-            + " ({} unique IPs)".format(ipsWorldMissing)
+                   + " ({} unique IPs)".format(ipsWorldMissing)
         if ipsCzFound or ispCzFound:
             res += "; {} unique local IPs".format(ipsCzFound) \
-            + " distributed for {} ISP".format(ispCzFound)
+                   + " distributed for {} ISP".format(ispCzFound)
         if ipsCzMissing:
             res += " (for {} unique local IPs ISP not found).".format(ipsCzMissing)
-
 
         """ XX
         if invalidLines:

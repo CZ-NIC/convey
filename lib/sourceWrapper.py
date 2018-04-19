@@ -28,7 +28,6 @@ class SourceWrapper:
         # cache-file s metadaty zdrojoveho souboru
         Config.setCacheDir(os.path.dirname(file) + "/" + ntpath.basename(self.file) + "_convey" + self.hash + "/")
         self.cacheFile = Config.getCacheDir() + ntpath.basename(self.file) + ".cache" #"cache/" +
-
         if os.path.isfile(self.cacheFile) and not fresh:
             print("File {} has already been processed.".format(self.file))
             #import pdb;pdb.set_trace()
@@ -42,14 +41,14 @@ class SourceWrapper:
                 self._treat()
             if self.csv:
                 try:
-                    if self.csv.isAnalyzed:
-                        self.csv.informer.soutInfo()
-                    elif self.csv.isFormatted:
-                        self.csv.informer.soutInfo()
+                    if self.csv.is_analyzed:
+                        self.csv.informer.sout_info()
+                    elif self.csv.is_formatted:
+                        self.csv.informer.sout_info()
                         s = "It seems the file has already been formatted." # X Continue to analysis (or you'll be asked to do format again)?"
                         print(s)
                         #if Dialogue.isYes(s):
-                        #    self.csv.runAnalysis()
+                        #    self.csv.run_analysis()
                         #else:
                         #    self._treat()
                 except BdbQuit: # we do not want to catch quit() signal from ipdb
@@ -76,7 +75,7 @@ class SourceWrapper:
     def _treat(self): # process source
         self.csv = SourceParser(self.file)
         #self.save()
-        #self.csv.runAnalysis()
+        #self.csv.run_analysis()
         self.csv.cookie = Config.get("cookie","OTRS")
         self.csv.token = Config.get("token","OTRS")
         self.save()

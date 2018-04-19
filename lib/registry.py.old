@@ -86,7 +86,7 @@ class _Registry:
             else:
                 yield val.mail, val.cc, self._getFileContents(key)
 
-    def soutInfo(self, full = False):
+    def sout_info(self, full = False):
         #print (', '.join(key + " ( " + value + ")") for key, value in itertools.chain(self.counters["foreign"],self.counters["local"]))
         l = []
         if len(self.records) < 100 or full:
@@ -228,6 +228,6 @@ class InvalidRegistry(_Registry):
     def update(self):
         pass
 
-    def soutInfo(self, full = None):
+    def sout_info(self, full = None):
         if self.lines:
             print("invalid lines {}".format(self.lines))

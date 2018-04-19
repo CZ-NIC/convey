@@ -1,7 +1,8 @@
 # Env config file connection
 import configparser
-import os
 import csv
+import os
+
 
 class Config:
     os.chdir(os.path.dirname(__file__)+"/../")
@@ -12,7 +13,7 @@ class Config:
     #tempCache = {}
 
     # set by SourceParser and used by Registry
-    hasHeader = False
+    has_header = False
     header = ""
     #conveying = "all" # quick access to the property
     #redo_invalids = True # quick access to the property
@@ -77,7 +78,7 @@ class Config:
     def _update(key):
         """ Update info from external CSV file. """
         file = Config.get(key)
-        if os.path.isfile(file) == False: # file with contacts
+        if not os.path.isfile(file):  # file with contacts
             print("(Contacts file {} not found on path {}.) ".format(key, file))
             return {}
         else:

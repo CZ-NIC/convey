@@ -1,9 +1,11 @@
-import ipdb
 from dialog import Dialog
+
 dialog = Dialog(autowidgetsize=True)
+
 
 class Cancelled(Exception):
     pass
+
 
 class Debugged(Exception):
     pass
@@ -11,18 +13,18 @@ class Debugged(Exception):
 
 class Dialogue:
     def isYes(text):
-        return Dialogue.ask(text = text + " [y]/n: ").lower() in ("y", "yes", "")
+        return Dialogue.ask(text=text + " [y]/n: ").lower() in ("y", "yes", "")
 
     def ask(text=None):
         try:
-            txt = input(text) if text else input()
+            txt = input(text + " ") if text else input()
         except EOFError:
             txt = "x"
         if txt == "x":
             raise Cancelled(".. cancelled")
         if txt == "debug":
             raise Debugged("lets debug")
-            #ipdb.set_trace()
+            # ipdb.set_trace()
         return txt
 
     def askNumber(text):
@@ -52,20 +54,23 @@ class Dialogue:
                 if g < len(opts):
                     choices.append(("{} * {} *".format(g + 1, opts[g][1][0]), opts[g][1][1]))
 
-            title += "\n\nAutomatically detected fields on the top"
-            #for i, (fieldname, desc) in enumerate(options):# print columns
+            # for i, (fieldname, desc) in enumerate(options):# print columns
             #    if i in guesses:
             #        choices.append(("{} * {} *".format(i + 1, fieldname), desc))
-            choices.append(("-","-----"))
-        for i, (fieldname, desc) in enumerate(options):
-            choices.append(("{} {}".format(i + 1, fieldname), desc))
+
+        if not len(guesses) == len(options): # if every column highlighted, no need to list them all just again
+            if guesses:
+                title += "\n\nAutomatically detected fields on the top"
+                choices.append(("-", "-----"))
+            for i, (fieldname, desc) in enumerate(options):
+                choices.append(("{} {}".format(i + 1, fieldname), desc))
 
         code, colI = dialog.menu(title or " ", choices=choices)
         if code != "ok":
             raise Cancelled(".. no column chosen")
 
         colI = colI.split(" ")[0]
-        #colI = Dialogue.askNumber(colName + " column: ") - 1
+        # colI = Dialogue.askNumber(colName + " column: ") - 1
 
         """if colI == -1:
             if guesses: # default value
@@ -76,7 +81,7 @@ class Dialogue:
             return Dialogue.pickOption(options, guesses, colName)
         """
 
-        return int(colI) -1
+        return int(colI) - 1
 
 
 class Menu:
@@ -88,7 +93,6 @@ class Menu:
         self._keyCount = 0
         self.fullscreen = fullscreen
 
-
     def add(self, title, fn=None, key=None):
         """ Add new item to the menu.
 
@@ -97,9 +101,9 @@ class Menu:
                 - if False, not available
 
             """
-        #if key is False or not fn:
+        # if key is False or not fn:
         #    key = None
-        #elif key is None:
+        # elif key is None:
         #    key = str(len(self.menu))
         if key is None:
             self._keyCount += 1
@@ -142,6 +146,7 @@ class Menu:
                 if ans == "x":
                     return
                 elif ans == "debug":
-                    import ipdb; ipdb.set_trace()
+                    import ipdb;
+                    ipdb.set_trace()
                     return
                 print("Not valid option")

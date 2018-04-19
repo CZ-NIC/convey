@@ -8,3 +8,6 @@ contacts_foreign.csv
 *.log
 *.pyc
 /.idea/
+/build/
+/dist/
+/convey.egg-info/

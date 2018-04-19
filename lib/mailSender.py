@@ -242,7 +242,7 @@ class MailSender():
                 if csv.attachmentName[-4:] != ".txt":
                     csv.attachmentName += ".txt"
 
-            sys.stdout.write("Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachmentName = {}.\nWas that correct? [y]/n ".format(csv.otrs_id, csv.otrs_num, csv.otrs_cookie, csv.otrs_token, csv.attachmentName))
+            sys.stdout.write("Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachment_name = {}.\nWas that correct? [y]/n ".format(csv.otrs_id, csv.otrs_num, csv.otrs_cookie, csv.otrs_token, csv.attachmentName))
             if input().lower() in ("y", ""):
                 return True
             else:
