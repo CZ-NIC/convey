@@ -1,26 +1,20 @@
-# -*- coding: utf-8 -*-
-
 from setuptools import setup, find_packages
 
 setup (
-       name='convey',
-       version='0.1',
-       packages=find_packages(),
-
-       # Declare your packages' dependencies here, for eg:
-       install_requires=['foo>=3'],
-
-       # Fill in these to make your Egg ready for upload to
-       # PyPI
-       author='edvard',
-       author_email='',
-
+       name='konvey',
+       version='0.8.0.dev1',
+       packages=['lib'],       
+       author='Edvard Rejthar',
+       author_email='edvard.rejthar@nic.cz',       
        #summary = 'Just another Python package for the cheese shop',
-       url='',
-       license='',
-       long_description='Long description of the package',
+       url='https://github.com/CZ-NIC/convey',
+       license='GNU GPLv3',
+       description='CSV swiss knife brought by CSIRT.cz. Convenable way to process large files that might freeze your spreadsheet processor.',
+       install_requires=['netaddr', "jsonpickle", "ipdb", "pythondialog", "lepl"],
 
-       # could also include long_description, download_url, classifiers, etc.
-
-  
+       entry_points = {
+              'console_scripts': [
+                  'command-name = convey.convey:main',                  
+              ],              
+          },
        )

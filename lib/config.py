@@ -79,7 +79,7 @@ class Config:
         file = Config.get(key)
         if os.path.isfile(file) == False: # file with contacts
             print("(Contacts file {} not found on path {}.) ".format(key, file))
-            return False
+            return {}
         else:
             with open(file, 'r') as csvfile:
                 reader = csv.reader(csvfile)
