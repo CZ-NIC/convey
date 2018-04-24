@@ -11,13 +11,13 @@ from math import ceil
 from shutil import move
 from typing import List, Any, Dict
 
-from lib.config import Config
-from lib.contacts import Contacts
-from lib.csvGuesses import CsvGuesses
-from lib.dialogue import Cancelled, Dialogue
-from lib.informer import Informer
-from lib.processer import Processer
-from lib.whois import Whois
+from .config import Config
+from .contacts import Contacts
+from .csvGuesses import CsvGuesses
+from .dialogue import Cancelled, Dialogue
+from .informer import Informer
+from .processer import Processer
+from .whois import Whois
 
 logging.FileHandler('whois.log', 'a')
 

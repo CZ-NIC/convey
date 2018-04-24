@@ -13,7 +13,7 @@ from email.utils import make_msgid, formatdate
 import lepl.apps.rfc3696
 from socket import gaierror
 
-from lib.config import Config
+from .config import Config
 
 re_title = re.compile('<title>([^<]*)</title>')
 logger = logging.getLogger(__name__)

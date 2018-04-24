@@ -5,8 +5,8 @@ from typing import Dict
 
 import lepl.apps.rfc3696
 
-from lib.config import Config
-from lib.mailDraft import MailDraft
+from .config import Config
+from .mailDraft import MailDraft
 
 
 class Attachment:
