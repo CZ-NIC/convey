@@ -4,8 +4,10 @@ import csv
 import logging
 import os
 
+from appdirs import user_config_dir
+
 class Config:
-    os.chdir(os.path.dirname(__file__) + "/../")
+    os.chdir(user_config_dir("convey"))
     file = "config.ini"
     cache = {}
     if not os.path.isfile(file):

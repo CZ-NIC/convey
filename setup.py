@@ -10,7 +10,7 @@ setup (
        url='https://github.com/CZ-NIC/convey',
        license='GNU GPLv3',
        description='CSV swiss knife brought by CSIRT.cz. Convenable way to process large files that might freeze your spreadsheet processor.',
-       install_requires=['netaddr', "jsonpickle", "ipdb", "pythondialog", "lepl", "tabulate"],
+       install_requires=['netaddr', "jsonpickle", "ipdb", "pythondialog", "lepl", "tabulate", "appdirs"],
        entry_points = {
               'console_scripts': [
                   'convey = convey.__main__:main',
