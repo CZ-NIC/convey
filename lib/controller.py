@@ -7,9 +7,9 @@ from sys import exit
 from dialog import Dialog
 
 from lib.config import Config
-from lib.contacts import Contacts
+from lib.contacts import Contacts, Attachment
 from lib.dialogue import Cancelled, Debugged, Dialogue, Menu
-from lib.mailSender import MailSender
+from lib.mailSender import MailSenderOtrs, MailSenderSmtp
 from lib.sourcePicker import SourcePicker
 from lib.sourceWrapper import SourceWrapper
 
@@ -33,10 +33,11 @@ class Controller:
         if args.debug:
             Config.set("debug", True)
 
+        Config.init()
+        Contacts.init()
         file = SourcePicker()  # source file path
         self.wrapper = SourceWrapper(file, args.fresh)
         csv = self.csv = self.wrapper.csv
-        Contacts.refresh()
 
         # load flags
         for flag in flags:
@@ -48,17 +49,12 @@ class Controller:
         if args.csirt_incident and not csv.is_analyzed:
             csv.settings["split"] = self.extend_column("incident-contact", add=False)
             csv.is_processable = True
-            csv.run_analysis()
+            self.process()
 
         # main menu
         while True:
             csv = self.csv = self.wrapper.csv  # may be changed by reprocessing
             csv.informer.sout_info()
-
-            if Config.get('testing') == "True":
-                print(
-                    "\n*** TESTING MOD - mails will be send to mail {} ***\n (To cancel the testing mode set testing = False in config.ini.)".format(
-                        Config.get('testingMail')))
 
             menu = Menu(title="Main menu - how the file should be processed?")
             menu.add("Pick or delete columns", self.chooseCols)
@@ -68,14 +64,16 @@ class Controller:
             menu.add("Split by a column", self.addSplitting)
             menu.add("Change CSV dialect", self.addDialect)
             if self.csv.is_processable:
-                menu.add("process", csv.run_analysis, key="p")
+                menu.add("process", self.process, key="p")
             else:
                 menu.add("process  (choose some actions)")
-            if csv.is_analyzed:
-                menu.add("send", self.sendMenu, key="s")
-                menu.add("show all details", lambda: csv.informer.sout_info(full=True), key="d")
+            if csv.is_analyzed and csv.is_split:
+                menu.add("send", self.send_menu, key="s")
             else:
                 menu.add("send (split first)")
+            if csv.is_analyzed:
+                menu.add("show all details", lambda: (csv.informer.sout_info(full=True), input()), key="d")
+            else:
                 menu.add("show all details (process first)")
             menu.add("Refresh...", self.refresh_menu, key="r")
             menu.add("exit", self.close, key="x")
@@ -89,7 +87,7 @@ class Controller:
                 import ipdb;
                 ipdb.set_trace()
 
-    def sendMenu(self):
+    def send_menu(self):
         if Config.get("otrs_enabled", "OTRS"):
             menu = Menu(title="What sending method do we want to use?", callbacks=False, fullscreen=True)
             menu.add("Send by SMTP...")
@@ -105,56 +103,77 @@ class Controller:
         else:
             method = "smtp"
 
-        menu = Menu("Do you really want to send e-mails now?", callbacks=False)
-
-        MailSender.assureTokens(self.csv)
-        self.wrapper.save()
-        print("\nIn the next step, we connect to server to send e-mails.")
-        a = b = False
-        if self.csv.stats["ispCzFound"]:
-            print(" Template of local mail starts: {}".format(Contacts.mailDraft["local"].getMailPreview()))
-            a = True
+        if method == "otrs":
+            sender = MailSenderOtrs(self.csv)
+            sender.assure_tokens()
+            self.wrapper.save()
         else:
-            print(" No local mail in the set.")
-        if self.csv.stats["countriesFound"]:
-            print(" Template of foreign mail starts: {}".format(Contacts.mailDraft["local"].getMailPreview()))
-            b = True
-        else:
-            print(" No foreign mail in the set.")
+            sender = MailSenderSmtp(self.csv)
 
-        if a and b:
-            menu.add("Send both local and foreign", key=1)
-        if a:
-            menu.add("Send local only", key=2)
-        if b:
-            menu.add("Send foreign only", key=3)
+        # abuse_count = Contacts.count_mails(self.attachments.keys(), abusemails_only=True)
+        # partner_count = Contacts.count_mails(self.attachments.keys(), partners_only=True)
+        # info = ["In the next step, we connect to server to send e-mails: {}× to abuse contacts and {}× to partners.".format(abuse_count, partner_count)]
+        info = ["In the next step, we connect to the server to send e-mails:"]
+        cond1 = cond2 = False
+        st = self.csv.stats
+        if st["abuse_count"][0]:  # XX should be equal if just splitted by computed column! = self.csv.stats["ispCzFound"]:
+            info.append(" Template of a basic e-mail starts: {}".format(Contacts.mailDraft["local"].getMailPreview()))
+            cond1 = True
+        else:
+            info.append(" No non-partner e-mail in the set.")
+        if st["partner_count"][0]:  # self.csv.stats["countriesFound"]:
+            info.append(" Template of a partner e-mail starts: {}".format(Contacts.mailDraft["foreign"].getMailPreview()))
+            cond2 = True
+        else:
+            info.append(" No partner e-mail in the set.")
+
+        info.append("Do you really want to send e-mails now?")
+        if Config.isTesting():
+            info.append("\n\n\n*** TESTING MOD - mails will be sent to the address: {} ***"
+                            "\n (For turning off testing mode set `testing = False` in config.ini.)".format(Config.get('testing_mail')))
+        menu = Menu("\n".join(info), callbacks=False, fullscreen=True)
+        if cond1 and cond2:
+            menu.add("Send both partner and other e-mails ({}×)".format(st["abuse_count"][0] + st["partner_count"][0]), key="both")
+        if cond2:
+            menu.add("Send partner e-mails ({}×)".format(st["partner_count"][0]), key="partner")
+        if cond1:
+            menu.add("Send non-partner e-mails ({}×)".format(st["abuse_count"][0]), key="basic")
 
         option = menu.sout()
-        if option == "x":
+
+        self.csv.informer.sout_info()  # clear screen
+        print("\n\n\n")
+
+        if option is None:
             return
-        if option == "1" or option == "2":
-            print("Sending to local country...")
-            if not MailSender.sendList(self.csv,
-                                       Contacts.getContacts(self.csv.stats["ispCzFound"]),
-                                       Contacts.mailDraft["local"],
-                                       len(self.csv.stats["ispCzFound"]),
-                                       method=method):
-                print("Couldn't send all local mails. (Details in mailSender.log.)")
-        if option == "1" or option == "3":
-            print("Sending to foreigns...")
-            if not MailSender.sendList(self.csv,
-                                       Contacts.getContacts(self.csv.stats["countriesFound"], checkCountries=True),
-                                       Contacts.mailDraft["foreign"],
-                                       len(self.csv.stats["countriesFound"]),
-                                       method=method):
-                print("Couldn't send all foreign e-mails. (Details in mailSender.log.)")
+
+        # XX Terms are equal: abuse == local == other == basic  What should be the universal noun? Let's invent a single word :(
+        if option == "both" or option == "basic":
+            print("Sending basic e-mails...")
+            if not sender.send_list(Attachment.get_basic(self.csv.attachments), Contacts.mailDraft["local"], method=method):
+                print("Couldn't send all abuse mails. (Details in mailSender.log.)")
+        if option == "both" or option == "partner":
+            print("Sending to partner mails...")
+            """ Xif not sender.send_list(Contacts.getContacts(self.csv.stats["countriesFound"], partners_only=True),
+                                    Contacts.mailDraft["foreign"],
+                                    len(self.csv.stats["countriesFound"]),
+                                    method=method):"""
+            if not sender.send_list(Attachment.get_partner(self.csv.attachments), Contacts.mailDraft["foreign"], method=method):
+                print("Couldn't send all partner mails. (Details in mailSender.log.)")
+
+        input("\n\nPress enter to continue...")
+
+    def process(self):
+        self.csv.run_analysis()
+        self.wrapper.save()
+
 
     def refresh_menu(self):
         menu = Menu(title="What should be reprocessed?", fullscreen=True)
         menu.add("Rework whole file again", self.wrapper.clear)
         menu.add("Delete processing settings", self.csv.reset_settings)
         menu.add("Delete whois cache", self.csv.reset_whois)
-        menu.add("Resolve unknown abusemails", self.csv.resolve_unknown)
+        menu.add("Resolve unknown abuse-mails", self.csv.resolve_unknown)
         menu.add("Resolve invalid lines", self.csv.resolve_invalid)
         menu.add("Edit mail texts",
                  lambda: Contacts.mailDraft["local"].guiEdit() and Contacts.mailDraft["foreign"].guiEdit())
@@ -228,8 +247,8 @@ class Controller:
         fields = self.csv.get_fields_autodetection() if not only_extendables else []
         for f in self.csv.guesses.extendable_fields:
             d = self.csv.guesses.get_graph().dijkstra(f, ignore_private=True)
-            #print(d)
-            #import ipdb; ipdb.set_trace()
+            # print(d)
+            # import ipdb; ipdb.set_trace()
             s = "from " + ", ".join(sorted([k for k in nsmallest(3, d, key=d.get)]))
             if len(d) > 3:
                 s += "..."

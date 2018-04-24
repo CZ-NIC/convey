@@ -1,19 +1,94 @@
 # Send mails throught OTRS
 import http.client
-from lib.config import Config
 import logging
-from optparse import OptionParser
 import re
-import sys
 import smtplib
+import sys
+from abc import abstractmethod, ABC
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import make_msgid, formatdate
+
 import lepl.apps.rfc3696
+from socket import gaierror
+
+from lib.config import Config
 
 re_title = re.compile('<title>([^<]*)</title>')
+logger = logging.getLogger(__name__)
 
-class MailSender():
+class MailSender(ABC):
+    def __init__(self, csv):
+        self.csv = csv
 
-    def _post_multipart(host, selector, fields, files, cookies):
+    def start(self):
+        pass
+
+    def stop(self):
+        pass
+
+    @abstractmethod
+    def process(self):
+        pass
+
+    def send_list(self, mails, mailDraft, method="smtp"):
+        # def send_list(self, mails, mailDraft, totalCount, method="smtp"):
+        """ Send a registry (abusemails or csirtmails)
+
+            method - smtp OR otrs
+        """
+        email_validator = lepl.apps.rfc3696.Email()
+        # if method == "otrs" and not Config.get("otrs_enabled", "OTRS"):
+        #    print("OTRS is the only implemented option of sending now. Error.")
+        #    return False
+
+        # if not total_count:
+        #    print("... done. (No mails in the list, nothing to send.)")
+        #    return True
+
+        sent_mails = 0
+        total_count = 0
+
+        if self.start() is False:
+            return False
+        for attachment_object, email_to, email_cc, attachement_contents in mails:  # Xregistry.getMails():
+            text_vars = {"CONTACTS": email_to, "FILENAME": self.csv.attachment_name, "TICKETNUM": self.csv.otrs_num}
+            subject = mailDraft.getSubject() % text_vars
+            body = mailDraft.getBody() % text_vars  # format mail template, ex: {FILENAME} in the body will be transformed by the filename
+            if subject == "" or body == "":
+                print("Missing subject or mail body text.")
+                return False
+
+            if Config.isTesting():
+                intended_to = email_to
+                email_to = Config.get('testing_mail')
+                body = "This is testing mail only from Convey. Don't be afraid, it wasn't delivered to {} .\n".format(
+                    email_to) + body
+            else:
+                intended_to = None
+
+            if not email_validator(email_to):
+                logger.error("Erroneous e-mail: {}".format(email_to))
+                continue
+
+            if self.process(subject, body, email_to, email_cc, attachement_contents):
+                sent_mails += 1
+                logger.info("Sent: {}".format(email_to))
+                attachment_object.sent = True
+            else:
+                logger.error("Error sending: {}".format(email_to))
+                attachment_object.sent = False
+            total_count += 1
+        self.stop()
+
+        print("\nSent: {}/{} mails.".format(sent_mails, total_count))
+        return sent_mails == total_count
+
+
+class MailSenderOtrs(MailSender):
+
+    def _post_multipart(self, host, selector, fields, files, cookies):
         """
         Post fields and files to an http host as multipart/form-data.
         fields is a sequence of (name, value) elements for regular form fields.
@@ -21,9 +96,9 @@ class MailSender():
         Return an appropriate http.client.HTTPResponse object.
         """
 
-        import ssl; ssl._create_default_https_context = ssl._create_unverified_context  # XX once upon a day (10.2.2017), the certificate stopped working or whatever. This is an ugly solution - i think we may delete this line in few weeks
+        # import ssl; ssl._create_default_https_context = ssl._create_unverified_context  # XX once upon a day (10.2.2017), the certificate stopped working or whatever. This is an ugly solution - i think we may delete this line in few weeks
 
-        content_type, body = MailSender._encode_multipart_formdata(fields, files)
+        content_type, body = self._encode_multipart_formdata(fields, files)
         body = bytes(body, "UTF-8")
         protocol = host.split(':')[0]
         h = http.client.HTTPSConnection(host)
@@ -39,6 +114,7 @@ class MailSender():
         response = h.getresponse()
         return response
 
+    @staticmethod
     def _encode_multipart_formdata(fields, files):
         """
         fields is a sequence of (name, value) elements for regular form fields.
@@ -65,161 +141,47 @@ class MailSender():
         content_type = 'multipart/form-data; boundary=%s' % BOUNDARY
         return content_type, body
 
-
-    def _check_record (record, lineno):
+    @staticmethod
+    def _check_record(record, lineno):
         valid = ('CONTACTS' in record)
         if not valid:
-            print (str(sys.stderr) + " Line {}: Record missing CONTACTS field ".format(lineno))
+            print(str(sys.stderr) + " Line {}: Record missing CONTACTS field ".format(lineno))
         return valid
 
-
-
+    @staticmethod
     def _check_response(response):
         response = response.decode("UTF-8")
         if Config.isTesting():
-            logging.info(str(sys.stderr) + " Response:\n " + response)
+            logger.info(str(sys.stderr) + " Response:\n " + response)
 
         with open("test.html", "w") as output:
             output.write(response)
 
         mo = re_title.search(response)
         if not mo:
-            logging.warning(str(sys.stderr) + " Unrecognized response")
-            logging.error(response)
+            logger.warning(str(sys.stderr) + " Unrecognized response")
+            logger.error(response)
             return False
 
         title = mo.group(1)
-        if b'P\xc5\x99edat - Tiket -  OTRS'.decode("utf-8") in title or 'Forward - Ticket -  OTRS' in title: # XX r with caron make nb-python fail. 2nd: once, the subject was: <title>20160715228000147 - Předat - Tiket -  OTRS</title>
+        if b'P\xc5\x99edat - Tiket -  OTRS'.decode(
+                "utf-8") in title or 'Forward - Ticket -  OTRS' in title:  # XX r with caron make nb-python fail. 2nd: once, the subject was: <title>20160715228000147 - Předat - Tiket -  OTRS</title>
             return True
 
         elif title == 'Login - OTRS':
-            logging.warning(str(sys.stderr) + "\n\n *** Not logged in or wrong session cookie ***")
-            print("\n\n *** Not logged in or wrong session cookie ***") # XX: logging.warning se mi kdoviproc neukazuje na konzoli, mozna jen v nb
+            logger.warning(str(sys.stderr) + "\n\n *** Not logged in or wrong session cookie ***")
             return False
 
         elif title in ('Fatal Error - Frontend -  OTRS', 'Fatal Error - Rozhraní -  OTRS'):
-            logging.warning(str(sys.stderr) + "\n\n *** Bad CSRF token ***")
-            print("BAD CSRF")  # XX: logging.warning se mi kdoviproc neukazuje na konzoli, mozna jen v nb
+            logger.warning(str(sys.stderr) + "\n\n *** Bad CSRF token ***")
             return False
 
         else:
-            logging.warning(str(sys.stderr) + " Unrecognized response: " + title)
-            logging.error(response)
+            logger.warning(str(sys.stderr) + " Unrecognized response: " + title)
+            logger.error(response)
             return False
 
-    def sendList(csv, mails, mailDraft, totalCount, method="smtp"):
-        """ Send a registry (abusemails or csirtmails)
-
-            method - smtp OR otrs
-        """
-        email_validator = lepl.apps.rfc3696.Email()
-
-        if method == "otrs" and not Config.get("otrs_enabled", "OTRS"):
-            print("OTRS is the only implemented option of sending now. Error.")
-            return False
-
-        if not totalCount:
-            print("... done. (No mails in the list, nothing to send.)")
-            return True
-
-        sentMails = 0
-        logging.info("sending mails from list...")
-
-        if method == "smtp":
-            MailSender.smtpObj = smtplib.SMTP(Config.get("host", "SMTP"))
-        for mail, cc, contents in mails: #Xregistry.getMails():
-            textVars = {}
-            textVars["CONTACTS"] = mail
-            textVars["FILENAME"] = csv.attachmentName
-            textVars["TICKETNUM"] = csv.otrs_num
-            subject = mailDraft.getSubject() % textVars
-            body = mailDraft.getBody() % textVars # format mail template, ex: {FILENAME} in the body will be transformed by the filename
-            if subject == "" or body == "":
-                print("Missing subject or mail body text.")
-                return False
-
-            if Config.isTesting():
-                mailFinal = Config.get('testingMail')
-                body = "This is testing mail only from Convey. Don't be afraid, it wasn't delivered to {} .\n".format(mail) + body
-                print("***************************************\n*** TESTING MOD - mails will be sent to mail {} ***\n (For turning off testing mode set testing = False in config.ini.)".format(mailFinal))
-            else:
-                mailFinal = mail
-
-            if not email_validator(mailFinal):
-                print("ERRONEOUS EMAIL!", mailFinal)
-                logging.error("erroneous mail {}".format(mailFinal))
-                continue
-
-            logging.info("mail {}".format(mail))
-            if method == "smtp":
-                if MailSender.smtpSend(subject, body, mailFinal):
-                    sentMails += 1
-                    logging.info("ok {}".format(mail))
-            elif method == "otrs":
-                fields = (
-                          ("Action", "AgentTicketForward"),
-                          ("Subaction", "SendEmail"),
-                          ("TicketID", str(csv.otrs_id)),
-                          ("Email", Config.get("ticketemail", "SMTP")),
-                          ("From", Config.get("fromaddr", "SMTP")),
-                          ("To", mailFinal), # mails can be delimited by comma or semicolon
-                          ("Subject", subject),
-                          ("Body", body),
-                          ("ArticleTypeID", "1"), # mail-external
-                          ("ComposeStateID", "4"), # open
-                          ("ChallengeToken", csv.otrs_token),
-                          )
-
-                try:
-                    fields += ("SignKeyID", Config.get("signkeyid", "OTRS"))
-                except KeyError:
-                    pass
-
-                if not Config.isTesting():
-                    if cc: # X mailList.mails[mail]
-                        fields += (("Cc", cc),)
-
-                # load souboru k zaslani
-                # contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
-
-                logging.info("mail {}".format(mail))
-
-                if csv.attachmentName and contents != "":
-                    files = (("FileUpload", csv.attachmentName, contents),)
-                else:
-                    files = ()
-
-                cookies = (('Cookie', 'Session=%s' % csv.otrs_cookie),)
-
-                if Config.isTesting():
-                    print(" **** Testing info:")
-                    print (' ** Fields: ' + str(fields))
-                    print (' ** Files: ' + str(files))
-                    print (' ** Cookies: ' + str(cookies))
-                    # str(sys.stderr)
-
-                #print encode_multipart_formdata(fields, files)
-
-                res = MailSender._post_multipart(Config.get("host", "SMTP"),
-                                                 Config.get("baseuri", "OTRS"),
-                                                 fields=fields,
-                                                 files=files,
-                                                 cookies=cookies)
-                if not res or not MailSender._check_response (res.read()):
-                    print("Sending failure, see convey.log.")
-                    break
-                else:
-                    sentMails += 1
-
-            else:
-                print("Unknown method")
-
-        if method == "smtp":
-            MailSender.smtpObj.quit()
-        print("\nSent: {}/{} mails.".format(sentMails, totalCount))
-        return sentMails == totalCount
-
-    def askValue(value, description=""):
+    def ask_value(self, value, description=""):
         sys.stdout.write('Change {} ({})? [s]kip or paste it: '.format(description, value))
         t = input()
         if not t or t.lower() == "s":
@@ -229,42 +191,143 @@ class MailSender():
         else:
             return t
 
-    def assureTokens(csv):
-        """ Checknout OTRS credentials """
+    def assure_tokens(self):
+        """ Check and update by dialog OTRS credentials """
         force = False
         while True:
-            if(force or csv.otrs_id == False or csv.otrs_num == False or csv.otrs_cookie == False or csv.otrs_token == False or csv.attachmentName == False):
-                csv.otrs_id = MailSender.askValue(csv.otrs_id, "ticket url-id")
-                csv.otrs_num = MailSender.askValue(csv.otrs_num, "ticket long-num")
-                csv.otrs_cookie = MailSender.askValue(csv.otrs_cookie, "cookie")
-                csv.otrs_token = MailSender.askValue(csv.otrs_token, "token")
-                csv.attachmentName = MailSender.askValue(csv.attachmentName, "attachment name")
-                if csv.attachmentName[-4:] != ".txt":
-                    csv.attachmentName += ".txt"
+            if (
+                    force or not self.csv.otrs_id or not self.csv.otrs_num or not self.csv.otrs_cookie or not self.csv.otrs_token or not self.csv.attachment_name):
+                self.csv.otrs_id = self.ask_value(self.csv.otrs_id, "ticket url-id")
+                self.csv.otrs_num = self.ask_value(self.csv.otrs_num, "ticket long-num")
+                self.csv.otrs_cookie = self.ask_value(self.csv.otrs_cookie, "cookie")
+                self.csv.otrs_token = self.ask_value(self.csv.otrs_token, "token")
+                self.csv.attachment_name = self.ask_value(self.csv.attachment_name, "attachment name")
+                if self.csv.attachment_name[-4:] != ".txt":
+                    self.csv.attachment_name += ".txt"
 
-            sys.stdout.write("Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachment_name = {}.\nWas that correct? [y]/n ".format(csv.otrs_id, csv.otrs_num, csv.otrs_cookie, csv.otrs_token, csv.attachmentName))
+            sys.stdout.write(
+                "Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachment_name = {}.\nWas that correct? [y]/n ".format(
+                    self.csv.otrs_id, self.csv.otrs_num, self.csv.otrs_cookie, self.csv.otrs_token, self.csv.attachment_name))
             if input().lower() in ("y", ""):
                 return True
             else:
                 force = True
                 continue
 
-    def smtpSend(subject, body, mailFinal):
-        sender = Config.get("ticketemail", "SMTP")
-
-        message = MIMEText(body)
-        message["Subject"] = subject
-        message["From"] = Config.get("fromaddr", "SMTP")
-        message["To"] = mailFinal
+    def process(self, subject, body, mail_final, cc, attachment_contents):
+        fields = (
+            ("Action", "AgentTicketForward"),
+            ("Subaction", "SendEmail"),
+            ("TicketID", str(self.csv.otrs_id)),
+            ("Email", Config.get("email_from", "SMTP")),
+            ("From", Config.get("email_from_name", "SMTP")),
+            ("To", mail_final),  # mails can be delimited by comma or semicolon
+            ("Subject", subject),
+            ("Body", body),
+            ("ArticleTypeID", "1"),  # mail-external
+            ("ComposeStateID", "4"),  # open
+            ("ChallengeToken", self.csv.otrs_token),
+        )
 
         try:
-           #smtpObj.send_message(sender, mailFinal, MIMEText(message,"plain","utf-8"))
-           MailSender.smtpObj.send_message(message)
+            fields += ("SignKeyID", Config.get("signkeyid", "OTRS"))
+        except KeyError:
+            pass
 
-           #print ("Successfully sent email")
-           return 1
-        except Exception as e:
-            print(e)
-            if Config.isDebug():
-                import ipdb; ipdb.set_trace()
-            print ("Error: unable to send email")
+        if not Config.isTesting():
+            if cc:  # X mailList.mails[mail]
+                fields += (("Cc", cc),)
+
+        # load souboru k zaslani
+        # attachment_contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
+
+        if self.csv.attachment_name and attachment_contents != "":
+            files = (("FileUpload", self.csv.attachment_name, attachment_contents),)
+        else:
+            files = ()
+
+        cookies = (('Cookie', 'Session=%s' % self.csv.otrs_cookie),)
+
+        if Config.isTesting():
+            print(" **** Testing info:")
+            print(' ** Fields: ' + str(fields))
+            print(' ** Files: ' + str(files))
+            print(' ** Cookies: ' + str(cookies))
+            # str(sys.stderr)
+
+        # print encode_multipart_formdata(fields, files)
+
+        res = self._post_multipart(Config.get("otrs_host", "OTRS"),
+                                   Config.get("baseuri", "OTRS"),
+                                   fields=fields,
+                                   files=files,
+                                   cookies=cookies)
+        if not res or not self._check_response(res.read()):
+            print("Sending failure, see convey.log.")
+            return False
+        else:
+            return True
+
+
+class MailSenderSmtp(MailSender):
+    # XXpython3.6 smtp: smtplib.SMTP
+
+    def start(self):
+        try:
+            self.smtp = smtplib.SMTP(Config.get("smtp_host", "SMTP"))
+        except (gaierror, ConnectionRefusedError) as e:
+            print("Can't connect to SMTP server", e)
+            return False
+
+    def stop(self):
+        self.smtp.quit()
+
+    def process(self, subject, body, email_to, cc, contents):
+        base_msg = MIMEMultipart()
+        base_msg.attach(MIMEText(body, "html", "utf-8"))
+
+        if contents:
+            attachment = MIMEApplication(contents, "text/csv")
+            attachment.add_header("Content-Disposition", "attachment",
+                                  filename=self.csv.attachment_name)  # XX? 'proki_{}.zip'.format(time.strftime("%Y%m%d"))
+            base_msg.attach(attachment)
+        """ may be used tested code from Proki
+        if self.parameters.gpg:
+            msg = MIMEMultipart(_subtype="signed", micalg="pgp-sha1", protocol="application/pgp-signature")
+            s = base_msg.as_string().replace('\n', '\r\n')
+            signature = self._sign(s)
+
+            if not signature:
+                print("Failed to sign the message for {}".format(email_to))
+                return False
+            signature_msg = Message()
+            signature_msg['Content-Type'] = 'application/pgp-signature; name="signature.asc"'
+            signature_msg['Content-Description'] = 'OpenPGP digital signature'
+            signature_msg.set_payload(signature)
+            msg.attach(base_msg)
+            msg.attach(signature_msg)
+        else:
+            msg = base_msg
+        """
+        msg = base_msg
+
+        sender = Config.get("email_from", "SMTP")
+        recipients = [email_to]
+        if cc and not Config.isTesting():
+            msg["Cc"] = cc
+            recipients.append[cc]
+
+        msg["Subject"] = subject
+        msg["From"] = Config.get("email_from_name", "SMTP")
+        msg["To"] = email_to
+        msg["Date"] = formatdate(localtime=True)
+        msg["Message-ID"] = make_msgid()
+        try:
+            self.smtp.sendmail(sender, recipients, msg.as_string().encode('ascii'))
+            # self.smtp.send_message(sender, recipients, MIMEText(message, "plain", "utf-8"))
+        except (smtplib.SMTPSenderRefused, Exception) as e:
+            logger.error("{} → {} error: {}".format(sender, " + ".join(recipients), e))
+            # if Config.isDebug(): import ipdb; ipdb.set_trace()
+            return False
+        else:
+            return True

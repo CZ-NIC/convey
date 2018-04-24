@@ -9,6 +9,7 @@ import sys
 from collections import defaultdict
 from math import ceil
 from shutil import move
+from typing import List, Any, Dict
 
 from lib.config import Config
 from lib.contacts import Contacts
@@ -22,9 +23,13 @@ logging.FileHandler('whois.log', 'a')
 
 
 class SourceParser:
+    # XXpython3.6 is_split: bool
+    # XXpython3.6 is_analyzed: bool
+    # XXpython3.6 attachments: List[object]
 
     def __init__(self, sourceFile):
         print("Processing file.")
+        self.is_formatted = False
         self.is_repeating = False
         # while True:
         self.dialect = None  # CSV dialect
@@ -42,6 +47,7 @@ class SourceParser:
         self.attachment_name = "part-" + ntpath.basename(sourceFile)
         self.ip_count_guess = None
         self.ip_count = None
+        self.attachments = []  # files created if splitting
         self._reset()
 
         # load CSV
@@ -81,7 +87,6 @@ class SourceParser:
                 self.header = self.first_line_fields
             self.reset_settings()
             self.guesses.identify_cols()
-            print("HEEE")
         except Cancelled:
             print("Cancelled.")
             return
@@ -148,8 +153,10 @@ class SourceParser:
         self.time_end = None
         self.time_last = None
         self.is_analyzed = False
+        self.is_split = False
         self.is_processable = False
-        self.is_formatted = False
+        self.attachments.clear()
+        #self.is_formatted = False
         self.reset_whois(hard=hard)
 
     def _set_target_file(self):
@@ -166,8 +173,10 @@ class SourceParser:
             for name, _, _ in self.settings["add"]:
                 l.append(name)
             self.target_file = "{}_{}.csv".format(ntpath.basename(self.source_file), "_".join(l))
+            self.is_split = False
         else:
             self.target_file = None
+            self.is_split = True
 
     def run_analysis(self):
         """ Run main analysis of the file. """
@@ -197,9 +206,9 @@ class SourceParser:
 
         self.line_count = 0
 
-        if not self.settings["split"]:
-            print("SPLITTING!")
-            # XXX
+        #if not self.settings["split"]:
+        #    print("SPLITTING!")
+        #    XX
 
     """
     def _sizeCheck(self):
@@ -213,7 +222,7 @@ class SourceParser:
 
     def _askOptions(self):
         "" Asks user for other parameters. They can change conveying method and included columns. ""
-        # XXX
+        # XX
         pass
     """
 

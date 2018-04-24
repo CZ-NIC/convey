@@ -1,10 +1,13 @@
+import csv
 import datetime
 import subprocess
 import sys
 from math import ceil
 
+from tabulate import tabulate
+
 from lib.config import Config
-import csv
+
 
 class Informer:
     """ Prints analysis data in nice manner. """
@@ -65,7 +68,8 @@ class Informer:
 
         print("\nSample:\n" + "\n".join(self.csv.sample.split("\n")[:4]) + "\n")  # show first 3rd lines
 
-        if self.csv.settings["dialect"] or not (len(self.csv.fields) == len(self.csv.settings["chosen_cols"])) == len(self.csv.first_line_fields):
+        if self.csv.settings["dialect"] or not (len(self.csv.fields) == len(self.csv.settings["chosen_cols"])) == len(
+                self.csv.first_line_fields):
             ar = []
             for i, f in enumerate(self.csv.fields):
                 if i not in self.csv.settings["chosen_cols"]:
@@ -78,9 +82,37 @@ class Informer:
 
         if self.csv.is_analyzed:
             if self.csv.target_file:
-                print("** Processing completed: Result file in {}/{}".format(Config.getCacheDir(), self.csv.target_file))
+                print("\n** Processing completed: Result file in {}{}".format(Config.getCacheDir(), self.csv.target_file))
             else:
-                print("** Processing completed: Result files in {}".format(Config.getCacheDir()))
+                partner_count, abuse_count, non_deliverable, totals = map(self.csv.stats.get, (
+                    'partner_count', 'abuse_count', 'non_deliverable', 'totals'))
+
+                print("** Processing completed: {} result files in {}".format(totals, Config.getCacheDir()))
+                # abuse_count = Contacts.count_mails(self.attachments.keys(), abusemails_only=True)
+                # partner_count = Contacts.count_mails(self.attachments.keys(), partners_only=True)
+                if totals == non_deliverable:
+                    print("* It seems no file is meant to serve as an e-mail attachment.")
+                else:
+                    if abuse_count[0] + partner_count[0] == 0:
+                        print(
+                            "Already sent all {} partner e-mails and {} other e-mails".format(partner_count[1], abuse_count[1]))
+                    if abuse_count[1] + partner_count[1] > 1:
+                        print("* already sent {}/{} partner e-mails\n* {}/{} other e-mails".format(partner_count[1],
+                                                                                               sum(partner_count),
+                                                                                               abuse_count[1],
+                                                                                               sum(abuse_count)))
+                    else:
+                        print(
+                            "* {} files seem to be attachments for partner e-mails\n* {} for other e-mails".format(partner_count[0],
+                                                                                                                 abuse_count[0]))
+                    if non_deliverable:
+                        print("* {} files undeliverable".format(non_deliverable))
+
+                if Config.get('testing') == "True":
+                    print(
+                        "\n*** TESTING MOD - mails will be send to mail {} ***\n (For turning off testing mode set `testing = False` in config.ini.)".format(
+                            Config.get('testing_mail')))
+
             stat = self.getStatsPhrase()
             print("\n Statistics overview:\n" + stat)
             # XX will we write it again to a file? with open(os.path.dirname(file) + "/statistics.txt","w") as f:
@@ -94,64 +126,55 @@ class Informer:
             """
 
         if full:
-            """
-            [reg.sout_info(full) for reg in self.csv.reg.values()] do this:
-                    #print (', '.join(key + " ( " + value + ")") for key, value in itertools.chain(self.counters["foreign"],self.counters["local"]))
-                    l = []
-                    if len(self.records) < 100 or full:
-                        for key, o in self.records.items():
-                            s = [str(len(o.counter))]
-                            o.mail is False and s.append("no mail")
-                            o.cc and s.append("cc " + o.cc)
-                            l.append(key + " (" + ", ".join(s) + ")")
-                    else:# too much of results, print just the count
-                        l.append(str(len(self.records)) + " " + self.name)
-
-                    if self.unknowns:
-                        l.append("unknown {} ({})".format(self.name, len(self.unknowns)))
-                    print(", ".join(l))
-            """
-
-            print("\nResult file(s) in {}".format(Config.getCacheDir()))
-
-            print("\nPrefixes encountered:\nprefix | location | record | asn | netname")
+            rows = []
             if self.csv.ranges.items():
                 for prefix, o in self.csv.ranges.items():
-                    prefix, location, abusemail, asn, netname, country = o
-                    print("{} | {} | {}".format(prefix, location, abusemail or country))
+                    prefix, location, incident, asn, netname, country, abusemail = o
+                    rows.append((prefix, location, incident, asn or "-", netname or "-"))
+            print("\n\n** Whois information overview **\n",
+                  tabulate(rows, headers=("prefix", "location", "contact", "asn", "netname")))
+
+            if self.csv.is_split:
+                rows = []
+                for o in self.csv.attachments:
+                    rows.append((o.path, {True: "partner", False: "✓", None: "×"}[o.partner],
+                                 {True: "✓", False: "error", None: "no"}[o.sent]))
+                print("\n\n** Generated files overview **\n", tabulate(rows, headers=("file", "deliverable", "sent")))
+
+            print("\n\nPress enter to continue...")
 
     def getStatsPhrase(self, generate=False):
         """ Prints phrase "Totally {} of unique IPs in {} countries...": """
-        csv = self.csv
+        st = self.csv.stats
 
-        ipsUnique = len(csv.stats["ipsUnique"])
-        ispCzFound = len(csv.stats["ispCzFound"])
-        ipsCzMissing = len(csv.stats["ipsCzMissing"])
-        ipsCzFound = len(csv.stats["ipsCzFound"])
-        ipsWorldMissing = len(csv.stats["ipsWorldMissing"])
-        ipsWorldFound = len(csv.stats["ipsWorldFound"])
-        countriesMissing = len(csv.stats["countriesMissing"])
-        countriesFound = len(csv.stats["countriesFound"])
+        ips_unique = len(st["ipsUnique"])
+        isp_cz_found = len(st["ispCzFound"])
+        ips_cz_missing = len(st["ipsCzMissing"])
+        ips_cz_found = len(st["ipsCzFound"])
+        ips_world_missing = len(st["ipsWorldMissing"])
+        ips_world_found = len(st["ipsWorldFound"])
+        countries_missing = len(st["countriesMissing"])
+        countries_found = len(st["countriesFound"])
 
         """         XX
         invalidLines = self.csv.invalidReg.stat()
         """
 
-        if ipsUnique > 0:
-            res = "Totally {} of unique IPs".format(ipsUnique)
+        if ips_unique > 0:
+            res = "Totally {} of unique IPs".format(ips_unique)
         else:
             res = "No IP addresses"
-        if ipsWorldFound or countriesFound:
-            res += "; information sent to {} countries".format(countriesFound) \
-                   + " ({} unique IPs)".format(ipsWorldFound)
-        if ipsWorldMissing or countriesMissing:
-            res += ", to {} countries without national/goverment CSIRT didn't send".format(countriesMissing) \
-                   + " ({} unique IPs)".format(ipsWorldMissing)
-        if ipsCzFound or ispCzFound:
-            res += "; {} unique local IPs".format(ipsCzFound) \
-                   + " distributed for {} ISP".format(ispCzFound)
-        if ipsCzMissing:
-            res += " (for {} unique local IPs ISP not found).".format(ipsCzMissing)
+        if ips_world_found or countries_found:
+            res += "; information for {} countries".format(countries_found) \
+                   + " ({} unique IPs)".format(ips_world_found)
+        if ips_world_missing or countries_missing:
+            res += ", no contact for {} countries without national/goverment CSIRT".format(countries_missing) \
+                   + " ({} unique IPs)".format(ips_world_missing)
+        if ips_cz_found or isp_cz_found:
+            res += "; {} unique local IPs".format(ips_cz_found) \
+                   + " distributed for {} ISP".format(isp_cz_found)
+        if ips_cz_missing:
+            res += " (for {} unique local IPs ISP not found).".format(ips_cz_missing)
 
         """ XX
         if invalidLines:

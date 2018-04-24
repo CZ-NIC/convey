@@ -12,6 +12,8 @@ from netaddr import *
 
 from lib.config import Config
 
+logger = logging.getLogger(__name__)
+
 
 class Whois:
 
@@ -49,7 +51,7 @@ class Whois:
         prefix = get[0]
         self.ipSeen[self.ip] = prefix
         if not prefix:
-            logging.info("No prefix found for IP {}".format(self.ip))
+            logger.info("No prefix found for IP {}".format(self.ip))
             self.get = False
             return
         # elif prefix in self.ranges:
@@ -66,14 +68,15 @@ class Whois:
         print("XXX TBImplemented")
         return False
 
-    ##
-    # returns prefix, local|foreign, country|abusemail, asn
     def analyze(self):
+        """
+        :return: prefix, "local"|"foreign", incident-contact ( = abuse-mail|country), asn, netname, country, abuse-mail
+        """
         country = self._loadCountry()
         # print("country loaded {}".format(self.country))
         prefix = self._loadPrefix()
         # print("prefix loaded {}".format(self.prefix))
-        if not country in Config.get("local_country"):
+        if country not in Config.get("local_country"):
             return prefix, "foreign", country, self.asn, self.netname, country, self.getAbusemail()
         else:
             # print("Abusemail: ")
@@ -122,7 +125,7 @@ class Whois:
             else:
                 return IPNetwork(s)
         except Exception as e:
-            logging.warning("Prefix {} cannot be parsed.".format(s))
+            logger.warning("Prefix {} cannot be parsed.".format(s))
             Config.errorCatched()
 
     def url2ip(url):
@@ -132,7 +135,7 @@ class Whois:
         try:
             return socket.gethostbyname(uri)  # returns 1 adress only, we dont want all of them
         except socket.gaierror as e:
-            logging.warning("Socket gethostbyname error for URI {} .".format(uri))
+            logger.warning("Socket gethostbyname error for URI {} .".format(uri))
             Config.errorCatched()
         # if we wanted all of the IPs:
         # recs = socket.getaddrinfo(uri, 0, 0, 0, socket.IPPROTO_TCP)
@@ -173,10 +176,10 @@ class Whois:
             self.netname = self._grepResponse('^netname(.*)', lastWord=True)
             if not country:
                 if self._grepResponse("network is unreachable"):
-                    logging.warning("Whois server {} is unreachable. Disabling for this session.".format(self.servers[server]))
+                    logger.warning("Whois server {} is unreachable. Disabling for this session.".format(self.servers[server]))
                     Whois.servers.pop(server)
                 if self._grepResponse("access denied"):
-                    logging.warning("Whois server {} access denied. Disabling for this session.".format(self.servers[server]))
+                    logger.warning("Whois server {} access denied. Disabling for this session.".format(self.servers[server]))
                     Whois.servers.pop(server)
             if country:
                 # sanitize whois confusion
@@ -244,4 +247,4 @@ class Whois:
             self.whoisResponse += p.stderr.read().decode("unicode_escape").strip().lower()
         except UnicodeDecodeError:  # ip address 94.230.155.109 had this string 'Jan Krivsky Hl\xc3\x83\x83\xc3\x82\xc2\xa1dkov' and everything failed
             self.whoisResponse = ""
-            logging.warning("Whois response for IP {} on server {} cannot be parsed.".format(ip, server))
+            logger.warning("Whois response for IP {} on server {} cannot be parsed.".format(ip, server))

@@ -3,3 +3,4 @@ jsonpickle
 ipdb
 pythondialog
 lepl
+tabulate

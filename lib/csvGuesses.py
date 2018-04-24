@@ -121,8 +121,7 @@ class CsvGuesses:
                ("whois", "abusemail"): lambda x: (x, x.get[6]),
                ("whois", "country"): lambda x: (x, x.get[5]),
                ("whois", "netname"): lambda x: (x, x.get[4]),
-               ("whois", "csirt-contact"): lambda x: (
-                   x, Config.csirtmails[x.get[5]] if x.get[5] in Config.csirtmails else "-"),
+               ("whois", "csirt-contact"): lambda x: (x, Config.csirtmails[x.get[5]] if x.get[5] in Config.csirtmails else "-"),
                # vraci tuple (local|country_code, whois-mail|abuse-contact)
                ("whois", "incident-contact"): lambda x: (x, x.get[2]),
                ("base64", "plaintext"): lambda x: base64.b64decode(x).decode("UTF-8").replace("\n", "\\n"),

@@ -9,6 +9,7 @@ It takes any CSV (any delimiter, header or whatever) and perform one or more act
 3) **Unique filter** (no value duplicates)
 4) **Value filter** (only rows with a specific values are preserved)
 5) **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
+6) **Change CSV dialect** (change delimiter or quoting character)
 
 ## Installation and first run
 
@@ -17,7 +18,7 @@ On the first run we may want to run installation script to assure dependencies a
 
 
 ```bash
-install.sh # on first run we assure some dependencies
+git clone git@github.com:CZ-NIC/convey.git && cd convey && install.sh # on first run we assure some dependencies
 convey.py [filename] # program start
 convey.py --help # see some flags that help you further automating
 ``` 
@@ -26,6 +27,7 @@ convey.py --help # see some flags that help you further automating
 
 * **abusemail** – got abuse e-mail contact from whois
 * **ans** – got from whois
+* **base64** – encode/decode
 * **country** – country code from whois
 * **csirt-contact** – e-mail addres corresponding with country code, taken from your personal contacts_foreign CSV in the format `country,abusemail`. Path to this file has to be specified in `config.ini » contacts_foreign`
 * **hostname** – domain from url

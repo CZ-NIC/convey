@@ -1,17 +1,19 @@
 import datetime
-import ntpath
-import os
 from bdb import BdbQuit
 from collections import defaultdict
 from csv import reader as csvreader, writer as csvwriter
 from math import ceil
 
 from lib.config import Config
+from lib.contacts import Attachment
 from lib.dialogue import Dialogue
 
 
 class Processer:
     """ Opens the CSV file and processes the lines. """
+
+    # XXpython3.6 descriptors: Dict[str, object] # location => file_descriptor, his csv-writer
+    # XXpython3.6 descriptorsStatsOpen: defaultdict[str, int] # {location: count} XX(performance) we may use a SortedDict object
 
     def __init__(self, csv, rewrite=True):
         """
@@ -25,9 +27,9 @@ class Processer:
         self.unique_sets = defaultdict(set)
         self.descriptors_max = 1000  # XX should be given by the system, ex 1024
         self.descriptors_count = 0
-        self.descriptorsStatsOpen = {}  # defaultdict(int) # location => count XX(performance) we may use a SortedDict object
+        self.descriptorsStatsOpen = {}
         self.descriptorsStatsAll = defaultdict(int)
-        self.descriptors = {}  # location => file_descriptor, his csv-writer
+        self.descriptors = {}
 
     def process_file(self, file, rewrite=False):
         csv = self.csv
@@ -95,8 +97,15 @@ class Processer:
                         self._close_descriptors()
                     else:  # continue from last row
                         csv.line_count -= 1  # let's pretend we didn't just do this row before and give it a second chance
-                        return self.process_line(csv, row, settings)
+                        self.process_line(csv, row, settings)
         self._close_descriptors()
+
+        if self.csv.is_split:
+            for f in self.files_created:
+                # self.csv.attachments[f] = False  # set that a mail with this attachment have not yet been sent
+                self.csv.attachments.append(
+                    Attachment(None, None, f))  # set that a mail with this attachment have not yet been sent
+            Attachment.refresh_attachment_stats(self.csv)
 
     def _close_descriptors(self):
         """ Descriptors have to be closed (flushed) """
@@ -165,7 +174,7 @@ class Processer:
                 mail = whois.get[2]
                 if whois.get[1] == "local":
                     if mail == "unknown":
-                        chosen_fields = [line]  # reset to the original line (will be reprocessed)
+                        chosen_fields = line  # reset to the original line (will be reprocessed)
                         csv.stats["ipsCzMissing"].add(whois.ip)
                         csv.stats["czUnknownPrefixes"].add(whois.get[0])
                     else:
@@ -192,7 +201,7 @@ class Processer:
                     traceback.print_exc()
                     import ipdb;
                     ipdb.set_trace()
-                csv.invalidLinesCount += 1
+                csv.invalid_lines_count += 1
                 location = Config.INVALID_NAME
                 chosen_fields = [line]  # reset the original line (will be reprocessed)
 
@@ -226,7 +235,7 @@ class Processer:
             f[0].write(Config.header)
         f[1].writerow(chosen_fields)
 
-    def XXnotMigratedFunctionality(self):
+    def __XXnotMigratedFunctionality(self):
         ## XX Check if this is already migrated
         if not reprocessing and csv.urlColumn is not None:  # if CSV has DOMAIN column that has to be translated to IP column
             ip = Whois.url2ip(records[csv.urlColumn])

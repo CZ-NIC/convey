@@ -2,8 +2,6 @@
  Choose the right file to process
 """
 import sys
-import tkinter as tk
-from tkinter.filedialog import askopenfilename
 
 import os.path
 
@@ -57,6 +55,13 @@ def SourcePicker():
         sys.stdout.write("? ")
         sys.stdout.flush()
         # file = input() without GUI variant
+
+        # XX in the future, let's get rid of Tkinter. And don't impose it now if not really needed
+        try:
+            import tkinter as tk
+            from tkinter.filedialog import askopenfilename
+        except ImportError:
+            print("Error importing Tkinter. Please specify the file name in the parameter.")
         root = tk.Tk()
         root.withdraw()  # show askopenfilename dialog without the Tkinter window
         file = askopenfilename()  # default is all file types

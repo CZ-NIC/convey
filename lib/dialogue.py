@@ -58,7 +58,7 @@ class Dialogue:
             #    if i in guesses:
             #        choices.append(("{} * {} *".format(i + 1, fieldname), desc))
 
-        if not len(guesses) == len(options): # if every column highlighted, no need to list them all just again
+        if not len(guesses) == len(options):  # if every column highlighted, no need to list them all just again
             if guesses:
                 title += "\n\nAutomatically detected fields on the top"
                 choices.append(("-", "-----"))
