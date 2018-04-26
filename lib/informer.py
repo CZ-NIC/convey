@@ -98,13 +98,13 @@ class Informer:
                             "Already sent all {} partner e-mails and {} other e-mails".format(partner_count[1], abuse_count[1]))
                     if abuse_count[1] + partner_count[1] > 1:
                         print("* already sent {}/{} partner e-mails\n* {}/{} other e-mails".format(partner_count[1],
-                                                                                               sum(partner_count),
-                                                                                               abuse_count[1],
-                                                                                               sum(abuse_count)))
+                                                                                                   sum(partner_count),
+                                                                                                   abuse_count[1],
+                                                                                                   sum(abuse_count)))
                     else:
                         print(
                             "* {} files seem to be attachments for partner e-mails\n* {} for other e-mails".format(partner_count[0],
-                                                                                                                 abuse_count[0]))
+                                                                                                                   abuse_count[0]))
                     if non_deliverable:
                         print("* {} files undeliverable".format(non_deliverable))
 
@@ -126,13 +126,15 @@ class Informer:
             """
 
         if full:
-            rows = []
-            if self.csv.ranges.items():
+            if len(self.csv.ranges.items()):
+                rows = []
                 for prefix, o in self.csv.ranges.items():
                     prefix, location, incident, asn, netname, country, abusemail = o
                     rows.append((prefix, location, incident, asn or "-", netname or "-"))
-            print("\n\n** Whois information overview **\n",
-                  tabulate(rows, headers=("prefix", "location", "contact", "asn", "netname")))
+                print("\n\n** Whois information overview **\n",
+                      tabulate(rows, headers=("prefix", "location", "contact", "asn", "netname")))
+            else:
+                print("No whois information available.")
 
             if self.csv.is_split:
                 rows = []
@@ -140,6 +142,8 @@ class Informer:
                     rows.append((o.path, {True: "partner", False: "✓", None: "×"}[o.partner],
                                  {True: "✓", False: "error", None: "no"}[o.sent]))
                 print("\n\n** Generated files overview **\n", tabulate(rows, headers=("file", "deliverable", "sent")))
+            else:
+                print("Files overview not needed – everything have been processed into a single file.")
 
             print("\n\nPress enter to continue...")
 

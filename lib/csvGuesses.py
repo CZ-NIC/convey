@@ -15,9 +15,9 @@ reBase64 = re.compile('^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[
 
 """
      guesses - ways to identify a column
-        name: ([usual names], method to identify)
+        {name: ([usual names], method to identify, description) }
 """
-guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], Whois.checkIp, "valid IP addres"),
+guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], Whois.checkIp, "valid IP address"),
            "portIP": ([], reIpWithPort.match, "IP in the form 1.2.3.4.port"),
            "anyIP": ([], reAnyIp.match, "IP in the form 'any text 1.2.3.4 any text'"),
            "hostname": (["fqdn", "hostname", "domain"], reFqdn.match, "2nd or 3rd domain name"),
