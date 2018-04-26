@@ -19,9 +19,13 @@ On the first run we may want to run installation script to assure dependencies a
 
 ```bash
 git clone git@github.com:CZ-NIC/convey.git && cd convey && install.sh # on first run we assure some dependencies
-convey.py [filename] # program start
-convey.py --help # see some flags that help you further automating
-``` 
+```
+
+```bash
+# launch as a package
+python3 -m convey # program start
+python3 -m convey --help # see some flags that help you further automating
+```
 
 ## Computable fields
 

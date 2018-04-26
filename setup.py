@@ -1,7 +1,7 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 setup (
-       name='konvey',
+       name='convey',
        version='0.8.0.dev1',
        packages=['convey'],
        author='Edvard Rejthar',
@@ -16,4 +16,6 @@ setup (
                   'convey = convey.__main__:main',
               ],
           },
+       package_data={'convey': ['config.ini.default']},
+       include_package_data=True,
        )

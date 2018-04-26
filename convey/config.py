@@ -6,23 +6,32 @@ import os
 
 from appdirs import user_config_dir
 
+
 class Config:
-    os.chdir(user_config_dir("convey"))
     file = "config.ini"
     cache = {}
-    if not os.path.isfile(file):
-        if os.path.isfile(file + ".default"):
-            if input("Config file missing. Should we create a default config.ini file? [Y/n] ") in ["", "Y", "y"]:
-                from shutil import copyfile
-                copyfile(file + ".default", file)
-                print("This may be your first launch. Note you may want to run ./install.sh before using Convey.")
-                input()
+
+    # check the .ini file is at program startup location
+    if not os.path.exists(file):  # .ini file is not at current location (I.E. at downloaded github folder)
+        if not os.path.exists(user_config_dir("convey")):
+            # doesnt exist at .config
+            dpath = "{}/{}.default".format(os.path.dirname(os.path.realpath(__file__)), file)
+            if os.path.isfile(dpath):
+                if input("Config file missing. Should we create a default config.ini file? [Y/n] ") in ["", "Y", "y"]:
+                    os.makedirs(user_config_dir("convey"))
+                    from shutil import copyfile
+                    copyfile(dpath, "{}/{}".format(user_config_dir("convey"), file))
+                    print("This may be your first launch. Note you may want to run ./install.sh before using Convey.")
+                    input()
+                else:
+                    print("Okay, then.")
+                    exit(0)
             else:
-                print("Okay, then.")
-                exit(0)
+                print("Missing default config.ini")
+                exit(1)
         else:
-            print("Missing config.ini")
-            exit(1)
+            os.chdir(user_config_dir("convey"))
+
     config = configparser.ConfigParser()
     config.read(file)
     # tempCache = {}
@@ -100,7 +109,7 @@ class Config:
         """ Update info from external CSV file. """
         file = Config.get(key)
         if not os.path.isfile(file):  # file with contacts
-            print("(Contacts file {} not found on path {}.) ".format(key, file))
+            print("(Contacts file {} not found on path {}/{}.) ".format(key, os.getcwd(), file))
             return {}
         else:
             with open(file, 'r') as csvfile:

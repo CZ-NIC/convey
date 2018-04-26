@@ -99,7 +99,7 @@ class Contacts:
         """ Update info from an external CSV file. """
         file = Config.get(key)
         if not os.path.isfile(file):  # file with contacts
-            print("(Contacts file {} not found on path {}.) ".format(key, file))
+            print("(Contacts file {} not found on path {}/{}.) ".format(key, os.getcwd(),file))
             return {}
         else:
             with open(file, 'r') as csvfile:
