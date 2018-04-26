@@ -2,9 +2,9 @@ import base64
 import re
 from csv import Error, Sniffer, reader
 
-from lib.config import Config
-from lib.graph import Graph
-from lib.whois import Whois
+from .config import Config
+from .graph import Graph
+from .whois import Whois
 
 reIpWithPort = re.compile("((\d{1,3}\.){4})(\d+)")
 reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")

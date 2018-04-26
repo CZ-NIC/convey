@@ -2,7 +2,7 @@
 import os
 import subprocess
 
-from lib.config import Config
+from .config import Config
 
 
 class MailDraft:

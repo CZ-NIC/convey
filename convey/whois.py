@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 from netaddr import *
 
-from lib.config import Config
+from .config import Config
 
 logger = logging.getLogger(__name__)
 
