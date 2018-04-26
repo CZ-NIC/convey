@@ -11,7 +11,7 @@ except ImportError:
     traceback.print_exc()
     print("\nTry installing the libraries by install.sh")
     quit()
-from lib.controller import Controller
+from .controller import Controller
 
 __shortdoc__ = """ Convey - CSV swiss knife brought by CSIRT.cz """
 # with open("README.md", "r") as f:
@@ -33,7 +33,8 @@ logger = logging.getLogger("convey")
 
 logging.getLogger("lepl").setLevel(logging.ERROR)  # suppress a superfluous info when using lepl e-mail validator
 
-if __name__ == "__main__":
+
+def main():
     print(__shortdoc__),
     try:
         Controller()
@@ -54,3 +55,7 @@ if __name__ == "__main__":
         type, value, tb = sys.exc_info()
         traceback.print_exc()
         mod.post_mortem(tb)
+
+
+if __name__ == "__main__":
+    main()

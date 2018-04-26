@@ -8,8 +8,8 @@ from bdb import BdbQuit
 import ipdb
 import jsonpickle
 
-from lib.config import Config
-from lib.sourceParser import SourceParser
+from .config import Config
+from .sourceParser import SourceParser
 
 __author__ = "Edvard Rejthar"
 __date__ = "$Mar 23, 2015 8:33:24 PM$"

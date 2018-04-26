@@ -5,7 +5,7 @@ import sys
 
 import os.path
 
-from lib.config import Config
+from .config import Config
 
 __author__ = "Edvard Rejthar, CSIRT.CZ"
 __date__ = "$Mar 23, 2015 10:36:35 PM$"
@@ -60,12 +60,13 @@ def SourcePicker():
         try:
             import tkinter as tk
             from tkinter.filedialog import askopenfilename
+            root = tk.Tk()
+            root.withdraw()  # show askopenfilename dialog without the Tkinter window
+            file = askopenfilename()  # default is all file types
+            print(file)
         except ImportError:
             print("Error importing Tkinter. Please specify the file name in the parameter.")
-        root = tk.Tk()
-        root.withdraw()  # show askopenfilename dialog without the Tkinter window
-        file = askopenfilename()  # default is all file types
-        print(file)
+            sys.exit(1)
 
     # open source file path
     try:

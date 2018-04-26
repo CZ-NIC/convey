@@ -6,12 +6,12 @@ from sys import exit
 
 from dialog import Dialog
 
-from lib.config import Config
-from lib.contacts import Contacts, Attachment
-from lib.dialogue import Cancelled, Debugged, Dialogue, Menu
-from lib.mailSender import MailSenderOtrs, MailSenderSmtp
-from lib.sourcePicker import SourcePicker
-from lib.sourceWrapper import SourceWrapper
+from .config import Config
+from .contacts import Contacts, Attachment
+from .dialogue import Cancelled, Debugged, Dialogue, Menu
+from .mailSender import MailSenderOtrs, MailSenderSmtp
+from .sourcePicker import SourcePicker
+from .sourceWrapper import SourceWrapper
 
 
 class Controller:

@@ -4,9 +4,9 @@ from collections import defaultdict
 from csv import reader as csvreader, writer as csvwriter
 from math import ceil
 
-from lib.config import Config
-from lib.contacts import Attachment
-from lib.dialogue import Dialogue
+from .config import Config
+from .contacts import Attachment
+from .dialogue import Dialogue
 
 
 class Processer:

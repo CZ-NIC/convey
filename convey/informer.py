@@ -6,7 +6,7 @@ from math import ceil
 
 from tabulate import tabulate
 
-from lib.config import Config
+from .config import Config
 
 
 class Informer:
