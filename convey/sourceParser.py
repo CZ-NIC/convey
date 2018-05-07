@@ -27,7 +27,7 @@ class SourceParser:
     # XXpython3.6 attachments: List[object]
 
     def __init__(self, sourceFile):
-        print("Processing file, INI file loaded from: {}".format(path))
+        print("Processing file, INI file loaded from: {}".format(Config.path))
         self.is_formatted = False
         self.is_repeating = False
         # while True:
@@ -108,7 +108,7 @@ class SourceParser:
                 possible_types = self.guesses.field_type[i, field]
                 s = "detected: {}".format(", ".join(sorted(possible_types, key=possible_types.get)))
             else:
-                for f, _, _type in self.settings["add"]:
+                for f, _, _type, custom_method in self.settings["add"]:
                     if field == f:
                         s = "computed from: {}".format(_type)
             fields.append((field, s))
@@ -169,7 +169,7 @@ class SourceParser:
                 l.append("redialected")
             if not len(self.settings["chosen_cols"]) == len(self.fields):
                 l.append("shuffled")
-            for name, _, _ in self.settings["add"]:
+            for name, _, _, _ in self.settings["add"]:
                 l.append(name)
             self.target_file = "{}_{}.csv".format(ntpath.basename(self.source_file), "_".join(l))
             self.is_split = False

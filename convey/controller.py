@@ -1,5 +1,6 @@
 import argparse
 import csv
+import os
 import sys
 from heapq import nsmallest
 from sys import exit
@@ -130,7 +131,7 @@ class Controller:
         info.append("Do you really want to send e-mails now?")
         if Config.isTesting():
             info.append("\n\n\n*** TESTING MOD - mails will be sent to the address: {} ***"
-                            "\n (For turning off testing mode set `testing = False` in config.ini.)".format(Config.get('testing_mail')))
+                        "\n (For turning off testing mode set `testing = False` in config.ini.)".format(Config.get('testing_mail')))
         menu = Menu("\n".join(info), callbacks=False, fullscreen=True)
         if cond1 and cond2:
             menu.add("Send both partner and other e-mails ({}×)".format(st["abuse_count"][0] + st["partner_count"][0]), key="both")
@@ -167,7 +168,6 @@ class Controller:
         self.csv.run_analysis()
         self.wrapper.save()
 
-
     def refresh_menu(self):
         menu = Menu(title="What should be reprocessed?", fullscreen=True)
         menu.add("Rework whole file again", self.wrapper.clear)
@@ -203,7 +203,7 @@ class Controller:
             # list all known methods to compute the desired new_field (e.g. for incident-contact it is: ip, hostname, ...)
             choices = [(k, self.csv.guesses.get_description(k)) for k, _ in
                        sorted(self.csv.guesses.get_graph().dijkstra(new_field, ignore_private=True).items(),
-                              key=lambda v: v[1], reverse=True)]  # whois is an internal keyword
+                              key=lambda v: v[1], reverse=False)]  # whois is an internal keyword
 
             if len(choices) == 1 and choices[0][0] == "plaintext":
                 # if the only method is derivable from a plaintext, no worries that a method
@@ -212,14 +212,34 @@ class Controller:
             elif choices:
                 title = "Choose the right method\n\nNo known method for making {} from column {} because the column type wasn't identified. How should I treat the column?".format(
                     new_field, self.csv.fields[source_col_i])
-                button, method = dialog.menu(title, choices=choices)
-                if button == "cancel":
+                code, method = dialog.menu(title, choices=choices)
+                if code == "cancel":
                     return
             else:
                 dialog.msgbox("No known method for making {}. Raise your usecase as an issue at {}.".format(new_field,
                                                                                                             Config.PROJECT_SITE))
 
-        self.csv.settings["add"].append((new_field, source_col_i, method))
+        custom = None
+        if new_field == "custom":  # choose a file with a needed method
+            while True:
+                title = "What .py file should be used as custom source?"
+                code, path = dialog.fselect(os.getcwd(), title=title)
+                if code != "ok" or not path:
+                    return
+                module = self.csv.guesses.get_module_from_path(path)
+                if module:
+                    # inspect the .py file, extract methods and let the user choose one
+                    code, method = dialog.menu("What method should be used in the file {}?".format(path),
+                                               choices=[(x, "") for x in dir(module) if not x.startswith("__")])
+                    if code == "cancel":
+                        return
+
+                    custom = path, method
+                    break
+                else:
+                    dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
+
+        self.csv.settings["add"].append((new_field, source_col_i, method, custom))
         self.csv.fields.append(new_field)
 
         if add is None:
@@ -247,16 +267,16 @@ class Controller:
         fields = self.csv.get_fields_autodetection() if not only_extendables else []
         for f in self.csv.guesses.extendable_fields:
             d = self.csv.guesses.get_graph().dijkstra(f, ignore_private=True)
-            # print(d)
-            # import ipdb; ipdb.set_trace()
             s = "from " + ", ".join(sorted([k for k in nsmallest(3, d, key=d.get)]))
-            if len(d) > 3:
+            if f == "custom":
+                s = "from your .py file"
+            elif len(d) > 3:
                 s += "..."
             fields.append(("new " + f + "...", s))
         col_i = Dialogue.pickOption(fields, colName)
         if only_extendables or col_i >= len(self.csv.fields):
-            newFieldI = col_i if only_extendables else col_i - len(self.csv.fields)
-            col_i = self.extend_column(self.csv.guesses.extendable_fields[newFieldI], add=add)
+            new_field_i = col_i if only_extendables else col_i - len(self.csv.fields)
+            col_i = self.extend_column(self.csv.guesses.extendable_fields[new_field_i], add=add)
         return col_i
 
     def addFiltering(self):

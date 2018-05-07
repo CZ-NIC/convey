@@ -44,7 +44,7 @@ class Informer:
 
         if self.csv.settings["add"]:
             l2 = []
-            for col, i, b in self.csv.settings["add"] or []:
+            for col, i, b, _ in self.csv.settings["add"] or []:
                 l2.append("{} (from {})".format(col, self.csv.fields[i]))
             sys.stdout.write("\nComputed columns: " + ", ".join(l2))
         l = []

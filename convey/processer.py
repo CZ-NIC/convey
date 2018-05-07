@@ -39,7 +39,7 @@ class Processer:
         # convert settings["add"] to lambdas
         adds = []
         for it in settings["add"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
-            methods = self.csv.guesses.get_methods_from(it[0], it[2])
+            methods = self.csv.guesses.get_methods_from(it[0], it[2], it[3])
             adds.append((it[0], it[1], methods))
         del settings["add"]
         settings["addByMethod"] = adds

@@ -20,10 +20,10 @@ It takes any CSV (any delimiter, header or whatever) and perform one or more act
 # (optional) setup virtual environment
 python3 -m venv venv
 . venv/bin/activate
-(venv) $ ... continue below
+(venv) $ ... # continue below
 
 # download from GitHub
-pip3 install git+https://github.com/CZ-NIC/convey.git --user
+pip3 install git+https://github.com/CZ-NIC/convey.git  # without root use may want to use --user
 
 # launch
 python3 -m convey [filename]  # program start
@@ -58,18 +58,30 @@ You'll be asked to install `dialog` library at the first run if not already pres
 * **base64** – encode/decode
 * **country** – country code from whois
 * **csirt-contact** – e-mail addres corresponding with country code, taken from your personal contacts_foreign CSV in the format `country,abusemail`. Path to this file has to be specified in `config.ini » contacts_foreign`
+* **custom** – you specify method in a custom .py file that receives the field and generates the value for you, see below
 * **hostname** – domain from url
 * **incident-contact** – if the IP comes from local country (specified in `config.ini » local_country`) the field gets *abusemail*, otherwise we get *country*. When splitting by this field, convey is subsequently able to send the splitted files to local abuse and foreign csirt contacts 
 * **ip** – translated from url
 * **netname** – got from whois
 * **prefix** – got from whois
 
+### Custom field example
+If you wish to compute a **custom** field, you'll be dialogued for a path of a python file and desired method that should be used. The contents of the file can be as simple as this:
+
+```python3
+def any_method(value):
+    # do something
+    return "modified :)"
+```
+
+You may find this feature handsome if you're willing to use the Shodan API as our partner or to do anything else.
+
 ## Usecase
 We are using the tool to automate incident handling tasks. The input is any CSV we receive from partners; there is at least one column with IP addresses or URLs. We fetch whois information and produce a set of CSV grouped by country AND/OR abusemail related to IPs. These CSVs are then sent by our OTRS via HTTP from within the tool.
- 
-It is able to parse Apache log format files as well.  
-It can bear ##.##.##.##.port format for ip address.  
-If there is invalid lines, they will come to dedicated file to be reprocessed again.   
+
+It is able to parse Apache log format files as well.
+It can bear ##.##.##.##.port format for ip address.
+If there is invalid lines, they will come to dedicated file to be reprocessed again.
 It connects to all whois servers I know.
 
 I've tried a file with 3,6* 10^6 lines (300 MB). First 600 000 took around 6 minutes to analyze, the rest around two minutes. It asked 369× arin server and 709× ripe server. There were only 960 of unique IPs in 702 different IP prefixes.

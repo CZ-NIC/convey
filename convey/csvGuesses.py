@@ -1,4 +1,6 @@
 import base64
+import importlib.util
+import os
 import re
 from csv import Error, Sniffer, reader
 
@@ -27,10 +29,6 @@ guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], Whois.checkI
            "plaintext": (["plaintext", "text"], lambda field: False, "Plain text")
            }
 
-
-# descriptions = defaultdict(str, {
-# "ip": "ip address"
-# })
 
 class _Guessing:
     # _Guessing.base64(field)
@@ -61,7 +59,16 @@ class CsvGuesses:
                 self.graph.add_edge(*m[:2])
         return self.graph
 
-    def get_methods_from(self, target, start):
+    def get_methods_from(self, target, start, custom_module_method):
+        """
+        Returns the nested lambda list that'll receive a value from start field and should produce value in target field.
+        :param target: field name
+        :param start: field name
+        :param custom_module_method: If target is a 'custom' field, we'll receive a tuple (module path, method name).
+        :return: lambda[]
+        """
+        if custom_module_method:
+            return [getattr(self.get_module_from_path(custom_module_method[0]), custom_module_method[1])]
         methods = []  # list of lambdas to calculate new field
         path = self.graph.dijkstra(target, start=start)  # list of method-names to calculate new fields
         for i in range(len(path) - 1):
@@ -80,6 +87,14 @@ class CsvGuesses:
         return first_line.strip(), sample
         # csvfile.seek(0)
         # csvfile.close()
+
+    def get_module_from_path(self, path):
+        if not os.path.isfile(path):
+            return False
+        spec = importlib.util.spec_from_file_location("", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
 
     def guess_dialect(self, sample):
         sniffer = Sniffer()
@@ -126,6 +141,7 @@ class CsvGuesses:
                ("whois", "incident-contact"): lambda x: (x, x.get[2]),
                ("base64", "plaintext"): lambda x: base64.b64decode(x).decode("UTF-8").replace("\n", "\\n"),
                ("plaintext", "base64"): lambda x: base64.b64encode(x.encode("UTF-8")).decode("UTF-8"),
+               ("plaintext", "custom"): lambda x: x,
                # ("ip", "plaintext"): lambda x: x,
                # XX ("url", "cms"): lambda x: "Not yet implemented",
                # XX ("hostname", "cms"): lambda x: "Not yet implemented"
