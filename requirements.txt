@@ -4,3 +4,4 @@ ipdb
 pythondialog
 lepl
 tabulate
+appdirs

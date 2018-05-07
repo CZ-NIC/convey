@@ -13,19 +13,39 @@ It takes any CSV (any delimiter, header or whatever) and perform one or more act
 
 ## Installation and first run
 
-On the first run we may want to run installation script to assure dependencies are present. Then, we run convey normally. Parameter [filename] is path to source log file in CSV format.
- If [filename] not present, script asks for it.
 
-
-```bash
-git clone git@github.com:CZ-NIC/convey.git && cd convey && install.sh # on first run we assure some dependencies
-```
+### Launch as a package:
 
 ```bash
-# launch as a package
-python3 -m convey # program start
-python3 -m convey --help # see some flags that help you further automating
+# (optional) setup virtual environment
+python3 -m venv venv
+. venv/bin/activate
+(venv) $ ... continue below
+
+# download from GitHub
+pip3 install git+https://github.com/CZ-NIC/convey.git --user
+
+# launch
+python3 -m convey [filename]  # program start
+python3 -m convey --help  # see some flags that help you further automating
 ```
+
+Parameter [filename] is the path to CSV source file. If not present, script asks for it.
+
+### OR launch from a directory
+
+```bash
+# download from GitHub
+git clone git@github.com:CZ-NIC/convey.git
+cd convey
+pip3 install -r requirements.txt  --user
+
+# launch
+./convey.py [filename]
+```
+
+### Dependencies
+You'll be asked to install `dialog` library at the first run if not already present in the system.
 
 ## Computable fields
 

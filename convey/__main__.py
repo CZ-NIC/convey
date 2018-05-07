@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import sys
-import traceback
-from operator import concat
 
 try:
     from dialog import Dialog
     # import networkx as nx ## networkx - XX if implemented without networkx, we may suppress the dependency (2 MB)
 except ImportError:
-    traceback.print_exc()
-    print("\nTry installing the libraries by install.sh")
+    print("\nError importing dialog library. Try installing: `sudo apt install dialog`.")
     quit()
 from .controller import Controller
 
