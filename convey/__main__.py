@@ -4,15 +4,12 @@ import sys
 
 try:
     from dialog import Dialog
-    # import networkx as nx ## networkx - XX if implemented without networkx, we may suppress the dependency (2 MB)
 except ImportError:
     print("\nError importing dialog library. Try installing: `sudo apt install dialog`.")
     quit()
 from .controller import Controller
 
-__shortdoc__ = """ Convey - CSV swiss knife brought by CSIRT.cz """
-# with open("README.md", "r") as f:
-#    __doc__ = f.read()
+__doc__ = """Convey – CSV swiss knife brought by CSIRT.cz"""
 __author__ = "Edvard Rejthar, CSIRT.CZ"
 __date__ = "$Feb 26, 2015 8:13:25 PM$"
 
@@ -32,7 +29,7 @@ logging.getLogger("lepl").setLevel(logging.ERROR)  # suppress a superfluous info
 
 
 def main():
-    print(__shortdoc__),
+    print(__doc__)
     try:
         Controller()
     except KeyboardInterrupt:

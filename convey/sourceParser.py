@@ -9,7 +9,6 @@ import sys
 from collections import defaultdict
 from math import ceil
 from shutil import move
-from typing import List, Any, Dict
 
 from .config import Config
 from .contacts import Contacts
@@ -28,7 +27,7 @@ class SourceParser:
     # XXpython3.6 attachments: List[object]
 
     def __init__(self, sourceFile):
-        print("Processing file.")
+        print("Processing file, INI file loaded from: {}".format(path))
         self.is_formatted = False
         self.is_repeating = False
         # while True:

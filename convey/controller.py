@@ -17,7 +17,7 @@ from .sourceWrapper import SourceWrapper
 class Controller:
 
     def __init__(self):
-        parser = argparse.ArgumentParser(description=__doc__)
+        parser = argparse.ArgumentParser()
         parser.add_argument('file', nargs='?')
         parser.add_argument('--debug', help="On error, enter an ipdb session", default=False, action="store_true")
         parser.add_argument('--fresh', help="Do not attempt to load any previous settings / results", default=False,

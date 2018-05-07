@@ -8,32 +8,30 @@ from appdirs import user_config_dir
 
 
 class Config:
-    file = "config.ini"
+    path = "config.ini"
     cache = {}
 
     # check the .ini file is at program startup location
-    if not os.path.exists(file):  # .ini file is not at current location (I.E. at downloaded github folder)
-        if not os.path.exists(user_config_dir("convey")):
-            # doesnt exist at .config
-            dpath = "{}/{}.default".format(os.path.dirname(os.path.realpath(__file__)), file)
-            if os.path.isfile(dpath):
-                if input("Config file missing. Should we create a default config.ini file? [Y/n] ") in ["", "Y", "y"]:
-                    os.makedirs(user_config_dir("convey"))
-                    from shutil import copyfile
-                    copyfile(dpath, "{}/{}".format(user_config_dir("convey"), file))
-                    print("This may be your first launch. Note you may want to run ./install.sh before using Convey.")
-                    input()
-                else:
-                    print("Okay, then.")
-                    exit(0)
-            else:
-                print("Missing default config.ini")
-                exit(1)
-        else:
-            os.chdir(user_config_dir("convey"))
+    if os.path.exists(path):
+        # INIT file at current location (I.E. at downloaded github folder)
+        path = "{}/{}".format(os.getcwd(), path)
+    elif os.path.exists("{}/{}".format(user_config_dir("convey"), path)):
+        # INIT file at user config folder
+        path = "{}/{}".format(user_config_dir("convey"), path)
+    elif input("Config file missing. Should we create a default config.ini file? [Y/n] ") in ["", "Y", "y"]:
+        # create INI file at user config folder
+        os.makedirs(user_config_dir("convey"), exist_ok=True)
+        from shutil import copyfile
+        default_path = "{}/{}.default".format(os.path.dirname(os.path.realpath(__file__)), path)
+        copyfile(default_path, "{}/{}".format(user_config_dir("convey"), path))
+        path = "{}/{}".format(user_config_dir("convey"), path)
+    else:
+        print("Okay, then. Exiting.")
+        exit(0)
 
     config = configparser.ConfigParser()
-    config.read(file)
+    config.read(path)
+
     # tempCache = {}
 
     # set by SourceParser and used by Registry

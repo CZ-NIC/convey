@@ -27,7 +27,6 @@ pip3 install git+https://github.com/CZ-NIC/convey.git --user
 
 # launch
 python3 -m convey [filename]  # program start
-python3 -m convey --help  # see some flags that help you further automating
 ```
 
 Parameter [filename] is the path to CSV source file. If not present, script asks for it.
@@ -46,6 +45,11 @@ pip3 install -r requirements.txt  --user
 
 ### Dependencies
 You'll be asked to install `dialog` library at the first run if not already present in the system.
+
+### Customisation
+* A file `config.ini` is automatically created in user config folder. This file may be edited for further customisation.
+* If `config.ini` is present at working directory, that one is used over the one in the user config folder.
+* Launch convey with `--help` flag to see further options.
 
 ## Computable fields
 
