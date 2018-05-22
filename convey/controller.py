@@ -58,12 +58,12 @@ class Controller:
             csv.informer.sout_info()
 
             menu = Menu(title="Main menu - how the file should be processed?")
-            menu.add("Pick or delete columns", self.chooseCols)
-            menu.add("Add a column", self.addColumn)
-            menu.add("Unique filter", self.addUniquing)
-            menu.add("Value filter", self.addFiltering)
-            menu.add("Split by a column", self.addSplitting)
-            menu.add("Change CSV dialect", self.addDialect)
+            menu.add("Pick or delete columns", self.choose_cols)
+            menu.add("Add a column", self.add_column)
+            menu.add("Unique filter", self.add_uniquing)
+            menu.add("Value filter", self.add_filtering)
+            menu.add("Split by a column", self.add_splitting)
+            menu.add("Change CSV dialect", self.add_dialect)
             if self.csv.is_processable:
                 menu.add("process", self.process, key="p")
             else:
@@ -230,7 +230,7 @@ class Controller:
                 if module:
                     # inspect the .py file, extract methods and let the user choose one
                     code, method = dialog.menu("What method should be used in the file {}?".format(path),
-                                               choices=[(x, "") for x in dir(module) if not x.startswith("__")])
+                                               choices=[(x, "") for x in dir(module) if not x.startswith("_")])
                     if code == "cancel":
                         return
 
@@ -253,7 +253,7 @@ class Controller:
         # self.csv.settings["chosen_cols"].append(False)
         return len(self.csv.fields) - 1  # + len(self.csv.settings["add"]) - 1
 
-    def chooseCols(self):
+    def choose_cols(self):
         # XX possibility un/check all
         chosens = [(str(i + 1), f, i in self.csv.settings["chosen_cols"]) for i, f in enumerate(self.csv.fields)]
         d = Dialog(autowidgetsize=True)
@@ -263,7 +263,7 @@ class Controller:
             self.csv.settings["chosen_cols"] = [int(v) - 1 for v in values]
             self.csv.is_processable = True
 
-    def selectCol(self, colName="", only_extendables=False, add=None):
+    def select_col(self, colName="", only_extendables=False, add=None):
         fields = self.csv.get_fields_autodetection() if not only_extendables else []
         for f in self.csv.guesses.extendable_fields:
             d = self.csv.guesses.get_graph().dijkstra(f, ignore_private=True)
@@ -279,17 +279,17 @@ class Controller:
             col_i = self.extend_column(self.csv.guesses.extendable_fields[new_field_i], add=add)
         return col_i
 
-    def addFiltering(self):
-        colI = self.selectCol("filter")
+    def add_filtering(self):
+        col_i = self.select_col("filter")
         val = Dialogue.ask("What value should the field have to keep the line?")
-        self.csv.settings["filter"].append((colI, val))
+        self.csv.settings["filter"].append((col_i, val))
         self.csv.is_processable = True
 
-    def addSplitting(self):
-        self.csv.settings["split"] = self.selectCol("splitting")
+    def add_splitting(self):
+        self.csv.settings["split"] = self.select_col("splitting")
         self.csv.is_processable = True
 
-    def addDialect(self):
+    def add_dialect(self):
         dialect = type('', (), {})()
         for k, v in self.csv.dialect.__dict__.copy().items():
             setattr(dialect, k, v)
@@ -309,13 +309,13 @@ class Controller:
         self.csv.settings["dialect"] = dialect
         self.csv.is_processable = True
 
-    def addColumn(self):
-        colI = self.selectCol("new column", only_extendables=True, add=True)
+    def add_column(self):
+        colI = self.select_col("new column", only_extendables=True, add=True)
         # self.extend_column(self.csv.guesses.extendable_fields[colI])
         self.csv.is_processable = True
 
-    def addUniquing(self):
-        colI = self.selectCol("unique")
+    def add_uniquing(self):
+        colI = self.select_col("unique")
         self.csv.settings["unique"].append(colI)
         self.csv.is_processable = True
 

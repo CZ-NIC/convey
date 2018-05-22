@@ -1,5 +1,6 @@
 import base64
 import importlib.util
+import logging
 import os
 import re
 from csv import Error, Sniffer, reader
@@ -7,6 +8,8 @@ from csv import Error, Sniffer, reader
 from .config import Config
 from .graph import Graph
 from .whois import Whois
+
+logger = logging.getLogger(__name__)
 
 reIpWithPort = re.compile("((\d{1,3}\.){4})(\d+)")
 reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")
@@ -43,11 +46,26 @@ class _Guessing:
 class CsvGuesses:
 
     def __init__(self, csv):
+        # import custom methods from files
+        for path in (x.strip() for x in Config.get("custom_fields_modules").split(",")):
+            try:
+                module = self.get_module_from_path(path)
+                if module:
+                    for method in (x for x in dir(module) if not x.startswith("_")):
+                        self.methods[("plaintext", method)] = getattr(module, method)
+                        logger.info("Successfully added method {method} from module {path}")
+            except Exception as e:
+                s = "Can't import custom file from path: {}".format(path)
+                input(s + ". Press any key...")
+                logger.warning(s)
+
         self.csv = csv
         self.graph = None
         self.private_fields = [
             "whois"]  # these fields cannot be added (e.g. whois is a temporary made up field, in can't be added to CSV)
         self.extendable_fields = sorted(set([k for _, k in self.methods.keys() if k not in self.private_fields]))
+
+
 
     def get_graph(self):
         """
@@ -139,11 +157,11 @@ class CsvGuesses:
                ("whois", "csirt-contact"): lambda x: (x, Config.csirtmails[x.get[5]] if x.get[5] in Config.csirtmails else "-"),
                # vraci tuple (local|country_code, whois-mail|abuse-contact)
                ("whois", "incident-contact"): lambda x: (x, x.get[2]),
-               ("base64", "plaintext"): lambda x: base64.b64decode(x).decode("UTF-8").replace("\n", "\\n"),
+               ("base64", "decoded_text"): lambda x: base64.b64decode(x).decode("UTF-8").replace("\n", "\\n"),
                ("plaintext", "base64"): lambda x: base64.b64encode(x.encode("UTF-8")).decode("UTF-8"),
-               ("plaintext", "custom"): lambda x: x,
+               ("plaintext", "custom"): lambda x: x
                # ("ip", "plaintext"): lambda x: x,
-               # XX ("url", "cms"): lambda x: "Not yet implemented",
+               # XX ("url", "cms"): lambda x: "Not yet implemented –> won't be, you may do by 'custom'",
                # XX ("hostname", "cms"): lambda x: "Not yet implemented"
                }
 

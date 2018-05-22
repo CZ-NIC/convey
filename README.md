@@ -74,7 +74,9 @@ def any_method(value):
     return "modified :)"
 ```
 
-You may find this feature handsome if you're willing to use the Shodan API as our partner or to do anything else.
+You may as well hard code custom fields in the [`config.ini`](convey/config.ini.default) by providing paths to the entrypoint Python files delimited by a comma: `custom_fields_modules = /tmp/myfile.py, /tmp/anotherfile.py`. All the public methods in the defined files will become custom fields!
+
+Handsome feature if you're willing to use the Shodan API as our partner or to do anything else.
 
 ## Usecase
 We are using the tool to automate incident handling tasks. The input is any CSV we receive from partners; there is at least one column with IP addresses or URLs. We fetch whois information and produce a set of CSV grouped by country AND/OR abusemail related to IPs. These CSVs are then sent by our OTRS via HTTP from within the tool.
