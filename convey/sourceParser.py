@@ -159,7 +159,7 @@ class SourceParser:
         self.reset_whois(hard=hard)
 
     def _set_target_file(self):
-        if not self.settings["split"]:
+        if not self.settings["split"] and self.settings["split"] is not 0:  # 0 is a valid column
             l = []
             if self.settings["filter"]:
                 l.append("filter")
@@ -182,8 +182,8 @@ class SourceParser:
         self._reset(hard=False)
 
         if Config.getboolean("autoopen_editor"):
-            Contacts.mailDraft["local"].guiEdit()
-            Contacts.mailDraft["foreign"].guiEdit()
+            Contacts.mailDraft["local"].gui_edit()
+            Contacts.mailDraft["foreign"].gui_edit()
 
         self.time_start = self.time_last = datetime.datetime.now().replace(microsecond=0)
         Config.update()
@@ -270,9 +270,9 @@ class SourceParser:
         if not Dialogue.isYes(s):
             return
 
-        temp = Config.getCacheDir() + ".unknown.local.temp"
+        temp = Config.get_cache_dir() + ".unknown.local.temp"
         try:
-            move(Config.getCacheDir() + "unknown", temp)
+            move(Config.get_cache_dir() + "unknown", temp)
         except FileNotFoundError:
             print(
                 "File with unknown IPs not found. Maybe resolving of unknown abusemails was run it the past and failed. Please run whois analysis again.")
@@ -293,7 +293,7 @@ class SourceParser:
             print("No invalid rows.")
             return
 
-        path = Config.getCacheDir() + Config.INVALID_NAME
+        path = Config.get_cache_dir() + Config.INVALID_NAME
         while True:
             s = "There were {0} invalid rows. Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them, or hit n for ignoring them. [o]/y/n ".format(
                 self.invalid_lines_count)
@@ -305,7 +305,7 @@ class SourceParser:
             else:
                 subprocess.Popen(['xdg-open', path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        temp = Config.getCacheDir() + ".unknown.invalid.temp"
+        temp = Config.get_cache_dir() + ".unknown.invalid.temp"
         try:
             move(path, temp)
         except FileNotFoundError:

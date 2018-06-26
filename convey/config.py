@@ -1,38 +1,53 @@
 # Env config file connection
 import configparser
 import csv
+import glob
 import logging
-import os
+import sys
+from os import path, getcwd, makedirs
+from shutil import copy
 
 from appdirs import user_config_dir
 
 
-class Config:
-    path = "config.ini"
-    cache = {}
-
-    # check the .ini file is at program startup location
-    if os.path.exists(path):
-        # INIT file at current location (I.E. at downloaded github folder)
-        path = "{}/{}".format(os.getcwd(), path)
-    elif os.path.exists("{}/{}".format(user_config_dir("convey"), path)):
+def get_path(file):
+    """ Assures the file is ready, or creates a new one from a default. """
+    config_dir = user_config_dir("convey")
+    if path.exists(file):
+        # check the .ini file is at current location
+        file = path.join(getcwd(), file)
+    elif path.exists(path.join(path.dirname(sys.argv[0]), file)):
+        # file at program folder (I.E. at downloaded github folder)
+        file = path.join(path.dirname(sys.argv[0]), file)
+    elif path.exists(path.join(config_dir, file)):
         # INIT file at user config folder
-        path = "{}/{}".format(user_config_dir("convey"), path)
-    elif input("Config file missing. Should we create a default config.ini file? [Y/n] ") in ["", "Y", "y"]:
-        # create INI file at user config folder
-        os.makedirs(user_config_dir("convey"), exist_ok=True)
-        from shutil import copyfile
-        default_path = "{}/{}.default".format(os.path.dirname(os.path.realpath(__file__)), path)
-        copyfile(default_path, "{}/{}".format(user_config_dir("convey"), path))
-        path = "{}/{}".format(user_config_dir("convey"), path)
+        file = path.join(config_dir, file)
     else:
-        print("Okay, then. Exiting.")
-        exit(0)
+        # create INI file at user config folder or at program directory
+        default_path = "{}/defaults/".format(path.dirname(path.realpath(__file__)))
+        if input("It seems this is a first run.\nShould we create a default config files at user config folder ({})? "
+                 "Otherwise, they'll be created at program folder ({}). [Y/n] ".format(config_dir, path.dirname(sys.argv[0]))) \
+                in ["", "Y", "y"]:
+            makedirs(config_dir, exist_ok=True)
+        else:
+            config_dir = path.dirname(sys.argv[0])
+        try:
+            for filename in glob.glob(path.join(default_path, '*.*')):
+                copy(filename, config_dir)
+            file = "{}/{}".format(config_dir, file)
+        except Exception as e:
+            print(e)
+            print("Error creating program file {}. Exiting.".format(file))
+            exit()
+    return file
+
+
+class Config:
+    path = get_path("config.ini")
+    cache = {}
 
     config = configparser.ConfigParser()
     config.read(path)
-
-    # tempCache = {}
 
     # set by SourceParser and used by Registry
     has_header = False
@@ -45,13 +60,13 @@ class Config:
     PROJECT_SITE = "https://github.com/CZ-NIC/convey/"
 
     def init():
-        if Config.isDebug():
+        if Config.is_debug():
             logging.root.handlers[1].setLevel(logging.INFO)  # stream handler to debug level
 
-    def errorCatched():
-        if Config.isDebug():
-            import ipdb;
-            import traceback;
+    def error_catched():
+        if Config.is_debug():
+            import ipdb
+            import traceback
             import sys
             type, value, tb = sys.exc_info()
             traceback.print_exc()
@@ -62,10 +77,10 @@ class Config:
                 print("Lets debug. Hit n to get to the previous scope.")
                 ipdb.set_trace()
 
-    def isDebug():
+    def is_debug():
         return True if Config.get('debug') == "True" else False
 
-    def isTesting():
+    def is_testing():
         return True if Config.get('testing') == "True" else False
 
     def get(key, section='CONVEY'):
@@ -87,14 +102,14 @@ class Config:
         # with open(Config.file,"w") as f:
         # Config.config.write(f)
 
-    cacheDir = ""
+    cache_dir = ""
 
-    def setCacheDir(dir):
-        Config.cacheDir = dir
+    def set_cache_dir(dir):
+        Config.cache_dir = dir
 
-    def getCacheDir():
+    def get_cache_dir():
         """ Cache dir with ending slash. """
-        return Config.cacheDir
+        return Config.cache_dir
 
     def update():
         """
@@ -106,8 +121,8 @@ class Config:
     def _update(key):
         """ Update info from external CSV file. """
         file = Config.get(key)
-        if not os.path.isfile(file):  # file with contacts
-            print("(Contacts file {} not found on path {}/{}.) ".format(key, os.getcwd(), file))
+        if not path.isfile(file):  # file with contacts
+            print("(Contacts file {} not found on path {}/{}.) ".format(key, getcwd(), file))
             return {}
         else:
             with open(file, 'r') as csvfile:

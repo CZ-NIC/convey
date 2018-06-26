@@ -35,9 +35,9 @@ class Controller:
             Config.set("debug", True)
 
         Config.init()
-        Contacts.init()
         file = SourcePicker()  # source file path
         self.wrapper = SourceWrapper(file, args.fresh)
+        Contacts.init()
         csv = self.csv = self.wrapper.csv
 
         # load flags
@@ -118,18 +118,18 @@ class Controller:
         cond1 = cond2 = False
         st = self.csv.stats
         if st["abuse_count"][0]:  # XX should be equal if just splitted by computed column! = self.csv.stats["ispCzFound"]:
-            info.append(" Template of a basic e-mail starts: {}".format(Contacts.mailDraft["local"].getMailPreview()))
+            info.append(" Template of a basic e-mail starts: {}".format(Contacts.mailDraft["local"].get_mail_preview()))
             cond1 = True
         else:
             info.append(" No non-partner e-mail in the set.")
         if st["partner_count"][0]:  # self.csv.stats["countriesFound"]:
-            info.append(" Template of a partner e-mail starts: {}".format(Contacts.mailDraft["foreign"].getMailPreview()))
+            info.append(" Template of a partner e-mail starts: {}".format(Contacts.mailDraft["foreign"].get_mail_preview()))
             cond2 = True
         else:
             info.append(" No partner e-mail in the set.")
 
         info.append("Do you really want to send e-mails now?")
-        if Config.isTesting():
+        if Config.is_testing():
             info.append("\n\n\n*** TESTING MOD - mails will be sent to the address: {} ***"
                         "\n (For turning off testing mode set `testing = False` in config.ini.)".format(Config.get('testing_mail')))
         menu = Menu("\n".join(info), callbacks=False, fullscreen=True)
@@ -176,7 +176,7 @@ class Controller:
         menu.add("Resolve unknown abuse-mails", self.csv.resolve_unknown)
         menu.add("Resolve invalid lines", self.csv.resolve_invalid)
         menu.add("Edit mail texts",
-                 lambda: Contacts.mailDraft["local"].guiEdit() and Contacts.mailDraft["foreign"].guiEdit())
+                 lambda: Contacts.mailDraft["local"].gui_edit() and Contacts.mailDraft["foreign"].gui_edit())
         menu.sout()
 
     def extend_column(self, new_field, add=None):

@@ -6,7 +6,7 @@ with open("requirements.txt", "r") as f:
 
 setup(
     name='convey',
-    version='0.8.1',
+    version='0.8.2',
     packages=['convey'],
     author='Edvard Rejthar',
     author_email='edvard.rejthar@nic.cz',
@@ -20,6 +20,6 @@ setup(
             'convey = convey.__main__:main',
         ],
     },
-    package_data={'convey': ['config.ini.default']},
-    include_package_data=True,
+    package_data={'convey': ['defaults/config.ini', 'defaults/mail_template_partner.txt', 'defaults/mail_template_basic.txt']},
+    include_package_data=True
 )

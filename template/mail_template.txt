@@ -1,2 +1,0 @@
-Předmět
-local mail template

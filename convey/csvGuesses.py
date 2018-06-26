@@ -3,6 +3,7 @@ import importlib.util
 import logging
 import os
 import re
+from builtins import ZeroDivisionError
 from csv import Error, Sniffer, reader
 
 from .config import Config
@@ -160,9 +161,6 @@ class CsvGuesses:
                ("base64", "decoded_text"): lambda x: base64.b64decode(x).decode("UTF-8").replace("\n", "\\n"),
                ("plaintext", "base64"): lambda x: base64.b64encode(x.encode("UTF-8")).decode("UTF-8"),
                ("plaintext", "custom"): lambda x: x
-               # ("ip", "plaintext"): lambda x: x,
-               # XX ("url", "cms"): lambda x: "Not yet implemented –> won't be, you may do by 'custom'",
-               # XX ("hostname", "cms"): lambda x: "Not yet implemented"
                }
 
     # f = lambda x: (lambda x,ip: x, ip, x[4])(x.get(), x.ip)
@@ -203,7 +201,10 @@ class CsvGuesses:
                     if checkFn(val):
                         print("Match")
                         hits += 1
-                perc = hits / len(samples[i])
+                try:
+                    perc = hits / len(samples[i])
+                except ZeroDivisionError:
+                    perc = 0
                 if perc == 0:
                     continue
                 elif perc > 0.6:

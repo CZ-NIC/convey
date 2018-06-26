@@ -54,13 +54,13 @@ class MailSender(ABC):
             return False
         for attachment_object, email_to, email_cc, attachement_contents in mails:  # Xregistry.getMails():
             text_vars = {"CONTACTS": email_to, "FILENAME": self.csv.attachment_name, "TICKETNUM": self.csv.otrs_num}
-            subject = mailDraft.getSubject() % text_vars
-            body = mailDraft.getBody() % text_vars  # format mail template, ex: {FILENAME} in the body will be transformed by the filename
+            subject = mailDraft.get_subject() % text_vars
+            body = mailDraft.get_body() % text_vars  # format mail template, ex: {FILENAME} in the body will be transformed by the filename
             if subject == "" or body == "":
                 print("Missing subject or mail body text.")
                 return False
 
-            if Config.isTesting():
+            if Config.is_testing():
                 intended_to = email_to
                 email_to = Config.get('testing_mail')
                 body = "This is testing mail only from Convey. Don't be afraid, it wasn't delivered to {} .\n".format(
@@ -102,7 +102,7 @@ class MailSenderOtrs(MailSender):
         body = bytes(body, "UTF-8")
         protocol = host.split(':')[0]
         h = http.client.HTTPSConnection(host)
-        if Config.isTesting():
+        if Config.is_testing():
             h.debuglevel = 100
         h.putrequest('POST', selector)
         h.putheader('Content-Type', content_type)
@@ -151,7 +151,7 @@ class MailSenderOtrs(MailSender):
     @staticmethod
     def _check_response(response):
         response = response.decode("UTF-8")
-        if Config.isTesting():
+        if Config.is_testing():
             logger.info(str(sys.stderr) + " Response:\n " + response)
 
         with open("test.html", "w") as output:
@@ -230,13 +230,13 @@ class MailSenderOtrs(MailSender):
         )
 
         try:
-            fields += ("SignKeyID", Config.get("signkeyid", "OTRS"))
+            fields += ("SignKeyID", Config.get("signkeyid", "OTRS")),
         except KeyError:
             pass
 
-        if not Config.isTesting():
+        if not Config.is_testing():
             if cc:  # X mailList.mails[mail]
-                fields += (("Cc", cc),)
+                fields += ("Cc", cc),
 
         # load souboru k zaslani
         # attachment_contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
@@ -248,7 +248,7 @@ class MailSenderOtrs(MailSender):
 
         cookies = (('Cookie', 'Session=%s' % self.csv.otrs_cookie),)
 
-        if Config.isTesting():
+        if Config.is_testing():
             print(" **** Testing info:")
             print(' ** Fields: ' + str(fields))
             print(' ** Files: ' + str(files))
@@ -313,7 +313,7 @@ class MailSenderSmtp(MailSender):
 
         sender = Config.get("email_from", "SMTP")
         recipients = [email_to]
-        if cc and not Config.isTesting():
+        if cc and not Config.is_testing():
             msg["Cc"] = cc
             recipients.append[cc]
 
@@ -327,7 +327,7 @@ class MailSenderSmtp(MailSender):
             # self.smtp.send_message(sender, recipients, MIMEText(message, "plain", "utf-8"))
         except (smtplib.SMTPSenderRefused, Exception) as e:
             logger.error("{} → {} error: {}".format(sender, " + ".join(recipients), e))
-            # if Config.isDebug(): import ipdb; ipdb.set_trace()
+            # if Config.is_debug(): import ipdb; ipdb.set_trace()
             return False
         else:
             return True

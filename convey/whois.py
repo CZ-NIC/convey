@@ -6,7 +6,7 @@ import socket
 from collections import OrderedDict
 from subprocess import PIPE
 from subprocess import Popen
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 from netaddr import *
 
@@ -60,13 +60,17 @@ class Whois:
         self.get = self.ranges[prefix] = get
         # print("IP: {}, Prefix: {}, Record: {}, Kind: {}".format(ip, prefix,record, location)) # XX put to logging
 
-    def url2hostname(self):
-        print("XXX TBImplemented")
-        return False
+    def url2hostname(self, url):
+        """ Covers both use cases "http://example.com..." and "example.com..." """
+        s = urlsplit(url)
+        return s.netloc or s.path.split("/")[:1][0]
 
-    def hostname2ip(self):
-        print("XXX TBImplemented")
-        return False
+    hostname_cache = {}
+
+    def hostname2ip(self, hostname):
+        if hostname not in self.hostname_cache:
+            self.hostname_cache[hostname] = socket.gethostbyname(hostname)
+        return self.hostname_cache[hostname]
 
     def analyze(self):
         """
@@ -126,7 +130,7 @@ class Whois:
                 return IPNetwork(s)
         except Exception as e:
             logger.warning("Prefix {} cannot be parsed.".format(s))
-            Config.errorCatched()
+            Config.error_catched()
 
     def url2ip(url):
         """ Shorten URL to domain, find out related IPs list. """
@@ -136,7 +140,7 @@ class Whois:
             return socket.gethostbyname(uri)  # returns 1 adress only, we dont want all of them
         except socket.gaierror as e:
             logger.warning("Socket gethostbyname error for URI {} .".format(uri))
-            Config.errorCatched()
+            Config.error_catched()
         # if we wanted all of the IPs:
         # recs = socket.getaddrinfo(uri, 0, 0, 0, socket.IPPROTO_TCP)
         # result = []

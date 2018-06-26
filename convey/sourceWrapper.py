@@ -26,8 +26,8 @@ class SourceWrapper:
         # MailDraft.setDir(os.path.dirname(file) + "/")
 
         # cache-file s metadaty zdrojoveho souboru
-        Config.setCacheDir(os.path.dirname(file) + "/" + ntpath.basename(self.file) + "_convey" + self.hash + "/")
-        self.cacheFile = Config.getCacheDir() + ntpath.basename(self.file) + ".cache"  # "cache/" +
+        Config.set_cache_dir(os.path.dirname(file) + "/" + ntpath.basename(self.file) + "_convey" + self.hash + "/")
+        self.cacheFile = Config.get_cache_dir() + ntpath.basename(self.file) + ".cache"  # "cache/" +
         if os.path.isfile(self.cacheFile) and not fresh:
             print("File {} has already been processed.".format(self.file))
             # import pdb;pdb.set_trace()
@@ -36,7 +36,7 @@ class SourceWrapper:
             except:
                 print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
                 input()
-                if Config.isDebug():
+                if Config.is_debug():
                     ipdb.set_trace()
                 self._treat()
             if self.csv:
@@ -63,8 +63,8 @@ class SourceWrapper:
             else:
                 self._treat()  # process file
         else:
-            if not os.path.exists(Config.getCacheDir()):
-                os.makedirs(Config.getCacheDir())
+            if not os.path.exists(Config.get_cache_dir()):
+                os.makedirs(Config.get_cache_dir())
             self._treat()  # process file
 
     ##

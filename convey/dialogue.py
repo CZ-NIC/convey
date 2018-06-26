@@ -149,4 +149,4 @@ class Menu:
                     import ipdb;
                     ipdb.set_trace()
                     return
-                print("Not valid option")
+                print("Invalid option")

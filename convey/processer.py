@@ -196,7 +196,7 @@ class Processer:
             if isinstance(e, BdbQuit):
                 raise  # BdbQuit and KeyboardInterrupt catched higher
             else:
-                if Config.isDebug():
+                if Config.is_debug():
                     import traceback
                     traceback.print_exc()
                     import ipdb;
@@ -224,7 +224,7 @@ class Processer:
                 del self.descriptorsStatsOpen[key]
                 self.descriptors_count -= 1
             # print("Opening", location)
-            t = open(Config.getCacheDir() + location, method)
+            t = open(Config.get_cache_dir() + location, method)
             self.descriptors[location] = t, csvwriter(t, dialect=settings["dialect"])
             self.descriptors_count += 1
         # print("Printing", location)

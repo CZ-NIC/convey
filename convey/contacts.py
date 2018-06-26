@@ -42,12 +42,12 @@ class Attachment:
             else:
                 mail = o.path
 
-            for domain in Contacts.getDomains(mail):
+            for domain in Contacts.get_domains(mail):
                 if domain in Contacts.abusemails:
                     cc += Contacts.abusemails[domain] + ";"
 
             try:
-                with open(Config.getCacheDir() + o.path, "r") as f:
+                with open(Config.get_cache_dir() + o.path, "r") as f:
                     yield o, mail, cc, f.read()
             except FileNotFoundError:
                 continue
@@ -81,12 +81,12 @@ class Contacts:
 
     @classmethod
     def init(cls):
-        cls.mailDraft = {"local": MailDraft("mail_template_local"), "foreign": MailDraft("mail_template_foreign")}
+        cls.mailDraft = {"local": MailDraft("mail_template_basic"), "foreign": MailDraft("mail_template_partner")}
         cls.abusemails = cls._update("contacts_local")
         cls.countrymails = cls._update("contacts_foreign")
 
     @staticmethod
-    def getDomains(mailStr):
+    def get_domains(mailStr):
         """ mail = mail@example.com;mail2@example2.com -> [example.com, example2.com] """
         try:
             # return set(re.findall("@([\w.]+)", mail))

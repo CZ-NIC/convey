@@ -78,16 +78,16 @@ class Informer:
                     ar.append(" " + f)
             print("Fields after processing:", end="")
             csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect).writerow(ar)
-        # if Config.isDebug(): print("Debug – Settings", self.csv.settings)
+        # if Config.is_debug(): print("Debug – Settings", self.csv.settings)
 
         if self.csv.is_analyzed:
             if self.csv.target_file:
-                print("\n** Processing completed: Result file in {}{}".format(Config.getCacheDir(), self.csv.target_file))
+                print("\n** Processing completed: Result file in {}{}".format(Config.get_cache_dir(), self.csv.target_file))
             else:
                 partner_count, abuse_count, non_deliverable, totals = map(self.csv.stats.get, (
                     'partner_count', 'abuse_count', 'non_deliverable', 'totals'))
 
-                print("** Processing completed: {} result files in {}".format(totals, Config.getCacheDir()))
+                print("** Processing completed: {} result files in {}".format(totals, Config.get_cache_dir()))
                 # abuse_count = Contacts.count_mails(self.attachments.keys(), abusemails_only=True)
                 # partner_count = Contacts.count_mails(self.attachments.keys(), partners_only=True)
                 if totals == non_deliverable:

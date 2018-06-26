@@ -2,39 +2,38 @@
 import os
 import subprocess
 
-from .config import Config
+from .config import Config, get_path
 
 
 class MailDraft:
     def __init__(self, filename):
         self.text = False
-        self.templateFile = Config.get(filename)
-        self.mailFile = Config.getCacheDir() + filename + ".txt"  # ex: csirt/2015/mail_cz5615616.txt XMailDraft.dir +  + MailDraft.hash
-        # self.guiEdit()
+        self.template_file = get_path(filename+".txt")
+        self.mail_file = Config.get_cache_dir() + Config.get(filename) # ex: csirt/2015/mail_cz5615616.txt XMailDraft.dir +  + MailDraft.hash
 
-    def getBody(self):
+    def get_body(self):
         """ get body text """
-        if self._assureMailContents() == True:
+        if self._assure_mail_contents() == True:
             CRLF = '\r\n'
             return CRLF.join(self.text.splitlines()[1:])
         else:
             return ""
 
-    def getSubject(self):
-        if self._assureMailContents() == True:
+    def get_subject(self):
+        if self._assure_mail_contents() == True:
             return self.text.splitlines()[0]
         else:
             return ""
 
-    def getMailPreview(self):
-        return (self.getSubject() + ": " + self.getBody()[0:50] + "... ").replace("\n", " ").replace("\r", " ")
+    def get_mail_preview(self):
+        return (self.get_subject() + ": " + self.get_body()[0:50] + "... ").replace("\n", " ").replace("\r", " ")
 
-    def _assureMailContents(self):
-        self.text = self._loadText()
+    def _assure_mail_contents(self):
+        self.text = self._load_text()
         if not self.text:  # user didn't fill files in GUI
             print("Empty body text. Do you wish to open GUI for editation? [y]/n")
             if input().lower() in ("y", ""):
-                self.guiEdit()
+                self.gui_edit()
                 print("Come back after filling in the mail.")
                 return False  # user fill GUI file, saves it and manually comes here to the method
             else:
@@ -47,18 +46,18 @@ class MailDraft:
                     return False  # bodytext not received
         return True
 
-    def _loadText(self):
+    def _load_text(self):
         """Loads body text and subject from the file."""
         try:
-            with open(self.mailFile, 'r') as f:
+            with open(self.mail_file, 'r') as f:
                 return f.read()
         except FileNotFoundError:
             return None
 
-    def guiEdit(self):
-        """ Opens file for mail text to GUI editation. Created from the template if not exist. """
-        if os.path.isfile(self.mailFile) == False:
-            with open(self.templateFile, 'r') as template, open(self.mailFile, 'w+') as file:
+    def gui_edit(self):
+        """ Opens file for mail text to GUI editing. Created from the template if had not existed before. """
+        if not os.path.isfile(self.mail_file):
+            with open(self.template_file, 'r') as template, open(self.mail_file, 'w+') as file:
                 file.write(template.read())
 
-        subprocess.Popen(['xdg-open', self.mailFile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.Popen(['xdg-open', self.mail_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
