@@ -2,19 +2,14 @@
 # -*- coding: utf-8 -*-
 import sys
 
-try:
-    from dialog import Dialog
-except ImportError:
-    print("\nError importing dialog library. Try installing: `sudo apt install dialog`.")
-    quit()
 from .controller import Controller
 
 __doc__ = """Convey – CSV swiss knife brought by CSIRT.cz"""
 __author__ = "Edvard Rejthar, CSIRT.CZ"
 __date__ = "$Feb 26, 2015 8:13:25 PM$"
 
-
 import logging
+
 fileHandler = logging.FileHandler("convey.log")
 fileHandler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 fileHandler.setLevel(logging.WARNING)

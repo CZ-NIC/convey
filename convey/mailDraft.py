@@ -8,8 +8,8 @@ from .config import Config, get_path
 class MailDraft:
     def __init__(self, filename):
         self.text = False
-        self.template_file = get_path(filename+".txt")
-        self.mail_file = Config.get_cache_dir() + Config.get(filename) # ex: csirt/2015/mail_cz5615616.txt XMailDraft.dir +  + MailDraft.hash
+        self.template_file = get_path(filename)
+        self.mail_file = Config.get_cache_dir() + filename  # ex: csirt/2015/mail_cz5615616.txt XMailDraft.dir +  + MailDraft.hash
 
     def get_body(self):
         """ get body text """

@@ -139,6 +139,10 @@ class Controller:
             menu.add("Send partner e-mails ({}×)".format(st["partner_count"][0]), key="partner")
         if cond1:
             menu.add("Send non-partner e-mails ({}×)".format(st["abuse_count"][0]), key="basic")
+        if len(menu.menu) == 0:
+            print("No e-mails in the set. Can't send. Continue to the main menu...")
+            input()
+            return
 
         option = menu.sout()
 

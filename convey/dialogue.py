@@ -1,6 +1,11 @@
-from dialog import Dialog
+from dialog import Dialog, ExecutableNotFound
 
-dialog = Dialog(autowidgetsize=True)
+try:
+    dialog = Dialog(autowidgetsize=True)
+except ExecutableNotFound:
+    print("\nError importing dialog library. Try installing: `sudo apt install dialog`.")
+    quit()
+
 
 
 class Cancelled(Exception):
@@ -115,6 +120,9 @@ class Menu:
             if self.title:
                 print("\n" + self.title)
             l = []
+            if len(self.menu) == 0:
+                input("No possible choices. Continue...")
+                return
             for key, name, f in self.menu:
                 if key is False or (self.callbacks and not f):
                     l.append(("~", name, False))

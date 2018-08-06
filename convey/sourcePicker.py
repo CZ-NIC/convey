@@ -77,4 +77,4 @@ def SourcePicker():
         print("File not found, quit.")
         quit()
 
-    return file
+    return os.path.abspath(file)

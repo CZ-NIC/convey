@@ -20,6 +20,6 @@ setup(
             'convey = convey.__main__:main',
         ],
     },
-    package_data={'convey': ['defaults/config.ini', 'defaults/mail_template_partner.txt', 'defaults/mail_template_basic.txt']},
+    package_data={'convey': ['defaults/config.ini', 'defaults/mail_partner.txt', 'defaults/mail_basic.txt']},
     include_package_data=True
 )

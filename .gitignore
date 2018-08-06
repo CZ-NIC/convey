@@ -11,4 +11,4 @@ contacts_foreign.csv
 /build/
 /dist/
 /convey.egg-info/
-config.ini
+/config.ini

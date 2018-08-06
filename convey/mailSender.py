@@ -63,8 +63,8 @@ class MailSender(ABC):
             if Config.is_testing():
                 intended_to = email_to
                 email_to = Config.get('testing_mail')
-                body = "This is testing mail only from Convey. Don't be afraid, it wasn't delivered to {} .\n".format(
-                    email_to) + body
+                body = "This is testing mail only from Convey. Don't be afraid, it wasn't delivered to: {}\n".format(
+                    intended_to) + body
             else:
                 intended_to = None
 
@@ -102,7 +102,7 @@ class MailSenderOtrs(MailSender):
         body = bytes(body, "UTF-8")
         protocol = host.split(':')[0]
         h = http.client.HTTPSConnection(host)
-        if Config.is_testing():
+        if Config.is_debug():
             h.debuglevel = 100
         h.putrequest('POST', selector)
         h.putheader('Content-Type', content_type)
@@ -152,7 +152,7 @@ class MailSenderOtrs(MailSender):
     def _check_response(response):
         response = response.decode("UTF-8")
         if Config.is_testing():
-            logger.info(str(sys.stderr) + " Response:\n " + response)
+            logger.info(str(sys.stderr) + " Response length:\n " + str(len(response)))
 
         with open("test.html", "w") as output:
             output.write(response)
@@ -251,17 +251,22 @@ class MailSenderOtrs(MailSender):
         if Config.is_testing():
             print(" **** Testing info:")
             print(' ** Fields: ' + str(fields))
-            print(' ** Files: ' + str(files))
+            #print(' ** Files length: ', len(files))
             print(' ** Cookies: ' + str(cookies))
             # str(sys.stderr)
 
-        # print encode_multipart_formdata(fields, files)
-
-        res = self._post_multipart(Config.get("otrs_host", "OTRS"),
-                                   Config.get("baseuri", "OTRS"),
-                                   fields=fields,
-                                   files=files,
-                                   cookies=cookies)
+        host = Config.get("otrs_host", "OTRS")
+        selector = Config.get("baseuri", "OTRS")
+        try:
+            res = self._post_multipart(host,
+                                       selector,
+                                       fields=fields,
+                                       files=files,
+                                       cookies=cookies)
+        except Exception as e:
+            print("\nE-mail couldn't be send to the host {}{} with the fields {}. Are you allowed to send from this e-mail etc?".format(host, selector, fields))
+            input("Program now ends.")
+            quit()
         if not res or not self._check_response(res.read()):
             print("Sending failure, see convey.log.")
             return False

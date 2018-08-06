@@ -24,9 +24,10 @@ def get_path(file):
         file = path.join(config_dir, file)
     else:
         # create INI file at user config folder or at program directory
+        import ipdb; ipdb.set_trace()
         default_path = "{}/defaults/".format(path.dirname(path.realpath(__file__)))
-        if input("It seems this is a first run.\nShould we create a default config files at user config folder ({})? "
-                 "Otherwise, they'll be created at program folder ({}). [Y/n] ".format(config_dir, path.dirname(sys.argv[0]))) \
+        if input("It seems this is a first run, since file {} haven't been found.\nShould we create a default config files at user config folder ({})? "
+                 "Otherwise, they'll be created at program folder ({}). [Y/n] ".format(file, config_dir, path.dirname(sys.argv[0]))) \
                 in ["", "Y", "y"]:
             makedirs(config_dir, exist_ok=True)
         else:
@@ -85,7 +86,11 @@ class Config:
 
     def get(key, section='CONVEY'):
         if key not in Config.cache:
-            Config.cache[key] = Config.config[section][key]
+            try:
+                Config.cache[key] = Config.config[section][key]
+            except:
+                input("The key {} is not in the config file {}. The program ends now.".format(key,Config.path))
+                quit()
         return Config.cache[key]
         # return Config.config[section][key]
 

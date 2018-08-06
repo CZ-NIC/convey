@@ -18,7 +18,12 @@ from .informer import Informer
 from .processer import Processer
 from .whois import Whois
 
-logging.FileHandler('whois.log', 'a')
+try:
+    logging.FileHandler('whois.log', 'a')
+except PermissionError:
+    input("Launching convey from a dir you don't have write permissions for. Exiting.")
+    quit()
+
 
 
 class SourceParser:

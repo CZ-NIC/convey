@@ -5,7 +5,7 @@ from typing import Dict
 
 import lepl.apps.rfc3696
 
-from .config import Config
+from .config import Config, get_path
 from .mailDraft import MailDraft
 
 
@@ -81,7 +81,7 @@ class Contacts:
 
     @classmethod
     def init(cls):
-        cls.mailDraft = {"local": MailDraft("mail_template_basic"), "foreign": MailDraft("mail_template_partner")}
+        cls.mailDraft = {"local": MailDraft(Config.get("mail_template_basic")), "foreign": MailDraft(Config.get("mail_template_partner"))}
         cls.abusemails = cls._update("contacts_local")
         cls.countrymails = cls._update("contacts_foreign")
 
@@ -97,12 +97,14 @@ class Contacts:
     @staticmethod
     def _update(key: Dict[str, str]) -> object:
         """ Update info from an external CSV file. """
-        file = Config.get(key)
+        file = get_path(Config.get(key))
         if not os.path.isfile(file):  # file with contacts
-            print("(Contacts file {} not found on path {}/{}.) ".format(key, os.getcwd(),file))
+            print("(Contacts file {} not found on path {}/{}.) ".format(key, os.getcwd(), file))
+            input()
             return {}
         else:
             with open(file, 'r') as csvfile:
                 reader = csv.reader(csvfile)
+                next(reader) # skip header row
                 rows = {rows[0]: rows[1] for rows in reader}
                 return rows

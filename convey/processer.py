@@ -5,7 +5,7 @@ from csv import reader as csvreader, writer as csvwriter
 from math import ceil
 
 from .config import Config
-from .contacts import Attachment
+from .contacts import Attachment, Contacts
 from .dialogue import Dialogue
 
 
@@ -182,7 +182,7 @@ class Processer:
                         csv.stats["ispCzFound"].add(mail)
                 else:
                     country = whois.get[5]
-                    if country not in Config.csirtmails:
+                    if country not in Contacts.countrymails:
                         csv.stats["ipsWorldMissing"].add(whois.ip)
                         csv.stats["countriesMissing"].add(country)
                     else:

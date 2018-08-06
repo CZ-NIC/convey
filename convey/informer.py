@@ -3,6 +3,7 @@ import datetime
 import subprocess
 import sys
 from math import ceil
+from os.path import dirname
 
 from tabulate import tabulate
 
@@ -115,8 +116,9 @@ class Informer:
 
             stat = self.getStatsPhrase()
             print("\n Statistics overview:\n" + stat)
-            # XX will we write it again to a file? with open(os.path.dirname(file) + "/statistics.txt","w") as f:
-            #    f.write(stat)
+            if Config.getboolean("write_statistics"):
+                with open(dirname(self.csv.source_file) + "/statistics.txt", "w") as f:
+                    f.write(stat)
             """
             XX
             if csv.abuseReg.stat("records", False):
