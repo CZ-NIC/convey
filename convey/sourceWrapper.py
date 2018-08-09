@@ -5,7 +5,6 @@ import ntpath
 import os
 from bdb import BdbQuit
 
-import ipdb
 import jsonpickle
 
 from .config import Config
@@ -33,7 +32,16 @@ class SourceWrapper:
             # import pdb;pdb.set_trace()
             try:  # try to depickle
                 self.csv = jsonpickle.decode(open(self.cacheFile, "r").read(), keys=True)
+                if hasattr(self.csv, "ranges") and type(next(iter(self.csv.ranges.values()))[0]) is jsonpickle.unpickler._IDProxy:
+                    # this is wrongly depickled: instead of {IPNetwork('...'): (IPNetwork('...'),
+                    # we see {IPNetwork('...'): (<jsonpickle.unpickler._IDProxy object at 0x...>,
+                    for prefix, o in self.csv.ranges.items():
+                        l = list(o)
+                        l[0] = prefix
+                        self.csv.ranges[prefix] = tuple(l)
             except:
+                import traceback
+                print(traceback.format_exc())
                 print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
                 input()
                 if Config.is_debug():
@@ -70,8 +78,16 @@ class SourceWrapper:
     ##
     # Store
     def save(self):
+        string = jsonpickle.encode(self.csv, keys=True)
+        try:
+            jsonpickle.decode(string, keys=True)
+        except Exception:
+            print("The program state is not picklable by 'jsonpickle' module. "
+                  "Continuing will provide a file that will have to be reanalysed. "
+                  "You may post this as a bug to the project issue tracker.")
+            input("Continue...")
         with open(self.cacheFile, "w") as output:  # save cache
-            output.write(jsonpickle.encode(self.csv, keys=True))
+            output.write(string)
 
     def _treat(self):  # process source
         self.csv = SourceParser(self.file)

@@ -30,7 +30,7 @@ class Controller:
         parser.add_argument('--csirt-incident', action="store_true",
                             help="Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country or csirt contact for foreign countries) and send everything by OTRS. You set local countries in config.ini, currently set to: {}".format(
                                 Config.get("local_country")))
-        args = parser.parse_args()
+        self.args = args = parser.parse_args()
         if args.debug:
             Config.set("debug", True)
 
@@ -89,7 +89,13 @@ class Controller:
                 ipdb.set_trace()
 
     def send_menu(self):
-        if Config.get("otrs_enabled", "OTRS"):
+        if self.args.csirt_incident:
+            if Config.get("otrs_enabled", "OTRS"):
+                method = "otrs"
+            else:
+                print("You are using csirt-incident macro but otrs_enabled key is set to False in config.ini. Exiting.")
+                quit()
+        elif Config.get("otrs_enabled", "OTRS"):
             menu = Menu(title="What sending method do we want to use?", callbacks=False, fullscreen=True)
             menu.add("Send by SMTP...")
             menu.add("Send by OTRS...")

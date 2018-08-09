@@ -264,6 +264,8 @@ class MailSenderOtrs(MailSender):
                                        files=files,
                                        cookies=cookies)
         except Exception as e:
+            import traceback
+            print(traceback.format_exc())
             print("\nE-mail couldn't be send to the host {}{} with the fields {}. Are you allowed to send from this e-mail etc?".format(host, selector, fields))
             input("Program now ends.")
             quit()
