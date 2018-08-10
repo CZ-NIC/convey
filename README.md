@@ -43,8 +43,9 @@ pip3 install -r requirements.txt  --user
 ./convey.py [filename]
 ```
 
-### Dependencies
-You'll be asked to install `dialog` library at the first run if not already present in the system.
+### Dependencies and troubleshooting
+* You'll be asked to install `dialog` library at the first run if not already present in the system.
+* If something is missing on your system, maybe you may find help in this command: `sudo apt install python3-pip git python3-tk && pip3 install setuptools`
 
 ### Customisation
 * A file `config.ini` is automatically created in user config folder. This file may be edited for further customisation.
