@@ -66,8 +66,8 @@ class Processer:
                     csv.time_last = now
                     if delta < 1 or delta > 2:
                         newVel = ceil(csv.velocity / delta) + 1
-                        if abs(
-                                newVel - csv.velocity) > 100 and csv.velocity < newVel:  # smaller accelerating of velocity (decelerating is alright)
+                        if abs(newVel - csv.velocity) > 100 and csv.velocity < newVel:
+                            # smaller accelerating of velocity (decelerating is alright)
                             csv.velocity += 100
                         else:
                             csv.velocity = newVel
@@ -101,10 +101,13 @@ class Processer:
         self._close_descriptors()
 
         if self.csv.is_split:
+            attch = set()
+            for at in self.csv.attachments:
+                attch.add(at.path)
             for f in self.files_created:
-                # self.csv.attachments[f] = False  # set that a mail with this attachment have not yet been sent
-                self.csv.attachments.append(
-                    Attachment(None, None, f))  # set that a mail with this attachment have not yet been sent
+                if f not in attch and f != Config.INVALID_NAME:
+                    # set that a mail with this attachment have not yet been sent
+                    self.csv.attachments.append(Attachment(None, None, f))
             Attachment.refresh_attachment_stats(self.csv)
 
     def _close_descriptors(self):
@@ -135,6 +138,9 @@ class Processer:
         try:
             # fields = line.split(csv.delimiter) # Parse line
             fields = line.copy()
+
+            if len(fields) is not len(csv.first_line_fields):
+                raise ValueError("Invalid number of line fields: {}".format(len(fields)))
 
             # add fields
             whois = None
@@ -203,7 +209,7 @@ class Processer:
                     ipdb.set_trace()
                 csv.invalid_lines_count += 1
                 location = Config.INVALID_NAME
-                chosen_fields = [line]  # reset the original line (will be reprocessed)
+                chosen_fields = line  # reset the original line (will be reprocessed)
 
         if not location:
             return
