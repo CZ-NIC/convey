@@ -7,7 +7,7 @@ from collections import OrderedDict
 from subprocess import PIPE, Popen
 from urllib.parse import urlparse, urlsplit
 
-from netaddr import *
+from netaddr import IPRange, IPNetwork
 
 from .config import Config
 
@@ -15,14 +15,15 @@ logger = logging.getLogger(__name__)
 
 
 class Whois:
+    unknown_mode = False
 
     @staticmethod
-    def init(stats, ranges, ipSeen):
+    def init(stats, ranges, ip_seen):
         Whois.stats = stats
         Whois.ranges = ranges
-        Whois.ipSeen = ipSeen  # ipSeen[ip] = prefix
+        Whois.ip_seen = ip_seen  # ip_seen[ip] = prefix
         Whois.servers = OrderedDict()
-        Whois.unknownMode = False  # if True, we use b flag in abusemails
+        Whois.unknown_mode = False  # if True, we use b flag in abusemails
         if Config.get("whois_mirror"):  # try our fast whois-mirror in cz.nic first
             Whois.servers["mirror"] = Config.get("whois_mirror")
         Whois.servers["general"] = None
@@ -36,30 +37,31 @@ class Whois:
          self.get stores tuple: prefix, location, mail, asn, netname, country
         """
         self.ip = ip
-        if not Whois.unknownMode:
-            if self.ip in self.ipSeen:  # ip has been seen in the past
-                prefix = self.ipSeen[self.ip]
+        if not Whois.unknown_mode:
+            if self.ip in self.ip_seen:  # ip has been seen in the past
+                prefix = self.ip_seen[self.ip]
                 self.get = self.ranges[prefix]
                 return
 
             for prefix in self.ranges:
                 # search for prefix the slow way. I dont know how to make this shorter because IP can be in shortened form so that
                 # in every case I had to put it in full form and then slowly compare strings with prefixes.
-                if self.ip in prefix:
-                    self.ipSeen[self.ip] = prefix
+                if prefix and self.ip in prefix:
+                    self.ip_seen[self.ip] = prefix
                     self.get = self.ranges[prefix]
                     return
 
+        print(self.ip, "...", end="")
         get = self.analyze()  # prefix, location, mail, asn, netname, country
-        print(get[2], "...")
+        print(get[2])
+
         prefix = get[0]
-        self.ipSeen[self.ip] = prefix
+        self.ip_seen[self.ip] = prefix
         if not prefix:
             logger.info("No prefix found for IP {}".format(self.ip))
-            self.get = False
-            return
+            #get = None, "foreign", "unknown", None, None, None, None
         # elif prefix in self.ranges:
-        #    X not valid for unknownMode # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
+        #    X not valid for unknown_mode # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
         #    raise AssertionError("The prefix " + prefix + " shouldn't be already present. Tell the programmer")
         self.get = self.ranges[prefix] = get
         # print("IP: {}, Prefix: {}, Record: {}, Kind: {}".format(ip, prefix,record, location)) # XX put to logging
@@ -90,7 +92,7 @@ class Whois:
         else:
             # print("Abusemail: ")
             # print("abusemail loaded {}".format(self.abusemail))
-            if Whois.unknownMode:
+            if Whois.unknown_mode:
                 self.resolveUnknownMail()
             ab = self.getAbusemail()
             return prefix, "local", ab, self.asn, self.netname, country, ab
@@ -269,4 +271,4 @@ class Whois:
             self.whoisResponse += p.stderr.read().decode("unicode_escape").strip().lower()
         except UnicodeDecodeError:  # ip address 94.230.155.109 had this string 'Jan Krivsky Hl\xc3\x83\x83\xc3\x82\xc2\xa1dkov' and everything failed
             self.whoisResponse = ""
-            logger.warning("Whois response for IP {} on server {} cannot be parsed.".format(ip, server))
+            logger.warning("Whois response for IP {} on server {} cannot be parsed.".format(self.ip, server))

@@ -1,10 +1,12 @@
 import argparse
 import csv
 import os
+import subprocess
 import sys
 from heapq import nsmallest
 from sys import exit
 
+import ipdb
 from dialog import Dialog
 
 from .config import Config
@@ -52,10 +54,17 @@ class Controller:
             csv.is_processable = True
             self.process()
 
+        self.start_debugger = False
+
         # main menu
         while True:
             csv = self.csv = self.wrapper.csv  # may be changed by reprocessing
             csv.informer.sout_info()
+
+            if self.start_debugger:
+                print("\nDebugging mode, you may want to see csv variable:")
+                self.start_debugger = False
+                ipdb.set_trace()
 
             menu = Menu(title="Main menu - how the file should be processed?")
             menu.add("Pick or delete columns", self.choose_cols)
@@ -77,6 +86,7 @@ class Controller:
             else:
                 menu.add("show all details (process first)")
             menu.add("Refresh...", self.refresh_menu, key="r")
+            menu.add("Config...", self.config_menu, key="c")
             menu.add("exit", self.close, key="x")
 
             try:
@@ -85,7 +95,6 @@ class Controller:
                 print(e)
                 pass
             except Debugged as e:
-                import ipdb;
                 ipdb.set_trace()
 
     def send_menu(self):
@@ -177,6 +186,31 @@ class Controller:
     def process(self):
         self.csv.run_analysis()
         self.wrapper.save()
+
+    def config_menu(self):
+        def start_debugger():
+            self.start_debugger = True
+        menu = Menu(title="Config menu")
+        menu.add("Edit configuration", self.edit_configuration)
+        menu.add("Fetch whois for an IP", self.debug_ip)
+        menu.add("Start debugger", start_debugger)
+        menu.sout()
+
+    @staticmethod
+    def edit_configuration():
+        print("Opening {}... restart Convey when done.".format(Config.path))
+        subprocess.Popen(['gedit', Config.path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        input()
+
+    def debug_ip(self):
+        ip = input("Debugging whois – get IP: ")
+        if ip:
+            from .whois import Whois
+            self.csv.reset_whois(assure_init=True)
+            whois = Whois(ip)
+            print(whois.analyze())
+            print(whois.whoisResponse)
+        input()
 
     def refresh_menu(self):
         menu = Menu(title="What should be reprocessed?", fullscreen=True)

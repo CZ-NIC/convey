@@ -5,6 +5,7 @@ import ntpath
 import os
 from bdb import BdbQuit
 
+import ipdb
 import jsonpickle
 
 from .config import Config
@@ -32,13 +33,13 @@ class SourceWrapper:
             # import pdb;pdb.set_trace()
             try:  # try to depickle
                 self.csv = jsonpickle.decode(open(self.cacheFile, "r").read(), keys=True)
-                if hasattr(self.csv, "ranges") and type(next(iter(self.csv.ranges.values()))[0]) is jsonpickle.unpickler._IDProxy:
-                    # this is wrongly depickled: instead of {IPNetwork('...'): (IPNetwork('...'),
-                    # we see {IPNetwork('...'): (<jsonpickle.unpickler._IDProxy object at 0x...>,
-                    for prefix, o in self.csv.ranges.items():
-                        l = list(o)
-                        l[0] = prefix
-                        self.csv.ranges[prefix] = tuple(l)
+                # correction of a wrongly pickling: instead of {IPNetwork('...'): (IPNetwork('...'),
+                # we see {IPNetwork('...'): (<jsonpickle.unpickler._IDProxy object at 0x...>,
+                # Note that IPRange is pickled correctly.
+                for prefix, o in self.csv.ranges.items():
+                    l = list(o)
+                    l[0] = prefix
+                    self.csv.ranges[prefix] = tuple(l)
             except:
                 import traceback
                 print(traceback.format_exc())

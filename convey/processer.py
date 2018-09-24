@@ -116,27 +116,10 @@ class Processer:
             f[0].close()
 
     def process_line(self, csv, line, settings):
-        """ XX
-            self.ranges[prefix] = mail, location (foreign | local), asn, netname
-
-            Arguments:
-                line - current processed line
-                settings - defaultdict(bool)
-                    chosen_cols
-                    unique_sets
-                    files_created (set)
-                    settings["filter"...]
-                    split_by_col (int)
-
-                XX
-                1. compute["netname", 20, [lambda x, ...]]; filters.add([20, "value"])
-                2. add netname ze sloupce 20 .. chosenColumns.add(20)
-                3. processing: cols[20] = val = lambda x(compute[1])
-                4. filters[ cols[20] ]
-
+        """
+        Parses line – compute fields while adding, perform filters, pick or delete cols, split and write to a file.
         """
         try:
-            # fields = line.split(csv.delimiter) # Parse line
             fields = line.copy()
 
             if len(fields) is not len(csv.first_line_fields):

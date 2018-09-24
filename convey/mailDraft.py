@@ -13,14 +13,14 @@ class MailDraft:
 
     def get_body(self):
         """ get body text """
-        if self._assure_mail_contents() == True:
+        if self._assure_mail_contents():
             CRLF = '\r\n'
             return CRLF.join(self.text.splitlines()[1:])
         else:
             return ""
 
     def get_subject(self):
-        if self._assure_mail_contents() == True:
+        if self._assure_mail_contents():
             return self.text.splitlines()[0]
         else:
             return ""
@@ -31,10 +31,10 @@ class MailDraft:
     def _assure_mail_contents(self):
         self.text = self._load_text()
         if not self.text:  # user didn't fill files in GUI
-            print("Empty body text. Do you wish to open GUI for editation? [y]/n")
+            print("Empty body text. Do you wish to open GUI for editing? [y]/n")
             if input().lower() in ("y", ""):
                 self.gui_edit()
-                print("Come back after filling in the mail.")
+                input("Hit Enter after filling in the e-mail...")
                 return False  # user fill GUI file, saves it and manually comes here to the method
             else:
                 print("Do you wish to edit the text manually[y]/n")

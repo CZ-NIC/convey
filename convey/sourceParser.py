@@ -25,7 +25,6 @@ except PermissionError:
     quit()
 
 
-
 class SourceParser:
     # XXpython3.6 is_split: bool
     # XXpython3.6 is_analyzed: bool
@@ -119,12 +118,17 @@ class SourceParser:
             fields.append((field, s))
         return fields
 
-    def reset_whois(self, hard=True):
-        self.whois_stats = defaultdict(int)
-        if hard:
-            self.ranges = {}
-            self.whoisIpSeen = {}
-        Whois.init(self.whois_stats, self.ranges, self.whoisIpSeen)
+    def reset_whois(self, hard=True, assure_init=False):
+        """
+
+        :type assure_init: Just assure the connection between picklable SourceParser and current Whois class.
+        """
+        if not assure_init:
+            self.whois_stats = defaultdict(int)
+            if hard:
+                self.ranges = {}
+                self.whoisip_seen = {}
+        Whois.init(self.whois_stats, self.ranges, self.whoisip_seen)
 
     def reset_settings(self):
         self.settings = defaultdict(list)
@@ -160,7 +164,7 @@ class SourceParser:
         self.is_split = False
         self.is_processable = False
         self.attachments.clear()
-        #self.is_formatted = False
+        # self.is_formatted = False
         self.reset_whois(hard=hard)
 
     def _set_target_file(self):
@@ -198,21 +202,15 @@ class SourceParser:
         self.lines_total = self.line_count  # if we guessed the total of lines, fix the guess now
         self.is_analyzed = True
 
+        self.informer.sout_info()
+        print("Whois analysis COMPLETED.\n")
         if self.invalid_lines_count:
-            self.informer.sout_info()
-            print("Whois analysis COMPLETED.\n\n")
             self.resolve_invalid()
 
         if self.stats["czUnknownPrefixes"]:
-            self.informer.sout_info()
-            print("Whois analysis COMPLETED.\n\n")
             self.resolve_unknown()
 
         self.line_count = 0
-
-        #if not self.settings["split"]:
-        #    print("SPLITTING!")
-        #    XX
 
     """
     def _sizeCheck(self):
@@ -232,7 +230,7 @@ class SourceParser:
 
     def _guess_ip_count(self):
         """ Determine how many IPs there are in the file.
-        XX maybe not used and not right (doesnt implement dialect but only delimiter)
+        XX not used and not right (doesnt implement dialect but only delimiter)
         """
         if self.urlColumn is None:
             try:
@@ -263,6 +261,24 @@ class SourceParser:
             except Exception:
                 print("Can't guess IP count.")
 
+    def _resolve_again(self, path, basename):
+        self.reset_whois(assure_init=True)
+        temp = path + ".running.tmp"
+        try:
+            move(path, temp)
+        except FileNotFoundError:
+            input("File {} not found, maybe resolving was run in the past and failed. Please rerun again.".format(path))
+            return False
+
+        self._reset_output()
+        if basename in self.processer.files_created:
+            self.processer.files_created.remove(basename)  # this file exists no more, if recreated, include header
+        self.processer.process_file(temp)
+        os.remove(temp)
+        self._reset_output()
+        self.informer.sout_info()
+        return True
+
     def resolve_unknown(self):
         """ Process all prefixes with unknown abusemails. """
 
@@ -275,54 +291,54 @@ class SourceParser:
         if not Dialogue.isYes(s):
             return
 
-        temp = Config.get_cache_dir() + ".unknown.local.temp"
-        try:
-            move(Config.get_cache_dir() + "unknown", temp)
-        except FileNotFoundError:
-            print(
-                "File with unknown IPs not found. Maybe resolving of unknown abusemails was run it the past and failed. Please run whois analysis again.")
-            return False
-        self._reset_output()  # XX lines_total shows bad number
+        path = Config.get_cache_dir() + Config.UNKNOWN_NAME
         self.stats["ipsCzMissing"] = set()
         self.stats["czUnknownPrefixes"] = set()
-        Whois.unknownMode = True
-        self.processer.process_file(temp)
-        os.remove(temp)
-        Whois.unknownMode = False
-        self._reset_output()
-        self.informer.sout_info()
+        Whois.unknown_mode = True
+        if self._resolve_again(path, Config.UNKNOWN_NAME) is False:
+            return False
+        Whois.unknown_mode = False
 
     def resolve_invalid(self):
         """ Process all invalid rows. """
+        invalids = self.invalid_lines_count
         if not self.invalid_lines_count:
             print("No invalid rows.")
             return
 
         path = Config.get_cache_dir() + Config.INVALID_NAME
         while True:
-            s = "There were {0} invalid rows. Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them, or hit n for ignoring them. [o]/y/n ".format(
-                self.invalid_lines_count)
+            print("There are {0} invalid rows".format(self.invalid_lines_count))
+            try:
+                with open(path, 'r') as f:
+                    for i, row in enumerate(f):
+                        print(row.strip())
+                        if i > 5:
+                            break
+            except FileNotFoundError:
+                input("File {} not found, maybe resolving was run in the past and failed. Please rerun again.".format(path))
+                return False
+            s = "Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them, or hit n for ignoring them. [o]/y/n "
             res = Dialogue.ask(s)
             if res == "n":
                 return False
             elif res == "y":
                 break
             else:
+                print("Opening the editor...")
                 subprocess.Popen(['xdg-open', path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        temp = Config.get_cache_dir() + ".unknown.invalid.temp"
-        try:
-            move(path, temp)
-        except FileNotFoundError:
-            print(
-                "File with invalid lines not found. Maybe resolving of it was run it the past and failed. Please run again.")
-            return False
-        self._reset_output()
         self.invalid_lines_count = 0
-        self.processer.process_file(temp)
-        os.remove(temp)
-        self._reset_output()
-        self.informer.sout_info()
+        if self._resolve_again(path, Config.INVALID_NAME) is False:
+            return False
+        if self.invalid_lines_count:
+            solved = invalids - self.invalid_lines_count
+            if solved == 0:
+                s = "No invalid row resolved."
+            else:
+                s = ("Only {}/{} invalid rows were resolved.".format(solved, invalids))
+            print("\n"+s)
+            self.resolve_invalid()
 
     def __getstate__(self):
         state = self.__dict__.copy()
