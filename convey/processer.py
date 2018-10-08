@@ -1,12 +1,18 @@
 import datetime
+import logging
+import traceback
 from bdb import BdbQuit
 from collections import defaultdict
 from csv import reader as csvreader, writer as csvwriter
 from math import ceil
 
+import ipdb
+
 from .config import Config
 from .contacts import Attachment, Contacts
 from .dialogue import Dialogue
+
+logger = logging.getLogger(__name__)
 
 
 class Processer:
@@ -87,8 +93,8 @@ class Processer:
                     o = Dialogue.ask(
                         "Catched keyboard interrupt. Options: continue (default, do the line again), [s]kip the line, [d]ebug, [q]uit: ")
                     if o == "d":
-                        print("Maybe you should hit n multiple times because pdb takes you to the wrong scope.")  # I dont know why.
-                        import ipdb;
+                        print(
+                            "Maybe you should hit n multiple times because pdb takes you to the wrong scope.")  # I dont know why.
                         ipdb.set_trace()
                     elif o == "s":
                         continue  # skip to the next line
@@ -127,7 +133,6 @@ class Processer:
 
             # add fields
             whois = None
-            # import ipdb; ipdb.set_trace()
             for col in settings["addByMethod"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
                 val = fields[col[1]]
                 for l in col[2]:
@@ -171,7 +176,7 @@ class Processer:
                         csv.stats["ispCzFound"].add(mail)
                 else:
                     country = whois.get[5]
-                    if country not in Contacts.countrymails:
+                    if country not in Contacts.csirtmails:
                         csv.stats["ipsWorldMissing"].add(whois.ip)
                         csv.stats["countriesMissing"].add(country)
                     else:
@@ -186,10 +191,10 @@ class Processer:
                 raise  # BdbQuit and KeyboardInterrupt catched higher
             else:
                 if Config.is_debug():
-                    import traceback
                     traceback.print_exc()
-                    import ipdb;
                     ipdb.set_trace()
+                else:
+                    logger.warning(e)
                 csv.invalid_lines_count += 1
                 location = Config.INVALID_NAME
                 chosen_fields = line  # reset the original line (will be reprocessed)

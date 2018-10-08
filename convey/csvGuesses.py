@@ -8,6 +8,7 @@ from builtins import ZeroDivisionError
 from csv import Error, Sniffer, reader
 
 from .config import Config
+from .contacts import Contacts
 from .graph import Graph
 from .whois import Whois
 
@@ -97,6 +98,7 @@ class CsvGuesses:
 
     def get_sample(self, source_file):
         sample = ""
+        first_line = ""
         with open(source_file, 'r') as csv_file:
             for i, row in enumerate(csv_file):
                 if i == 0:
@@ -156,7 +158,7 @@ class CsvGuesses:
                ("whois", "abusemail"): lambda x: (x, x.get[6]),
                ("whois", "country"): lambda x: (x, x.get[5]),
                ("whois", "netname"): lambda x: (x, x.get[4]),
-               ("whois", "csirt-contact"): lambda x: (x, Config.csirtmails[x.get[5]] if x.get[5] in Config.csirtmails else "-"),
+               ("whois", "csirt-contact"): lambda x: (x, Contacts.csirtmails[x.get[5]] if x.get[5] in Contacts.csirtmails else "-"),
                # vraci tuple (local|country_code, whois-mail|abuse-contact)
                ("whois", "incident-contact"): lambda x: (x, x.get[2]),
                ("base64", "decoded_text"): lambda x: base64.b64decode(x).decode("UTF-8").replace("\n", "\\n"),

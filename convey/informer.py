@@ -79,7 +79,7 @@ class Informer:
                     ar.append(" " + f)
             print("Fields after processing:", end="")
             csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect).writerow(ar)
-        # if Config.is_debug(): print("Debug – Settings", self.csv.settings)
+        #if Config.is_debug():    print("Debug – Settings", self.csv.settings)
 
         if self.csv.is_analyzed:
             if self.csv.target_file:
@@ -114,7 +114,7 @@ class Informer:
                         "\n*** TESTING MOD - mails will be send to mail {} ***\n (For turning off testing mode set `testing = False` in config.ini.)".format(
                             Config.get('testing_mail')))
 
-            stat = self.getStatsPhrase()
+            stat = self.get_stats_phrase()
             print("\n Statistics overview:\n" + stat)
             if Config.getboolean("write_statistics"):
                 with open(dirname(self.csv.source_file) + "/statistics.txt", "w") as f:
@@ -149,7 +149,7 @@ class Informer:
 
             print("\n\nPress enter to continue...")
 
-    def getStatsPhrase(self, generate=False):
+    def get_stats_phrase(self, generate=False):
         """ Prints phrase "Totally {} of unique IPs in {} countries...": """
         st = self.csv.stats
 
@@ -188,9 +188,9 @@ class Informer:
 
         return res
 
-    def fileLen(self, fname):
+    def file_len(self, path):
         if self.csv.size < 100 * 10 ** 6:
-            p = subprocess.Popen(['wc', '-l', fname], stdout=subprocess.PIPE,
+            p = subprocess.Popen(['wc', '-l', path], stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
             result, err = p.communicate()
             if p.returncode != 0:

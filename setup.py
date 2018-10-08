@@ -6,7 +6,7 @@ with open("requirements.txt", "r") as f:
 
 setup(
     name='convey',
-    version='1.0.0',
+    version='1.0.1',
     packages=['convey'],
     author='Edvard Rejthar',
     author_email='edvard.rejthar@nic.cz',

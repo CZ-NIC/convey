@@ -60,7 +60,7 @@ class SourceParser:
         self.processer = Processer(self)
         self.informer = Informer(self)
         self.guesses = CsvGuesses(self)
-        self.lines_total = self.informer.fileLen(sourceFile)  # sum(1 for line in open(source_file))
+        self.lines_total = self.informer.file_len(sourceFile)  # sum(1 for line in open(source_file))
         try:
             ##for fn in [, self._askPivotCol, self._sizeCheck, self._askOptions]: # steps of dialogue
             first_line, self.sample = self.guesses.get_sample(self.source_file)
@@ -195,7 +195,8 @@ class SourceParser:
             Contacts.mailDraft["foreign"].gui_edit()
 
         self.time_start = self.time_last = datetime.datetime.now().replace(microsecond=0)
-        Config.update()
+        Contacts.init()
+        #Config.update()
         self._set_target_file()
         self.processer.process_file(self.source_file, rewrite=True)
         self.time_end = datetime.datetime.now().replace(microsecond=0)

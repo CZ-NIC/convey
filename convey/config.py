@@ -1,6 +1,5 @@
 # Env config file connection
 import configparser
-import csv
 import glob
 import logging
 import sys
@@ -25,13 +24,14 @@ def get_path(file):
     else:
         # create INI file at user config folder or at program directory
         default_path = "{}/defaults/".format(path.dirname(path.realpath(__file__)))
+        program_path = path.abspath(path.dirname(sys.argv[0]))
         if input("It seems this is a first run, since file {} haven't been found."
                  "\nShould we create a default config files at user config folder ({})? "
-                 "Otherwise, they'll be created at program folder: {} [Y/n] ".format(file, config_dir, path.dirname(sys.argv[0]))) \
+                 "Otherwise, they'll be created at program folder: {} [Y/n] ".format(file, config_dir, program_path)) \
                 in ["", "Y", "y"]:
             makedirs(config_dir, exist_ok=True)
         else:
-            config_dir = path.dirname(sys.argv[0])
+            config_dir = program_path
         try:
             for filename in glob.glob(path.join(default_path, '*.*')):
                 copy(filename, config_dir)
@@ -116,21 +116,21 @@ class Config:
         """ Cache dir with ending slash. """
         return Config.cache_dir
 
-    def update():
-        """
-         * Refreshes Cc of the mails in the results (config key contacts_local)
-         * Search for country contact (config key contacts_foreign) """
-        Config.abusemails = Config._update("contacts_local")
-        Config.csirtmails = Config._update("contacts_foreign")
-
-    def _update(key):
-        """ Update info from external CSV file. """
-        file = Config.get(key)
-        if not path.isfile(file):  # file with contacts
-            print("(Contacts file {} not found on path {}/{}.) ".format(key, getcwd(), file))
-            return {}
-        else:
-            with open(file, 'r') as csvfile:
-                reader = csv.reader(csvfile)
-                rows = {rows[0]: rows[1] for rows in reader}
-                return rows
+    # def update():
+    #     """
+    #      * Refreshes Cc of the mails in the results (config key contacts_local)
+    #      * Search for country contact (config key contacts_foreign) """
+    #     Config.abusemails = Config._update("contacts_local")
+    #     Config.csirtmails = Config._update("contacts_foreign")
+    #
+    # def _update(key):
+    #     """ Update info from external CSV file. """
+    #     file = Config.get(key)
+    #     if not path.isfile(file):  # file with contacts
+    #         print("(Contacts file {} not found on path {}.) ".format(key, file))
+    #         return {}
+    #     else:
+    #         with open(file, 'r') as csvfile:
+    #             reader = csv.reader(csvfile)
+    #             rows = {rows[0]: rows[1] for rows in reader}
+    #             return rows

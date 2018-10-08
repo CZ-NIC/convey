@@ -86,7 +86,6 @@ class Whois:
         # print("country loaded {}".format(self.country))
         prefix = self._loadPrefix()
         # print("prefix loaded {}".format(self.prefix))
-
         if country not in Config.get("local_country"):
             return prefix, "foreign", country, self.asn, self.netname, country, self.getAbusemail()
         else:

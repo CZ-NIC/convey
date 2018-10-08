@@ -35,8 +35,8 @@ class Attachment:
             cc = ""
 
             if listed_only:
-                if o.path in Contacts.countrymails:
-                    mail = Contacts.countrymails[o.path]
+                if o.path in Contacts.csirtmails:
+                    mail = Contacts.csirtmails[o.path]
                 else:  # we don't want send to standard abuse mail, just to a partner
                     continue
             else:
@@ -63,7 +63,7 @@ class Attachment:
         st["totals"] = 0
 
         for o in attachments:
-            if o.path in Contacts.countrymails:
+            if o.path in Contacts.csirtmails:
                 st["partner_count"][int(bool(o.sent))] += 1
                 o.partner = True
             elif email_validator(o.path):
@@ -77,13 +77,17 @@ class Attachment:
 
 class Contacts:
     # XXpython3.6 abusemails: Dict[str, str]
-    # XXpython3.6 countrymails: Dict[str, str]
+    # XXpython3.6 csirtmails: Dict[str, str]
 
     @classmethod
     def init(cls):
+        """
+        Refreshes list of abusemails (for Cc of the mails in the results) (config key contacts_local)
+        and csirtmails (country contact) (config key contacts_foreign)
+        """
         cls.mailDraft = {"local": MailDraft(Config.get("mail_template_basic")), "foreign": MailDraft(Config.get("mail_template_partner"))}
         cls.abusemails = cls._update("contacts_local")
-        cls.countrymails = cls._update("contacts_foreign")
+        cls.csirtmails = cls._update("contacts_foreign")
 
     @staticmethod
     def get_domains(mailStr):
@@ -99,7 +103,7 @@ class Contacts:
         """ Update info from an external CSV file. """
         file = get_path(Config.get(key))
         if not os.path.isfile(file):  # file with contacts
-            print("(Contacts file {} not found on path {}/{}.) ".format(key, os.getcwd(), file))
+            print("(Contacts file {} not found on path {}.) ".format(key, file))
             input()
             return {}
         else:
