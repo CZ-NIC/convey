@@ -11,6 +11,8 @@ It takes any CSV (any delimiter, header or whatever) and perform one or more act
 5) **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
 6) **Change CSV dialect** (change delimiter or quoting character)
 
+Python3.6+ required.
+
 ## Installation and first run
 
 

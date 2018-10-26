@@ -1,10 +1,12 @@
 import csv
 import datetime
+import os
 import subprocess
 import sys
 from math import ceil
 from os.path import dirname
 
+import humanize
 from tabulate import tabulate
 
 from .config import Config
@@ -79,7 +81,7 @@ class Informer:
                     ar.append(" " + f)
             print("Fields after processing:", end="")
             csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect).writerow(ar)
-        #if Config.is_debug():    print("Debug – Settings", self.csv.settings)
+        # if Config.is_debug():    print("Debug – Settings", self.csv.settings)
 
         if self.csv.is_analyzed:
             if self.csv.target_file:
@@ -141,9 +143,12 @@ class Informer:
             if self.csv.is_split:
                 rows = []
                 for o in self.csv.attachments:
-                    rows.append((o.path, {True: "partner", False: "✓", None: "×"}[o.partner],
-                                 {True: "✓", False: "error", None: "no"}[o.sent]))
-                print("\n\n** Generated files overview **\n", tabulate(rows, headers=("file", "deliverable", "sent")))
+                    rows.append((o.path,
+                                 {True: "partner", False: "✓", None: "×"}[o.partner],
+                                 {True: "✓", False: "error", None: "no"}[o.sent],
+                                 humanize.naturalsize(os.stat(o.get_abs_path()).st_size),
+                                 ))
+                print("\n\n** Generated files overview **\n", tabulate(rows, headers=("file", "deliverable", "sent", "size")))
             else:
                 print("Files overview not needed – everything have been processed into a single file.")
 

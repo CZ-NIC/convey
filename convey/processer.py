@@ -5,6 +5,7 @@ from bdb import BdbQuit
 from collections import defaultdict
 from csv import reader as csvreader, writer as csvwriter
 from math import ceil
+from typing import Dict
 
 import ipdb
 
@@ -18,8 +19,8 @@ logger = logging.getLogger(__name__)
 class Processer:
     """ Opens the CSV file and processes the lines. """
 
-    # XXpython3.6 descriptors: Dict[str, object] # location => file_descriptor, his csv-writer
-    # XXpython3.6 descriptorsStatsOpen: defaultdict[str, int] # {location: count} XX(performance) we may use a SortedDict object
+    descriptors: Dict[str, object]  # location => file_descriptor, his csv-writer
+    descriptorsStatsOpen: Dict[str, int]  # {location: count} XX(performance) we may use a SortedDict object
 
     def __init__(self, csv, rewrite=True):
         """
@@ -194,7 +195,7 @@ class Processer:
                     traceback.print_exc()
                     ipdb.set_trace()
                 else:
-                    logger.warning(e)
+                    logger.warning(e, exc_info=True)
                 csv.invalid_lines_count += 1
                 location = Config.INVALID_NAME
                 chosen_fields = line  # reset the original line (will be reprocessed)

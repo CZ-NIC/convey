@@ -10,13 +10,16 @@ from .mailDraft import MailDraft
 
 
 class Attachment:
-    # XXpython3.6 sent: bool  # True => sent, False => error while sending, None => not yet sent
-    # XXpython3.6 partner: bool  # True => partner e-mail is in Contacts dict, False => e-mail is file name, None => undeliverable (no e-mail)
+    sent: bool  # True => sent, False => error while sending, None => not yet sent
+    partner: bool  # True => partner e-mail is in Contacts dict, False => e-mail is file name, None => undeliverable (no e-mail)
 
     def __init__(self, partner, sent, path):
         self.partner = partner
         self.sent = sent
         self.path = path
+
+    def get_abs_path(self):
+        return Config.get_cache_dir() + self.path
 
     @classmethod
     def get_basic(cls, attachments):
@@ -47,7 +50,7 @@ class Attachment:
                     cc += Contacts.abusemails[domain] + ";"
 
             try:
-                with open(Config.get_cache_dir() + o.path, "r") as f:
+                with open(o.get_abs_path(), "r") as f:
                     yield o, mail, cc, f.read()
             except FileNotFoundError:
                 continue
@@ -76,8 +79,8 @@ class Attachment:
 
 
 class Contacts:
-    # XXpython3.6 abusemails: Dict[str, str]
-    # XXpython3.6 csirtmails: Dict[str, str]
+    abusemails: Dict[str, str]
+    csirtmails: Dict[str, str]
 
     @classmethod
     def init(cls):

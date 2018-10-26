@@ -9,9 +9,10 @@ import sys
 from collections import defaultdict
 from math import ceil
 from shutil import move
+from typing import List
 
 from .config import Config
-from .contacts import Contacts
+from .contacts import Contacts, Attachment
 from .csvGuesses import CsvGuesses
 from .dialogue import Cancelled, Dialogue
 from .informer import Informer
@@ -26,9 +27,9 @@ except PermissionError:
 
 
 class SourceParser:
-    # XXpython3.6 is_split: bool
-    # XXpython3.6 is_analyzed: bool
-    # XXpython3.6 attachments: List[object]
+    is_split: bool
+    is_analyzed: bool
+    attachments: List[Attachment]
 
     def __init__(self, sourceFile):
         print("Processing file, INI file loaded from: {}".format(Config.path))

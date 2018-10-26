@@ -5,3 +5,4 @@ pythondialog
 lepl
 tabulate
 appdirs
+humanize
