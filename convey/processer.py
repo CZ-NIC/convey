@@ -58,7 +58,6 @@ class Processer:
             settings["dialect"] = csv.dialect
 
         settings["target_file"] = csv.target_file
-
         with open(file, "r") as sourceF:
             reader = csvreader(sourceF, dialect=csv.dialect)
             if csv.has_header:  # skip header

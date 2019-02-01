@@ -166,8 +166,6 @@ class CsvGuesses:
                ("plaintext", "custom"): lambda x: x
                }
 
-    # f = lambda x: (lambda x,ip: x, ip, x[4])(x.get(), x.ip)
-
     def get_description(self, column):
         return guesses[column][2]
 
@@ -180,7 +178,7 @@ class CsvGuesses:
         self.field_type = {(i, k): {} for i, k in enumerate(self.csv.fields)}
         samples = [[] for _ in self.csv.fields]
 
-        for line in reader(self.csv.sample.split("\n")[1:]):
+        for line in reader(self.csv.sample.split("\n")[1:], dialect=self.csv.dialect):
             for i, val in enumerate(line):
                 samples[i].append(val)
 
@@ -217,9 +215,6 @@ class CsvGuesses:
                         score += 1
                 self.field_type[i, field][key] = score
                 print("hits", hits)
-        # from pprint import pprint
-        # pprint(self.field_type)
-        # import ipdb; ipdb.set_trace()
 
     def get_best_method(self, sourceColI, newField):
         """ return best suited method for given column """

@@ -207,7 +207,7 @@ class Controller:
         if ip:
             from .whois import Whois
             self.csv.reset_whois(assure_init=True)
-            whois = Whois(ip)
+            whois = Whois(ip.strip())
             print(whois.analyze())
             print(whois.whoisResponse)
         input()

@@ -216,9 +216,15 @@ class Whois:
                     Whois.servers.pop(server)
             if country:
                 # sanitize whois confusion
-                if country.startswith("country-code:"):
+                if ":" in country:
                     # whois 198.55.103.47 leads to "Found a referral to rwhois.quadranet.com:4321."
-                    country = country[len("country-code:"):]
+                    # 154.48.234.95 goes to AfriNIC that goes to ARIN that says:
+                    #   CIDR:           154.48.0.0/16
+                    #   Country:        US
+                    #   Found a referral to rwhois.cogentco.com:4321.
+                    #   network:IP-Network:154.48.224.0/19
+                    #   network:Country:DE
+                    country = country.split(":")[1]
                 if country[0:4].lower() == "wide":
                     # ex: 'EU # Country is really world wide' (the last word)
                     #  (64.9.241.202) (Our mirror returned this result sometimes)
