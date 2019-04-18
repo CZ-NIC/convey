@@ -124,8 +124,14 @@ class CsvGuesses:
             dialect = sniffer.sniff(sample)
             has_header = sniffer.has_header(sample)
         except Error:  # delimiter failed – maybe there is an empty column: "89.187.1.81,06-05-2016,,CZ,botnet drone"
+            if sample.strip() == "":
+                print("The file seems empty")
+                quit()
             has_header = False  # lets just guess the value
-            s = sample.split("\n")[1]  # we dont take header (there is no empty column for sure)
+            try:
+                s = sample.split("\n")[1]  # we dont take header (there is no empty column for sure)
+            except IndexError:  # there is a single line in the file
+                s = sample.split("\n")[0]
             delimiter = ""
             for dl in (",", ";", "|"):  # lets suppose the doubled sign is delimiter
                 if s.find(dl + dl) > -1:
