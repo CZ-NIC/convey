@@ -49,6 +49,8 @@ class SourceWrapper:
                     ipdb.set_trace()
                 self._treat()
             if self.csv:
+                if self.csv.source_file != self.file:  # file might have been moved to another location
+                    self.csv.source_file = self.file
                 try:
                     if self.csv.is_analyzed:
                         self.csv.informer.sout_info()
@@ -64,7 +66,6 @@ class SourceWrapper:
                     print("Stopping.")
                     quit()
                 except Exception as e:
-                    # ipdb.set_trace()
                     print(e)
                     print(
                         "Format of the file may have changed since last time. Let's process it all again. If you continue, cache gets deleted.")
