@@ -17,14 +17,14 @@ def SourcePicker():
         file = sys.argv[-1]
     else:
         try:  # path not set in command line, let's crawl default dir
-            dirDefault = Config.get('default_dir')
-            dirs = os.listdir(dirDefault)
+            dir_default = Config.get('default_dir')
+            dirs = os.listdir(dir_default)
             print("Source log file-path not set in command line. Which directory should I search in?")
             while True:
                 i = 1
                 if dirs != "":
-                    for dir in dirs:
-                        print(str(i) + ". " + dir)
+                    for dir_ in dirs:
+                        print(str(i) + ". " + dir_)
                         i += 1
                 print("0. Set another path")
                 print("x. End")
@@ -37,10 +37,10 @@ def SourcePicker():
                 elif option == "0":  # we'll set file name afterwards
                     break
                 else:  # crawling a dir to find filename with a known name
-                    dir = dirDefault + dirs[int(option) - 1] + "/"
+                    dir_ = dir_default + dirs[int(option) - 1] + "/"
                     for fileD in Config.get('default_file').split(","):
-                        if os.path.isfile(dir + fileD):
-                            file = dir + fileD
+                        if os.path.isfile(dir_ + fileD):
+                            file = dir_ + fileD
                             break
                     if file == "":
                         print("There is not any default log file in that directory: " + Config.get('default_file'))

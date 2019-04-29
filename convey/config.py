@@ -12,16 +12,31 @@ from appdirs import user_config_dir
 def get_path(file):
     """ Assures the file is ready, or creates a new one from a default. """
     config_dir = user_config_dir("convey")
-    if path.exists(file):
+    exists = True
+    if path.lexists(file):
         # check the .ini file is at current location
         file = path.join(getcwd(), file)
-    elif path.exists(path.join(path.dirname(sys.argv[0]), file)):
+    elif path.lexists(path.join(path.dirname(sys.argv[0]), file)):
         # file at program folder (I.E. at downloaded github folder)
         file = path.join(path.dirname(sys.argv[0]), file)
-    elif path.exists(path.join(config_dir, file)):
+    elif path.lexists(path.join(config_dir, file)):
         # INIT file at user config folder
         file = path.join(config_dir, file)
     else:
+        exists = False
+
+    while not path.exists(file):
+        i = input(f"File on the path {file} may be a broken symlink. "
+                  f"Mount it and press any key / 'q' for program exit / 'c' for recreating files: ")
+        if i == "q":
+            print("Exiting.")
+            exit()
+        elif i == "c":
+            exists = False
+            break
+
+    if not exists or not path.exists(file):
+
         # create INI file at user config folder or at program directory
         default_path = "{}/defaults/".format(path.dirname(path.realpath(__file__)))
         program_path = path.abspath(path.dirname(sys.argv[0]))
@@ -40,6 +55,7 @@ def get_path(file):
             print(e)
             print("Error creating program file {}. Exiting.".format(file))
             exit()
+
     return file
 
 
@@ -115,22 +131,3 @@ class Config:
     def get_cache_dir():
         """ Cache dir with ending slash. """
         return Config.cache_dir
-
-    # def update():
-    #     """
-    #      * Refreshes Cc of the mails in the results (config key contacts_local)
-    #      * Search for country contact (config key contacts_foreign) """
-    #     Config.abusemails = Config._update("contacts_local")
-    #     Config.csirtmails = Config._update("contacts_foreign")
-    #
-    # def _update(key):
-    #     """ Update info from external CSV file. """
-    #     file = Config.get(key)
-    #     if not path.isfile(file):  # file with contacts
-    #         print("(Contacts file {} not found on path {}.) ".format(key, file))
-    #         return {}
-    #     else:
-    #         with open(file, 'r') as csvfile:
-    #             reader = csv.reader(csvfile)
-    #             rows = {rows[0]: rows[1] for rows in reader}
-    #             return rows

@@ -24,7 +24,7 @@ class Whois:
         Whois.ip_seen = ip_seen  # ip_seen[ip] = prefix
         Whois.servers = OrderedDict()
         Whois.unknown_mode = False  # if True, we use b flag in abusemails
-        if Config.get("whois_mirror"):  # try our fast whois-mirror in cz.nic first
+        if Config.get("whois_mirror"):  # try a fast local whois-mirror first
             Whois.servers["mirror"] = Config.get("whois_mirror")
         Whois.servers["general"] = None
         # Algorithm for querying custom servers:
@@ -202,8 +202,8 @@ class Whois:
         for server in list(self.servers):
             self._exec(server=server)
             country = self._match_response('[c,C]ountry(.*)', lastWord=True, takeNth=2)
-            self.asn = self._match_response('^origin(.*)', lastWord=True)
-            self.netname = self._match_response('^netname(.*)', lastWord=True)
+            self.asn = self._match_response('\n[o,O]rigin(.*)', lastWord=True)
+            self.netname = self._match_response('\n[n,N]etname(.*)', lastWord=True)
             if not country:
                 fail = None
                 if self._match_response("network is unreachable") or (

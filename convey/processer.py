@@ -184,8 +184,8 @@ class Processer:
                         csv.stats["ipsWorldFound"].add(whois.ip)
                 # XX invalidLines if raised an exception
 
-            # split
-            location = fields[settings["split"]] if type(settings["split"]) == int else settings["target_file"]
+            # split ('/' is a forbidden char in linux file names)
+            location = (fields[settings["split"]] if type(settings["split"]) == int else settings["target_file"]).replace("/", "-")
         except Exception as e:
             if isinstance(e, BdbQuit):
                 raise  # BdbQuit and KeyboardInterrupt catched higher

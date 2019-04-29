@@ -2,7 +2,11 @@
 
 ## 1.1 (unreleased)
 - fix: do not reprocess file if moved to another location
-- bugfix: dialect ignored when generating a sample, whois inconstitency toughness
+- fix: empty file check
+- fix: dialect ignored when generating a sample, whois inconstitency toughness
+- fix: when config file is a symlink and is broken, do not confuse user with creating a new set of config file I.E. in .local/bin. Instead, demand mounting the symlink (or exit or recreate files).
+- fix: whois fetching asn + netname again
+- '/' is forbidden char in linux file names, when splitting by IP prefix, the char is replaced with a dash
 
 ## 1.0.1 (2018-10-26)
 - dropped Python 3.5 support
