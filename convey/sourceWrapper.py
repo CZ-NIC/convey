@@ -42,11 +42,23 @@ def read_stdin():
 
 
 class SourceWrapper:
-    def __init__(self, file_or_input, force_input, fresh=False):
+    def __init__(self, file_or_input, force_file=False, force_input=False, fresh=False):
         self.file = file = None
         self.stdin = stdin = None
+        try:
+            case = int(Config.get("file_or_input"))
+        except ValueError:
+            case = 0
+
+        if case == 5:
+            force_file = True
+        elif case == 6:
+            force_input = True
+
         if force_input:
-            stdin = [file_or_input]
+            stdin = [file_or_input] if file_or_input else read_stdin()
+        elif force_file:
+            file = file_or_input if file_or_input else choose_file()
         elif file_or_input and os.path.isfile(file_or_input):
             file = file_or_input
         elif file_or_input:
@@ -54,22 +66,17 @@ class SourceWrapper:
         elif not sys.stdin.isatty():  # we're already receiving something through a pipe
             stdin = read_stdin()
         else:  # choosing the file or input text
-            try:
-                m = int(Config.get("file_or_input"))
-            except ValueError:
-                m = 0
-
-            if m == 0:
-                m = int(is_yes("Do you want to input text (otherwise you'll be asked to choose a file name)?"))
-            if m == 1:
+            if case == 0:
+                case = int(is_yes("Do you want to input text (otherwise you'll be asked to choose a file name)?"))
+            if case == 1:
                 stdin = read_stdin()
-            elif m == 2:
+            elif case == 2:
                 file = choose_file()
-            elif m == 3:
+            elif case == 3:
                 stdin = read_stdin()
                 if not stdin:
                     file = choose_file()
-            elif m == 4:
+            elif case == 4:
                 file = choose_file()
                 if not file:
                     stdin = read_stdin()
@@ -83,6 +90,10 @@ class SourceWrapper:
             self.cache_file = None
             Config.set_cache_dir(os.getcwd())
             return
+
+        if not os.path.isfile(file):
+            print(f"File '{file}' not found.")
+            quit()
 
         self.file = os.path.abspath(file)
         info = os.stat(self.file)

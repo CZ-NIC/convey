@@ -102,8 +102,8 @@ We are able to auto-detect these columns:
 
 * **ip** – standard IPv4 / IPv6 addresses
 * **cidr** – CIDR notation, ex: 127.0.0.1/32
-* **portIP** – IP in the form 1.2.3.4.port
-* **anyIP** – IP garbled in the form `any text 1.2.3.4 any text`
+* **portIP** – IPv4 in the form 1.2.3.4.port
+* **anyIP** – IPv4 garbled in the form `any text 1.2.3.4 any text`
 * **hostname** – or FQDN; 2nd or 3rd domain name
 * **url** – URL starting with http/https
 * **asn** – AS Number

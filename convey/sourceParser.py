@@ -40,7 +40,6 @@ class SourceParser:
         print("Config file loaded from: {}".format(Config.path))
         self.is_formatted = False
         self.is_repeating = False
-        # while True:
         self.dialect = None  # CSV dialect
         self.has_header = None  # CSV has hedialect.0ader
         self.header = None  # if CSV has header, it's here
@@ -172,7 +171,7 @@ class SourceParser:
                     val = val[1]
                 elif type(val) is Whois:  # we ignore this whois temp value
                     continue
-                rows.append((type_, val))
+                rows.append((type_, "×" if val is None else val))
                 # print(f"{type_}: {val}")
         print("\n" + tabulate(rows, headers=("field", "value")))
         return True

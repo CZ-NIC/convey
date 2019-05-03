@@ -49,7 +49,7 @@ class Whois:
                     self.get = self.ranges[prefix]
                     return
 
-        print(self.ip, "...", end="")
+        print(self.ip, "...", end="", flush=True)
         get = self.analyze()  # prefix, location, mail, asn, netname, country
         print(get[2])
 

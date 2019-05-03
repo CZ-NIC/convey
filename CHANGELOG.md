@@ -16,7 +16,9 @@
 - Adding a column: if there is a single column we can source from, skip the dialog
 - Since delimited, quote char and header guesses are mostly right, I stripped two dialog questions to a single one
 - Main menu uses "←←←←←" symbol for hinting default value that is triggered when user hits Enter. When you select a processing action you don't have to write "p" for "process" anymore.
-- CIDR type 
+- CIDR type
+- varying number of columns exception check
+- when analyzing, show number of file descriptors currently being written
 
 ## 1.0.1 (2018-10-26)
 - dropped Python 3.5 support

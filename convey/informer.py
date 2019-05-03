@@ -63,12 +63,12 @@ class Informer:
         if self.csv.time_end:
             l.append("{}".format(self.csv.time_end - self.csv.time_start))
         elif self.csv.time_start:
-            l.append("{}".format(datetime.datetime.now().replace(microsecond=0) - self.csv.time_start))
-            l.append("{} lines / s".format(self.csv.velocity))
+            l.append(f"{datetime.datetime.now().replace(microsecond=0) - self.csv.time_start}")
+            l.append(f"{self.csv.velocity} lines / s")
+            l.append(f"{self.csv.processor.descriptors_count} file descriptors open")
         sys.stdout.write(", ".join(l) + "\n")
         if self.csv.whois_stats:
             print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whois_stats.items()))
-
         print("\nSample:\n" + "".join(self.csv.sample[:4]))  # show first 3rd lines
 
         if self.csv.settings["dialect"] or not (len(self.csv.fields) == len(self.csv.settings["chosen_cols"])) == len(

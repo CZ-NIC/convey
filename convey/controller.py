@@ -24,6 +24,8 @@ class Controller:
                                                              "In nothing is given, user will input data through stdin.")
         parser.add_argument('--debug', help="On error, enter an ipdb session", action="store_true")
         parser.add_argument('--fresh', help="Do not attempt to load any previous settings / results", action="store_true")
+        parser.add_argument('-f', '--file', help="Treat <file_or_input> parameter as a file, never as an input",
+                            action="store_true")
         parser.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
                             action="store_true")
         flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
@@ -39,7 +41,7 @@ class Controller:
             Config.set("debug", True)
 
         Config.init()
-        self.wrapper = SourceWrapper(args.file_or_input, args.input, args.fresh)
+        self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
         Contacts.init()
         csv = self.csv = self.wrapper.csv
 

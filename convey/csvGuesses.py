@@ -20,11 +20,11 @@ reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")
 reFqdn = re.compile(
     "(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)")  # Xtoo long, infinite loop: ^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+){1,63}\.))+){1,255}$
 reUrl = re.compile('[a-z]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
-reBase64 = re.compile('^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$')
+#reBase64 = re.compile('^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$')
 
 
 def check_ip(ip):
-    """ True, if IP is well formated IPv4 or IPv6 """
+    """ True, if IP is well formatted IPv4 or IPv6 """
     try:
         ipaddress.ip_address(ip)
         return True
@@ -54,7 +54,7 @@ guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], check_ip, "v
            "hostname": (["fqdn", "hostname", "domain"], reFqdn.match, "2nd or 3rd domain name"),
            "url": (["url", "uri", "location"], reUrl.match, "URL starting with http/https"),
            "asn": (["as", "asn", "asnumber"], lambda field: re.search('AS\d+', field) != None, "AS Number"),
-           "base64": (["base64"], lambda field: bool(reBase64.search(field)), "Text encoded with Base64"),
+           "base64": (["base64"], lambda field: bool(b64decode(field)), "Text encoded with Base64"),  # Xbool(reBase64.search(field))
            "plaintext": (["plaintext", "text"], lambda field: False, "Plain text")
            }
 
@@ -70,6 +70,12 @@ def port_ip_2_ip(s):
     if m:
         return m.group(1).rstrip(".")
 
+
+def b64decode(x):
+    try:
+        return base64.b64decode(x).decode("UTF-8").replace("\n", "\\n")
+    except (UnicodeDecodeError, ValueError):
+        return None
 
 class CsvGuesses:
 
@@ -190,11 +196,11 @@ class CsvGuesses:
                # any IP: "91.222.204.175 93.171.205.34" -> "91.222.204.175" OR '"1.2.3.4"' -> 1.2.3.4
                ("portIP", "ip"): port_ip_2_ip,
                # portIP: IP written with a port 91.222.204.175.23 -> 91.222.204.175
-               ("url", "hostname"): lambda x: Whois.url2hostname(x),
-               ("hostname", "ip"): lambda x: Whois.hostname2ip(x),
-               ("url", "ip"): lambda x: Whois.url2ip(x),
-               ("ip", "whois"): lambda x: Whois(x),
-               ("cidr", "whois"): lambda x: Whois(x),
+               ("url", "hostname"): Whois.url2hostname,
+               ("hostname", "ip"): Whois.hostname2ip,
+               ("url", "ip"): Whois.url2ip,
+               ("ip", "whois"): Whois,
+               ("cidr", "whois"): Whois,
                ("whois", "prefix"): lambda x: (x, str(x.get[0])),
                ("whois", "asn"): lambda x: (x, x.get[3]),
                ("whois", "abusemail"): lambda x: (x, x.get[6]),
@@ -203,7 +209,7 @@ class CsvGuesses:
                ("whois", "csirt-contact"): lambda x: (x, Contacts.csirtmails[x.get[5]] if x.get[5] in Contacts.csirtmails else "-"),
                # returns tuple (local|country_code, whois-mail|abuse-contact)
                ("whois", "incident-contact"): lambda x: (x, x.get[2]),
-               ("base64", "decoded_text"): lambda x: base64.b64decode(x).decode("UTF-8").replace("\n", "\\n"),
+               ("base64", "decoded_text"): b64decode,
                ("plaintext", "base64"): lambda x: base64.b64encode(x.encode("UTF-8")).decode("UTF-8"),
                ("plaintext", "custom"): lambda x: x
                }
@@ -215,17 +221,29 @@ class CsvGuesses:
     def identify_cols(self):
         """
          Higher score mean bigger probability that the field is of that type
-         self.field_type = { (colI, fieldName): {type1: score, another possible type: 2}, (2, "a field name"): {"url": 3, "hostname": 1}, ...}
+         self.field_type = { (colI, fieldName): {type1: score, another possible type: 2},
+                             (2, "a field name"): {"url": 3, "hostname": 1},
+                             ...}
 
         """
         self.field_type = {(i, k): {} for i, k in enumerate(self.csv.fields)}
         samples = [[] for _ in self.csv.fields]
 
-        for line in reader(self.csv.sample[1:], dialect=self.csv.dialect):
-            for i, val in enumerate(line):
-                samples[i].append(val)
-        else:  # there is too few lines in sample, this may be a single column text input
-            samples[0].append(self.csv.fields[0])
+        if len(self.csv.sample) == 1:  # we have too few values, we have to use them
+            s = self.csv.sample[:1]
+        else:  # we have many values and the first one could be header, let's omit it
+            s = self.csv.sample[1:]
+
+        try:
+            for row in reader(s, dialect=self.csv.dialect):
+                for i, val in enumerate(row):
+                    samples[i].append(val)
+        except IndexError:
+            print("It seems rows have different lengths. Cannot help you with column identifying.")
+            print("First row: " + str(list(enumerate(self.csv.fields))))
+            print("Current row: " + str(list(enumerate(row))))
+            input("\n... Press any key to continue.")
+            return
 
         for i, field in enumerate(self.csv.fields):
             for key, (names, checkFn, desc) in guesses.items():
