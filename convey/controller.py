@@ -11,9 +11,8 @@ from dialog import Dialog
 
 from .config import Config
 from .contacts import Contacts, Attachment
-from .dialogue import Cancelled, Debugged, Dialogue, Menu
+from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
 from .mailSender import MailSenderOtrs, MailSenderSmtp
-from .sourcePicker import SourcePicker
 from .sourceWrapper import SourceWrapper
 
 
@@ -21,24 +20,26 @@ class Controller:
 
     def __init__(self):
         parser = argparse.ArgumentParser()
-        parser.add_argument('file', nargs='?')
-        parser.add_argument('--debug', help="On error, enter an ipdb session", default=False, action="store_true")
-        parser.add_argument('--fresh', help="Do not attempt to load any previous settings / results", default=False,
+        parser.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
+                                                             "In nothing is given, user will input data through stdin.")
+        parser.add_argument('--debug', help="On error, enter an ipdb session", action="store_true")
+        parser.add_argument('--fresh', help="Do not attempt to load any previous settings / results", action="store_true")
+        parser.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
                             action="store_true")
         flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
                  ("otrs_token", "OTRS token")]
         for flag in flags:
             parser.add_argument('--' + flag[0], help=flag[1])
         parser.add_argument('--csirt-incident', action="store_true",
-                            help="Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country or csirt contact for foreign countries) and send everything by OTRS. You set local countries in config.ini, currently set to: {}".format(
-                                Config.get("local_country")))
+                            help=f"Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country"
+                            f" or csirt contact for foreign countries) and send everything by OTRS."
+                            f" You set local countries in config.ini, currently set to: {Config.get('local_country')}")
         self.args = args = parser.parse_args()
         if args.debug:
             Config.set("debug", True)
 
         Config.init()
-        file = SourcePicker()  # source file path
-        self.wrapper = SourceWrapper(file, args.fresh)
+        self.wrapper = SourceWrapper(args.file_or_input, args.input, args.fresh)
         Contacts.init()
         csv = self.csv = self.wrapper.csv
 
@@ -74,11 +75,11 @@ class Controller:
             menu.add("Split by a column", self.add_splitting)
             menu.add("Change CSV dialect", self.add_dialect)
             if self.csv.is_processable:
-                menu.add("process", self.process, key="p")
+                menu.add("process", self.process, key="p", default=True)
             else:
                 menu.add("process  (choose some actions)")
             if csv.is_analyzed and csv.is_split:
-                menu.add("send", self.send_menu, key="s")
+                menu.add("send", self.send_menu, key="s", default=True)
             else:
                 menu.add("send (split first)")
             if csv.is_analyzed:
@@ -133,12 +134,12 @@ class Controller:
         cond1 = cond2 = False
         st = self.csv.stats
         if st["abuse_count"][0]:  # XX should be equal if just splitted by computed column! = self.csv.stats["ispCzFound"]:
-            info.append(" Template of a basic e-mail starts: {}".format(Contacts.mailDraft["local"].get_mail_preview()))
+            info.append(f" Template of a basic e-mail starts: \n\n{Contacts.mailDraft['local'].get_mail_preview()}\n")
             cond1 = True
         else:
             info.append(" No non-partner e-mail in the set.")
         if st["partner_count"][0]:  # self.csv.stats["countriesFound"]:
-            info.append(" Template of a partner e-mail starts: {}".format(Contacts.mailDraft["foreign"].get_mail_preview()))
+            info.append(f" Template of a partner e-mail starts: \n\n{Contacts.mailDraft['foreign'].get_mail_preview()}\n")
             cond2 = True
         else:
             info.append(" No partner e-mail in the set.")
@@ -147,7 +148,7 @@ class Controller:
         if Config.is_testing():
             info.append("\n\n\n*** TESTING MOD - mails will be sent to the address: {} ***"
                         "\n (For turning off testing mode set `testing = False` in config.ini.)".format(Config.get('testing_mail')))
-        menu = Menu("\n".join(info), callbacks=False, fullscreen=True)
+        menu = Menu("\n".join(info), callbacks=False, fullscreen=True, skippable=False)
         if cond1 and cond2:
             menu.add("Send both partner and other e-mails ({}×)".format(st["abuse_count"][0] + st["partner_count"][0]), key="both")
         if cond2:
@@ -190,6 +191,7 @@ class Controller:
     def config_menu(self):
         def start_debugger():
             self.start_debugger = True
+
         menu = Menu(title="Config menu")
         menu.add("Edit configuration", self.edit_configuration)
         menu.add("Fetch whois for an IP", self.debug_ip)
@@ -236,9 +238,9 @@ class Controller:
                 if val in valid_types:
                     possible_cols[i] = types[val]
                     break
-        source_col_i = Dialogue.pickOption(self.csv.get_fields_autodetection(),
-                                           title="Searching source for " + new_field,
-                                           guesses=sorted(possible_cols, key=possible_cols.get, reverse=True))
+        source_col_i = pick_option(self.csv.get_fields_autodetection(),
+                                   title="Searching source for " + new_field,
+                                   guesses=sorted(possible_cols, key=possible_cols.get, reverse=True))
 
         dialog = Dialog(autowidgetsize=True)
         method = self.csv.guesses.get_best_method(source_col_i, new_field)
@@ -283,6 +285,11 @@ class Controller:
                 else:
                     dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
 
+        # Ex: self.csv.settings["add"].append("country", 1, "whois", None)
+        # which stands for: I want to have a "country" column,
+        #                   from an IP col at position 1,
+        #                   by method whois because there is a path (("ip", "whois"), ("whois", "country")),
+        #                   no custom method
         self.csv.settings["add"].append((new_field, source_col_i, method, custom))
         self.csv.fields.append(new_field)
 
@@ -307,7 +314,7 @@ class Controller:
             self.csv.settings["chosen_cols"] = [int(v) - 1 for v in values]
             self.csv.is_processable = True
 
-    def select_col(self, colName="", only_extendables=False, add=None):
+    def select_col(self, col_name="", only_extendables=False, add=None):
         fields = self.csv.get_fields_autodetection() if not only_extendables else []
         for f in self.csv.guesses.extendable_fields:
             d = self.csv.guesses.get_graph().dijkstra(f, ignore_private=True)
@@ -317,7 +324,7 @@ class Controller:
             elif len(d) > 3:
                 s += "..."
             fields.append(("new " + f + "...", s))
-        col_i = Dialogue.pickOption(fields, colName)
+        col_i = pick_option(fields, col_name)
         if only_extendables or col_i >= len(self.csv.fields):
             new_field_i = col_i if only_extendables else col_i - len(self.csv.fields)
             col_i = self.extend_column(self.csv.guesses.extendable_fields[new_field_i], add=add)
@@ -325,7 +332,7 @@ class Controller:
 
     def add_filtering(self):
         col_i = self.select_col("filter")
-        val = Dialogue.ask("What value should the field have to keep the line?")
+        val = ask("What value should the field have to keep the line?")
         self.csv.settings["filter"].append((col_i, val))
         self.csv.is_processable = True
 

@@ -1,22 +1,24 @@
 import datetime
+import io
 import logging
 import traceback
 from bdb import BdbQuit
 from collections import defaultdict
 from csv import reader as csvreader, writer as csvwriter
-from math import ceil
+from os.path import join
 from typing import Dict
 
 import ipdb
+from math import ceil
 
 from .config import Config
 from .contacts import Attachment, Contacts
-from .dialogue import Dialogue
+from .dialogue import ask, is_no
 
 logger = logging.getLogger(__name__)
 
 
-class Processer:
+class Processor:
     """ Opens the CSV file and processes the lines. """
 
     descriptors: Dict[str, object]  # location => file_descriptor, his csv-writer
@@ -38,7 +40,7 @@ class Processer:
         self.descriptorsStatsAll = defaultdict(int)
         self.descriptors = {}
 
-    def process_file(self, file, rewrite=False):
+    def process_file(self, file, rewrite=False, stdin=None):
         csv = self.csv
         self.__init__(csv, rewrite=rewrite)
         settings = csv.settings.copy()
@@ -57,9 +59,15 @@ class Processer:
         if not settings["dialect"]:
             settings["dialect"] = csv.dialect
 
-        settings["target_file"] = csv.target_file
-        with open(file, "r") as sourceF:
-            reader = csvreader(sourceF, dialect=csv.dialect)
+        try:
+            if file:
+                source_stream = open(file, "r")
+                settings["target_file"] = csv.target_file
+            else:
+                source_stream = stdin
+                settings["target_file"] = True
+            # with open(file, "r") as sourceF:
+            reader = csvreader(source_stream, dialect=csv.dialect)
             if csv.has_header:  # skip header
                 reader.__next__()
             for row in reader:
@@ -87,14 +95,15 @@ class Processer:
                 except KeyboardInterrupt:
                     print("Keyboard interrupting")
                     try:
-                        print("{} line number, {} ip".format(csv.line_count, ip))
+                        print(f"{csv.line_count} line number")
                     except:
                         pass
-                    o = Dialogue.ask(
+                    o = ask(
                         "Catched keyboard interrupt. Options: continue (default, do the line again), [s]kip the line, [d]ebug, [q]uit: ")
                     if o == "d":
                         print(
                             "Maybe you should hit n multiple times because pdb takes you to the wrong scope.")  # I dont know why.
+                        import ipdb;
                         ipdb.set_trace()
                     elif o == "s":
                         continue  # skip to the next line
@@ -104,7 +113,23 @@ class Processer:
                     else:  # continue from last row
                         csv.line_count -= 1  # let's pretend we didn't just do this row before and give it a second chance
                         self.process_line(csv, row, settings)
-        self._close_descriptors()
+        finally:
+            if file:
+                source_stream.close()
+            elif not self.csv.is_split:  # we have all data in a io.TextBuffer, not in a regular file
+                print("\n\n** Completed! **\n")
+                result = self.descriptors[True][0].getvalue()
+                print(result)
+
+                ignore = is_no("Save to an output file?") if Config.get("save_stdin_output") == "" else Config.getboolean("save_stdin_output") is False
+                if ignore:
+                    # we didn't have a preference and replied "no" or we had a preference to not save the output
+                    csv.target_file = False
+                else:
+                    with open(csv.target_file, "w") as f:
+                        f.write(result)
+
+            self._close_descriptors()
 
         if self.csv.is_split:
             attch = set()
@@ -185,7 +210,7 @@ class Processer:
                 # XX invalidLines if raised an exception
 
             # split ('/' is a forbidden char in linux file names)
-            location = (fields[settings["split"]] if type(settings["split"]) == int else settings["target_file"]).replace("/", "-")
+            location = (fields[settings["split"]].replace("/", "-") if type(settings["split"]) == int else settings["target_file"])
         except Exception as e:
             if isinstance(e, BdbQuit):
                 raise  # BdbQuit and KeyboardInterrupt catched higher
@@ -218,7 +243,10 @@ class Processer:
                 del self.descriptorsStatsOpen[key]
                 self.descriptors_count -= 1
             # print("Opening", location)
-            t = open(Config.get_cache_dir() + location, method)
+            if location is True:
+                t = io.StringIO()
+            else:
+                t = open(join(Config.get_cache_dir(), location), method)
             self.descriptors[location] = t, csvwriter(t, dialect=settings["dialect"])
             self.descriptors_count += 1
         # print("Printing", location)
@@ -228,38 +256,3 @@ class Processer:
         if method == "w" and Config.has_header:
             f[0].write(Config.header)
         f[1].writerow(chosen_fields)
-
-    def __XXnotMigratedFunctionality(self):
-        ## XX Check if this is already migrated
-        if not reprocessing and csv.urlColumn is not None:  # if CSV has DOMAIN column that has to be translated to IP column
-            ip = Whois.url2ip(records[csv.urlColumn])
-            # if len(ips) > 1:
-            #    self.extendCount += len(ips) -1 # count of new lines in logs
-            #    print("Url {} has {} IP addresses: {}".format(records[self.urlColumn], len(ips), ips))
-        else:  # only one record
-            try:
-                ip = records[csv.ipColumn].strip()  # key taken from IP column
-            except IndexError:
-                csv.invalidReg.count(row)
-                return
-            if not Whois.checkIp(ip):
-                # format 1.2.3.4.port
-                # XX maybe it would be a good idea to count it as invalidReg directly. In case of huge files. Would it be much quicker?
-                # This is 2 times quicker than regulars (but regulars can be cached). if(ip.count(".") == 5): ip = ip[:ip.rfind(".")]
-                #
-                # print(ip)
-                # import ipdb;ipdb.set_trace()
-                print("ip:", ip)  # XX
-                m = Processer.reIpWithPort.match(ip)
-                if m:
-                    # 91.222.204.175.23 -> 91.222.204.175
-                    ip = m.group(1).rstrip(".")
-                else:
-                    m = Processer.reAnyIp.match(ip)
-                    if m:
-                        # "91.222.204.175 93.171.205.34" -> "91.222.204.175", '"1.2.3.4"' -> 1.2.3.4
-                        ip = m.group(1)
-                    else:
-                        # except AttributeError:
-                        csv.invalidReg.count(row)
-                        return

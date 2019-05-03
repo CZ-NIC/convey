@@ -1,6 +1,7 @@
 import base64
 import csv
 import importlib.util
+import ipaddress
 import logging
 import os
 import re
@@ -21,13 +22,35 @@ reFqdn = re.compile(
 reUrl = re.compile('[a-z]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
 reBase64 = re.compile('^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$')
 
+
+def check_ip(ip):
+    """ True, if IP is well formated IPv4 or IPv6 """
+    try:
+        ipaddress.ip_address(ip)
+        return True
+    except ValueError:
+        return False
+
+
+def check_cidr(cidr):
+    try:
+        ipaddress.ip_interface(cidr)
+        try:
+            ipaddress.ip_address(cidr)
+        except ValueError:  # "1.2.3.4" fail, "1.2.3.4/24" pass
+            return True
+    except ValueError:
+        pass
+
+
 """
      guesses - ways to identify a column
         {name: ([usual names], method to identify, description) }
 """
-guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], Whois.checkIp, "valid IP address"),
+guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], check_ip, "valid IP address"),
+           "cidr": (["cidr"], check_cidr, "CIDR 127.0.0.1/32"),
            "portIP": ([], reIpWithPort.match, "IP in the form 1.2.3.4.port"),
-           "anyIP": ([], reAnyIp.match, "IP in the form 'any text 1.2.3.4 any text'"),
+           "anyIP": ([], reAnyIp.search, "IP in the form 'any text 1.2.3.4 any text'"),
            "hostname": (["fqdn", "hostname", "domain"], reFqdn.match, "2nd or 3rd domain name"),
            "url": (["url", "uri", "location"], reUrl.match, "URL starting with http/https"),
            "asn": (["as", "asn", "asnumber"], lambda field: re.search('AS\d+', field) != None, "AS Number"),
@@ -36,14 +59,16 @@ guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], Whois.checkI
            }
 
 
-class _Guessing:
-    # _Guessing.base64(field)
-    def base64(field):
-        try:
-            base64.b64decode(field)
-        except:
-            return False
-        return True
+def any_ip_2_ip(s):
+    m = reAnyIp.search(s)
+    if m:
+        return m.group(1)
+
+
+def port_ip_2_ip(s):
+    m = reIpWithPort.match(s)
+    if m:
+        return m.group(1).rstrip(".")
 
 
 class CsvGuesses:
@@ -67,8 +92,7 @@ class CsvGuesses:
         self.private_fields = [
             "whois"]  # these fields cannot be added (e.g. whois is a temporary made up field, in can't be added to CSV)
         self.extendable_fields = sorted(set([k for _, k in self.methods.keys() if k not in self.private_fields]))
-
-
+        self.field_type = None
 
     def get_graph(self):
         """
@@ -96,21 +120,23 @@ class CsvGuesses:
             methods.append(self.methods[path[i], path[i + 1]])
         return methods
 
-    def get_sample(self, source_file):
-        sample = ""
+    @staticmethod
+    def get_sample(source_file):
+        sample = []
         first_line = ""
         with open(source_file, 'r') as csv_file:
             for i, row in enumerate(csv_file):
                 if i == 0:
                     first_line = row
-                sample += row
+                sample.append(row)
                 if i == 8:  # sniffer needs 7+ lines to determine dialect, not only 3 (/mnt/csirt-rook/2015/06_08_Ramnit/zdroj), I dont know why
                     break
         return first_line.strip(), sample
         # csvfile.seek(0)
         # csvfile.close()
 
-    def get_module_from_path(self, path):
+    @staticmethod
+    def get_module_from_path(path):
         if not os.path.isfile(path):
             return False
         spec = importlib.util.spec_from_file_location("", path)
@@ -118,26 +144,28 @@ class CsvGuesses:
         spec.loader.exec_module(module)
         return module
 
-    def guess_dialect(self, sample):
+    @staticmethod
+    def guess_dialect(sample):
         sniffer = Sniffer()
+        sample_text = "".join(sample)
         try:
-            dialect = sniffer.sniff(sample)
-            has_header = sniffer.has_header(sample)
+            dialect = sniffer.sniff(sample_text)
+            has_header = sniffer.has_header(sample_text)
         except Error:  # delimiter failed – maybe there is an empty column: "89.187.1.81,06-05-2016,,CZ,botnet drone"
-            if sample.strip() == "":
+            if sample_text.strip() == "":
                 print("The file seems empty")
                 quit()
             has_header = False  # lets just guess the value
             try:
-                s = sample.split("\n")[1]  # we dont take header (there is no empty column for sure)
+                s = sample[1]  # we dont take header (there is no empty column for sure)
             except IndexError:  # there is a single line in the file
-                s = sample.split("\n")[0]
+                s = sample[0]
             delimiter = ""
             for dl in (",", ";", "|"):  # lets suppose the doubled sign is delimiter
                 if s.find(dl + dl) > -1:
                     delimiter = dl
                     break
-            if not delimiter:  # try find anything that ressembles delimiter
+            if not delimiter:  # try find anything that resembles to a delimiter
                 for dl in (",", ";", "|"):
                     if s.find(dl) > -1:
                         delimiter = dl
@@ -148,57 +176,67 @@ class CsvGuesses:
             dialect.escapechar = '\\'
         # dialect.quoting = 3
         dialect.doublequote = True
+
+        if dialect.delimiter == "." and "," not in sample_text:
+            # let's propose common use case (bare list of IP addresses) over a strange use case with "." delimiting
+            dialect.delimiter = ","
+        if len(sample) == 1:
+            # there is single line in sample = in the input, so this is definitely not a header
+            has_header = False
         return dialect, has_header
 
     # these are known methods to make a field from another field
-    methods = {("anyIP", "ip"): lambda x: "Not yet implemented",
+    methods = {("anyIP", "ip"): any_ip_2_ip,
                # any IP: "91.222.204.175 93.171.205.34" -> "91.222.204.175" OR '"1.2.3.4"' -> 1.2.3.4
-               ("portIP", "ip"): lambda x: "Not yet implemented",
-               # IP psaná s portem 91.222.204.175.23 -> 91.222.204.175
+               ("portIP", "ip"): port_ip_2_ip,
+               # portIP: IP written with a port 91.222.204.175.23 -> 91.222.204.175
                ("url", "hostname"): lambda x: Whois.url2hostname(x),
                ("hostname", "ip"): lambda x: Whois.hostname2ip(x),
                ("url", "ip"): lambda x: Whois.url2ip(x),
                ("ip", "whois"): lambda x: Whois(x),
+               ("cidr", "whois"): lambda x: Whois(x),
                ("whois", "prefix"): lambda x: (x, str(x.get[0])),
                ("whois", "asn"): lambda x: (x, x.get[3]),
                ("whois", "abusemail"): lambda x: (x, x.get[6]),
                ("whois", "country"): lambda x: (x, x.get[5]),
                ("whois", "netname"): lambda x: (x, x.get[4]),
                ("whois", "csirt-contact"): lambda x: (x, Contacts.csirtmails[x.get[5]] if x.get[5] in Contacts.csirtmails else "-"),
-               # vraci tuple (local|country_code, whois-mail|abuse-contact)
+               # returns tuple (local|country_code, whois-mail|abuse-contact)
                ("whois", "incident-contact"): lambda x: (x, x.get[2]),
                ("base64", "decoded_text"): lambda x: base64.b64decode(x).decode("UTF-8").replace("\n", "\\n"),
                ("plaintext", "base64"): lambda x: base64.b64encode(x.encode("UTF-8")).decode("UTF-8"),
                ("plaintext", "custom"): lambda x: x
                }
 
-    def get_description(self, column):
+    @staticmethod
+    def get_description(column):
         return guesses[column][2]
 
     def identify_cols(self):
         """
          Higher score mean bigger probability that the field is of that type
-         self.field_type = { (colI, fieldName): [ {type1: score}, {another possible type: 2}, ...], (2, "a field name"): [{"url": 3}, {"hostname": 1}, ...], ...}
+         self.field_type = { (colI, fieldName): {type1: score, another possible type: 2}, (2, "a field name"): {"url": 3, "hostname": 1}, ...}
 
         """
         self.field_type = {(i, k): {} for i, k in enumerate(self.csv.fields)}
         samples = [[] for _ in self.csv.fields]
 
-        for line in reader(self.csv.sample.split("\n")[1:], dialect=self.csv.dialect):
+        for line in reader(self.csv.sample[1:], dialect=self.csv.dialect):
             for i, val in enumerate(line):
                 samples[i].append(val)
+        else:  # there is too few lines in sample, this may be a single column text input
+            samples[0].append(self.csv.fields[0])
 
         for i, field in enumerate(self.csv.fields):
-            print("FIEld", field)
             for key, (names, checkFn, desc) in guesses.items():
                 score = 0
-                print("Guess:", key, names, checkFn)
+                # print("Guess:", key, names, checkFn)
                 # guess field type by name
                 if self.csv.has_header:
                     s = field.replace(" ", "").replace("'", "").replace('"', "").lower()
                     for n in names:
                         if s in n or n in s:
-                            print("HEADER match", field, names)
+                            # print("HEADER match", field, names)
                             score += 1
                             break
                 # else:
@@ -206,35 +244,36 @@ class CsvGuesses:
                 hits = 0
                 for val in samples[i]:
                     if checkFn(val):
-                        print("Match")
+                        # print("Match")
                         hits += 1
                 try:
-                    perc = hits / len(samples[i])
+                    percent = hits / len(samples[i])
                 except ZeroDivisionError:
-                    perc = 0
-                if perc == 0:
+                    percent = 0
+                if percent == 0:
                     continue
-                elif perc > 0.6:
-                    print("Function match", field, checkFn)
+                elif percent > 0.6:
+                    # print("Function match", field, checkFn)
                     score += 1
-                    if perc > 0.8:
+                    if percent > 0.8:
                         score += 1
                 self.field_type[i, field][key] = score
-                print("hits", hits)
+                # print("hits", hits)
 
-    def get_best_method(self, sourceColI, newField):
+    def get_best_method(self, source_col_i, new_field):
         """ return best suited method for given column """
         _min = 999
         method = None
         try:
-            key = self.csv.guesses.field_type[sourceColI, self.csv.fields[sourceColI]]
+            key = self.field_type[source_col_i, self.csv.fields[source_col_i]]
         except KeyError:  # dynamically added fields
-            key = self.csv.fields[sourceColI]  # its name is directly given from self.methods
+            key = self.csv.fields[source_col_i]  # its name is directly given from self.methods
+        dijkstra = self.get_graph().dijkstra(new_field)
         for _type in key:
             # a column may have multiple types (url, hostname), use the best
-            if _type not in self.get_graph().dijkstra(newField):
+            if _type not in dijkstra:
                 continue
-            i = self.get_graph().dijkstra(newField)[_type]
+            i = dijkstra[_type]
             if i < _min:
                 _min, method = i, _type
         return method
@@ -260,9 +299,9 @@ class CsvGuesses:
                     if not info:
                         info = colI, fieldname, colName
 
-            if found and Dialogue.isYes("Does {}. {} column contains {}?".format(*info)):
+            if found and Dialogue.is_yes("Does {}. {} column contains {}?".format(*info)):
                 return info[0]
 
         # col not found automatically -> ask user
-        return Dialogue.pickOption(csv.fields, title="What is " + colName + " column:\n[0]. no " + colName + " column", guesses=guesses)
+        return Dialogue.pick_option(csv.fields, title="What is " + colName + " column:\n[0]. no " + colName + " column", guesses=guesses)
         """

@@ -2,7 +2,7 @@
 
 A tool for information conveying – CSV swiss knife brought by [CSIRT.cz](https://csirt.cz). Convenable way to process large files that might freeze your spreadsheet processor.
 
-It takes any CSV (any delimiter, header or whatever) and perform one or more actions:
+It takes any CSV or text input (any delimiter, header or whatever) and perform one or more actions:
 
 1) **Pick or delete columns** (if only some columns are needed)
 2) **Add a column** (computes one field from another – see below)
@@ -12,6 +12,32 @@ It takes any CSV (any delimiter, header or whatever) and perform one or more act
 6) **Change CSV dialect** (change delimiter or quoting character)
 
 Python3.6+ required.
+
+## Examples
+
+```bash
+$ convey my-file.csv # will trigger file parsing
+$ convey 1.1.1.1
+Config file loaded from: /home/edvard/.config/convey/config.ini
+We think the inputted value can be: ip
+
+1.1.1.1 ...au
+
+field             value
+----------------  -----------------
+prefix            1.1.1.0-1.1.1.255
+asn               as13335
+abusemail         abuse@apnic.net
+country           au
+netname           apnic-labs
+csirt-contact     -
+incident-contact  au
+
+$ convey 
+Do you want to input text (otherwise you'll be asked to choose a file name)? [y/n]
+...
+```  
+
 
 ## Installation and first run
 
@@ -28,10 +54,10 @@ python3 -m venv venv
 pip3 install git+https://github.com/CZ-NIC/convey.git  # without root use may want to use --user
 
 # launch
-python3 -m convey [filename]  # program start
+convey [filename or input text] # or try `python3 -m convey` if you're not having `.local/bin` in your executable path
 ```
 
-Parameter [filename] is the path to CSV source file. If not present, script asks for it.
+Parameter [filename or input text] may be the path of the CSV source file or any text that should be parsed. Note that if the text consist of a single value, program prints out all the computable information and exits; I.E. inputting a base64 string will decode it.
 
 ### OR launch from a directory
 
@@ -42,7 +68,7 @@ cd convey
 pip3 install -r requirements.txt  --user
 
 # launch
-./convey.py [filename]
+./convey.py [filename or input text]
 ```
 
 ### Dependencies and troubleshooting
@@ -56,6 +82,8 @@ pip3 install -r requirements.txt  --user
 
 ## Computable fields
 
+We are able to compute these value types:
+
 * **abusemail** – got abuse e-mail contact from whois
 * **ans** – got from whois
 * **base64** – encode/decode
@@ -67,6 +95,20 @@ pip3 install -r requirements.txt  --user
 * **ip** – translated from url
 * **netname** – got from whois
 * **prefix** – got from whois
+
+### Detectable fields
+
+We are able to auto-detect these columns: 
+
+* **ip** – standard IPv4 / IPv6 addresses
+* **cidr** – CIDR notation, ex: 127.0.0.1/32
+* **portIP** – IP in the form 1.2.3.4.port
+* **anyIP** – IP garbled in the form `any text 1.2.3.4 any text`
+* **hostname** – or FQDN; 2nd or 3rd domain name
+* **url** – URL starting with http/https
+* **asn** – AS Number
+* **base64** – text encoded with base64
+           
 
 ### Custom field example
 If you wish to compute a **custom** field, you'll be dialogued for a path of a python file and desired method that should be used. The contents of the file can be as simple as this:
@@ -81,12 +123,12 @@ You may as well hard code custom fields in the [`config.ini`](convey/config.ini.
 
 Handsome feature if you're willing to use the Shodan API as our partner or to do anything else.
 
-## Usecase
+## CSIRT Usecase
 We are using the tool to automate incident handling tasks. The input is any CSV we receive from partners; there is at least one column with IP addresses or URLs. We fetch whois information and produce a set of CSV grouped by country AND/OR abusemail related to IPs. These CSVs are then sent by our OTRS via HTTP from within the tool.
 
 It is able to parse Apache log format files as well.
 It can bear ##.##.##.##.port format for ip address.
-If there is invalid lines, they will come to dedicated file to be reprocessed again.
+If there are some invalid lines, they will come to dedicated file to be reprocessed again.
 It connects to all whois servers I know.
 
 I've tried a file with 3,6* 10^6 lines (300 MB). First 600 000 took around 6 minutes to analyze, the rest around two minutes. It asked 369× arin server and 709× ripe server. There were only 960 of unique IPs in 702 different IP prefixes.

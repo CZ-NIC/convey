@@ -1,6 +1,7 @@
 """ Mail management data structure """
 import os
 import subprocess
+from os.path import join
 
 from .config import Config, get_path
 
@@ -9,7 +10,7 @@ class MailDraft:
     def __init__(self, filename):
         self.text = False
         self.template_file = get_path(filename)
-        self.mail_file = Config.get_cache_dir() + filename  # ex: csirt/2015/mail_cz5615616.txt XMailDraft.dir +  + MailDraft.hash
+        self.mail_file = join(Config.get_cache_dir(), filename)  # ex: csirt/2015/mail_cz5615616.txt XMailDraft.dir +  + MailDraft.hash
 
     def get_body(self):
         """ get body text """

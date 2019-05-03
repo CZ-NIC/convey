@@ -1,5 +1,3 @@
-# Work with Whoisem
-import ipaddress
 import logging
 import re
 import socket
@@ -59,24 +57,26 @@ class Whois:
         self.ip_seen[self.ip] = prefix
         if not prefix:
             logger.info("No prefix found for IP {}".format(self.ip))
-            #get = None, "foreign", "unknown", None, None, None, None
+            # get = None, "foreign", "unknown", None, None, None, None
         # elif prefix in self.ranges:
         #    X not valid for unknown_mode # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
         #    raise AssertionError("The prefix " + prefix + " shouldn't be already present. Tell the programmer")
         self.get = self.ranges[prefix] = get
         # print("IP: {}, Prefix: {}, Record: {}, Kind: {}".format(ip, prefix,record, location)) # XX put to logging
 
-    def url2hostname(self, url):
+    @staticmethod
+    def url2hostname(url):
         """ Covers both use cases "http://example.com..." and "example.com..." """
         s = urlsplit(url)
         return s.netloc or s.path.split("/")[:1][0]
 
     hostname_cache = {}
 
-    def hostname2ip(self, hostname):
-        if hostname not in self.hostname_cache:
-            self.hostname_cache[hostname] = socket.gethostbyname(hostname)
-        return self.hostname_cache[hostname]
+    @classmethod
+    def hostname2ip(cls, hostname):
+        if hostname not in cls.hostname_cache:
+            cls.hostname_cache[hostname] = socket.gethostbyname(hostname)
+        return cls.hostname_cache[hostname]
 
     def analyze(self):
         """
@@ -153,14 +153,6 @@ class Whois:
         # for ip in recs:
         #    result.append(ip[4][0])
         # return result
-
-    def checkIp(ip):
-        """ True, if IP is well formated IPv4 or IPv6 """
-        try:
-            ipaddress.ip_address(ip)
-            return True
-        except:
-            return False
 
     def _match_response(self, pattern, lastWord=False, takeNth=None, group=0):
         """

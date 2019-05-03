@@ -1,6 +1,7 @@
 import csv
 import os
 import re
+from os.path import join
 from typing import Dict
 
 import lepl.apps.rfc3696
@@ -19,7 +20,7 @@ class Attachment:
         self.path = path
 
     def get_abs_path(self):
-        return Config.get_cache_dir() + self.path
+        return join(Config.get_cache_dir(), self.path)
 
     @classmethod
     def get_basic(cls, attachments):

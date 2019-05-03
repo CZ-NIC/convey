@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 from math import ceil
-from os.path import dirname
+from os.path import dirname, join
 
 import humanize
 from tabulate import tabulate
@@ -27,7 +27,7 @@ class Informer:
         # sys.stderr.write("\x1b[2J\x1b[H") # clears gnome-terminal
         # print(chr(27) + "[2J")
         l = []
-        l.append("Source file: " + self.csv.source_file)
+        l.append("Source file: " + self.csv.source_file if self.csv.source_file else "Reading STDIN")
         if self.csv.dialect:
             l.append("delimiter: '" + self.csv.dialect.delimiter + "'")
             l.append("quoting: '" + self.csv.dialect.quotechar + "'")
@@ -69,7 +69,7 @@ class Informer:
         if self.csv.whois_stats:
             print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whois_stats.items()))
 
-        print("\nSample:\n" + "\n".join(self.csv.sample.split("\n")[:4]) + "\n")  # show first 3rd lines
+        print("\nSample:\n" + "".join(self.csv.sample[:4]))  # show first 3rd lines
 
         if self.csv.settings["dialect"] or not (len(self.csv.fields) == len(self.csv.settings["chosen_cols"])) == len(
                 self.csv.first_line_fields):
@@ -79,18 +79,21 @@ class Informer:
                     ar.append(" \x1b[9m{}\x1b[0m".format(f or "empty"))
                 else:
                     ar.append(" " + f)
-            print("Fields after processing:", end="")
-            csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect).writerow(ar)
+            if ar:
+                print("Fields after processing:", end="")
+                csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect).writerow(ar)
         # if Config.is_debug():    print("Debug – Settings", self.csv.settings)
 
         if self.csv.is_analyzed:
-            if self.csv.target_file:
-                print("\n** Processing completed: Result file in {}{}".format(Config.get_cache_dir(), self.csv.target_file))
+            if self.csv.target_file is False:
+                print("\n** Processing completed, results were not saved to a file.")
+            elif self.csv.target_file:
+                print(f"\n** Processing completed: Result file in {join(Config.get_cache_dir(),self.csv.target_file)}")
             else:
                 partner_count, abuse_count, non_deliverable, totals = map(self.csv.stats.get, (
                     'partner_count', 'abuse_count', 'non_deliverable', 'totals'))
 
-                print("** Processing completed: {} result files in {}".format(totals, Config.get_cache_dir()))
+                print(f"** Processing completed: {totals} result files in {Config.get_cache_dir()}")
                 # abuse_count = Contacts.count_mails(self.attachments.keys(), abusemails_only=True)
                 # partner_count = Contacts.count_mails(self.attachments.keys(), partners_only=True)
                 if totals == non_deliverable:
@@ -118,7 +121,8 @@ class Informer:
 
             stat = self.get_stats_phrase()
             print("\n Statistics overview:\n" + stat)
-            if Config.getboolean("write_statistics"):
+            if Config.getboolean("write_statistics") and self.csv.source_file:
+                # we write statistics.txt only if we're sourcing from a file, not from stdin
                 with open(dirname(self.csv.source_file) + "/statistics.txt", "w") as f:
                     f.write(stat)
             """
@@ -149,8 +153,8 @@ class Informer:
                                  humanize.naturalsize(os.stat(o.get_abs_path()).st_size),
                                  ))
                 print("\n\n** Generated files overview **\n", tabulate(rows, headers=("file", "deliverable", "sent", "size")))
-            else:
-                print("Files overview not needed – everything have been processed into a single file.")
+            # else:
+            #     print("Files overview not needed – everything have been processed into a single file.")
 
             print("\n\nPress enter to continue...")
 
@@ -194,7 +198,11 @@ class Informer:
         return res
 
     def file_len(self, path):
-        if self.csv.size < 100 * 10 ** 6:
+        """ When file is reasonably small (100 MB), count the lines by `wc -l`. Otherwise, guess a value.
+            If we are using stdin instead of a file, determine the value by enlist all the lines. """
+        if not self.csv.source_file:
+            return len(self.csv.stdin)
+        elif self.csv.size < 100 * 10 ** 6:
             p = subprocess.Popen(['wc', '-l', path], stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
             result, err = p.communicate()
@@ -202,4 +210,5 @@ class Informer:
                 raise IOError(err)
             return int(result.strip().split()[0])
         else:
-            return ceil(self.csv.size / (len(self.csv.sample) / len(self.csv.sample.split("\n"))) / 1000000) * 1000000
+            # bytes / average number of characters on line in sample
+            return ceil(self.csv.size / (len("".join(self.csv.sample)) / len(self.csv.sample)) / 1000000) * 1000000

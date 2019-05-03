@@ -4,9 +4,12 @@ import glob
 import logging
 import sys
 from os import path, getcwd, makedirs
+from os.path import join
 from shutil import copy
 
 from appdirs import user_config_dir
+
+default_path = join(path.dirname(path.realpath(__file__)), "defaults")
 
 
 def get_path(file):
@@ -15,13 +18,13 @@ def get_path(file):
     exists = True
     if path.lexists(file):
         # check the .ini file is at current location
-        file = path.join(getcwd(), file)
-    elif path.lexists(path.join(path.dirname(sys.argv[0]), file)):
+        file = join(getcwd(), file)
+    elif path.lexists(join(path.dirname(sys.argv[0]), file)):
         # file at program folder (I.E. at downloaded github folder)
-        file = path.join(path.dirname(sys.argv[0]), file)
-    elif path.lexists(path.join(config_dir, file)):
+        file = join(path.dirname(sys.argv[0]), file)
+    elif path.lexists(join(config_dir, file)):
         # INIT file at user config folder
-        file = path.join(config_dir, file)
+        file = join(config_dir, file)
     else:
         exists = False
 
@@ -38,7 +41,6 @@ def get_path(file):
     if not exists or not path.exists(file):
 
         # create INI file at user config folder or at program directory
-        default_path = "{}/defaults/".format(path.dirname(path.realpath(__file__)))
         program_path = path.abspath(path.dirname(sys.argv[0]))
         if input("It seems this is a first run, since file {} haven't been found."
                  "\nShould we create a default config files at user config folder ({})? "
@@ -48,7 +50,7 @@ def get_path(file):
         else:
             config_dir = program_path
         try:
-            for filename in glob.glob(path.join(default_path, '*.*')):
+            for filename in glob.glob(join(default_path, '*.*')):
                 copy(filename, config_dir)
             file = "{}/{}".format(config_dir, file)
         except Exception as e:
@@ -65,6 +67,30 @@ class Config:
 
     config = configparser.ConfigParser()
     config.read(path)
+
+    # Config file integrity check (we may upgrade Convey from but some new parameters needs to be added manually)
+    default_config = configparser.ConfigParser()
+    default_config.read(join(default_path, "config.ini"))
+    passed = True
+    for section in default_config:
+        if section not in config:
+            print(f"Missing section: {section}")
+            passed = False
+            continue
+        for key in default_config[section]:
+            if key not in config[section]:
+                print(f"Missing key {key} (defaulting to {repr(default_config[section][key])}) in section: {section}")
+                passed = False
+    for section in config:
+        if section not in default_config:
+            print(f"(Config has an unused section: {section})")
+            continue
+        for key in config[section]:
+            if key not in default_config[section]:
+                print(f"Config has an unused key {key} in section: {section}")
+    if not passed:
+        print("Please write missing items in config file before continuing.")
+        quit()
 
     # set by SourceParser and used by Registry
     has_header = False
@@ -105,7 +131,8 @@ class Config:
             try:
                 Config.cache[key] = Config.config[section][key]
             except:
-                input("The key {} is not in the config file {}. The program ends now.".format(key, Config.path))
+                input(f"The key {key} is not in the config file {Config.path} – integrity failed. "
+                      "This should not happen. The program ends now.")
                 quit()
         return Config.cache[key]
         # return Config.config[section][key]
@@ -125,9 +152,11 @@ class Config:
 
     cache_dir = ""
 
-    def set_cache_dir(dir):
-        Config.cache_dir = dir
+    @staticmethod
+    def set_cache_dir(dir_):
+        Config.cache_dir = dir_
 
+    @staticmethod
     def get_cache_dir():
         """ Cache dir with ending slash. """
         return Config.cache_dir

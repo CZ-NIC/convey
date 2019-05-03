@@ -6,17 +6,22 @@ import ntpath
 import os
 import subprocess
 import sys
+import time
 from collections import defaultdict
+from os.path import join
+
 from math import ceil
 from shutil import move
 from typing import List
 
+from tabulate import tabulate
+
 from .config import Config
 from .contacts import Contacts, Attachment
 from .csvGuesses import CsvGuesses
-from .dialogue import Cancelled, Dialogue
+from .dialogue import Cancelled, is_yes, ask
 from .informer import Informer
-from .processer import Processer
+from .processor import Processor
 from .whois import Whois
 
 try:
@@ -31,14 +36,14 @@ class SourceParser:
     is_analyzed: bool
     attachments: List[Attachment]
 
-    def __init__(self, sourceFile):
-        print("Processing file, INI file loaded from: {}".format(Config.path))
+    def __init__(self, source_file=False, stdin=None):
+        print("Config file loaded from: {}".format(Config.path))
         self.is_formatted = False
         self.is_repeating = False
         # while True:
         self.dialect = None  # CSV dialect
         self.has_header = None  # CSV has hedialect.0ader
-        self.header = ""  # if CSV has header, it's here
+        self.header = None  # if CSV has header, it's here
         self.sample = ""
         self.fields = []  # CSV columns
         self.first_line_fields = []
@@ -48,32 +53,42 @@ class SourceParser:
         self.otrs_id = Config.get("ticketid", "OTRS")
         self.otrs_token = False
         self.otrs_num = Config.get("ticketnum", "OTRS")
-        self.attachment_name = "part-" + ntpath.basename(sourceFile)
+        self.attachment_name = "part-" + (ntpath.basename(source_file) if source_file else "attachment")
         self.ip_count_guess = None
         self.ip_count = None
         self.attachments = []  # files created if splitting
+        self.invalid_lines_count = 0
         self._reset()
 
         # load CSV
-        self.source_file = sourceFile
+        self.source_file = source_file
         self.target_file = None
-        self.size = os.path.getsize(self.source_file)
-        self.processer = Processer(self)
+        self.processor = Processor(self)
         self.informer = Informer(self)
         self.guesses = CsvGuesses(self)
-        self.lines_total = self.informer.file_len(sourceFile)  # sum(1 for line in open(source_file))
+        if source_file:  # we're analysing a file on disk
+            self.size = os.path.getsize(source_file)
+            self.stdin = None
+            first_line, self.sample = self.guesses.get_sample(source_file)
+        else:  # we're analysing an input text
+            self.stdin = stdin
+            self.size = len(self.stdin)
+            if self.size == 0:
+                print("Empty contents.")
+                quit()
+            first_line, self.sample = self.stdin[0], self.stdin[:7]
+
+            # if that's a single cell, just print out some useful information and exit
+            if len(stdin) == 1 and len(stdin[0]) < 50 and "," not in stdin[0]:
+                if self.check_single_cell(stdin):
+                    quit()
+
+        self.lines_total = self.informer.file_len(source_file)  # sum(1 for line in open(source_file))
+        self.informer.sout_info()
         try:
-            ##for fn in [, self._askPivotCol, self._sizeCheck, self._askOptions]: # steps of dialogue
-            first_line, self.sample = self.guesses.get_sample(self.source_file)
-            self.informer.sout_info()
             # Dialog to obtain basic information about CSV - delimiter, header
             self.dialect, self.has_header = self.guesses.guess_dialect(self.sample)
-            if self.dialect.delimiter == "." and "," not in self.sample:
-                # let's propose common use case (bare list of IP addresses) over a strange use case with "." delimiting
-                self.dialect.delimiter = ","
-            if not Dialogue.isYes(
-                    "Is character '{}' delimiter and '{}' quoting character? ".format(self.dialect.delimiter,
-                                                                                      self.dialect.quotechar)):
+            if not is_yes(f"Delimiter character found: '{self.dialect.delimiter}'\nQuoting character: '{self.dialect.quotechar}'\nHeader is present: "+("yes" if self.has_header else "not used")+"\nCould you confirm this?"):
                 while True:
                     sys.stdout.write("What is delimiter: ")
                     self.dialect.delimiter = input()
@@ -84,9 +99,9 @@ class SourceParser:
                     self.dialect.quotechar = input()
                     break
                 self.dialect.quoting = csv.QUOTE_NONE if not self.dialect.quotechar else csv.QUOTE_MINIMAL
+                if not is_yes("Header " + ("" if self.has_header else "not found; ok?")):
+                    self.has_header = not self.has_header
             self.first_line_fields = csv.reader([first_line], dialect=self.dialect).__next__()
-            if not Dialogue.isYes("Header " + ("" if self.has_header else "not " + "found; ok?")):
-                self.has_header = not self.has_header
             if self.has_header:
                 self.header = self.first_line_fields
             self.reset_settings()
@@ -97,7 +112,7 @@ class SourceParser:
         self.informer.sout_info()
 
         # X self._guess_ip_count()
-        # if not Dialogue.isYes("Everything set alright?"):
+        # if not Dialogue.is_yes("Everything set alright?"):
         #    self.is_repeating = True
         #    continue
         # else:
@@ -111,6 +126,8 @@ class SourceParser:
             s = ""
             if (i, field) in self.guesses.field_type and len(self.guesses.field_type[i, field]):
                 possible_types = self.guesses.field_type[i, field]
+                if "anyIP" in possible_types and ("ip" in possible_types or "portIP" in possible_types):
+                    del possible_types["anyIP"]
                 s = "detected: {}".format(", ".join(sorted(possible_types, key=possible_types.get)))
             else:
                 for f, _, _type, custom_method in self.settings["add"]:
@@ -118,6 +135,47 @@ class SourceParser:
                         s = "computed from: {}".format(_type)
             fields.append((field, s))
         return fields
+
+    def check_single_cell(self, stdin):
+        """ Check if we are parsing a single cell and print out some meaningful details."""
+
+        # init some basic parameters
+        self.fields = self.first_line_fields = stdin
+        self.dialect = csv.unix_dialect
+        self.has_header = False
+        self.guesses.identify_cols()
+        Contacts.init()
+
+        # tell the user what type we think their input is
+        detection = self.get_fields_autodetection()[0][1]  # access the detection message for the first (and supposedly only) field
+        if not detection:
+            print("We couldn't parse the input text easily.")
+            return False  # this is not a single cell, let's continue input parsing
+        else:
+            print("The inputted value " + detection)
+
+        # transform the field by all known means
+        seen = set()
+        rows = []
+        for _, type_ in self.guesses.methods.keys():
+            if type_ in seen:
+                continue
+            else:
+                seen.add(type_)
+            solvable = self.guesses.get_best_method(0, type_)
+            # print(f"From:{_} To:{type_} Through: {solvable} ")
+            if solvable:
+                val = stdin[0]
+                for l in self.guesses.get_methods_from(type_, solvable, None):
+                    val = l(val)
+                if type(val) is tuple and type(val[0]) is Whois:
+                    val = val[1]
+                elif type(val) is Whois:  # we ignore this whois temp value
+                    continue
+                rows.append((type_, val))
+                # print(f"{type_}: {val}")
+        print("\n" + tabulate(rows, headers=("field", "value")))
+        return True
 
     def reset_whois(self, hard=True, assure_init=False):
         """
@@ -181,7 +239,10 @@ class SourceParser:
                 l.append("shuffled")
             for name, _, _, _ in self.settings["add"]:
                 l.append(name)
-            self.target_file = "{}_{}.csv".format(ntpath.basename(self.source_file), "_".join(l))
+            if self.source_file:
+                self.target_file = f"{ntpath.basename(self.source_file)}_{'_'.join(l)}.csv"
+            else:
+                self.target_file = f"output_{time.strftime('%Y-%m-%d %H:%M:%S')}.csv"
             self.is_split = False
         else:
             self.target_file = None
@@ -199,7 +260,7 @@ class SourceParser:
         Contacts.init()
         #Config.update()
         self._set_target_file()
-        self.processer.process_file(self.source_file, rewrite=True)
+        self.processor.process_file(self.source_file, rewrite=True, stdin=self.stdin)
         self.time_end = datetime.datetime.now().replace(microsecond=0)
         self.lines_total = self.line_count  # if we guessed the total of lines, fix the guess now
         self.is_analyzed = True
@@ -214,25 +275,11 @@ class SourceParser:
 
         self.line_count = 0
 
-    """
-    def _sizeCheck(self):
-        mb = 10
-        if self.size > mb * 10 ** 6 and self.conveying == "all":
-            if Dialogue.isYes("The file is > {} MB and conveying method is set to all. Don't want to rather set the method to 'unique_ip' so that every IP had only one line and the amount of information sent diminished?".format(mb)):
-                self.conveying = "unique_ip"
-        if self.size > mb * 10 ** 6 and self.redo_invalids == True:
-            if Dialogue.isYes("The file is > {} MB and redo_invalids is True. Don't want to rather set it to False and ignore all invalids? It may be faster.".format(mb)):
-                self.redo_invalids = False
 
-    def _askOptions(self):
-        "" Asks user for other parameters. They can change conveying method and included columns. ""
-        # XX
-        pass
-    """
 
     def _guess_ip_count(self):
         """ Determine how many IPs there are in the file.
-        XX not used and not right (doesnt implement dialect but only delimiter)
+        XX not used and not right (doesnt implement dialect but only delimiter) (doesnt implement stdin instead of source_file)
         """
         if self.urlColumn is None:
             try:
@@ -273,9 +320,9 @@ class SourceParser:
             return False
 
         self._reset_output()
-        if basename in self.processer.files_created:
-            self.processer.files_created.remove(basename)  # this file exists no more, if recreated, include header
-        self.processer.process_file(temp)
+        if basename in self.processor.files_created:
+            self.processor.files_created.remove(basename)  # this file exists no more, if recreated, include header
+        self.processor.process_file(temp)
         os.remove(temp)
         self._reset_output()
         self.informer.sout_info()
@@ -290,10 +337,10 @@ class SourceParser:
 
         s = "There are {0} IPs in {1} unknown prefixes. Should I proceed additional search for these {1} items?".format(
             len(self.stats["ipsCzMissing"]), len(self.stats["czUnknownPrefixes"]))
-        if not Dialogue.isYes(s):
+        if not is_yes(s):
             return
 
-        path = Config.get_cache_dir() + Config.UNKNOWN_NAME
+        path = join(Config.get_cache_dir(), Config.UNKNOWN_NAME)
         self.stats["ipsCzMissing"] = set()
         self.stats["czUnknownPrefixes"] = set()
         Whois.unknown_mode = True
@@ -308,7 +355,7 @@ class SourceParser:
             print("No invalid rows.")
             return
 
-        path = Config.get_cache_dir() + Config.INVALID_NAME
+        path = join(Config.get_cache_dir(), Config.INVALID_NAME)
         while True:
             print("There are {0} invalid rows".format(self.invalid_lines_count))
             try:
@@ -321,7 +368,7 @@ class SourceParser:
                 input("File {} not found, maybe resolving was run in the past and failed. Please rerun again.".format(path))
                 return False
             s = "Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them, or hit n for ignoring them. [o]/y/n "
-            res = Dialogue.ask(s)
+            res = ask(s)
             if res == "n":
                 return False
             elif res == "y":
@@ -345,14 +392,14 @@ class SourceParser:
     def __getstate__(self):
         state = self.__dict__.copy()
         del state['informer']
-        del state['processer']
+        del state['processor']
         state['dialect'] = self.dialect.__dict__.copy()
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
         self.informer = Informer(self)
-        self.processer = Processer(self)
+        self.processor = Processor(self)
         self.dialect = csv.unix_dialect
         for k, v in state["dialect"].items():
             setattr(self.dialect, k, v)
