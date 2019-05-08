@@ -57,7 +57,7 @@ pip3 install git+https://github.com/CZ-NIC/convey.git  # without root use may wa
 convey [filename or input text] # or try `python3 -m convey` if you're not having `.local/bin` in your executable path
 ```
 
-Parameter [filename or input text] may be the path of the CSV source file or any text that should be parsed. Note that if the text consist of a single value, program prints out all the computable information and exits; I.E. inputting a base64 string will decode it.
+Parameter `[filename or input text]` may be the path of the CSV source file or any text that should be parsed. Note that if the text consist of a single value, program prints out all the computable information and exits; I.E. inputting a base64 string will decode it.
 
 ### OR launch from a directory
 
@@ -68,7 +68,7 @@ cd convey
 pip3 install -r requirements.txt  --user
 
 # launch
-./convey.py [filename or input text]
+./convey.py
 ```
 
 ### Dependencies and troubleshooting
@@ -124,11 +124,4 @@ You may as well hard code custom fields in the [`config.ini`](convey/config.ini.
 Handsome feature if you're willing to use the Shodan API as our partner or to do anything else.
 
 ## CSIRT Usecase
-We are using the tool to automate incident handling tasks. The input is any CSV we receive from partners; there is at least one column with IP addresses or URLs. We fetch whois information and produce a set of CSV grouped by country AND/OR abusemail related to IPs. These CSVs are then sent by our OTRS via HTTP from within the tool.
-
-It is able to parse Apache log format files as well.
-It can bear ##.##.##.##.port format for ip address.
-If there are some invalid lines, they will come to dedicated file to be reprocessed again.
-It connects to all whois servers I know.
-
-I've tried a file with 3,6* 10^6 lines (300 MB). First 600 000 took around 6 minutes to analyze, the rest around two minutes. It asked 369× arin server and 709× ripe server. There were only 960 of unique IPs in 702 different IP prefixes.
+We are using the tool to automate incident handling tasks. The input is any CSV we receive from partners; there is at least one column with IP addresses or URLs. We fetch whois information and produce a set of CSV grouped by country AND/OR abusemail related to IPs. These CSVs are then sent by through OTRS from within the tool.

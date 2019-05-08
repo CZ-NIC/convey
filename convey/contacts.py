@@ -4,7 +4,7 @@ import re
 from os.path import join
 from typing import Dict
 
-import lepl.apps.rfc3696
+from validate_email import validate_email
 
 from .config import Config, get_path
 from .mailDraft import MailDraft
@@ -60,7 +60,6 @@ class Attachment:
     def refresh_attachment_stats(cls, csv):
         attachments = csv.attachments
         st = csv.stats
-        email_validator = lepl.apps.rfc3696.Email()
         st["partner_count"] = [0, 0]
         st["abuse_count"] = [0, 0]
         st["non_deliverable"] = 0
@@ -70,7 +69,7 @@ class Attachment:
             if o.path in Contacts.csirtmails:
                 st["partner_count"][int(bool(o.sent))] += 1
                 o.partner = True
-            elif email_validator(o.path):
+            elif validate_email(o.path):
                 st["abuse_count"][int(bool(o.sent))] += 1
                 o.partner = False
             else:

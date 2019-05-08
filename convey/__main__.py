@@ -20,7 +20,7 @@ handlers = [fileHandler, consoleHandler]
 logging.basicConfig(level=logging.INFO, handlers=handlers)
 logger = logging.getLogger("convey")
 
-logging.getLogger("lepl").setLevel(logging.ERROR)  # suppress a superfluous info when using lepl e-mail validator
+# logging.getLogger("lepl").setLevel(logging.ERROR)  # suppress a superfluous info when using lepl e-mail validator
 
 if sys.version_info[0:2] < (3, 6):
     print("We need at least Python 3.6, your version is " + sys.version + ". Try an older Convey release or rather upgrade Python.")

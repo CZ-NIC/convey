@@ -11,7 +11,7 @@ from email.mime.text import MIMEText
 from email.utils import make_msgid, formatdate
 from socket import gaierror
 
-import lepl.apps.rfc3696
+from validate_email import validate_email
 
 from .config import Config
 
@@ -38,7 +38,6 @@ class MailSender(ABC):
 
             method - smtp OR otrs
         """
-        email_validator = lepl.apps.rfc3696.Email()
         # if method == "otrs" and not Config.get("otrs_enabled", "OTRS"):
         #    print("OTRS is the only implemented option of sending now. Error.")
         #    return False
@@ -68,7 +67,7 @@ class MailSender(ABC):
             else:
                 intended_to = None
 
-            if not email_validator(email_to):
+            if not validate_email(email_to):
                 logger.error("Erroneous e-mail: {}".format(email_to))
                 continue
 

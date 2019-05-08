@@ -2,7 +2,7 @@ netaddr
 jsonpickle
 ipdb
 pythondialog
-lepl
+validate_email
 tabulate
 appdirs
 humanize
