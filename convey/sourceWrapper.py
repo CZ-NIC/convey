@@ -56,13 +56,13 @@ class SourceWrapper:
             force_input = True
 
         if force_input:
-            stdin = [file_or_input] if file_or_input else read_stdin()
+            stdin = file_or_input.split("\n") if file_or_input else read_stdin()
         elif force_file:
             file = file_or_input if file_or_input else choose_file()
         elif file_or_input and os.path.isfile(file_or_input):
             file = file_or_input
         elif file_or_input:
-            stdin = [file_or_input]
+            stdin = file_or_input.split("\n")
         elif not sys.stdin.isatty():  # we're already receiving something through a pipe
             stdin = read_stdin()
         else:  # choosing the file or input text

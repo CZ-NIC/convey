@@ -5,15 +5,13 @@ import logging
 import ntpath
 import os
 import subprocess
-import sys
 import time
 from collections import defaultdict
 from os.path import join
-
-from math import ceil
 from shutil import move
 from typing import List
 
+from math import ceil
 from tabulate import tabulate
 
 from .config import Config
@@ -89,13 +87,13 @@ class SourceParser:
             self.dialect, self.has_header = self.guesses.guess_dialect(self.sample)
             if not is_yes(f"Delimiter character found: '{self.dialect.delimiter}'\nQuoting character: '{self.dialect.quotechar}'\nHeader is present: "+("yes" if self.has_header else "not used")+"\nCould you confirm this?"):
                 while True:
-                    sys.stdout.write("What is delimiter: ")
-                    self.dialect.delimiter = input()
+                    s = "What is delimiter " + (f"(default '{self.dialect.delimiter}')" if self.dialect.delimiter else "") + ": "
+                    self.dialect.delimiter = input(s) or self.dialect.delimiter
                     if len(self.dialect.delimiter) != 1:
                         print("Delimiter must be a 1-character string. Invent one (like ',').")
                         continue
-                    sys.stdout.write("What is quoting char: ")
-                    self.dialect.quotechar = input()
+                    s = "What is quoting char " + (f"(default '{self.dialect.quotechar}')" if self.dialect.quotechar else "") + ": "
+                    self.dialect.quotechar = input(s) or self.dialect.quotechar
                     break
                 self.dialect.quoting = csv.QUOTE_NONE if not self.dialect.quotechar else csv.QUOTE_MINIMAL
                 if not is_yes("Header " + ("" if self.has_header else "not found; ok?")):
@@ -207,12 +205,12 @@ class SourceParser:
         if self.dialect:
             class Wr:  # very ugly way to correctly get the output from csv.writer
                 def write(self, row):
-                    self.writed = row
+                    self.written = row
 
             wr = Wr()
             cw = csv.writer(wr, dialect=self.dialect)
             cw.writerow([self.fields[i] for i in self.settings["chosen_cols"]])
-            Config.header = wr.writed
+            Config.header = wr.written
         self._reset_output()
 
         self.time_start = None

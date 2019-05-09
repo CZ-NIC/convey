@@ -17,7 +17,7 @@ Python3.6+ required.
 
 ```bash
 $ convey my-file.csv # will trigger file parsing
-$ convey 1.1.1.1
+$ convey 1.1.1.1 # single value input
 Config file loaded from: /home/edvard/.config/convey/config.ini
 We think the inputted value can be: ip
 
