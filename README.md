@@ -108,6 +108,7 @@ We are able to auto-detect these columns:
 * **url** – URL starting with http/https
 * **asn** – AS Number
 * **base64** – text encoded with base64
+* **wrongURL** – URL that has been deactivated by replacing certain chars, ex: "hxxp://example[.]com"
            
 
 ### Custom field example

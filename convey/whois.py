@@ -143,7 +143,7 @@ class Whois:
         url = urlparse(url.strip())  # "foo.cz/bar" -> "foo.cz", "http://foo.cz/bar" -> "foo.cz"
         uri = url.hostname if url.scheme else url.path
         try:
-            return socket.gethostbyname(uri)  # returns 1 adress only, we dont want all of them
+            return socket.gethostbyname(uri)  # returns 1 address only, we do not want all of them
         except socket.gaierror as e:
             logger.warning("Socket gethostbyname error for URI {} .".format(uri))
             Config.error_catched()

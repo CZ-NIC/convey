@@ -43,21 +43,8 @@ def check_cidr(cidr):
         pass
 
 
-"""
-     guesses - ways to identify a column
-        {name: ([usual names], method to identify, description) }
-"""
-guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], check_ip, "valid IP address"),
-           "cidr": (["cidr"], check_cidr, "CIDR 127.0.0.1/32"),
-           "portIP": ([], reIpWithPort.match, "IP in the form 1.2.3.4.port"),
-           "anyIP": ([], reAnyIp.search, "IP in the form 'any text 1.2.3.4 any text'"),
-           "hostname": (["fqdn", "hostname", "domain"], reFqdn.match, "2nd or 3rd domain name"),
-           "url": (["url", "uri", "location"], reUrl.match, "URL starting with http/https"),
-           "asn": (["as", "asn", "asnumber"], lambda field: re.search('AS\d+', field) != None, "AS Number"),
-           "base64": (["base64"], lambda field: bool(b64decode(field)), "Text encoded with Base64"),  # Xbool(reBase64.search(field))
-           "plaintext": (["plaintext", "text"], lambda field: False, "Plain text")
-           }
-
+def wrong_url_2_url(s):
+    return s.replace("hxxp", "http", 1).replace("[.]", ".").replace("[:]", ":")
 
 def any_ip_2_ip(s):
     m = reAnyIp.search(s)
@@ -76,6 +63,25 @@ def b64decode(x):
         return base64.b64decode(x).decode("UTF-8").replace("\n", "\\n")
     except (UnicodeDecodeError, ValueError):
         return None
+    
+    
+"""
+     guesses - ways to identify a column
+        {name: ([usual names], method to identify, description) }
+"""
+guesses = {"ip": (["ip", "sourceipaddress", "ipaddress", "source"], check_ip, "valid IP address"),
+           "cidr": (["cidr"], check_cidr, "CIDR 127.0.0.1/32"),
+           "portIP": ([], reIpWithPort.match, "IP in the form 1.2.3.4.port"),
+           "anyIP": ([], reAnyIp.search, "IP in the form 'any text 1.2.3.4 any text'"),
+           "hostname": (["fqdn", "hostname", "domain"], reFqdn.match, "2nd or 3rd domain name"),
+           # input "example[.]com" would be admitted as a valid URL
+           "url": (["url", "uri", "location"], lambda s: reUrl.match(s) and "[.]" not in s, "URL starting with http/https"),
+           "asn": (["as", "asn", "asnumber"], lambda field: re.search('AS\d+', field) is not None, "AS Number"),
+           "base64": (["base64"], lambda field: bool(b64decode(field)), "Text encoded with Base64"),  # Xbool(reBase64.search(field))
+           "wrongURL": ([], lambda s: reUrl.match(wrong_url_2_url(s)), "Deactivated URL"),
+           "plaintext": (["plaintext", "text"], lambda field: False, "Plain text")
+           }
+
 
 class CsvGuesses:
 
@@ -211,7 +217,8 @@ class CsvGuesses:
                ("whois", "incident-contact"): lambda x: (x, x.get[2]),
                ("base64", "decoded_text"): b64decode,
                ("plaintext", "base64"): lambda x: base64.b64encode(x.encode("UTF-8")).decode("UTF-8"),
-               ("plaintext", "custom"): lambda x: x
+               ("plaintext", "custom"): lambda x: x,
+               ("wrongURL", "url"): wrong_url_2_url
                }
 
     @staticmethod
@@ -278,23 +285,24 @@ class CsvGuesses:
                 self.field_type[i, field][key] = score
                 # print("hits", hits)
 
-    def get_best_method(self, source_col_i, new_field):
-        """ return best suited method for given column """
+    def get_fitting_type(self, source_col_i, target_field):
+        """ Loops all types the field could be and return the type best suited method for compute new field. """
         _min = 999
-        method = None
+        fitting_type = None
         try:
             key = self.field_type[source_col_i, self.csv.fields[source_col_i]]
         except KeyError:  # dynamically added fields
             key = self.csv.fields[source_col_i]  # its name is directly given from self.methods
-        dijkstra = self.get_graph().dijkstra(new_field)
+        dijkstra = self.get_graph().dijkstra(target_field)  # get all fields that new_field is computable from
         for _type in key:
+            # loop all the types the field could be
             # a column may have multiple types (url, hostname), use the best
             if _type not in dijkstra:
                 continue
             i = dijkstra[_type]
             if i < _min:
-                _min, method = i, _type
-        return method
+                _min, fitting_type = i, _type
+        return fitting_type
 
 
 """

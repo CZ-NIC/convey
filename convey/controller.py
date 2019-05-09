@@ -245,8 +245,8 @@ class Controller:
                                    guesses=sorted(possible_cols, key=possible_cols.get, reverse=True))
 
         dialog = Dialog(autowidgetsize=True)
-        method = self.csv.guesses.get_best_method(source_col_i, new_field)
-        if method is None:
+        fitting_type = self.csv.guesses.get_fitting_type(source_col_i, new_field)
+        if fitting_type is None:
             # ask how should be treated the column as, even it seems not valid
             # list all known methods to compute the desired new_field (e.g. for incident-contact it is: ip, hostname, ...)
             choices = [(k, self.csv.guesses.get_description(k)) for k, _ in
@@ -256,11 +256,11 @@ class Controller:
             if len(choices) == 1 and choices[0][0] == "plaintext":
                 # if the only method is derivable from a plaintext, no worries that a method
                 # converting the column type to "plaintext" is not defined; everything's plaintext
-                method = "plaintext"
+                fitting_type = "plaintext"
             elif choices:
                 title = "Choose the right method\n\nNo known method for making {} from column {} because the column type wasn't identified. How should I treat the column?".format(
                     new_field, self.csv.fields[source_col_i])
-                code, method = dialog.menu(title, choices=choices)
+                code, fitting_type = dialog.menu(title, choices=choices)
                 if code == "cancel":
                     return
             else:
@@ -277,12 +277,12 @@ class Controller:
                 module = self.csv.guesses.get_module_from_path(path)
                 if module:
                     # inspect the .py file, extract methods and let the user choose one
-                    code, method = dialog.menu("What method should be used in the file {}?".format(path),
+                    code, fitting_type = dialog.menu("What method should be used in the file {}?".format(path),
                                                choices=[(x, "") for x in dir(module) if not x.startswith("_")])
                     if code == "cancel":
                         return
 
-                    custom = path, method
+                    custom = path, fitting_type
                     break
                 else:
                     dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
@@ -292,7 +292,7 @@ class Controller:
         #                   from an IP col at position 1,
         #                   by method whois because there is a path (("ip", "whois"), ("whois", "country")),
         #                   no custom method
-        self.csv.settings["add"].append((new_field, source_col_i, method, custom))
+        self.csv.settings["add"].append((new_field, source_col_i, fitting_type, custom))
         self.csv.fields.append(new_field)
 
         if add is None:

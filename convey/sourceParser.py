@@ -76,7 +76,7 @@ class SourceParser:
             first_line, self.sample = self.stdin[0], self.stdin[:7]
 
             # if that's a single cell, just print out some useful information and exit
-            if len(stdin) == 1 and len(stdin[0]) < 50 and "," not in stdin[0]:
+            if len(stdin) == 1 and "," not in stdin[0]:
                 if self.check_single_cell(stdin):
                     quit()
 
@@ -154,23 +154,22 @@ class SourceParser:
         # transform the field by all known means
         seen = set()
         rows = []
-        for _, type_ in self.guesses.methods.keys():
-            if type_ in seen:
+        for _, target_type in self.guesses.methods.keys():  # loop all existing methods
+            if target_type in seen:
                 continue
             else:
-                seen.add(type_)
-            solvable = self.guesses.get_best_method(0, type_)
-            # print(f"From:{_} To:{type_} Through: {solvable} ")
-            if solvable:
+                seen.add(target_type)
+            fitting_type = self.guesses.get_fitting_type(0, target_type)
+            #print(f"Target type:{target_type} Treat value as type: {fitting_type}")
+            if fitting_type:
                 val = stdin[0]
-                for l in self.guesses.get_methods_from(type_, solvable, None):
+                for l in self.guesses.get_methods_from(target_type, fitting_type, None):
                     val = l(val)
                 if type(val) is tuple and type(val[0]) is Whois:
                     val = val[1]
                 elif type(val) is Whois:  # we ignore this whois temp value
                     continue
-                rows.append((type_, "×" if val is None else val))
-                # print(f"{type_}: {val}")
+                rows.append((target_type, "×" if val is None else val))
         print("\n" + tabulate(rows, headers=("field", "value")))
         return True
 

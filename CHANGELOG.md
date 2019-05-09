@@ -20,6 +20,7 @@
 - varying number of columns exception check
 - when analyzing, show number of file descriptors currently being written
 - unmaintained library lepl replaced by validate_email
+- Wrong URL type
 
 ## 1.0.1 (2018-10-26)
 - dropped Python 3.5 support
