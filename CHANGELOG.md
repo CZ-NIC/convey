@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 1.1 (unreleased)
+## 1.1 (2019-05-13)
 - fix: do not reprocess file if moved to another location
 - fix: empty file check
 - fix: dialect ignored when generating a sample, whois inconstitency toughness
