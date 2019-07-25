@@ -35,7 +35,6 @@ class SourceParser:
     attachments: List[Attachment]
 
     def __init__(self, source_file=False, stdin=None):
-        print("Config file loaded from: {}".format(Config.path))
         self.is_formatted = False
         self.is_repeating = False
         self.dialect = None  # CSV dialect
@@ -55,6 +54,9 @@ class SourceParser:
         self.ip_count = None
         self.attachments = []  # files created if splitting
         self.invalid_lines_count = 0
+        self.line_count = 0
+        self.time_last = self.time_start = self.time_end = None
+        self.stdout = None  # when called from another program we communicate through this stream rather then through a file
         self._reset()
 
         # load CSV
@@ -244,11 +246,13 @@ class SourceParser:
             self.target_file = None
             self.is_split = True
 
-    def run_analysis(self):
-        """ Run main analysis of the file. """
+    def run_analysis(self, autoopen_editor=None):
+        """ Run main analysis of the file.
+        :type autoopen_editor: bool May shadow config file value "autoopen_editor"
+        """
         self._reset(hard=False)
 
-        if Config.getboolean("autoopen_editor"):
+        if (autoopen_editor or autoopen_editor is None) and Config.getboolean("autoopen_editor"):
             Contacts.mailDraft["local"].gui_edit()
             Contacts.mailDraft["foreign"].gui_edit()
 
@@ -262,7 +266,7 @@ class SourceParser:
         self.is_analyzed = True
 
         self.informer.sout_info()
-        print("Whois analysis COMPLETED.\n")
+        #print("Whois analysis COMPLETED.\n")
         if self.invalid_lines_count:
             self.resolve_invalid()
 

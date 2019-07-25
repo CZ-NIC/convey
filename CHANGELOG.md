@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.2 (unreleased)
+- flag --yes for skipping dialogues
+
 ## 1.1 (2019-05-13)
 - fix: do not reprocess file if moved to another location
 - fix: empty file check

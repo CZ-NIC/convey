@@ -2,7 +2,7 @@
 
 A tool for information conveying – CSV swiss knife brought by [CSIRT.cz](https://csirt.cz). Convenable way to process large files that might freeze your spreadsheet processor.
 
-It takes any CSV or text input (any delimiter, header or whatever) and perform one or more actions:
+* It takes any CSV or text input (any delimiter, header or whatever) and perform one or more actions:
 
 1) **Pick or delete columns** (if only some columns are needed)
 2) **Add a column** (computes one field from another – see below)
@@ -11,9 +11,13 @@ It takes any CSV or text input (any delimiter, header or whatever) and perform o
 5) **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
 6) **Change CSV dialect** (change delimiter or quoting character)
 
+* It serves well as a shorthand for long `with open("/file/path") as f:` statements while you are programming.  
+
 Python3.6+ required.
 
 ## Examples
+
+### Use it as a program
 
 ```bash
 $ convey my-file.csv # will trigger file parsing
@@ -37,6 +41,27 @@ $ convey
 Do you want to input text (otherwise you'll be asked to choose a file name)? [y/n]
 ...
 ```  
+
+
+### Use it in a program
+XXX dokaz, ze je to kratsi
+```python3
+
+# standard way
+from csv import reader
+with open("/file/path") as f:
+    for ip, host in reader(f):
+        print(ip, host)
+        
+# shorter way
+from convey import loop
+for ip, host in loop("/file/path"):
+    print(ip, host)
+        
+
+Xfor ip, host in loop([["1.2.3.4", "example.com"], ["1.2.3.5", "example.org"]]):
+    print(ip, host)
+```
 
 
 ## Installation and first run

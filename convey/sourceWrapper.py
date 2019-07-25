@@ -12,6 +12,7 @@ import jsonpickle
 
 from .config import Config
 from .dialogue import is_yes
+#from .informer import mute_info
 from .sourceParser import SourceParser
 
 __author__ = "Edvard Rejthar"

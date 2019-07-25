@@ -6,16 +6,27 @@ except ExecutableNotFound:
     print("\nError importing dialog library. Try installing: `sudo apt install dialog`.")
     quit()
 
+_yes = False
+
+
+def assume_yes():
+    global _yes
+    _yes = True
+
 
 # monkey patch Dialog class so that it skips the dialog in case there is a single value
 def skippable_menu(self, *args, skippable=True, **kwargs):
     """
+    :param self: Dialog
     :type skippable: bool If True and there is single option, the dialog returns 'Ok' without asking user.
     """
     if skippable and kwargs["choices"] and len(kwargs["choices"]) == 1:
         return "ok", kwargs["choices"][0][0]
     return self.menu(*args, **kwargs)
+
+
 Dialog.skippable_menu = skippable_menu
+
 
 class Cancelled(Exception):
     pass
@@ -99,10 +110,14 @@ def ask(text=None):
 
 
 def is_yes(text):
+    if _yes:
+        return True
     return ask(text=text + " [y]/n: ").lower() in ("y", "yes", "")
 
 
 def is_no(text):
+    if _yes:
+        return True
     return ask(text=text + " y/[n]: ").lower() in ("n", "no", "")
 
 

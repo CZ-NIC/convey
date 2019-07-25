@@ -3,13 +3,20 @@ import datetime
 import os
 import subprocess
 import sys
-from math import ceil
 from os.path import dirname, join
 
 import humanize
+from math import ceil
 from tabulate import tabulate
 
 from .config import Config
+
+# _mute = False
+
+
+# def mute_info():
+#     global _mute
+#     _mute = True
 
 
 class Informer:
@@ -19,6 +26,8 @@ class Informer:
         self.csv = csv
 
     def sout_info(self, clear=True, full=False):
+        # if _mute:
+        #     return
         """ Prints file information on the display. """
         if clear:
             sys.stderr.write("\x1b[2J\x1b[H")
@@ -88,7 +97,7 @@ class Informer:
             if self.csv.target_file is False:
                 print("\n** Processing completed, results were not saved to a file.")
             elif self.csv.target_file:
-                print(f"\n** Processing completed: Result file in {join(Config.get_cache_dir(),self.csv.target_file)}")
+                print(f"\n** Processing completed: Result file in {join(Config.get_cache_dir(), self.csv.target_file)}")
             else:
                 partner_count, abuse_count, non_deliverable, totals = map(self.csv.stats.get, (
                     'partner_count', 'abuse_count', 'non_deliverable', 'totals'))

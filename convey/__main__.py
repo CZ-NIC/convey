@@ -28,7 +28,7 @@ if sys.version_info[0:2] < (3, 6):
 
 
 def main():
-    print(__doc__)
+    #print(__doc__)
     try:
         Controller()
     except KeyboardInterrupt:

@@ -183,7 +183,8 @@ class CsvGuesses:
                         delimiter = dl
                         break
             dialect = csv.unix_dialect
-            dialect.delimiter = delimiter
+            if delimiter:
+                dialect.delimiter = delimiter
         if not dialect.escapechar:
             dialect.escapechar = '\\'
         # dialect.quoting = 3
@@ -235,7 +236,6 @@ class CsvGuesses:
         """
         self.field_type = {(i, k): {} for i, k in enumerate(self.csv.fields)}
         samples = [[] for _ in self.csv.fields]
-
         if len(self.csv.sample) == 1:  # we have too few values, we have to use them
             s = self.csv.sample[:1]
         else:  # we have many values and the first one could be header, let's omit it

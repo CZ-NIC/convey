@@ -65,7 +65,9 @@ class Processor:
                 settings["target_file"] = csv.target_file
             else:
                 source_stream = stdin
-                settings["target_file"] = True
+                settings["target_file"] = 1
+            if csv.stdout:
+                settings["target_file"] = 2
             # with open(file, "r") as sourceF:
             reader = csvreader(source_stream, dialect=csv.dialect)
             if csv.has_header:  # skip header
@@ -79,12 +81,12 @@ class Processor:
                     delta = (now - csv.time_last).total_seconds()
                     csv.time_last = now
                     if delta < 1 or delta > 2:
-                        newVel = ceil(csv.velocity / delta) + 1
-                        if abs(newVel - csv.velocity) > 100 and csv.velocity < newVel:
+                        new_vel = ceil(csv.velocity / delta) + 1
+                        if abs(new_vel - csv.velocity) > 100 and csv.velocity < new_vel:
                             # smaller accelerating of velocity (decelerating is alright)
                             csv.velocity += 100
                         else:
-                            csv.velocity = newVel
+                            csv.velocity = new_vel
                     csv.line_sout = csv.line_count + 1 + csv.velocity
                     csv.informer.sout_info()
                 try:
@@ -93,13 +95,9 @@ class Processor:
                     print("BdbQuit called")
                     raise
                 except KeyboardInterrupt:
-                    print("Keyboard interrupting")
-                    try:
-                        print(f"{csv.line_count} line number")
-                    except:
-                        pass
-                    o = ask(
-                        "Catched keyboard interrupt. Options: continue (default, do the line again), [s]kip the line, [d]ebug, [q]uit: ")
+                    print(f"Keyboard interrupting on line number: {csv.line_count}")
+                    o = ask("Keyboard interrupt caught. Options: continue (default, do the line again), "
+                            "[s]kip the line, [d]ebug, [q]uit: ")
                     if o == "d":
                         print(
                             "Maybe you should hit n multiple times because pdb takes you to the wrong scope.")  # I dont know why.
@@ -116,12 +114,13 @@ class Processor:
         finally:
             if file:
                 source_stream.close()
-            elif not self.csv.is_split:  # we have all data in a io.TextBuffer, not in a regular file
+            elif not self.csv.is_split and 1 in self.descriptors:  # we have all data in a io.TextBuffer, not in a regular file
                 print("\n\n** Completed! **\n")
-                result = self.descriptors[True][0].getvalue()
+                result = self.descriptors[1][0].getvalue()
                 print(result)
 
-                ignore = is_no("Save to an output file?") if Config.get("save_stdin_output") == "" else Config.getboolean("save_stdin_output") is False
+                ignore = is_no("Save to an output file?") if Config.get("save_stdin_output") == "" \
+                    else Config.getboolean("save_stdin_output") is False
                 if ignore:
                     # we didn't have a preference and replied "no" or we had a preference to not save the output
                     csv.target_file = False
@@ -213,7 +212,7 @@ class Processor:
             location = (fields[settings["split"]].replace("/", "-") if type(settings["split"]) == int else settings["target_file"])
         except Exception as e:
             if isinstance(e, BdbQuit):
-                raise  # BdbQuit and KeyboardInterrupt catched higher
+                raise  # BdbQuit and KeyboardInterrupt caught higher
             else:
                 if Config.is_debug():
                     traceback.print_exc()
@@ -243,11 +242,16 @@ class Processor:
                 del self.descriptorsStatsOpen[key]
                 self.descriptors_count -= 1
             # print("Opening", location)
-            if location is True:
-                t = io.StringIO()
+
+            if location is 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
+                t = w = csv.stdout    # custom object simulate CSVWriter - it adopts .writerow and .close methods
             else:
-                t = open(join(Config.get_cache_dir(), location), method)
-            self.descriptors[location] = t, csvwriter(t, dialect=settings["dialect"])
+                if location is 1:  # this is a sign we output csv data to stdout
+                    t = io.StringIO()
+                else:
+                    t = open(join(Config.get_cache_dir(), location), method)
+                w = csvwriter(t, dialect=settings["dialect"])
+            self.descriptors[location] = t, w
             self.descriptors_count += 1
         # print("Printing", location)
         self.descriptorsStatsAll[location] += 1

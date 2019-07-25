@@ -41,7 +41,6 @@ def get_path(file):
             return file
 
     if not exists or not path.exists(file):
-
         # create INI file at user config folder or at program directory
         program_path = path.abspath(path.dirname(sys.argv[0]))
         if input("It seems this is a first run, since file {} haven't been found."
@@ -69,6 +68,8 @@ class Config:
 
     config = configparser.ConfigParser()
     config.read(path)
+
+    #muted = False  # silence info text
 
     # Config file integrity check (we may upgrade Convey from but some new parameters needs to be added manually)
     default_config = configparser.ConfigParser()
@@ -104,9 +105,21 @@ class Config:
     UNKNOWN_NAME = "unknown"
     PROJECT_SITE = "https://github.com/CZ-NIC/convey/"
 
-    def init():
+    @staticmethod
+    def init(yes=False):  # , mute=False
+        # from .informer import mute_info
+        from .dialogue import assume_yes
+        if yes:
+            assume_yes()
+        # Config.muted = mute
+        # if mute:
+        #     mute_info()
+        #
+        # if not Config.muted:
+        print("Config file loaded from: {}".format(Config.path))
         if Config.is_debug():
-            logging.root.handlers[1].setLevel(logging.INFO)  # stream handler to debug level
+            if 1 in logging.root.handlers:
+                logging.root.handlers[1].setLevel(logging.INFO)  # stream handler to debug level
 
     def error_catched():
         if Config.is_debug():

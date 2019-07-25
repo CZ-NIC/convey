@@ -24,13 +24,15 @@ class Controller:
                                                              "In nothing is given, user will input data through stdin.")
         parser.add_argument('--debug', help="On error, enter an ipdb session", action="store_true")
         parser.add_argument('--fresh', help="Do not attempt to load any previous settings / results", action="store_true")
+        parser.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions.", action="store_true")
+        #parser.add_argument('-m', '--mute', help="Do not output information text.", action="store_true")
         parser.add_argument('-f', '--file', help="Treat <file_or_input> parameter as a file, never as an input",
                             action="store_true")
         parser.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
                             action="store_true")
-        flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
+        csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
                  ("otrs_token", "OTRS token")]
-        for flag in flags:
+        for flag in csv_flags:
             parser.add_argument('--' + flag[0], help=flag[1])
         parser.add_argument('--csirt-incident', action="store_true",
                             help=f"Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country"
@@ -40,13 +42,13 @@ class Controller:
         if args.debug:
             Config.set("debug", True)
 
-        Config.init()
+        Config.init(args.yes)  # , args.mute
         self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
         Contacts.init()
         csv = self.csv = self.wrapper.csv
 
         # load flags
-        for flag in flags:
+        for flag in csv_flags:
             if args.__dict__[flag[0]]:
                 csv.__dict__[flag[0]] = args.__dict__[flag[0]]
                 print("{}: {}".format(flag[1], flag[0]))
