@@ -7,6 +7,7 @@ import os
 import subprocess
 import time
 from collections import defaultdict
+from json import dumps
 from os.path import join
 from shutil import move
 from typing import List
@@ -34,15 +35,15 @@ class SourceParser:
     is_analyzed: bool
     attachments: List[Attachment]
 
-    def __init__(self, source_file=False, stdin=None):
+    def __init__(self, source_file=False, stdin=None, prepare=True):
         self.is_formatted = False
         self.is_repeating = False
         self.dialect = None  # CSV dialect
-        self.has_header = None  # CSV has hedialect.0ader
+        self.has_header = None  # CSV has header
         self.header = None  # if CSV has header, it's here
         self.sample = ""
         self.fields = []  # CSV columns
-        self.first_line_fields = []
+        self.first_line_fields = []  # XX what's the difference between self.fields and this? (I found we append to .fields)
         self.settings = defaultdict(list)
         self.redo_invalids = Config.getboolean("redo_invalids")
         self.otrs_cookie = False  # OTRS attributes to be linked to CSV
@@ -61,33 +62,41 @@ class SourceParser:
 
         # load CSV
         self.source_file = source_file
+        self.stdin = stdin
         self.target_file = None
         self.processor = Processor(self)
         self.informer = Informer(self)
         self.guesses = CsvGuesses(self)
-        if source_file:  # we're analysing a file on disk
-            self.size = os.path.getsize(source_file)
+
+        if self.source_file:  # we're analysing a file on disk
+            self.size = os.path.getsize(self.source_file)
+            self.lines_total = self.informer.source_file_len()
             self.stdin = None
-            first_line, self.sample = self.guesses.get_sample(source_file)
+            self.first_line, self.sample = self.guesses.get_sample(self.source_file)
         else:  # we're analysing an input text
-            self.stdin = stdin
-            self.size = len(self.stdin)
-            if self.size == 0:
-                print("Empty contents.")
-                quit()
-            first_line, self.sample = self.stdin[0], self.stdin[:7]
+            self.lines_total = self.size = len(self.stdin)
+            if self.size:
+                self.first_line, self.sample = self.stdin[0], self.stdin[:7]
 
-            # if that's a single cell, just print out some useful information and exit
-            if len(stdin) == 1 and "," not in stdin[0]:
-                if self.check_single_cell(stdin):
-                    quit()
+        if prepare:
+            self.prepare()
 
-        self.lines_total = self.informer.file_len(source_file)  # sum(1 for line in open(source_file))
+    def prepare(self):
+        if self.size == 0:
+            print("Empty contents.")
+            quit()
+
+        # if that's a single cell, just print out some useful information and exit
+        if self.stdin and len(self.stdin) == 1 and "," not in self.stdin[0] and self.check_single_cell():
+            quit()
+
         self.informer.sout_info()
         try:
             # Dialog to obtain basic information about CSV - delimiter, header
             self.dialect, self.has_header = self.guesses.guess_dialect(self.sample)
-            if not is_yes(f"Delimiter character found: '{self.dialect.delimiter}'\nQuoting character: '{self.dialect.quotechar}'\nHeader is present: "+("yes" if self.has_header else "not used")+"\nCould you confirm this?"):
+            if not is_yes(
+                    f"Delimiter character found: '{self.dialect.delimiter}'\nQuoting character: '{self.dialect.quotechar}'\nHeader is present: " + (
+                    "yes" if self.has_header else "not used") + "\nCould you confirm this?"):
                 while True:
                     s = "What is delimiter " + (f"(default '{self.dialect.delimiter}')" if self.dialect.delimiter else "") + ": "
                     self.dialect.delimiter = input(s) or self.dialect.delimiter
@@ -100,7 +109,7 @@ class SourceParser:
                 self.dialect.quoting = csv.QUOTE_NONE if not self.dialect.quotechar else csv.QUOTE_MINIMAL
                 if not is_yes("Header " + ("" if self.has_header else "not found; ok?")):
                     self.has_header = not self.has_header
-            self.first_line_fields = csv.reader([first_line], dialect=self.dialect).__next__()
+            self.first_line_fields = csv.reader([self.first_line], dialect=self.dialect).__next__()
             if self.has_header:
                 self.header = self.first_line_fields
             self.reset_settings()
@@ -135,11 +144,11 @@ class SourceParser:
             fields.append((field, s))
         return fields
 
-    def check_single_cell(self, stdin):
+    def check_single_cell(self):
         """ Check if we are parsing a single cell and print out some meaningful details."""
 
         # init some basic parameters
-        self.fields = self.first_line_fields = stdin
+        self.fields = self.first_line_fields = self.stdin
         self.dialect = csv.unix_dialect
         self.has_header = False
         self.guesses.identify_cols()
@@ -156,15 +165,16 @@ class SourceParser:
         # transform the field by all known means
         seen = set()
         rows = []
+        json = {}
         for _, target_type in self.guesses.methods.keys():  # loop all existing methods
             if target_type in seen:
                 continue
             else:
                 seen.add(target_type)
             fitting_type = self.guesses.get_fitting_type(0, target_type)
-            #print(f"Target type:{target_type} Treat value as type: {fitting_type}")
+            # print(f"Target type:{target_type} Treat value as type: {fitting_type}")
             if fitting_type:
-                val = stdin[0]
+                val = self.stdin[0]
                 for l in self.guesses.get_methods_from(target_type, fitting_type, None):
                     val = l(val)
                 if type(val) is tuple and type(val[0]) is Whois:
@@ -172,8 +182,11 @@ class SourceParser:
                 elif type(val) is Whois:  # we ignore this whois temp value
                     continue
                 rows.append((target_type, "×" if val is None else val))
+                json[target_type] = val
         print("\n" + tabulate(rows, headers=("field", "value")))
-        return True
+        if "csirt-contact" in json and json["csirt-contact"] == "-":
+            json["csirt-contact"] = ""  # empty value instead of a dash, stored in CsvGuesses-method-("whois", "csirt-contact")
+        return dumps(json)
 
     def reset_whois(self, hard=True, assure_init=False):
         """
@@ -258,7 +271,7 @@ class SourceParser:
 
         self.time_start = self.time_last = datetime.datetime.now().replace(microsecond=0)
         Contacts.init()
-        #Config.update()
+        # Config.update()
         self._set_target_file()
         self.processor.process_file(self.source_file, rewrite=True, stdin=self.stdin)
         self.time_end = datetime.datetime.now().replace(microsecond=0)
@@ -266,7 +279,7 @@ class SourceParser:
         self.is_analyzed = True
 
         self.informer.sout_info()
-        #print("Whois analysis COMPLETED.\n")
+        # print("Whois analysis COMPLETED.\n")
         if self.invalid_lines_count:
             self.resolve_invalid()
 
@@ -274,8 +287,6 @@ class SourceParser:
             self.resolve_unknown()
 
         self.line_count = 0
-
-
 
     def _guess_ip_count(self):
         """ Determine how many IPs there are in the file.
@@ -386,7 +397,7 @@ class SourceParser:
                 s = "No invalid row resolved."
             else:
                 s = ("Only {}/{} invalid rows were resolved.".format(solved, invalids))
-            print("\n"+s)
+            print("\n" + s)
             self.resolve_invalid()
 
     def __getstate__(self):

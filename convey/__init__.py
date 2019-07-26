@@ -1,4 +1,4 @@
-# EXPERIMENTAL USAGE XX
+# EXPERIMENTAL USAGE XX - this file is not yet documented and probably will be removed
 #
 #
 #

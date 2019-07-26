@@ -28,17 +28,18 @@ def get_path(file):
     else:
         exists = False
 
-    while not path.exists(file):
-        i = input(f"File on the path {file} may be a broken symlink. "
-                  f"Mount it and press any key / 'q' for program exit / 'c' for recreating files / 'i' temporarily ignore: ")
-        if i == "q":
-            print("Exiting.")
-            exit()
-        elif i == "c":
-            exists = False
-            break
-        elif i == 'i':
-            return file
+    if exists:
+        while not path.exists(file):
+            i = input(f"File on the path {file} may be a broken symlink. "
+                      f"Mount it and press any key / 'q' for program exit / 'c' for recreating files / 'i' temporarily ignore: ")
+            if i == "q":
+                print("Exiting.")
+                exit()
+            elif i == "c":
+                exists = False
+                break
+            elif i == 'i':
+                return file
 
     if not exists or not path.exists(file):
         # create INI file at user config folder or at program directory

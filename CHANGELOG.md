@@ -1,6 +1,8 @@
 # CHANGELOG
 
 ## 1.2 (unreleased)
+- fix: new installation should now correctly place contacts files in .config
+- web service
 - flag --yes for skipping dialogues
 
 ## 1.1 (2019-05-13)

@@ -206,13 +206,12 @@ class Informer:
 
         return res
 
-    def file_len(self, path):
-        """ When file is reasonably small (100 MB), count the lines by `wc -l`. Otherwise, guess a value.
-            If we are using stdin instead of a file, determine the value by enlist all the lines. """
-        if not self.csv.source_file:
-            return len(self.csv.stdin)
-        elif self.csv.size < 100 * 10 ** 6:
-            p = subprocess.Popen(['wc', '-l', path], stdout=subprocess.PIPE,
+    def source_file_len(self):
+        """ When a source file is reasonably small (100 MB), count the lines by `wc -l`. Otherwise, guess a value.
+            XIf we are using stdin instead of a file, determine the value by enlist all the lines.
+        """
+        if self.csv.size < 100 * 10 ** 6:
+            p = subprocess.Popen(['wc', '-l', self.csv.source_file], stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
             result, err = p.communicate()
             if p.returncode != 0:

@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 import sys
 
-from .controller import Controller
 
 __doc__ = """Convey – CSV swiss knife brought by CSIRT.cz"""
 __author__ = "Edvard Rejthar, CSIRT.CZ"
@@ -30,6 +29,7 @@ if sys.version_info[0:2] < (3, 6):
 def main():
     #print(__doc__)
     try:
+        from .controller import Controller
         Controller()
     except KeyboardInterrupt:
         print("Interrupted")
@@ -50,5 +50,31 @@ def main():
         mod.post_mortem(tb)
 
 
+def application(env, start_response):
+    """ WSGI launcher. You may expose installed convey as a web service.
+        Launch: uwsgi --http :9090 --wsgi-file wsgi.py
+        Access: http://localhost:9090/?get=1.2.3.4
+    """
+    from convey.config import Config
+    from convey.sourceParser import SourceParser
+    Config.init()
+
+    headers = [('Access-Control-Allow-Origin', '*')]
+    t = env["QUERY_STRING"].split("get=")  # XX sanitize?
+    if len(t) == 2:
+        response = SourceParser(stdin=[t[1]], prepare=False).check_single_cell()
+        headers.append(('Content-Type', 'application/json'))
+        status = '200 OK'
+    else:
+        status = '400 Bad Request'
+        response = '{"error": "invalid input"}'
+    start_response(status, headers)
+
+    # start_response('200 OK', [('Content-Type', 'text/html')])
+    # return [b"Hello World" + bytes(repr(aa), "UTF-8")]
+    return [bytes(response, "UTF-8")]
+
+
 if __name__ == "__main__":
+    print("*************")
     main()

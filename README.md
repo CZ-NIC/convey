@@ -11,14 +11,12 @@ A tool for information conveying – CSV swiss knife brought by [CSIRT.cz](https
 5) **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
 6) **Change CSV dialect** (change delimiter or quoting character)
 
-* It serves well as a shorthand for long `with open("/file/path") as f:` statements while you are programming.  
-
 Python3.6+ required.
 
 ## Examples
 
 ### Use it as a program
-
+Parses CSV file or returns table with WHOIS-related information.
 ```bash
 $ convey my-file.csv # will trigger file parsing
 $ convey 1.1.1.1 # single value input
@@ -42,27 +40,19 @@ Do you want to input text (otherwise you'll be asked to choose a file name)? [y/
 ...
 ```  
 
+### Use it as a web service
+Returns JSON with WHOIS-related information.
+```bash
+# install convey and check where it is installed
+$ pip3 show convey
+Location: /home/$USER/.local/lib/python3.7/site-packages
+# launch __main__.py with uwsgi
+$ uwsgi --http :26683 --wsgi-file /home/$USER/.local/lib/python3.7/site-packages/convey/__main__.py
 
-### Use it in a program
-XXX dokaz, ze je to kratsi
-```python3
+# Access: http://localhost:26683/?get=example.com
+# {'ip': '93.184.216.34', 'prefix': '93.184.216.0-93.184.216.255', 'asn': '', 'abusemail': 'abuse@verizondigitalmedia.com', 'country': 'unknown', 'netname': 'edgecast-netblk-03', 'csirt-contact': '-', 'incident-contact': 'unknown'}
 
-# standard way
-from csv import reader
-with open("/file/path") as f:
-    for ip, host in reader(f):
-        print(ip, host)
-        
-# shorter way
-from convey import loop
-for ip, host in loop("/file/path"):
-    print(ip, host)
-        
-
-Xfor ip, host in loop([["1.2.3.4", "example.com"], ["1.2.3.5", "example.org"]]):
-    print(ip, host)
 ```
-
 
 ## Installation and first run
 
