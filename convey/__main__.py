@@ -45,7 +45,7 @@ def main():
                 import ipdb as mod
             except ImportError:
                 import pdb as mod
-        type, value, tb = sys.exc_info()
+        type_, value, tb = sys.exc_info()
         traceback.print_exc()
         mod.post_mortem(tb)
 

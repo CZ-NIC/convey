@@ -147,7 +147,7 @@ class Informer:
                 rows = []
                 for prefix, o in self.csv.ranges.items():
                     prefix, location, incident, asn, netname, country, abusemail = o
-                    rows.append((prefix, location, incident, asn or "-", netname or "-"))
+                    rows.append((prefix, location, incident or "-", asn or "-", netname or "-"))
                 print("\n\n** Whois information overview **\n",
                       tabulate(rows, headers=("prefix", "location", "contact", "asn", "netname")))
             else:

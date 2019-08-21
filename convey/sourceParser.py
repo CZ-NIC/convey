@@ -94,9 +94,29 @@ class SourceParser:
         try:
             # Dialog to obtain basic information about CSV - delimiter, header
             self.dialect, self.has_header = self.guesses.guess_dialect(self.sample)
-            if not is_yes(
-                    f"Delimiter character found: '{self.dialect.delimiter}'\nQuoting character: '{self.dialect.quotechar}'\nHeader is present: " + (
-                    "yes" if self.has_header else "not used") + "\nCould you confirm this?"):
+            uncertain = False
+
+            if Config.get("delimiter"):
+                self.dialect.delimiter = Config.get("delimiter")
+                print(f"Delimiter character set: '{self.dialect.delimiter}'\n", end="")
+            else:
+                uncertain = True
+                print(f"Delimiter character found: '{self.dialect.delimiter}'\n", end="")
+
+            if Config.get("quote_char"):
+                self.dialect.quotechar = Config.get("quote_char")
+                print(f"Quoting character set: '{self.dialect.quotechar}'\n", end="")
+            else:
+                uncertain = True
+                print(f"Quoting character: '{self.dialect.quotechar}'\n", end="")
+
+            if Config.get("header") not in [None, '']:
+                self.has_header = Config.getboolean("header")
+            else:
+                uncertain = True
+                print(f"Header is present: " + ("yes" if self.has_header else "not used"))
+
+            if uncertain and not is_yes("\nCould you confirm this?"):
                 while True:
                     s = "What is delimiter " + (f"(default '{self.dialect.delimiter}')" if self.dialect.delimiter else "") + ": "
                     self.dialect.delimiter = input(s) or self.dialect.delimiter

@@ -82,21 +82,21 @@ class Whois:
         """
         :return: prefix, "local"|"foreign", incident-contact ( = abuse-mail|country), asn, netname, country, abuse-mail
         """
-        country = self._loadCountry()
+        country = self._load_country()
         # print("country loaded {}".format(self.country))
-        prefix = self._loadPrefix()
+        prefix = self._load_prefix()
         # print("prefix loaded {}".format(self.prefix))
         if country not in Config.get("local_country"):
-            return prefix, "foreign", country, self.asn, self.netname, country, self.getAbusemail()
+            return prefix, "foreign", country, self.asn, self.netname, country, self.get_abusemail()
         else:
             # print("Abusemail: ")
             # print("abusemail loaded {}".format(self.abusemail))
             if Whois.unknown_mode:
-                self.resolveUnknownMail()
-            ab = self.getAbusemail()
+                self.resolve_unknown_mail()
+            ab = self.get_abusemail()
             return prefix, "local", ab, self.asn, self.netname, country, ab
 
-    def resolveUnknownMail(self):
+    def resolve_unknown_mail(self):
         """ Forces to load abusemail for an IP.
         We try first omit -r flag and then add -B flag.
 
@@ -105,13 +105,13 @@ class Whois:
 
         """
         self._exec(server="ripe (no -r)", server_url="whois.ripe.net")  # no -r flag
-        self.getAbusemail(True)
+        self.get_abusemail(True)
         if self.abusemail == Config.UNKNOWN_NAME:
             self._exec(server="ripe (-B flag)", server_url="whois.ripe.net -B")  # with -B flag
-            self.getAbusemail(True)
+            self.get_abusemail(True)
         return self.abusemail
 
-    def _loadPrefix(self):
+    def _load_prefix(self):
         """ Loads prefix from last whois response. """
         for grep, pattern in [('% abuse contact for.*', r"for '([^']*)'"),
                               ('% information related to.*', r"information related to '([^']*)'"),
@@ -145,8 +145,9 @@ class Whois:
         try:
             return socket.gethostbyname(uri)  # returns 1 address only, we do not want all of them
         except socket.gaierror as e:
-            logger.warning("Socket gethostbyname error for URI {} .".format(uri))
-            Config.error_catched()
+            #logger.warning("Socket gethostbyname error for URI {} .".format(uri))
+            #Config.error_catched()
+            return None
         # if we wanted all of the IPs:
         # recs = socket.getaddrinfo(uri, 0, 0, 0, socket.IPPROTO_TCP)
         # result = []
@@ -188,7 +189,7 @@ class Whois:
         #             return line
         # return ""  # no grep result found
 
-    def _loadCountry(self):
+    def _load_country(self):
         country = ""
 
         for server in list(self.servers):
@@ -232,25 +233,25 @@ class Whois:
                 #    self.country = self.country.split("#")[0].strip(" ")
                 break
 
-        if not country:
-            country = Config.UNKNOWN_NAME
+        #if not country:
+        #    country = Config.UNKNOWN_NAME
         return country
 
     reAbuse = re.compile('[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}')
 
-    def getAbusemail(self, forceload=False):
+    def get_abusemail(self, force_load=False):
         """ Loads abusemail from last whois response OR from whois json api. """
-        if hasattr(self, "abusemail") and not forceload:
+        if hasattr(self, "abusemail") and not force_load:
             return self.abusemail
         self.abusemail = ""
-        for grep in [('% abuse contact for.*'), ('orgabuseemail.*'), ('abuse-mailbox.*')]:
+        for grep in ['% abuse contact for.*', 'orgabuseemail.*', 'abuse-mailbox.*']:
             match = self.reAbuse.search(self._match_response(grep))
             # the last whois query was the most successful, it fetched country so that it may have abusemail inside as well
             if match:
                 self.abusemail = match.group(0)
 
-        if not self.abusemail:
-            self.abusemail = Config.UNKNOWN_NAME
+        #if not self.abusemail:
+        #    self.abusemail = Config.UNKNOWN_NAME
         return self.abusemail
 
     def _exec(self, server, server_url=None):
@@ -262,10 +263,12 @@ class Whois:
                 server_url = Whois.servers[server]
             cmd = ["whois", "-h", server_url, "--", self.ip]
         Whois.stats[server] += 1
-        p = Popen(cmd, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         try:
+            p = Popen(cmd, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE)
             self.whoisResponse = p.stdout.read().decode("unicode_escape").strip().lower()  # .replace("\n", " ")
             self.whoisResponse += p.stderr.read().decode("unicode_escape").strip().lower()
         except UnicodeDecodeError:  # ip address 94.230.155.109 had this string 'Jan Krivsky Hl\xc3\x83\x83\xc3\x82\xc2\xa1dkov' and everything failed
             self.whoisResponse = ""
             logger.warning("Whois response for IP {} on server {} cannot be parsed.".format(self.ip, server))
+        except TypeError:  # could not resolve host
+            self.whoisResponse = ""

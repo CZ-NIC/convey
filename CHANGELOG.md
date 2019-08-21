@@ -4,11 +4,16 @@
 - fix: new installation should now correctly place contacts files in .config
 - web service
 - flag --yes for skipping dialogues
+- Whois module won't throw error if host can't be resolved
+- opens config file when a flag is not defined
+- new delimiter flag
+- new quote_char flag
+- new header / no-header flags
 
 ## 1.1 (2019-05-13)
 - fix: do not reprocess file if moved to another location
 - fix: empty file check
-- fix: dialect ignored when generating a sample, whois inconstitency toughness
+- fix: dialect ignored when generating a sample, whois inconsistency toughness
 - fix: when config file is a symlink and is broken, do not confuse user with creating a new set of config file I.E. in .local/bin. Instead, demand mounting the symlink (or exit or recreate files).
 - fix: whois fetching asn + netname again
 - '/' is forbidden char in linux file names, when splitting by IP prefix, the char is replaced with a dash

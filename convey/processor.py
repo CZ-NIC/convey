@@ -191,7 +191,7 @@ class Processor:
                 csv.stats["ipsUnique"].add(whois.ip)
                 mail = whois.get[2]
                 if whois.get[1] == "local":
-                    if mail == "unknown":
+                    if not mail:
                         chosen_fields = line  # reset to the original line (will be reprocessed)
                         csv.stats["ipsCzMissing"].add(whois.ip)
                         csv.stats["czUnknownPrefixes"].add(whois.get[0])
@@ -209,7 +209,8 @@ class Processor:
                 # XX invalidLines if raised an exception
 
             # split ('/' is a forbidden char in linux file names)
-            location = (fields[settings["split"]].replace("/", "-") if type(settings["split"]) == int else settings["target_file"])
+            location = (fields[settings["split"]].replace("/", "-") or Config.UNKNOWN_NAME if type(settings["split"]) == int
+                        else settings["target_file"])
         except Exception as e:
             if isinstance(e, BdbQuit):
                 raise  # BdbQuit and KeyboardInterrupt caught higher
@@ -244,7 +245,7 @@ class Processor:
             # print("Opening", location)
 
             if location is 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
-                t = w = csv.stdout    # custom object simulate CSVWriter - it adopts .writerow and .close methods
+                t = w = csv.stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
             else:
                 if location is 1:  # this is a sign we output csv data to stdout
                     t = io.StringIO()

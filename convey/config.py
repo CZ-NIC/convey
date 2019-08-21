@@ -6,6 +6,7 @@ import sys
 from os import path, getcwd, makedirs
 from os.path import join
 from shutil import copy
+from subprocess import Popen
 
 from appdirs import user_config_dir
 
@@ -93,7 +94,8 @@ class Config:
             if key not in default_config[section]:
                 print(f"Config has an unused key {key} in section: {section}")
     if not passed:
-        print("Please write missing items in config file before continuing.")
+        print("Please write missing items into the config file before continuing.\nOpening", path,"...")
+        p = Popen(["xdg-open", path], shell=False)
         quit()
 
     # set by SourceParser and used by Registry

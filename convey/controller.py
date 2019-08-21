@@ -19,7 +19,7 @@ from .sourceWrapper import SourceWrapper
 class Controller:
 
     def __init__(self):
-        parser = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser(epilog="To launch a web service see README.md.")
         parser.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
                                                              "In nothing is given, user will input data through stdin.")
         parser.add_argument('--debug', help="On error, enter an ipdb session", action="store_true")
@@ -30,6 +30,10 @@ class Controller:
                             action="store_true")
         parser.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
                             action="store_true")
+        parser.add_argument('--delimiter', help="Force delimiter")
+        parser.add_argument('--quote-char', help="Force quoting character")
+        parser.add_argument('--header', help="Treat file as having header", action="store_true")
+        parser.add_argument('--no-header', help="Treat file as not having header", action="store_true")
         csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
                  ("otrs_token", "OTRS token")]
         for flag in csv_flags:
@@ -41,6 +45,14 @@ class Controller:
         self.args = args = parser.parse_args()
         if args.debug:
             Config.set("debug", True)
+        if args.delimiter:
+            Config.set("delimiter", args.delimiter)
+        if args.quote_char:
+            Config.set("quote_char", args.quote_char)
+        if args.header:
+            Config.set("header", True)
+        if args.no_header:
+            Config.set("header", False)
 
         Config.init(args.yes)  # , args.mute
         self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
