@@ -46,6 +46,7 @@ def check_cidr(cidr):
 def wrong_url_2_url(s):
     return s.replace("hxxp", "http", 1).replace("[.]", ".").replace("[:]", ":")
 
+
 def any_ip_2_ip(s):
     m = reAnyIp.search(s)
     if m:

@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 import re
 import socket
@@ -34,7 +35,7 @@ class Whois:
         """
          self.get stores tuple: prefix, location, mail, asn, netname, country
         """
-        self.ip = ip
+        self.ip = self.q = ip
         if not Whois.unknown_mode:
             if self.ip in self.ip_seen:  # ip has been seen in the past
                 prefix = self.ip_seen[self.ip]
@@ -145,8 +146,8 @@ class Whois:
         try:
             return socket.gethostbyname(uri)  # returns 1 address only, we do not want all of them
         except socket.gaierror as e:
-            #logger.warning("Socket gethostbyname error for URI {} .".format(uri))
-            #Config.error_catched()
+            # logger.warning("Socket gethostbyname error for URI {} .".format(uri))
+            # Config.error_catched()
             return None
         # if we wanted all of the IPs:
         # recs = socket.getaddrinfo(uri, 0, 0, 0, socket.IPPROTO_TCP)
@@ -155,11 +156,11 @@ class Whois:
         #    result.append(ip[4][0])
         # return result
 
-    def _match_response(self, pattern, lastWord=False, takeNth=None, group=0):
+    def _match_response(self, pattern, last_word=False, take_nth=None, group=0):
         """
         :param pattern: pattern string Xcompiled regular expression
-        :param lastWord: returns only the last word of whole matched expression Xgrepped line
-        :param takeNth: if available, return n-th result instead of the first available
+        :param last_word: returns only the last word of whole matched expression Xgrepped line
+        :param take_nth: if available, return n-th result instead of the first available
             I.E. `whois 131.72.138.234 | grep ountr` returns three countries: UY, CL, CL.
             ARIN registry informs us that this IP is a LACNIC resource and prints out LACNIC address in UY.
             However, CL is the country the IP is hosted in.
@@ -169,11 +170,11 @@ class Whois:
         match = None
         # it = re.finditer(pattern, self.whoisResponse) if type(pattern) is str else pattern(self.whoisResponse)
         for i, match in enumerate(re.finditer(pattern, self.whoisResponse)):
-            if not takeNth or i + 1 == takeNth:
+            if not take_nth or i + 1 == take_nth:
                 break
 
         if match:
-            if lastWord:  # returns only last word
+            if last_word:  # returns only last word
                 return re.search('[^\s]*$', match[0]).group(0)
             else:
                 return match[group]
@@ -191,22 +192,42 @@ class Whois:
 
     def _load_country(self):
         country = ""
+        tried_cidr_to_ip = False
 
         for server in list(self.servers):
             self._exec(server=server)
-            country = self._match_response('[c,C]ountry(.*)', lastWord=True, takeNth=2)
-            self.asn = self._match_response('\n[o,O]rigin(.*)', lastWord=True)
-            self.netname = self._match_response('\n[n,N]etname(.*)', lastWord=True)
+            while True:
+                country = self._match_response('country(.*)', last_word=True, take_nth=2)
+                if not country and server == "general":
+                    if self._match_response("no match found for n +"):
+                        # whois 141.138.197.0/24 ends with this phrase and does not try RIPE which works
+                        self._exec(server="ripe", server_url="whois.ripe.net")
+                        continue
+                    if self._match_response("invalid search key") and not tried_cidr_to_ip:
+                        # when asking for a CIDR that is non-valid network because of having host bits set, we ask for IP
+                        # ex: CIDR 141.138.197.1/24 (network would be 141.138.197.0/24), we ask for IP 141.138.197.1
+                        tried_cidr_to_ip = True
+                        try:
+                            self.q = str(ipaddress.ip_interface(self.ip).ip)
+                            self._exec(server=server)
+                            continue
+                        except:
+                            pass
+                break
             if not country:
                 fail = None
-                if self._match_response("network is unreachable") or (
-                        self._match_response("name or service not known") and len(self.whoisResponse) < 150):
+                if self._match_response("network is unreachable") or (self._match_response("name or service not known")
+                                                                      and len(self.whoisResponse) < 150):
                     fail = "Whois server {} is unreachable. Disabling for this session.".format(self.servers[server])
                 if self._match_response("access denied"):
                     fail = "Whois server {} access denied. Disabling for this session.".format(self.servers[server])
                 if fail:
                     logger.warning(fail)
                     Whois.servers.pop(server)
+
+            self.asn = self._match_response('\norigin(.*)\d+', last_word=True)
+            self.netname = self._match_response('\nnetname(.*)', last_word=True)
+
             if country:
                 # sanitize whois confusion
                 if ":" in country:
@@ -233,7 +254,7 @@ class Whois:
                 #    self.country = self.country.split("#")[0].strip(" ")
                 break
 
-        #if not country:
+        # if not country:
         #    country = Config.UNKNOWN_NAME
         return country
 
@@ -250,18 +271,18 @@ class Whois:
             if match:
                 self.abusemail = match.group(0)
 
-        #if not self.abusemail:
+        # if not self.abusemail:
         #    self.abusemail = Config.UNKNOWN_NAME
         return self.abusemail
 
     def _exec(self, server, server_url=None):
         """ Query whois server """
         if server is "general":
-            cmd = ["whois", self.ip]
+            cmd = ["whois", self.q]
         else:
             if not server_url:
                 server_url = Whois.servers[server]
-            cmd = ["whois", "-h", server_url, "--", self.ip]
+            cmd = ["whois", "-h", server_url, "--", self.q]
         Whois.stats[server] += 1
         try:
             p = Popen(cmd, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE)

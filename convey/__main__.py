@@ -53,14 +53,14 @@ def main():
 def application(env, start_response):
     """ WSGI launcher. You may expose installed convey as a web service.
         Launch: uwsgi --http :9090 --wsgi-file wsgi.py
-        Access: http://localhost:9090/?get=1.2.3.4
+        Access: http://localhost:9090/?q=1.2.3.4
     """
     from convey.config import Config
     from convey.sourceParser import SourceParser
     Config.init()
 
     headers = [('Access-Control-Allow-Origin', '*')]
-    t = env["QUERY_STRING"].split("get=")  # XX sanitize?
+    t = env["QUERY_STRING"].split("q=")  # XX sanitize?
     if len(t) == 2:
         response = SourceParser(stdin=[t[1]], prepare=False).check_single_cell()
         headers.append(('Content-Type', 'application/json'))
