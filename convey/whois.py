@@ -35,7 +35,7 @@ class Whois:
         """
          self.get stores tuple: prefix, location, mail, asn, netname, country
         """
-        self.ip = self.q = ip
+        self.ip = ip
         if not Whois.unknown_mode:
             if self.ip in self.ip_seen:  # ip has been seen in the past
                 prefix = self.ip_seen[self.ip]
@@ -203,16 +203,17 @@ class Whois:
                         # whois 141.138.197.0/24 ends with this phrase and does not try RIPE which works
                         self._exec(server="ripe", server_url="whois.ripe.net")
                         continue
-                    if self._match_response("invalid search key") and not tried_cidr_to_ip:
-                        # when asking for a CIDR that is non-valid network because of having host bits set, we ask for IP
-                        # ex: CIDR 141.138.197.1/24 (network would be 141.138.197.0/24), we ask for IP 141.138.197.1
-                        tried_cidr_to_ip = True
-                        try:
-                            self.q = str(ipaddress.ip_interface(self.ip).ip)
-                            self._exec(server=server)
-                            continue
-                        except:
-                            pass
+                    # CIDR is not disallowed with the use of Whois - CSV guesses translates it to an IP first
+                    # if self._match_response("invalid search key") and not tried_cidr_to_ip:
+                    #     # when asking for a CIDR that is non-valid network because of having host bits set, we ask for IP
+                    #     # ex: CIDR 141.138.197.1/24 (network would be 141.138.197.0/24), we ask for IP 141.138.197.1
+                    #     tried_cidr_to_ip = True
+                    #     try:
+                    #         self.q = str(ipaddress.ip_interface(self.ip).ip)
+                    #         self._exec(server=server)
+                    #         continue
+                    #     except:
+                    #         pass
                 break
             if not country:
                 fail = None
@@ -278,11 +279,11 @@ class Whois:
     def _exec(self, server, server_url=None):
         """ Query whois server """
         if server is "general":
-            cmd = ["whois", self.q]
+            cmd = ["whois", self.ip]
         else:
             if not server_url:
                 server_url = Whois.servers[server]
-            cmd = ["whois", "-h", server_url, "--", self.q]
+            cmd = ["whois", "-h", server_url, "--", self.ip]
         Whois.stats[server] += 1
         try:
             p = Popen(cmd, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE)

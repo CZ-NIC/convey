@@ -62,7 +62,7 @@ class SourceParser:
 
         # load CSV
         self.source_file = source_file
-        self.stdin = stdin
+        self.stdin = None
         self.target_file = None
         self.processor = Processor(self)
         self.informer = Informer(self)
@@ -71,15 +71,17 @@ class SourceParser:
         if self.source_file:  # we're analysing a file on disk
             self.size = os.path.getsize(self.source_file)
             self.lines_total = self.informer.source_file_len()
-            self.stdin = None
+            None
             self.first_line, self.sample = self.guesses.get_sample(self.source_file)
-        else:  # we're analysing an input text
-            self.lines_total = self.size = len(self.stdin)
-            if self.size:
-                self.first_line, self.sample = self.stdin[0], self.stdin[:7]
+        elif stdin:  # we're analysing an input text
+            self.set_stdin(stdin)
 
         if prepare:
             self.prepare()
+        else:
+            # I think contacts gets initialized when an analysis is run
+            # – if we're having a stdin, lets init it immediately and once (no re-init when run as a webservice)
+            Contacts.init()
 
     def prepare(self):
         if self.size == 0:
@@ -164,6 +166,13 @@ class SourceParser:
             fields.append((field, s))
         return fields
 
+    def set_stdin(self, stdin):
+        self.stdin = stdin
+        self.lines_total = self.size = len(self.stdin)
+        if self.size:
+            self.first_line, self.sample = self.stdin[0], self.stdin[:7]
+        return self
+
     def check_single_cell(self):
         """ Check if we are parsing a single cell and print out some meaningful details."""
 
@@ -172,7 +181,6 @@ class SourceParser:
         self.dialect = csv.unix_dialect
         self.has_header = False
         self.guesses.identify_cols()
-        Contacts.init()
 
         # tell the user what type we think their input is
         detection = self.get_fields_autodetection()[0][1]  # access the detection message for the first (and supposedly only) field
