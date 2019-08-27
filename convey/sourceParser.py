@@ -76,12 +76,9 @@ class SourceParser:
         elif stdin:  # we're analysing an input text
             self.set_stdin(stdin)
 
+        Contacts.init()
         if prepare:
             self.prepare()
-        else:
-            # I think contacts gets initialized when an analysis is run
-            # – if we're having a stdin, lets init it immediately and once (no re-init when run as a webservice)
-            Contacts.init()
 
     def prepare(self):
         if self.size == 0:

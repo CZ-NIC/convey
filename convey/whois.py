@@ -36,6 +36,8 @@ class Whois:
          self.get stores tuple: prefix, location, mail, asn, netname, country
         """
         self.ip = ip
+        self.whoisResponse = ""
+        self.asn = self.netname = None
         if not Whois.unknown_mode:
             if self.ip in self.ip_seen:  # ip has been seen in the past
                 prefix = self.ip_seen[self.ip]
@@ -192,7 +194,6 @@ class Whois:
 
     def _load_country(self):
         country = ""
-        tried_cidr_to_ip = False
 
         for server in list(self.servers):
             self._exec(server=server)
@@ -225,6 +226,7 @@ class Whois:
                 if fail:
                     logger.warning(fail)
                     Whois.servers.pop(server)
+                    continue
 
             self.asn = self._match_response('\norigin(.*)\d+', last_word=True)
             self.netname = self._match_response('\nnetname(.*)', last_word=True)
@@ -294,3 +296,9 @@ class Whois:
             logger.warning("Whois response for IP {} on server {} cannot be parsed.".format(self.ip, server))
         except TypeError:  # could not resolve host
             self.whoisResponse = ""
+        else:
+            # response clean-up
+            ref_s = "Found a referral to whois.ripe.net."
+            i = self.whoisResponse.find(ref_s)
+            if i > -1:
+                self.whoisResponse = self.whoisResponse[i + len(ref_s):]
