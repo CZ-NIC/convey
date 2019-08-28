@@ -4,7 +4,9 @@
 - fix: new installation should now correctly place contacts files in .config
 - web service
 - flag --yes for skipping dialogues
-- Whois module won't throw error if host can't be resolved
+- Whois module 
+    - won't throw error if host can't be resolved
+    - huge refactoring (may lead to the behaviour when Country is taken from ARIN and Netname from AfriNIC if AfriNIC points us to ARIN that doesn't state Netname)
 - opens config file when a flag is not defined
 - new delimiter flag
 - new quote_char flag

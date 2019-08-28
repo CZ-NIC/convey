@@ -36,8 +36,7 @@ class Whois:
          self.get stores tuple: prefix, location, mail, asn, netname, country
         """
         self.ip = ip
-        self.whoisResponse = ""
-        self.asn = self.netname = None
+        self.whoisResponse = []
         if not Whois.unknown_mode:
             if self.ip in self.ip_seen:  # ip has been seen in the past
                 prefix = self.ip_seen[self.ip]
@@ -81,23 +80,6 @@ class Whois:
             cls.hostname_cache[hostname] = socket.gethostbyname(hostname)
         return cls.hostname_cache[hostname]
 
-    def analyze(self):
-        """
-        :return: prefix, "local"|"foreign", incident-contact ( = abuse-mail|country), asn, netname, country, abuse-mail
-        """
-        country = self._load_country()
-        # print("country loaded {}".format(self.country))
-        prefix = self._load_prefix()
-        # print("prefix loaded {}".format(self.prefix))
-        if country not in Config.get("local_country"):
-            return prefix, "foreign", country, self.asn, self.netname, country, self.get_abusemail()
-        else:
-            # print("Abusemail: ")
-            # print("abusemail loaded {}".format(self.abusemail))
-            if Whois.unknown_mode:
-                self.resolve_unknown_mail()
-            ab = self.get_abusemail()
-            return prefix, "local", ab, self.asn, self.netname, country, ab
 
     def resolve_unknown_mail(self):
         """ Forces to load abusemail for an IP.
@@ -112,20 +94,6 @@ class Whois:
         if self.abusemail == Config.UNKNOWN_NAME:
             self._exec(server="ripe (-B flag)", server_url="whois.ripe.net -B")  # with -B flag
             self.get_abusemail(True)
-        return self.abusemail
-
-    def _load_prefix(self):
-        """ Loads prefix from last whois response. """
-        for grep, pattern in [('% abuse contact for.*', r"for '([^']*)'"),
-                              ('% information related to.*', r"information related to '([^']*)'"),
-                              # ip 151.80.121.243 needed this , % information related to \'151.80.121.224 - 151.80.121.255\'\n\n% no abuse contact registered for 151.80.121.224 - 151.80.121.255
-                              ("inetnum.*", r"inetnum:\s*(.*)"),  # inetnum:        151.80.121.224 - 151.80.121.255
-                              ("netrange.*", r"netrange:\s*(.*)"),  # NetRange:       216.245.0.0 - 216.245.63.255
-                              ("cidr.*", r"cidr:\s*(.*)")  # CIDR:           216.245.0.0/18
-                              ]:
-            match = re.search(pattern, self._match_response(grep))
-            if match:
-                return self._str2prefix(match.group(1))
 
     def _str2prefix(self, s):
         """ Accepts formats:
@@ -158,30 +126,40 @@ class Whois:
         #    result.append(ip[4][0])
         # return result
 
-    def _match_response(self, pattern, last_word=False, take_nth=None, group=0):
+    def _match_response(self, patterns, last_word=False):
         """
-        :param pattern: pattern string Xcompiled regular expression
-        :param last_word: returns only the last word of whole matched expression Xgrepped line
-        :param take_nth: if available, return n-th result instead of the first available
-            I.E. `whois 131.72.138.234 | grep ountr` returns three countries: UY, CL, CL.
-            ARIN registry informs us that this IP is a LACNIC resource and prints out LACNIC address in UY.
-            However, CL is the country the IP is hosted in.
-        :param group: returned group
+        :param pattern: pattern string or list of strings Xcompiled regular expression
+        :param last_word: returns only the last word of whole matched expression else last group (ex: the one in parentheses)
+
+        # , take_nth=None, group=None
+        # :param take_nth: if available, return n-th result instead of the first available
+        #     I.E. `whois 131.72.138.234 | grep ountr` returns three countries: UY, CL, CL.
+        #     ARIN registry informs us that this IP is a LACNIC resource and prints out LACNIC address in UY.
+        #     However, CL is the country the IP is hosted in.
+        # :param group: returned group - default: last group is returned (ex: the one in parentheses)
         :return:
         """
-        match = None
-        # it = re.finditer(pattern, self.whoisResponse) if type(pattern) is str else pattern(self.whoisResponse)
-        for i, match in enumerate(re.finditer(pattern, self.whoisResponse)):
-            if not take_nth or i + 1 == take_nth:
-                break
+        if type(patterns) is str:
+            patterns = [patterns]
 
-        if match:
-            if last_word:  # returns only last word
-                return re.search('[^\s]*$', match[0]).group(0)
-            else:
-                return match[group]
-        else:
-            return ""  # no pattern result found
+        match = None
+        for chunk in self.whoisResponse:
+            for pattern in patterns:
+                # if "netna" in pattern:
+                #     print(pattern)
+                #     import ipdb; ipdb.set_trace()
+                # it = re.finditer(pattern, self.whoisResponse) if type(pattern) is str else pattern(self.whoisResponse)
+                match = re.search(pattern, chunk)
+                # for i, match in enumerate(re.finditer(pattern, chunk)):
+                #     if not take_nth or i + 1 == take_nth:
+                #         break
+
+                if match:
+                    if last_word:  # returns only last word
+                        return re.search(r'[^\s]*$', match[0]).group(0)
+                    else:
+                        return match[len(match.groups())]
+        return ""  # no pattern result found
 
         # for line in self.whoisResponse.split("\n"):
         #     result = re.search(grep, line)
@@ -192,19 +170,32 @@ class Whois:
         #             return line
         # return ""  # no grep result found
 
-    def _load_country(self):
-        country = ""
+    def analyze(self):
+        """
+        :return: prefix, "local"|"foreign", incident-contact ( = abuse-mail|country), asn, netname, country, abuse-mail
+        """
+        prefix = country = ""
 
         for server in list(self.servers):
             self._exec(server=server)
             while True:
-                country = self._match_response('country(.*)', last_word=True, take_nth=2)
+                # 154.48.234.95
+                #   Found a referral to rwhois.cogentco.com:4321.
+                #   network:IP-Network:154.48.224.0/19
+                #   network:Country:DE
+                country = self._match_response(r'country(-code)?:\s*([a-z]{2})')
+
                 if not country and server == "general":
                     if self._match_response("no match found for n +"):
                         # whois 141.138.197.0/24 ends with this phrase and does not try RIPE which works
                         self._exec(server="ripe", server_url="whois.ripe.net")
                         continue
-                    # CIDR is not disallowed with the use of Whois - CSV guesses translates it to an IP first
+                    if self._match_response("the whois is temporary unable to query arin for the requested resource. please try again later"):
+                        # whois 154.48.234.95 sometimes ends up like this - when we ask ARIN, we can hang too
+                        self._exec(server="arin", server_url="whois.arin.net")
+                        continue
+
+                # CIDR is not disallowed with the use of Whois - CSV guesses translates it to an IP first
                     # if self._match_response("invalid search key") and not tried_cidr_to_ip:
                     #     # when asking for a CIDR that is non-valid network because of having host bits set, we ask for IP
                     #     # ex: CIDR 141.138.197.1/24 (network would be 141.138.197.0/24), we ask for IP 141.138.197.1
@@ -218,8 +209,7 @@ class Whois:
                 break
             if not country:
                 fail = None
-                if self._match_response("network is unreachable") or (self._match_response("name or service not known")
-                                                                      and len(self.whoisResponse) < 150):
+                if self._match_response("network is unreachable") or self._match_response("name or service not known"):
                     fail = "Whois server {} is unreachable. Disabling for this session.".format(self.servers[server])
                 if self._match_response("access denied"):
                     fail = "Whois server {} access denied. Disabling for this session.".format(self.servers[server])
@@ -228,12 +218,9 @@ class Whois:
                     Whois.servers.pop(server)
                     continue
 
-            self.asn = self._match_response('\norigin(.*)\d+', last_word=True)
-            self.netname = self._match_response('\nnetname(.*)', last_word=True)
-
             if country:
                 # sanitize whois confusion
-                if ":" in country:
+                # if ":" in country:
                     # whois 198.55.103.47 leads to "Found a referral to rwhois.quadranet.com:4321."
                     # 154.48.234.95 goes to AfriNIC that goes to ARIN that says:
                     #   CIDR:           154.48.0.0/16
@@ -241,13 +228,13 @@ class Whois:
                     #   Found a referral to rwhois.cogentco.com:4321.
                     #   network:IP-Network:154.48.224.0/19
                     #   network:Country:DE
-                    country = country.split(":")[1]
-                if country[0:4].lower() == "wide":
-                    # ex: 'EU # Country is really world wide' (the last word)
-                    #  (64.9.241.202) (Our mirror returned this result sometimes)
-                    country = ""
-                    continue
-                if country[0:2].lower() == "eu":  # ex: 'EU' (89.41.60.38) (RIPE returned this value)
+                    # (We've cut the text to the "Found a referral".)
+                    # country = country.split(":")[1]
+                # Country mistakes:
+                # "EU # Worldwide" (2a0d:f407:1003::/48)
+                # 'EU # Country is really world wide' (64.9.241.202) (Our mirror returned this result sometimes)
+                # 'EU' (89.41.60.38) (RIPE returned this value)
+                if country[0:2] == "eu":
                     country = ""
                     continue
 
@@ -259,7 +246,31 @@ class Whois:
 
         # if not country:
         #    country = Config.UNKNOWN_NAME
-        return country
+
+        asn = self._match_response(r'\norigin(.*)\d+', last_word=True)
+        netname = self._match_response([r'\nnetname:\s*([^\s]*)', r'\nnetwork:network-name:\s*([^\s]*)'])
+
+        # loads prefix
+        match = self._match_response(["% abuse contact for '([^']*)'",
+                                      "% information related to '([^']*)'",
+                                      # ip 151.80.121.243 needed this , % information related to \'151.80.121.224 - 151.80.121.255\'\n\n% no abuse contact registered for 151.80.121.224 - 151.80.121.255
+                                      r"inetnum:\s*(.*)",  # inetnum:        151.80.121.224 - 151.80.121.255
+                                      r"netrange:\s*(.*)",  # NetRange:       216.245.0.0 - 216.245.63.255
+                                      r"cidr:\s*(.*)",  # CIDR:           216.245.0.0/18
+                                      r"network:ip-network:\s*(.*)"  # whois 154.48.250.2 "network:IP-Network:154.48.224.0/19"
+                                      ])
+        if match:
+            prefix = self._str2prefix(match)
+        
+        if country not in Config.get("local_country"):
+            return prefix, "foreign", country, asn, netname, country, self.get_abusemail()
+        else:
+            # print("Abusemail: ")
+            # print("abusemail loaded {}".format(self.abusemail))
+            if Whois.unknown_mode:
+                self.resolve_unknown_mail()
+            ab = self.get_abusemail()
+            return prefix, "local", ab, asn, netname, country, ab
 
     reAbuse = re.compile('[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}')
 
@@ -268,11 +279,13 @@ class Whois:
         if hasattr(self, "abusemail") and not force_load:
             return self.abusemail
         self.abusemail = ""
-        for grep in ['% abuse contact for.*', 'orgabuseemail.*', 'abuse-mailbox.*']:
-            match = self.reAbuse.search(self._match_response(grep))
-            # the last whois query was the most successful, it fetched country so that it may have abusemail inside as well
-            if match:
-                self.abusemail = match.group(0)
+        match = self.reAbuse.search(self._match_response(['% abuse contact for.*',
+                                                          'orgabuseemail.*',
+                                                          'abuse-mailbox.*',
+                                                          "e-mail:.*"  # whois 179.50.80.0/21
+                                                          ]))
+        if match:
+            self.abusemail = match.group(0)
 
         # if not self.abusemail:
         #    self.abusemail = Config.UNKNOWN_NAME
@@ -289,16 +302,24 @@ class Whois:
         Whois.stats[server] += 1
         try:
             p = Popen(cmd, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-            self.whoisResponse = p.stdout.read().decode("unicode_escape").strip().lower()  # .replace("\n", " ")
-            self.whoisResponse += p.stderr.read().decode("unicode_escape").strip().lower()
+            response = p.stdout.read().decode("unicode_escape").strip().lower()  # .replace("\n", " ")
+            response += p.stderr.read().decode("unicode_escape").strip().lower()
         except UnicodeDecodeError:  # ip address 94.230.155.109 had this string 'Jan Krivsky Hl\xc3\x83\x83\xc3\x82\xc2\xa1dkov' and everything failed
-            self.whoisResponse = ""
+            self.whoisResponse = []
             logger.warning("Whois response for IP {} on server {} cannot be parsed.".format(self.ip, server))
         except TypeError:  # could not resolve host
-            self.whoisResponse = ""
+            self.whoisResponse = []
         else:
-            # response clean-up
-            ref_s = "Found a referral to whois.ripe.net."
-            i = self.whoisResponse.find(ref_s)
-            if i > -1:
-                self.whoisResponse = self.whoisResponse[i + len(ref_s):]
+            # Sometimes, a registry calls another registry for you. This may chain.
+            # We prioritize by the most recent to the first.
+            # So when whois 154.48.234.95 goes to AfriNIC that goes to ARIN that goes to rwhois.cogentco.com:4321,
+            # we find country in Cogento, then in ARIN, then in AfriNIC.
+            # This may lead to the behaviour when Country is from Cogento and Netname is from ARIN.
+            # I don't know how to handle this better.
+            ref_s = "found a referral to "
+            self.whoisResponse = response.split(ref_s)[::-1]
+
+            # i = self.whoisResponse.find(ref_s)
+            # # import ipdb; ipdb.set_trace()
+            # if i > -1:
+            #     self.whoisResponse = self.whoisResponse[i + len(ref_s):]
