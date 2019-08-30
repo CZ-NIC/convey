@@ -8,11 +8,11 @@ import subprocess
 import time
 from collections import defaultdict
 from json import dumps
+from math import ceil
 from os.path import join
 from shutil import move
 from typing import List
 
-from math import ceil
 from tabulate import tabulate
 
 from .config import Config
@@ -70,9 +70,8 @@ class SourceParser:
 
         if self.source_file:  # we're analysing a file on disk
             self.size = os.path.getsize(self.source_file)
-            self.lines_total = self.informer.source_file_len()
-            None
             self.first_line, self.sample = self.guesses.get_sample(self.source_file)
+            self.lines_total = self.informer.source_file_len()
         elif stdin:  # we're analysing an input text
             self.set_stdin(stdin)
 
@@ -267,16 +266,17 @@ class SourceParser:
             l = []
             if self.settings["filter"]:
                 l.append("filter")
-            if self.settings["uniqued"]:
+            if self.settings["unique"]:
                 l.append("uniqued")
-            if self.settings["redialected"]:
-                l.append("redialected")
+            if self.settings["dialect"]:
+                l.append("dialect")
             if not len(self.settings["chosen_cols"]) == len(self.fields):
                 l.append("shuffled")
             for name, _, _, _ in self.settings["add"]:
                 l.append(name)
             if self.source_file:
-                self.target_file = f"{ntpath.basename(self.source_file)}_{'_'.join(l)}.csv"
+                l.insert(0, ntpath.basename(self.source_file))
+                self.target_file = f"{'_'.join(l)}.csv"
             else:
                 self.target_file = f"output_{time.strftime('%Y-%m-%d %H:%M:%S')}.csv"
             self.is_split = False

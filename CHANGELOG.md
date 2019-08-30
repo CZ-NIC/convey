@@ -16,6 +16,8 @@
 - new header / no-header flags
 - CIDR with host bits set ( = invalid network) translates to IP when asking whois (RIR would return 'invalid search key')
 - CIDR translated to an IP before asking whois
+- logs in format "time IP src port > IP dst port" can be automatically transformed to CSV before processing
+- number of discovered prefixes should during processing, as well as real whois server URLs
 
 ## 1.1 (2019-05-13)
 - fix: do not reprocess file if moved to another location

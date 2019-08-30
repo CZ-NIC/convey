@@ -529,19 +529,19 @@ class Whois:
                         self._exec(server="apnic", server_url="whois.apnic.net")
                         continue
                     if self._match_response("query rate limit exceeded"):  # LACNIC gave me this - seems 300 s needed
-                        logger.warning(f"Whois server {self.servers[server]} query rate limit exceeded (LACNIC?) for: {self.ip}. Sleeping for 300 s...")
+                        logger.warning(f"Whois server {self.last_server} query rate limit exceeded for: {self.ip}. Sleeping for 300 s...")
                         time.sleep(300)
                         self._exec(server=server)
                         continue
-                    if self.registry == "rwhois.gin.ntt.net":  # 204.2.250.0
+                    if self.last_server == "rwhois.gin.ntt.net":  # 204.2.250.0
                         self._exec(server="arin", server_url="whois.arin.net")
                         continue
-                    if self.registry in ["whois.twnic.net", "whois.nic.ad.jp"]:
+                    if self.last_server in ["whois.twnic.net", "whois.nic.ad.jp", "whois.nic.or.kr"]:
                         # twnic
                         # 210.241.57.0
                         # whois 203.66.23.2 replies whois.twnic.net.tw with "The IP address not belong to TWNIC"
-                        # jp
-                        # 185.243.43.0
+                        # jp: 185.243.43.0
+                        # krnic: 125.129.170.2
                         self._exec(server="apnic", server_url="whois.apnic.net")
                         continue
 
@@ -631,8 +631,7 @@ class Whois:
             if not server_url:
                 server_url = Whois.servers[server]
             cmd = ["whois", "--verbose", "-h", server_url, "--", self.ip]
-        Whois.stats[server] += 1
-        self.registry = None  # check what registry whois asks - may use a strange LIR that returns non-senses
+        self.last_server = None  # check what registry whois asks - may use a strange LIR that returns non-senses
         try:
             p = Popen(cmd, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE)
             response = p.stdout.read().decode("unicode_escape").strip().lower()  # .replace("\n", " ")
@@ -644,7 +643,7 @@ class Whois:
             self.whoisResponse = []
         else:
             try:
-                self.registry = Whois.regRe.search(response).groups()[0]
+                self.last_server = Whois.regRe.search(response).groups()[0]
             except (IndexError, AttributeError):
                 pass
 
@@ -669,3 +668,5 @@ class Whois:
             # # import ipdb; ipdb.set_trace()
             # if i > -1:
             #     self.whoisResponse = self.whoisResponse[i + len(ref_s):]
+        finally:
+            Whois.stats[self.last_server or server] += 1

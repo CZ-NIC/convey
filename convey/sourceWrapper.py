@@ -3,6 +3,7 @@
 """
 import ntpath
 import os
+import re
 import sys
 from bdb import BdbQuit
 from os.path import join
@@ -11,8 +12,9 @@ import ipdb
 import jsonpickle
 
 from .config import Config
+from .csvGuesses import CsvGuesses
 from .dialogue import is_yes
-#from .informer import mute_info
+# from .informer import mute_info
 from .sourceParser import SourceParser
 
 __author__ = "Edvard Rejthar"
@@ -161,5 +163,38 @@ class SourceWrapper:
                 output.write(string)
 
     def clear(self):
+        # Check if the contents is a CSV and not just a log
+        # ex: "06:25:13.378767 IP 142.234.39.36.51354 > 195.250.148.86.80: Flags [S], seq 1852455482, win 29200, length 0"
+        re_ip_with_port = re.compile("((\d{1,3}\.){4})(\d+)")
+        re_log_line = re.compile(r"([^\s]*)\sIP\s([^\s]*)\s>\s([^\s:]*)")
+        _, sample = CsvGuesses(None).get_sample(self.file)
+        if sample and re_log_line.match(sample[0]) and is_yes("\nThis seems like a log file. Do you wish to transform it to CSV first?"):
+            csv = SourceParser(self.file, prepare=False)
+            csv._set_target_file()
+            with open(csv.target_file, "w") as target:
+                target.write(",".join(["time", "source", "src_port", "dst", "dst_port"]) + "\n")
+                with open(csv.source_file) as f:
+                    for line in f.readlines():
+                        try:
+                            res = re_log_line.search(line).groups()
+                        except AttributeError:
+                            print("Error", line)
+                            break
+                        else:
+                            def parse_ip(val):
+                                m = re_ip_with_port.match(val)
+                                if m:
+                                    return m[1][:-1], m[3]
+                                else:
+                                    return "", ""
+
+                            timestamp = res[0]
+                            source, src_port = parse_ip(res[1])
+                            dst, dst_port = parse_ip(res[2])
+
+                            target.write(",".join([timestamp, source, src_port, dst, dst_port]) + "\n")
+                input(f"Successfully written to {csv.target_file}. Hit any key.")
+                self.file = csv.target_file
+
         self.csv = SourceParser(self.file, self.stdin)
         self.save()

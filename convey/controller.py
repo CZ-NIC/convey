@@ -188,7 +188,7 @@ class Controller:
         if option == "both" or option == "basic":
             print("Sending basic e-mails...")
             if not sender.send_list(Attachment.get_basic(self.csv.attachments), Contacts.mailDraft["local"], method=method):
-                print("Couldn't send all abuse mails. (Details in mailSender.log.)")
+                print("Couldn't send all abuse mails. (Details in convey.log.)")
         if option == "both" or option == "partner":
             print("Sending to partner mails...")
             """ Xif not sender.send_list(Contacts.getContacts(self.csv.stats["countriesFound"], partners_only=True),
@@ -196,7 +196,7 @@ class Controller:
                                     len(self.csv.stats["countriesFound"]),
                                     method=method):"""
             if not sender.send_list(Attachment.get_partner(self.csv.attachments), Contacts.mailDraft["foreign"], method=method):
-                print("Couldn't send all partner mails. (Details in mailSender.log.)")
+                print("Couldn't send all partner mails. (Details in convey.log.)")
 
         input("\n\nPress enter to continue...")
 
@@ -363,12 +363,12 @@ class Controller:
         # XX not ideal and mostly copies SourceParser.__init__ but this is a great start for a use case we haven't found yet
         # There might be a table with all the csv.dialect properties or so.
         while True:
-            sys.stdout.write("What is delimiter: ")
+            sys.stdout.write("What should be the delimiter: ")
             dialect.delimiter = input()
             if len(dialect.delimiter) != 1:
                 print("Delimiter must be a 1-character string. Invent one (like ',').")
                 continue
-            sys.stdout.write("What is quoting char: ")
+            sys.stdout.write("What should be the quoting char: ")
             dialect.quotechar = input()
             break
         dialect.quoting = csv.QUOTE_NONE if not dialect.quotechar else csv.QUOTE_MINIMAL

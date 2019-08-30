@@ -3,13 +3,14 @@ import datetime
 import os
 import subprocess
 import sys
+from math import ceil
 from os.path import dirname, join
 
 import humanize
-from math import ceil
 from tabulate import tabulate
 
 from .config import Config
+
 
 # _mute = False
 
@@ -77,7 +78,8 @@ class Informer:
             l.append(f"{self.csv.processor.descriptors_count} file descriptors open")
         sys.stdout.write(", ".join(l) + "\n")
         if self.csv.whois_stats:
-            print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whois_stats.items()))
+            print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whois_stats.items())
+                  + f"; {len(self.csv.ranges)} prefixes discovered")
         print("\nSample:\n" + "".join(self.csv.sample[:4]))  # show first 3rd lines
 
         if self.csv.settings["dialect"] or not (len(self.csv.fields) == len(self.csv.settings["chosen_cols"])) == len(
