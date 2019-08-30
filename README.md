@@ -46,8 +46,8 @@ Returns JSON with WHOIS-related information.
 # install convey and check where it is installed
 $ pip3 show convey
 Location: /home/$USER/.local/lib/python3.7/site-packages
-# launch __main__.py with uwsgi
-$ uwsgi --http :26683 --wsgi-file /home/$USER/.local/lib/python3.7/site-packages/convey/__main__.py
+# launch __main__.py with uwsgi (note that LACNIC may freeze for 300 s, hence the timeout recommendation)
+$ uwsgi --http :26683 --http-timeout 310 --wsgi-file /home/$USER/.local/lib/python3.7/site-packages/convey/__main__.py
 
 # Access: http://localhost:26683/?q=example.com
 # {'ip': '93.184.216.34', 'prefix': '93.184.216.0-93.184.216.255', 'asn': '', 'abusemail': 'abuse@verizondigitalmedia.com', 'country': 'unknown', 'netname': 'edgecast-netblk-03', 'csirt-contact': '-', 'incident-contact': 'unknown'}

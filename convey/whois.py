@@ -1,7 +1,7 @@
-import ipaddress
 import logging
 import re
 import socket
+import time
 from collections import OrderedDict
 from subprocess import PIPE, Popen
 from urllib.parse import urlparse, urlsplit
@@ -12,6 +12,330 @@ from .config import Config
 
 logger = logging.getLogger(__name__)
 
+countries = {"andorra": "ad",
+             "united arab emirates": "ae",
+             "afghanistan": "af",
+             "barbuda": "ag",
+             "antigua": "ag",
+             "anguilla": "ai",
+             "albania": "al",
+             "armenia": "am",
+             "angola": "ao",
+             "antarctica ": "aq",
+             "argentine": "ar",
+             "argentina": "ar",
+             "american samoa": "as",
+             "austria": "at",
+             "australia": "au",
+             "australia ": "au",
+             "aruba": "aw",
+             "aland": "ax",
+             "azerbaijan": "az",
+             "herzegovina": "ba",
+             "bosnia": "ba",
+             "barbados": "bb",
+             "bangladesh": "bd",
+             "belgium": "be",
+             "burkina faso": "bf",
+             "bulgaria": "bg",
+             "bahrain": "bh",
+             "burundi": "bi",
+             "benin": "bj",
+             "barthelemy": "bl",
+             "bermuda": "bm",
+             "brunei": "bn",
+             "bolivia": "bo",
+             "bonaire": "bq",
+             "eustatius": "bq",
+             "saba": "bq",
+             "brazil": "br",
+             "bahamas": "bs",
+             "bahamas": "bs",
+             "bhutan": "bt",
+             "bouvet": "bv",
+             "botswana": "bw",
+             "belarus": "by",
+             "belize": "bz",
+             "canada": "ca",
+             "keeling": "cc",
+             "cocos": "cc",
+             "democratic republic of the congo": "cd",
+             "central african": "cf",
+             "central african": "cf",
+             "congo": "cg",
+             "swiss": "ch",
+             "switzerland": "ch",
+             "côte d'ivoire": "ci",
+             "ivory coast": "ci",
+             "cook": "ck",
+             "chile": "cl",
+             "cameroon": "cm",
+             "china": "cn",
+             "colombia": "co",
+             "costa rica": "cr",
+             "cuba": "cu",
+             "cabo verde": "cv",
+             "cabo verde ": "cv",
+             "cape verde": "cv",
+             "curacao": "cw",
+             "curaçao": "cw",
+             "christmas island": "cx",
+             "cyprus": "cy",
+             "czech": "cz",
+             "czech": "cz",
+             "germany": "de",
+             "djibouti": "dj",
+             "denmark": "dk",
+             "dominica": "dm",
+             "dominican": "do",
+             "dominican": "do",
+             "algeria": "dz",
+             "ecuador": "ec",
+             "estonia": "ee",
+             "egypt": "eg",
+             "sahrawi": "eh",
+             "western sahara": "eh",
+             "eritrea": "er",
+             "spain": "es",
+             "ethiopia": "et",
+             "finland": "fi",
+             "fiji": "fj",
+             "falkland": "fk",
+             "falkland islands": "fk",
+             "micronesia": "fm",
+             "faroe": "fo",
+             "french": "fr",
+             "france ": "fr",
+             "gabonese": "ga",
+             "gabon": "ga",
+             "northern ireland": "gb",
+             "great britain": "gb",
+             "united kingdom": "gb",
+             "england": "gb",
+             "grenada": "gd",
+             "georgia": "ge",
+             "guyane": "gf",
+             "french guiana": "gf",
+             "bailiwick of guernsey": "gg",
+             "guernsey": "gg",
+             "ghana": "gh",
+             "gibraltar": "gi",
+             "kalaallit nunaat": "gl",
+             "greenland": "gl",
+             "gambia": "gm",
+             "gambia": "gm",
+             "guinea": "gn",
+             "guadeloupe": "gp",
+             "equatorial guinea": "gq",
+             "hellenic": "gr",
+             "greece": "gr",
+             "south sandwich": "gs",
+             "south georgia": "gs",
+             "guatemala": "gt",
+             "guam": "gu",
+             "guinea-bissau": "gw",
+             "guyana": "gy",
+             "hong kong": "hk",
+             "mcdonald": "hm",
+             "heard": "hm",
+             "honduras": "hn",
+             "croatia": "hr",
+             "haiti": "ht",
+             "hungary": "hu",
+             "indonesia": "id",
+             "ireland": "ie",
+             "israel": "il",
+             "isle of man": "im",
+             "india": "in",
+             "british indian ocean": "io",
+             "iraq": "iq",
+             "iran": "ir",
+             "iceland": "is",
+             "italian": "it",
+             "italy": "it",
+             "jersey": "je",
+             "jamaica": "jm",
+             "hashemite": "jo",
+             "jordan": "jo",
+             "japan": "jp",
+             "kenya": "ke",
+             "kyrgyz": "kg",
+             "cambodia": "kh",
+             "kiribati": "ki",
+             "comoros": "km",
+             "comoros": "km",
+             "nevis": "kn",
+             "saint kitts": "kn",
+             "democratic people": "kp",
+             "north korea": "kp",
+             "korea": "kr",
+             "kuwait": "kw",
+             "cayman": "ky",
+             "kazakhstan": "kz",
+             "lao": "la",
+             "lebanese": "lb",
+             "lebanon": "lb",
+             "lucia": "lc",
+             "saint lucia": "lc",
+             "liechtenstein": "li",
+             "sri lanka": "lk",
+             "liberia": "lr",
+             "lesotho": "ls",
+             "lithuania": "lt",
+             "luxembourg": "lu",
+             "latvia": "lv",
+             "libya": "ly",
+             "morocco": "ma",
+             "monaco": "mc",
+             "moldova": "md",
+             "montenegro": "me",
+             "saint-martin": "mf",
+             "saint martin": "mf",
+             "madagascar": "mg",
+             "marshall islands": "mh",
+             "north macedonia": "mk",
+             "mali": "ml",
+             "myanmar ": "mm",
+             "mongolia": "mn",
+             "macao": "mo",
+             "macau": "mo",
+             "norrn mariana islands": "mp",
+             "martinique": "mq",
+             "mauritania": "mr",
+             "montserrat": "ms",
+             "malta": "mt",
+             "mauritius": "mu",
+             "maldives": "mv",
+             "malawi": "mw",
+             "mexican": "mx",
+             "mexico": "mx",
+             "malaysia": "my",
+             "mozambique": "mz",
+             "namibia": "na",
+             "new caledonia": "nc",
+             "niger": "ne",
+             "norfolk island": "nf",
+             "federal nigeria": "ng",
+             "nigeria": "ng",
+             "nicaragua": "ni",
+             "netherlands": "nl",
+             "norway": "no",
+             "nepal": "np",
+             "nauru": "nr",
+             "niue": "nu",
+             "new zealand": "nz",
+             "oman": "om",
+             "panama": "pa",
+             "peru": "pe",
+             "french polynesia": "pf",
+             "new guinea": "pg",
+             "papua": "pg",
+             "philippines": "ph",
+             "philippines": "ph",
+             "pakistan": "pk",
+             "poland": "pl",
+             "miquelon": "pm",
+             "saint-pierre": "pm",
+             "pitcairn": "pn",
+             "henderson": "pn",
+             "ducie": "pn",
+             "oeno": "pn",
+             "puerto rico": "pr",
+             "palestine": "ps",
+             "portuguese": "pt",
+             "portugal": "pt",
+             "palau": "pw",
+             "paraguay": "py",
+             "qatar": "qa",
+             "reunion": "re",
+             "réunion": "re",
+             "romania": "ro",
+             "serbia": "rs",
+             "russia": "ru",
+             "rwanda": "rw",
+             "saudi arabia": "sa",
+             "solomon islands": "sb",
+             "seychelles": "sc",
+             "sudan": "sd",
+             "sweden": "se",
+             "singapore": "sg",
+             "helena": "sh",
+             "ascension": "sh",
+             "tristan": "sh",
+             "cunha": "sh",
+             "slovenia": "si",
+             "jan mayen": "sj",
+             "svalbard": "sj",
+             "slovak": "sk",
+             "slovakia": "sk",
+             "sierra leone": "sl",
+             "san marino": "sm",
+             "senegal": "sn",
+             "federal somalia": "so",
+             "somalia": "so",
+             "suriname": "sr",
+             "south sudan": "ss",
+             "príncipe": "st",
+             "sao tome": "st",
+             "principe": "st",
+             "el salvador": "sv",
+             "sint maarten": "sx",
+             "syria": "sy",
+             "eswatini": "sz",
+             "eswatini ": "sz",
+             "caicos islands": "tc",
+             "turks": "tc",
+             "chad": "td",
+             "antarctic lands": "tf",
+             "french southern": "tf",
+             "togolese": "tg",
+             "togo": "tg",
+             "thailand": "th",
+             "tajikistan": "tj",
+             "tokelau": "tk",
+             "timor-leste": "tl",
+             "turkmenistan": "tm",
+             "tunisia": "tn",
+             "tonga": "to",
+             "turkey": "tr",
+             "tobago": "tt",
+             "trinidad": "tt",
+             "tuvalu": "tv",
+             "taiwan": "tw",
+             "tanzania": "tz",
+             "ukraine": "ua",
+             "uganda": "ug",
+             "baker": "um",
+             "howland": "um",
+             "jarvis": "um",
+             "johnston": "um",
+             "kingman": "um",
+             "midway": "um",
+             "navassa": "um",
+             "palmyra": "um",
+             "wake": "um",
+             "minor outlying islands  ": "um",
+             "united states": "us",
+             "uruguay": "uy",
+             "uzbekistan": "uz",
+             "holy see": "va",
+             "grenadines": "vc",
+             "saint vincent": "vc",
+             "venezuela": "ve",
+             "british virgin islands": "vg",
+             "virgin islands of united states": "vi",
+             "viet nam ": "vn",
+             "vietnam": "vn",
+             "vanuatu": "vu",
+             "futuna": "wf",
+             "wallis": "wf",
+             "samoa": "ws",
+             "yemen": "ye",
+             "mayotte": "yt",
+             "south africa": "za",
+             "zambia": "zm",
+             "zimbabwe": "zw"}
+rirs = ["whois.ripe.netf", "whois.arin.net", "whois.lacnic.net", "whois.apnic.net", "whois.afrinic.net"]
 
 class Whois:
     unknown_mode = False
@@ -80,13 +404,15 @@ class Whois:
             cls.hostname_cache[hostname] = socket.gethostbyname(hostname)
         return cls.hostname_cache[hostname]
 
-
     def resolve_unknown_mail(self):
         """ Forces to load abusemail for an IP.
         We try first omit -r flag and then add -B flag.
 
-        XX Note that we tries only RIPE server because it's the only one that has flags -r and -B.
+        XX Note that we try only RIPE server because it's the only one that has flags -r and -B.
         If ARIN abusemail is not found, we have no help yet. I dont know if that ever happens.
+            XX We prefer general calling of whois program instead of asking him for different whois servers manually
+            so I'm not sure if whois program calls RIPE with -r by default or not.
+            If not, we should let here just -B flag.
 
         """
         self._exec(server="ripe (no -r)", server_url="whois.ripe.net")  # no -r flag
@@ -145,9 +471,6 @@ class Whois:
         match = None
         for chunk in self.whoisResponse:
             for pattern in patterns:
-                # if "netna" in pattern:
-                #     print(pattern)
-                #     import ipdb; ipdb.set_trace()
                 # it = re.finditer(pattern, self.whoisResponse) if type(pattern) is str else pattern(self.whoisResponse)
                 match = re.search(pattern, chunk)
                 # for i, match in enumerate(re.finditer(pattern, chunk)):
@@ -183,72 +506,69 @@ class Whois:
                 #   Found a referral to rwhois.cogentco.com:4321.
                 #   network:IP-Network:154.48.224.0/19
                 #   network:Country:DE
+                # 82.175.175.231 'country: NL # BE GB DE LU' -> 'NL'
                 country = self._match_response(r'country(-code)?:\s*([a-z]{2})')
+                if country == "eu":
+                    # "EU # Worldwide" (2a0d:f407:1003::/48)
+                    # 'EU # Country is really world wide' (64.9.241.202)
+                    # 'EU' (89.41.60.38) (RIPE returned this value)
+                    country = ""
 
                 if not country and server == "general":
                     if self._match_response("no match found for n +"):
                         # whois 141.138.197.0/24 ends with this phrase and does not try RIPE which works
                         self._exec(server="ripe", server_url="whois.ripe.net")
                         continue
-                    if self._match_response("the whois is temporary unable to query arin for the requested resource. please try again later"):
+                    if self._match_response(
+                            "the whois is temporary unable to query arin for the requested resource. please try again later"):
                         # whois 154.48.234.95 sometimes ends up like this - when we ask ARIN, we can hang too
                         self._exec(server="arin", server_url="whois.arin.net")
                         continue
+                    if self._match_response("block not managed by the ripe ncc"):
+                        # whois 109.244.112.0 replies RIPE that they don't manage the block
+                        self._exec(server="apnic", server_url="whois.apnic.net")
+                        continue
+                    if self._match_response("query rate limit exceeded"):  # LACNIC gave me this - seems 300 s needed
+                        logger.warning(f"Whois server {self.servers[server]} query rate limit exceeded (LACNIC?) for: {self.ip}. Sleeping for 300 s...")
+                        time.sleep(300)
+                        self._exec(server=server)
+                        continue
+                    if self.registry == "rwhois.gin.ntt.net":  # 204.2.250.0
+                        self._exec(server="arin", server_url="whois.arin.net")
+                        continue
+                    if self.registry in ["whois.twnic.net", "whois.nic.ad.jp"]:
+                        # twnic
+                        # 210.241.57.0
+                        # whois 203.66.23.2 replies whois.twnic.net.tw with "The IP address not belong to TWNIC"
+                        # jp
+                        # 185.243.43.0
+                        self._exec(server="apnic", server_url="whois.apnic.net")
+                        continue
 
-                # CIDR is not disallowed with the use of Whois - CSV guesses translates it to an IP first
-                    # if self._match_response("invalid search key") and not tried_cidr_to_ip:
-                    #     # when asking for a CIDR that is non-valid network because of having host bits set, we ask for IP
-                    #     # ex: CIDR 141.138.197.1/24 (network would be 141.138.197.0/24), we ask for IP 141.138.197.1
-                    #     tried_cidr_to_ip = True
-                    #     try:
-                    #         self.q = str(ipaddress.ip_interface(self.ip).ip)
-                    #         self._exec(server=server)
-                    #         continue
-                    #     except:
-                    #         pass
+                if not country:
+                    country = self._load_country_from_addresses(country)
                 break
             if not country:
                 fail = None
                 if self._match_response("network is unreachable") or self._match_response("name or service not known"):
-                    fail = "Whois server {} is unreachable. Disabling for this session.".format(self.servers[server])
-                if self._match_response("access denied"):
-                    fail = "Whois server {} access denied. Disabling for this session.".format(self.servers[server])
+                    fail = f"Whois server {self.servers[server]} is unreachable. Disabling for this session."
+                if self._match_response("access denied"):  # RIPE gave me this
+                    fail = f"Whois server {self.servers[server]} access denied. Disabling for this session."
+                if self._match_response("invalid search key"):
+                    logger.warning(f"Invalid search key for: {self.ip}")
+
                 if fail:
                     logger.warning(fail)
                     Whois.servers.pop(server)
                     continue
-
-            if country:
-                # sanitize whois confusion
-                # if ":" in country:
-                    # whois 198.55.103.47 leads to "Found a referral to rwhois.quadranet.com:4321."
-                    # 154.48.234.95 goes to AfriNIC that goes to ARIN that says:
-                    #   CIDR:           154.48.0.0/16
-                    #   Country:        US
-                    #   Found a referral to rwhois.cogentco.com:4321.
-                    #   network:IP-Network:154.48.224.0/19
-                    #   network:Country:DE
-                    # (We've cut the text to the "Found a referral".)
-                    # country = country.split(":")[1]
-                # Country mistakes:
-                # "EU # Worldwide" (2a0d:f407:1003::/48)
-                # 'EU # Country is really world wide' (64.9.241.202) (Our mirror returned this result sometimes)
-                # 'EU' (89.41.60.38) (RIPE returned this value)
-                if country[0:2] == "eu":
-                    country = ""
-                    continue
-
-                # sanitize multiple countries in one line
-                #  ** Since we take only last word, only Country "LU" will be taken. **
-                # if len(self.country.split("#")) > 1: # ex: 'NL # BE GB DE LU' -> 'NL' (82.175.175.231)
-                #    self.country = self.country.split("#")[0].strip(" ")
+            else:
                 break
 
         # if not country:
         #    country = Config.UNKNOWN_NAME
 
         asn = self._match_response(r'\norigin(.*)\d+', last_word=True)
-        netname = self._match_response([r'\nnetname:\s*([^\s]*)', r'\nnetwork:network-name:\s*([^\s]*)'])
+        netname = self._match_response([r'netname:\s*([^\s]*)', r'network:network-name:\s*([^\s]*)'])
 
         # loads prefix
         match = self._match_response(["% abuse contact for '([^']*)'",
@@ -261,7 +581,7 @@ class Whois:
                                       ])
         if match:
             prefix = self._str2prefix(match)
-        
+
         if country not in Config.get("local_country"):
             return prefix, "foreign", country, asn, netname, country, self.get_abusemail()
         else:
@@ -271,6 +591,16 @@ class Whois:
                 self.resolve_unknown_mail()
             ab = self.get_abusemail()
             return prefix, "local", ab, asn, netname, country, ab
+
+    def _load_country_from_addresses(self, country):
+        # let's try to find country in the non-standardised address field
+        for address in re.findall(r"address:\s+(.*)", "\n".join(self.whoisResponse)):
+            for s in countries:
+                if s in address:
+                    print("Found country in", address)
+                    country = countries[s]
+                    return country
+        return ""
 
     reAbuse = re.compile('[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}')
 
@@ -291,15 +621,18 @@ class Whois:
         #    self.abusemail = Config.UNKNOWN_NAME
         return self.abusemail
 
+    regRe = re.compile(r"using server (.*)\.")
+
     def _exec(self, server, server_url=None):
         """ Query whois server """
         if server is "general":
-            cmd = ["whois", self.ip]
+            cmd = ["whois", "--verbose", self.ip]
         else:
             if not server_url:
                 server_url = Whois.servers[server]
-            cmd = ["whois", "-h", server_url, "--", self.ip]
+            cmd = ["whois", "--verbose", "-h", server_url, "--", self.ip]
         Whois.stats[server] += 1
+        self.registry = None  # check what registry whois asks - may use a strange LIR that returns non-senses
         try:
             p = Popen(cmd, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE)
             response = p.stdout.read().decode("unicode_escape").strip().lower()  # .replace("\n", " ")
@@ -310,12 +643,25 @@ class Whois:
         except TypeError:  # could not resolve host
             self.whoisResponse = []
         else:
+            try:
+                self.registry = Whois.regRe.search(response).groups()[0]
+            except (IndexError, AttributeError):
+                pass
+
             # Sometimes, a registry calls another registry for you. This may chain.
             # We prioritize by the most recent to the first.
             # So when whois 154.48.234.95 goes to AfriNIC that goes to ARIN that goes to rwhois.cogentco.com:4321,
             # we find country in Cogento, then in ARIN, then in AfriNIC.
             # This may lead to the behaviour when Country is from Cogento and Netname is from ARIN.
             # I don't know how to handle this better.
+            # Another example is
+            # whois 198.55.103.47 leads to "Found a referral to rwhois.quadranet.com:4321."
+            # 154.48.234.95 goes to AfriNIC that goes to ARIN that says:
+            #   CIDR:           154.48.0.0/16
+            #   Country:        US
+            #   Found a referral to rwhois.cogentco.com:4321.
+            #   network:IP-Network:154.48.224.0/19
+            #   network:Country:DE
             ref_s = "found a referral to "
             self.whoisResponse = response.split(ref_s)[::-1]
 

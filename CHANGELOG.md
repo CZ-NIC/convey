@@ -7,6 +7,9 @@
 - Whois module 
     - won't throw error if host can't be resolved
     - huge refactoring (may lead to the behaviour when Country is taken from ARIN and Netname from AfriNIC if AfriNIC points us to ARIN that doesn't state Netname)
+    - thousands of unique prefixes tried, many uses cases handled
+    - naive database of country names, so that country may be guessed from non-standardised "address" field
+    - some well known erroneous LIR responses are re-requested by their respective RIR
 - opens config file when a flag is not defined
 - new delimiter flag
 - new quote_char flag
