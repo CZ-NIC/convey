@@ -5,11 +5,11 @@ import traceback
 from bdb import BdbQuit
 from collections import defaultdict
 from csv import reader as csvreader, writer as csvwriter
-from os.path import join
+from math import ceil
+from pathlib import Path
 from typing import Dict
 
 import ipdb
-from math import ceil
 
 from .config import Config
 from .contacts import Attachment, Contacts
@@ -62,7 +62,7 @@ class Processor:
         try:
             if file:
                 source_stream = open(file, "r")
-                settings["target_file"] = csv.target_file
+                settings["target_file"] = str(csv.target_file)
             else:
                 source_stream = stdin
                 settings["target_file"] = 1
@@ -99,9 +99,8 @@ class Processor:
                     o = ask("Keyboard interrupt caught. Options: continue (default, do the line again), "
                             "[s]kip the line, [d]ebug, [q]uit: ")
                     if o == "d":
-                        print(
-                            "Maybe you should hit n multiple times because pdb takes you to the wrong scope.")  # I dont know why.
-                        import ipdb;
+                        print("Maybe you should hit n multiple times because pdb takes you to the wrong scope.")  # I dont know why.
+                        import ipdb
                         ipdb.set_trace()
                     elif o == "s":
                         continue  # skip to the next line
@@ -119,14 +118,16 @@ class Processor:
                 result = self.descriptors[1][0].getvalue()
                 print(result)
 
-                ignore = is_no("Save to an output file?") if Config.get("save_stdin_output") == "" \
-                    else Config.getboolean("save_stdin_output") is False
+                if Config.output is None:
+                    ignore = is_no("Save to an output file?") if Config.get("save_stdin_output") == ""\
+                        else Config.getboolean("save_stdin_output") is False
+                else:
+                    ignore = not Config.output
                 if ignore:
                     # we didn't have a preference and replied "no" or we had a preference to not save the output
                     csv.target_file = False
                 else:
-                    with open(csv.target_file, "w") as f:
-                        f.write(result)
+                    csv.target_file.write_text(result)
 
             self._close_descriptors()
 
@@ -250,7 +251,7 @@ class Processor:
                 if location is 1:  # this is a sign we output csv data to stdout
                     t = io.StringIO()
                 else:
-                    t = open(join(Config.get_cache_dir(), location), method)
+                    t = open(Path(Config.get_cache_dir(), location), method)
                 w = csvwriter(t, dialect=settings["dialect"])
             self.descriptors[location] = t, w
             self.descriptors_count += 1

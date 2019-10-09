@@ -1,7 +1,6 @@
 import csv
-import os
 import re
-from os.path import join
+from pathlib import Path
 from typing import Dict
 
 from validate_email import validate_email
@@ -20,7 +19,7 @@ class Attachment:
         self.path = path
 
     def get_abs_path(self):
-        return join(Config.get_cache_dir(), self.path)
+        return Path(Config.get_cache_dir(), self.path)
 
     @classmethod
     def get_basic(cls, attachments):
@@ -88,7 +87,8 @@ class Contacts:
         Refreshes list of abusemails (for Cc of the mails in the results) (config key contacts_local)
         and csirtmails (country contact) (config key contacts_foreign)
         """
-        cls.mailDraft = {"local": MailDraft(Config.get("mail_template_basic")), "foreign": MailDraft(Config.get("mail_template_partner"))}
+        cls.mailDraft = {"local": MailDraft(Config.get("mail_template_basic")),
+                         "foreign": MailDraft(Config.get("mail_template_partner"))}
         cls.abusemails = cls._update("contacts_local")
         cls.csirtmails = cls._update("contacts_foreign")
 
@@ -105,13 +105,13 @@ class Contacts:
     def _update(key: Dict[str, str]) -> object:
         """ Update info from an external CSV file. """
         file = get_path(Config.get(key))
-        if not os.path.isfile(file):  # file with contacts
+        if not Path(file).is_file():  # file with contacts
             print("(Contacts file {} not found on path {}.) ".format(key, file))
             input()
             return {}
         else:
             with open(file, 'r') as csvfile:
                 reader = csv.reader(csvfile)
-                next(reader) # skip header row
+                next(reader)  # skip header row
                 rows = {rows[0]: rows[1] for rows in reader}
                 return rows

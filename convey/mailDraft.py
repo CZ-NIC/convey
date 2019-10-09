@@ -1,7 +1,6 @@
 """ Mail management data structure """
-import os
 import subprocess
-from os.path import join
+from pathlib import Path
 
 from .config import Config, get_path
 
@@ -10,7 +9,7 @@ class MailDraft:
     def __init__(self, filename):
         self.text = False
         self.template_file = get_path(filename)
-        self.mail_file = join(Config.get_cache_dir(), filename)  # ex: csirt/2015/mail_cz5615616.txt XMailDraft.dir +  + MailDraft.hash
+        self.mail_file = Path(Config.get_cache_dir(), filename)  # ex: csirt/2015/mail_cz5615616.txt XMailDraft.dir +  + MailDraft.hash
 
     def get_body(self):
         """ get body text """
@@ -57,7 +56,7 @@ class MailDraft:
 
     def gui_edit(self):
         """ Opens file for mail text to GUI editing. Created from the template if had not existed before. """
-        if not os.path.isfile(self.mail_file):
+        if not Path(self.mail_file).is_file():
             with open(self.template_file, 'r') as template, open(self.mail_file, 'w+') as file:
                 file.write(template.read())
 

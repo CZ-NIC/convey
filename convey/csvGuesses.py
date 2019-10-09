@@ -3,10 +3,10 @@ import csv
 import importlib.util
 import ipaddress
 import logging
-import os
 import re
 from builtins import ZeroDivisionError
 from csv import Error, Sniffer, reader
+from pathlib import Path
 
 from .config import Config
 from .contacts import Contacts
@@ -150,7 +150,7 @@ class CsvGuesses:
 
     @staticmethod
     def get_module_from_path(path):
-        if not os.path.isfile(path):
+        if not Path(path).is_file():
             return False
         spec = importlib.util.spec_from_file_location("", path)
         module = importlib.util.module_from_spec(spec)

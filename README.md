@@ -2,7 +2,10 @@
 
 A tool for information conveying – CSV swiss knife brought by [CSIRT.cz](https://csirt.cz). Convenable way to process large files that might freeze your spreadsheet processor.
 
-* It takes any CSV or text input (any delimiter, header or whatever) and perform one or more actions:
+* It takes any CSV or text input (any delimiter, header or whatever) and perform one or more actions (below).
+* Should the input be a log file, it is converted to CSV, base64 encoded text is decoded.
+
+CSV Actions:
 
 1) **Pick or delete columns** (if only some columns are needed)
 2) **Add a column** (computes one field from another – see below)

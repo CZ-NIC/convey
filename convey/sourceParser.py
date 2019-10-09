@@ -2,14 +2,13 @@
 import csv
 import datetime
 import logging
-import ntpath
-import os
+import re
 import subprocess
 import time
 from collections import defaultdict
 from json import dumps
 from math import ceil
-from os.path import join
+from pathlib import Path
 from shutil import move
 from typing import List
 
@@ -17,7 +16,7 @@ from tabulate import tabulate
 
 from .config import Config
 from .contacts import Contacts, Attachment
-from .csvGuesses import CsvGuesses
+from .csvGuesses import CsvGuesses, b64decode
 from .dialogue import Cancelled, is_yes, ask
 from .informer import Informer
 from .processor import Processor
@@ -41,16 +40,16 @@ class SourceParser:
         self.dialect = None  # CSV dialect
         self.has_header = None  # CSV has header
         self.header = None  # if CSV has header, it's here
-        self.sample = ""
-        self.fields = []  # CSV columns
-        self.first_line_fields = []  # XX what's the difference between self.fields and this? (I found we append to .fields)
+        self.sample = []  # up to first eight lines
+        self.fields = []  # CSV columns that will be generated to an output
+        self.first_line_fields = []  # initial CSV columns (equal to header if header is used)
         self.settings = defaultdict(list)
         self.redo_invalids = Config.getboolean("redo_invalids")
         self.otrs_cookie = False  # OTRS attributes to be linked to CSV
         self.otrs_id = Config.get("ticketid", "OTRS")
         self.otrs_token = False
         self.otrs_num = Config.get("ticketnum", "OTRS")
-        self.attachment_name = "part-" + (ntpath.basename(source_file) if source_file else "attachment")
+        self.attachment_name = "part-" + (Path(source_file).name if source_file else "attachment")
         self.ip_count_guess = None
         self.ip_count = None
         self.attachments = []  # files created if splitting
@@ -62,14 +61,14 @@ class SourceParser:
 
         # load CSV
         self.source_file = source_file
-        self.stdin = None
+        self.stdin = []
         self.target_file = None
         self.processor = Processor(self)
         self.informer = Informer(self)
         self.guesses = CsvGuesses(self)
 
         if self.source_file:  # we're analysing a file on disk
-            self.size = os.path.getsize(self.source_file)
+            self.size = Path(self.source_file).stat().st_size
             self.first_line, self.sample = self.guesses.get_sample(self.source_file)
             self.lines_total = self.informer.source_file_len()
         elif stdin:  # we're analysing an input text
@@ -83,9 +82,10 @@ class SourceParser:
         if self.size == 0:
             print("Empty contents.")
             quit()
+        self.prepare_target_file()
 
         # if that's a single cell, just print out some useful information and exit
-        if self.stdin and len(self.stdin) == 1 and "," not in self.stdin[0] and self.check_single_cell():
+        if self.stdin and self.check_single_cell():
             quit()
 
         self.informer.sout_info()
@@ -108,7 +108,7 @@ class SourceParser:
                 uncertain = True
                 print(f"Quoting character: '{self.dialect.quotechar}'\n", end="")
 
-            if Config.get("header") not in [None, '']:
+            if Config.get("header") != '':
                 self.has_header = Config.getboolean("header")
             else:
                 uncertain = True
@@ -172,8 +172,21 @@ class SourceParser:
     def check_single_cell(self):
         """ Check if we are parsing a single cell and print out some meaningful details."""
 
+        def join_base(s):
+            return "".join(s).replace("\n", "").replace("\r", "")
+
+        len_ = len(self.sample)
+        if len_ > 1 and re.search("[^A-Za-z0-9+/=]", join_base(self.sample)) is None:
+            # in the sample, there is just base64-chars
+            s = join_base(self.stdin)
+            if not b64decode(s):  # all the input is base64 decodable
+                return False
+            self.set_stdin([s])
+        elif not len_ or len_ > 1:
+            return False
+
         # init some basic parameters
-        self.fields = self.first_line_fields = self.stdin
+        self.fields = self.stdin
         self.dialect = csv.unix_dialect
         self.has_header = False
         self.guesses.identify_cols()
@@ -198,7 +211,7 @@ class SourceParser:
             fitting_type = self.guesses.get_fitting_type(0, target_type)
             # print(f"Target type:{target_type} Treat value as type: {fitting_type}")
             if fitting_type:
-                val = self.stdin[0]
+                val = self.first_line
                 for l in self.guesses.get_methods_from(target_type, fitting_type, None):
                     val = l(val)
                 if type(val) is tuple and type(val[0]) is Whois:
@@ -207,9 +220,26 @@ class SourceParser:
                     continue
                 rows.append((target_type, "×" if val is None else val))
                 json[target_type] = val
-        print("\n" + tabulate(rows, headers=("field", "value")))
+
+        # prepare json to return (useful in a web service)
         if "csirt-contact" in json and json["csirt-contact"] == "-":
             json["csirt-contact"] = ""  # empty value instead of a dash, stored in CsvGuesses-method-("whois", "csirt-contact")
+
+        # print out output
+        if len(rows) == 1 and len(rows[0][1]) > 150:
+            # we found a single possible output and that one is too long (ex: long base64 string), print it in lines, not in a table
+            output = rows[0][1].replace("\\n", "\n")
+            if Config.output:
+                print(f"Writing to {self.target_file}...")
+                self.target_file.write_text(output)
+            print(f"\nField: {rows[0][0]}\n"+"*"*50)
+            print(output)
+        else:
+            print("\n" + tabulate(rows, headers=("field", "value")))
+            if Config.output:
+                print(f"Writing to {self.target_file}...")
+                self.target_file.write_text(dumps(json))
+
         return dumps(json)
 
     def reset_whois(self, hard=True, assure_init=False):
@@ -261,7 +291,8 @@ class SourceParser:
         # self.is_formatted = False
         self.reset_whois(hard=hard)
 
-    def _set_target_file(self):
+    def prepare_target_file(self):
+        target_file = None
         if not self.settings["split"] and self.settings["split"] is not 0:  # 0 is a valid column
             l = []
             if self.settings["filter"]:
@@ -275,10 +306,11 @@ class SourceParser:
             for name, _, _, _ in self.settings["add"]:
                 l.append(name)
             if self.source_file:
-                l.insert(0, ntpath.basename(self.source_file))
-                self.target_file = f"{'_'.join(l)}.csv"
+                l.insert(0, Path(self.source_file).name)
+                target_file = f"{'_'.join(l)}.csv"
             else:
-                self.target_file = f"output_{time.strftime('%Y-%m-%d %H:%M:%S')}.csv"
+                target_file = f"output_{time.strftime('%Y-%m-%d %H:%M:%S')}.csv"
+            self.target_file = Path(Config.output) if bool(Config.output) else Path(Config.get_cache_dir(), target_file)
             self.is_split = False
         else:
             self.target_file = None
@@ -297,7 +329,7 @@ class SourceParser:
         self.time_start = self.time_last = datetime.datetime.now().replace(microsecond=0)
         Contacts.init()
         # Config.update()
-        self._set_target_file()
+        self.prepare_target_file()
         self.processor.process_file(self.source_file, rewrite=True, stdin=self.stdin)
         self.time_end = datetime.datetime.now().replace(microsecond=0)
         self.lines_total = self.line_count  # if we guessed the total of lines, fix the guess now
@@ -359,7 +391,7 @@ class SourceParser:
         if basename in self.processor.files_created:
             self.processor.files_created.remove(basename)  # this file exists no more, if recreated, include header
         self.processor.process_file(temp)
-        os.remove(temp)
+        Path(temp).unlink()
         self._reset_output()
         self.informer.sout_info()
         return True
@@ -376,7 +408,7 @@ class SourceParser:
         if not is_yes(s):
             return
 
-        path = join(Config.get_cache_dir(), Config.UNKNOWN_NAME)
+        path = Path(Config.get_cache_dir(), Config.UNKNOWN_NAME)
         self.stats["ipsCzMissing"] = set()
         self.stats["czUnknownPrefixes"] = set()
         Whois.unknown_mode = True
@@ -391,7 +423,7 @@ class SourceParser:
             print("No invalid rows.")
             return
 
-        path = join(Config.get_cache_dir(), Config.INVALID_NAME)
+        path = Path(Config.get_cache_dir(), Config.INVALID_NAME)
         while True:
             print("There are {0} invalid rows".format(self.invalid_lines_count))
             try:

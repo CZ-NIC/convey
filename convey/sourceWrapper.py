@@ -1,12 +1,10 @@
 """
     Source file caching - load, save
 """
-import ntpath
-import os
 import re
 import sys
 from bdb import BdbQuit
-from os.path import join
+from pathlib import Path
 
 import ipdb
 import jsonpickle
@@ -62,7 +60,7 @@ class SourceWrapper:
             stdin = file_or_input.split("\n") if file_or_input else read_stdin()
         elif force_file:
             file = file_or_input if file_or_input else choose_file()
-        elif file_or_input and os.path.isfile(file_or_input):
+        elif file_or_input and Path(file_or_input).is_file():
             file = file_or_input
         elif file_or_input:
             stdin = file_or_input.split("\n")
@@ -88,26 +86,25 @@ class SourceWrapper:
             print("No input. Program exit.")
             quit()
         elif stdin:
+            Config.set_cache_dir(Path.cwd())
             self.stdin = stdin
             self.csv = SourceParser(stdin=stdin)
             self.cache_file = None
-            Config.set_cache_dir(os.getcwd())
             return
 
-        if not os.path.isfile(file):
+        if not Path(file).is_file():
             print(f"File '{file}' not found.")
             quit()
 
-        self.file = os.path.abspath(file)
-        info = os.stat(self.file)
+        self.file = Path(file).resolve()
+        info = Path(self.file).stat()
         self.hash = str(
             hash(info.st_size + round(info.st_mtime)))  # why round: during file copying we may cut microsecond part behind mantissa
         # cache-file with source file metadata
-        Config.set_cache_dir(join(os.path.dirname(self.file), ntpath.basename(self.file) + "_convey" + self.hash))
-        self.cache_file = join(Config.get_cache_dir(), ntpath.basename(self.file) + ".cache")  # "cache/" +
-        if os.path.isfile(self.cache_file) and not fresh:
+        Config.set_cache_dir(Path(Path(self.file).parent, Path(self.file).name + "_convey" + self.hash))
+        self.cache_file = Path(Config.get_cache_dir(), Path(self.file).name + ".cache")
+        if Path(self.cache_file).is_file() and not fresh:
             print("File {} has already been processed.".format(self.file))
-            # import pdb;pdb.set_trace()
             try:  # try to depickle
                 self.csv = jsonpickle.decode(open(self.cache_file, "r").read(), keys=True)
                 # correction of a wrongly pickling: instead of {IPNetwork('...'): (IPNetwork('...'),
@@ -143,8 +140,8 @@ class SourceWrapper:
                     print("Format of the file may have changed since last time. "
                           "Let's process it all again. If you continue, cache gets deleted.")
         else:
-            if not os.path.exists(Config.get_cache_dir()):
-                os.makedirs(Config.get_cache_dir())
+            if not Path(Config.get_cache_dir()).exists():
+                Path(Config.get_cache_dir()).mkdir()
         self.clear()
 
     ##
@@ -170,7 +167,7 @@ class SourceWrapper:
         _, sample = CsvGuesses(None).get_sample(self.file)
         if sample and re_log_line.match(sample[0]) and is_yes("\nThis seems like a log file. Do you wish to transform it to CSV first?"):
             csv = SourceParser(self.file, prepare=False)
-            csv._set_target_file()
+            csv.prepare_target_file()
             with open(csv.target_file, "w") as target:
                 target.write(",".join(["time", "source", "src_port", "dst", "dst_port"]) + "\n")
                 with open(csv.source_file) as f:

@@ -401,7 +401,10 @@ class Whois:
     @classmethod
     def hostname2ip(cls, hostname):
         if hostname not in cls.hostname_cache:
-            cls.hostname_cache[hostname] = socket.gethostbyname(hostname)
+            try:
+                cls.hostname_cache[hostname] = socket.gethostbyname(hostname)
+            except OSError:
+                cls.hostname_cache[hostname] = False
         return cls.hostname_cache[hostname]
 
     def resolve_unknown_mail(self):

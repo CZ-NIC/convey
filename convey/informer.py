@@ -1,10 +1,9 @@
 import csv
 import datetime
-import os
 import subprocess
 import sys
 from math import ceil
-from os.path import dirname, join
+from pathlib import Path
 
 import humanize
 from tabulate import tabulate
@@ -93,13 +92,15 @@ class Informer:
             if ar:
                 print("Fields after processing:", end="")
                 csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect).writerow(ar)
+            if Config.output:
+                print(f"Output file specified: {Config.output}")
         # if Config.is_debug():    print("Debug – Settings", self.csv.settings)
 
         if self.csv.is_analyzed:
             if self.csv.target_file is False:
                 print("\n** Processing completed, results were not saved to a file.")
             elif self.csv.target_file:
-                print(f"\n** Processing completed: Result file in {join(Config.get_cache_dir(), self.csv.target_file)}")
+                print(f"\n** Processing completed: Result file in {self.csv.target_file}")
             else:
                 partner_count, abuse_count, non_deliverable, totals = map(self.csv.stats.get, (
                     'partner_count', 'abuse_count', 'non_deliverable', 'totals'))
@@ -134,7 +135,7 @@ class Informer:
             print("\n Statistics overview:\n" + stat)
             if Config.getboolean("write_statistics") and self.csv.source_file:
                 # we write statistics.txt only if we're sourcing from a file, not from stdin
-                with open(dirname(self.csv.source_file) + "/statistics.txt", "w") as f:
+                with open(Path(Path(self.csv.source_file).parent, "statistics.txt"), "w") as f:
                     f.write(stat)
             """
             XX
@@ -161,7 +162,7 @@ class Informer:
                     rows.append((o.path,
                                  {True: "partner", False: "✓", None: "×"}[o.partner],
                                  {True: "✓", False: "error", None: "no"}[o.sent],
-                                 humanize.naturalsize(os.stat(o.get_abs_path()).st_size),
+                                 humanize.naturalsize(Path(o.get_abs_path()).stat().st_size),
                                  ))
                 print("\n\n** Generated files overview **\n", tabulate(rows, headers=("file", "deliverable", "sent", "size")))
             # else:

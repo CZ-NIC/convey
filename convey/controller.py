@@ -1,9 +1,8 @@
 import argparse
 import csv
-import os
-import subprocess
 import sys
 from heapq import nsmallest
+from pathlib import Path
 from sys import exit
 
 import ipdb
@@ -30,6 +29,7 @@ class Controller:
                             action="store_true")
         parser.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
                             action="store_true")
+        parser.add_argument('-o', '--output', help="Save output to this file", metavar="FILENAME")
         parser.add_argument('--delimiter', help="Force delimiter")
         parser.add_argument('--quote-char', help="Force quoting character")
         parser.add_argument('--header', help="Treat file as having header", action="store_true")
@@ -53,6 +53,7 @@ class Controller:
             Config.set("header", True)
         if args.no_header:
             Config.set("header", False)
+        Config.output = args.output
 
         Config.init(args.yes)  # , args.mute
         self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
@@ -65,7 +66,6 @@ class Controller:
                 csv.__dict__[flag[0]] = args.__dict__[flag[0]]
                 print("{}: {}".format(flag[1], flag[0]))
 
-        # self.csv.settings = defaultdict(list) # every program launch, the settings resets
         if args.csirt_incident and not csv.is_analyzed:
             csv.settings["split"] = self.extend_column("incident-contact", add=False)
             csv.is_processable = True
@@ -217,7 +217,7 @@ class Controller:
     @staticmethod
     def edit_configuration():
         print("Opening {}... restart Convey when done.".format(Config.path))
-        subprocess.Popen(['gedit', Config.path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        Config.edit_configuration()
         input()
 
     def debug_ip(self):
@@ -285,7 +285,7 @@ class Controller:
         if new_field == "custom":  # choose a file with a needed method
             while True:
                 title = "What .py file should be used as custom source?"
-                code, path = dialog.fselect(os.getcwd(), title=title)
+                code, path = dialog.fselect(Path.cwd(), title=title)
                 if code != "ok" or not path:
                     return
                 module = self.csv.guesses.get_module_from_path(path)
