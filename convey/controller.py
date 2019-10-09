@@ -15,6 +15,14 @@ from .mailSender import MailSenderOtrs, MailSenderSmtp
 from .sourceWrapper import SourceWrapper
 
 
+class BlankTrue(argparse.Action):
+    """ When left blank, this flag produces True. (Normal behaviour is to produce None which I use for not being set."""
+
+    def __call__(self, _, namespace, values, option_string=None):
+        if values in [None, []]:  # blank argument with nargs="?" produces None, with ="*" produces []
+            values = True
+        setattr(namespace, self.dest, values)
+
 class Controller:
 
     def __init__(self):
@@ -42,6 +50,9 @@ class Controller:
                             help=f"Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country"
                             f" or csirt contact for foreign countries) and send everything by OTRS."
                             f" You set local countries in config.ini, currently set to: {Config.get('local_country')}")
+        parser.add_argument('--scrape-url', help="When single value input contains a web page, we could fetch it and add"
+                                                 " status (HTTP code) and text fields. Text is just mere text, no tags, style,"
+                                                 " script, or head. Leave blank for True or put true/on/1 or false/off/0.", action=BlankTrue, nargs="?")
         self.args = args = parser.parse_args()
         if args.debug:
             Config.set("debug", True)
@@ -54,6 +65,9 @@ class Controller:
         if args.no_header:
             Config.set("header", False)
         Config.output = args.output
+        if args.scrape_url:
+            Config.set("scrape_url", args.scrape_url)
+            print("HEJ", args.scrape_url , " → ", Config.get("scrape_url"))
 
         Config.init(args.yes)  # , args.mute
         self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)

@@ -165,8 +165,18 @@ class Config:
         # return Config.config[section][key]
 
     @staticmethod
-    def getboolean(key):
-        return Config.config.getboolean('CONVEY', key)
+    def getboolean(key, true_boolean=True):
+        if true_boolean:
+            return Config.config.getboolean('CONVEY', key)
+        else:
+            try:
+                return Config.config.getboolean('CONVEY', key)
+            except ValueError:
+                val = Config.get(key)
+                if val == '':
+                    return None
+                else:
+                    return val
 
     # def setTemp(key,val):
     #    Config.tempCache[key] = val

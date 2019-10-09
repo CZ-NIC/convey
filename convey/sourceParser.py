@@ -2,6 +2,7 @@
 import csv
 import datetime
 import logging
+import os
 import re
 import subprocess
 import time
@@ -12,6 +13,8 @@ from pathlib import Path
 from shutil import move
 from typing import List
 
+import requests
+from bs4 import BeautifulSoup
 from tabulate import tabulate
 
 from .config import Config
@@ -145,8 +148,10 @@ class SourceParser:
         self.is_formatted = True  # delimiter and header has been detected etc.
         # break
 
-    def get_fields_autodetection(self):
-        """ returns list of tuples [ (field, detection), ("UrL", "url, hostname") ] """
+    def get_fields_autodetection(self, return_first_types=False):
+        """ returns list of tuples [ (field, detection), ("UrL", "url, hostname") ] 
+        :type return_first_types: If True, we return possible types of the first field in []
+        """
         fields = []
         for i, field in enumerate(self.fields):
             s = ""
@@ -154,12 +159,19 @@ class SourceParser:
                 possible_types = self.guesses.field_type[i, field]
                 if "anyIP" in possible_types and ("ip" in possible_types or "portIP" in possible_types):
                     del possible_types["anyIP"]
-                s = "detected: {}".format(", ".join(sorted(possible_types, key=possible_types.get)))
+                if "url" in possible_types and "wrongURL" in possible_types:
+                    del possible_types["wrongURL"]
+                l = sorted(possible_types, key=possible_types.get)
+                if return_first_types:
+                    return l
+                s = f"detected: {', '.join(l)}"
             else:
                 for f, _, _type, custom_method in self.settings["add"]:
                     if field == f:
-                        s = "computed from: {}".format(_type)
+                        s = f"computed from: {_type}"
             fields.append((field, s))
+        if return_first_types:  # we did find nothing
+            return []
         return fields
 
     def set_stdin(self, stdin):
@@ -192,17 +204,23 @@ class SourceParser:
         self.guesses.identify_cols()
 
         # tell the user what type we think their input is
-        detection = self.get_fields_autodetection()[0][1]  # access the detection message for the first (and supposedly only) field
+        detection = self.get_fields_autodetection(True)  # access the detection message for the first (and supposedly only) field
         if not detection:
-            print("We couldn't parse the input text easily.")
+            print("\nWe couldn't parse the input text easily.")
             return False  # this is not a single cell, let's continue input parsing
         else:
-            print("The inputted value " + detection)
+            print("\nInput value detected: " + " ,".join(detection))
 
-        # transform the field by all known means
+        # prepare the result variables
         seen = set()
         rows = []
         json = {}
+
+        def append(target_type, val):
+            rows.append([target_type, "×" if val is None else val])
+            json[target_type] = val
+
+        # transform the field by all known means
         for _, target_type in self.guesses.methods.keys():  # loop all existing methods
             if target_type in seen:
                 continue
@@ -218,27 +236,68 @@ class SourceParser:
                     val = val[1]
                 elif type(val) is Whois:  # we ignore this whois temp value
                     continue
-                rows.append((target_type, "×" if val is None else val))
-                json[target_type] = val
+                append(target_type, val)
+
+        # scrape the website if needed
+        if Config.getboolean("scrape_url", False):
+            url = None
+            for dict_ in [detection, json]:  # try to find and URL in input fields or worse in computed fields
+                if url:
+                    break
+                for key in ["url", "hostname", "ip"]:  # prefer url over ip
+                    if key in dict_:
+                        url = self.first_line if dict_ is detection else dict_[key]
+                        if key != "url":
+                            url = "http://" + url
+                        break
+            if url:
+                print("Trying URL... " + url)
+                append("scrape-url", url)
+                try:
+                    response = requests.get(url, timeout=3)
+                except IOError as e:
+                    append("status", 0)
+                    append("scrape-error", str(e))
+                else:
+                    append("status", response.status_code)
+                    response.encoding = response.apparent_encoding  # https://stackoverflow.com/a/52615216/2036148
+                    soup = BeautifulSoup(response.text, features="html.parser")
+                    [s.extract() for s in soup(["style", "script", "head"])]  # remove tags with low probability of content
+                    text = re.sub(r'\n\s*\n', '\n', soup.text)  # reduce multiple new lines to singles
+                    text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ', text)  # reduce multiple spaces (not new lines) to singles
+                    append("text", text)
 
         # prepare json to return (useful in a web service)
         if "csirt-contact" in json and json["csirt-contact"] == "-":
             json["csirt-contact"] = ""  # empty value instead of a dash, stored in CsvGuesses-method-("whois", "csirt-contact")
 
-        # print out output
-        if len(rows) == 1 and len(rows[0][1]) > 150:
-            # we found a single possible output and that one is too long (ex: long base64 string), print it in lines, not in a table
-            output = rows[0][1].replace("\\n", "\n")
-            if Config.output:
-                print(f"Writing to {self.target_file}...")
-                self.target_file.write_text(output)
-            print(f"\nField: {rows[0][0]}\n"+"*"*50)
-            print(output)
+        # pad to the screen width
+        try:
+            _, width = (int(s) for s in os.popen('stty size', 'r').read().split())
+        except (OSError, ValueError):
+            pass
         else:
-            print("\n" + tabulate(rows, headers=("field", "value")))
-            if Config.output:
-                print(f"Writing to {self.target_file}...")
-                self.target_file.write_text(dumps(json))
+            width -= max(len(row[0]) for row in rows) + 2  # size of terminal - size of the longest field name + 2 column space
+            for i, row in enumerate(rows):
+                val = row[1]
+                if width and len(str(val)) > width:  # split the long text by new lines
+                    row[1] = "\n".join([val[i:i + width] for i in range(0, len(val), width)])
+
+        # print out output
+                # XX
+                # if len(rows) == 1 and len(rows[0][1]) > 150:
+                #     # we found a single possible output and that one is too long (ex: long base64 string), print it in lines, not in a table
+                #     output = rows[0][1].replace("\\n", "\n")
+                #     if Config.output:
+                #         print(f"Writing to {self.target_file}...")
+                #         self.target_file.write_text(output)
+                #     print(f"\nField: {rows[0][0]}\n" + "*" * 50)
+                #     print(output)
+                # else:
+        print("\n" + tabulate(rows, headers=("field", "value")))
+        if Config.output:
+            print(f"Writing to {self.target_file}...")
+            self.target_file.write_text(dumps(json))
 
         return dumps(json)
 

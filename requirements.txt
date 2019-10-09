@@ -6,3 +6,4 @@ validate_email
 tabulate
 appdirs
 humanize
+bs4

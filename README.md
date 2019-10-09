@@ -19,7 +19,7 @@ Python3.6+ required.
 ## Examples
 
 ### Use it as a program
-Parses CSV file or returns table with WHOIS-related information.
+Parses CSV file or returns table with WHOIS-related information and scraped HTTP content.
 ```bash
 $ convey my-file.csv # will trigger file parsing
 $ convey 1.1.1.1 # single value input
@@ -37,6 +37,8 @@ country           au
 netname           apnic-labs
 csirt-contact     -
 incident-contact  au
+status            200
+text              DNSThe free app that makes your (much longer text...)
 
 $ convey 
 Do you want to input text (otherwise you'll be asked to choose a file name)? [y/n]
@@ -44,7 +46,7 @@ Do you want to input text (otherwise you'll be asked to choose a file name)? [y/
 ```  
 
 ### Use it as a web service
-Returns JSON with WHOIS-related information.
+Returns JSON with WHOIS-related information and scraped HTTP content.
 ```bash
 # install convey and check where it is installed
 $ pip3 show convey
@@ -53,7 +55,7 @@ Location: /home/$USER/.local/lib/python3.7/site-packages
 $ uwsgi --http :26683 --http-timeout 310 --wsgi-file /home/$USER/.local/lib/python3.7/site-packages/convey/__main__.py
 
 # Access: http://localhost:26683/?q=example.com
-# {'ip': '93.184.216.34', 'prefix': '93.184.216.0-93.184.216.255', 'asn': '', 'abusemail': 'abuse@verizondigitalmedia.com', 'country': 'unknown', 'netname': 'edgecast-netblk-03', 'csirt-contact': '-', 'incident-contact': 'unknown'}
+# {'ip': '93.184.216.34', 'prefix': '93.184.216.0-93.184.216.255', 'asn': '', 'abusemail': 'abuse@verizondigitalmedia.com', 'country': 'unknown', 'netname': 'edgecast-netblk-03', 'csirt-contact': '-', 'incident-contact': 'unknown', 'status': 200, 'text': 'DNSThe free app that makes your (much longer text...)'}
 
 ```
 

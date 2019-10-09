@@ -23,6 +23,7 @@
 - multiline base64 strings (seen in e-mails) may be input → automatically decoded
 - internal: os replaced by pathlib
 - new output CLI flag
+- new scrape_url config flag and --scrape-url CLI flag
 
 ## 1.1 (2019-05-13)
 - fix: do not reprocess file if moved to another location
