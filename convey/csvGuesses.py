@@ -88,7 +88,7 @@ class CsvGuesses:
 
     def __init__(self, csv):
         # import custom methods from files
-        for path in (x.strip() for x in Config.get("custom_fields_modules").split(",")):
+        for path in (x.strip() for x in Config.get("custom_fields_modules", get=str).split(",")):
             try:
                 module = self.get_module_from_path(path)
                 if module:
@@ -221,7 +221,15 @@ class CsvGuesses:
                ("base64", "decoded_text"): b64decode,
                ("plaintext", "base64"): lambda x: base64.b64encode(x.encode("UTF-8")).decode("UTF-8"),
                ("plaintext", "custom"): lambda x: x,
-               ("wrongURL", "url"): wrong_url_2_url
+               ("wrongURL", "url"): wrong_url_2_url,
+               # XX("url", "scrape-url2"): lambda x: print("TEST " + x),
+               # ("hostname", "scrape-url2"): lambda x: print("TEST HOSTNAME " + x),
+               # ("ip", "scrape-url2"): lambda x: print("TEST IP " + x)
+               # ("hostname", "spf"):
+               # XX dns dig
+               # XX ports nmap
+               # XX url decode
+               # XX scrape = web content
                }
 
     @staticmethod

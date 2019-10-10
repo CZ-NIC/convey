@@ -47,7 +47,7 @@ class SourceParser:
         self.fields = []  # CSV columns that will be generated to an output
         self.first_line_fields = []  # initial CSV columns (equal to header if header is used)
         self.settings = defaultdict(list)
-        self.redo_invalids = Config.getboolean("redo_invalids")
+        self.redo_invalids = Config.get("redo_invalids")
         self.otrs_cookie = False  # OTRS attributes to be linked to CSV
         self.otrs_id = Config.get("ticketid", "OTRS")
         self.otrs_token = False
@@ -111,8 +111,8 @@ class SourceParser:
                 uncertain = True
                 print(f"Quoting character: '{self.dialect.quotechar}'\n", end="")
 
-            if Config.get("header") != '':
-                self.has_header = Config.getboolean("header")
+            if Config.get("header") is not None:
+                self.has_header = Config.get("header")
             else:
                 uncertain = True
                 print(f"Header is present: " + ("yes" if self.has_header else "not used"))
@@ -239,7 +239,7 @@ class SourceParser:
                 append(target_type, val)
 
         # scrape the website if needed
-        if Config.getboolean("scrape_url", False):
+        if Config.get("scrape_url"):
             url = None
             for dict_ in [detection, json]:  # try to find and URL in input fields or worse in computed fields
                 if url:
@@ -251,7 +251,7 @@ class SourceParser:
                             url = "http://" + url
                         break
             if url:
-                print("Trying URL... " + url)
+                print(f"Scraping URL {url}...")
                 append("scrape-url", url)
                 try:
                     response = requests.get(url, timeout=3)
@@ -295,7 +295,7 @@ class SourceParser:
                 #     print(output)
                 # else:
         print("\n" + tabulate(rows, headers=("field", "value")))
-        if Config.output:
+        if Config.get("output"):
             print(f"Writing to {self.target_file}...")
             self.target_file.write_text(dumps(json))
 
@@ -369,7 +369,8 @@ class SourceParser:
                 target_file = f"{'_'.join(l)}.csv"
             else:
                 target_file = f"output_{time.strftime('%Y-%m-%d %H:%M:%S')}.csv"
-            self.target_file = Path(Config.output) if bool(Config.output) else Path(Config.get_cache_dir(), target_file)
+            output = Config.get("output")
+            self.target_file = Path(str(output)) if output else Path(Config.get_cache_dir(), target_file)
             self.is_split = False
         else:
             self.target_file = None
@@ -381,7 +382,7 @@ class SourceParser:
         """
         self._reset(hard=False)
 
-        if (autoopen_editor or autoopen_editor is None) and Config.getboolean("autoopen_editor"):
+        if (autoopen_editor or autoopen_editor is None) and Config.get("autoopen_editor"):
             Contacts.mailDraft["local"].gui_edit()
             Contacts.mailDraft["foreign"].gui_edit()
 
@@ -439,7 +440,7 @@ class SourceParser:
 
     def _resolve_again(self, path, basename):
         self.reset_whois(assure_init=True)
-        temp = path + ".running.tmp"
+        temp = str(path) + ".running.tmp"
         try:
             move(path, temp)
         except FileNotFoundError:

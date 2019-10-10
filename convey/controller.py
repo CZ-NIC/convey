@@ -5,7 +5,6 @@ from heapq import nsmallest
 from pathlib import Path
 from sys import exit
 
-import ipdb
 from dialog import Dialog
 
 from .config import Config
@@ -23,6 +22,7 @@ class BlankTrue(argparse.Action):
             values = True
         setattr(namespace, self.dest, values)
 
+
 class Controller:
 
     def __init__(self):
@@ -31,8 +31,9 @@ class Controller:
                                                              "In nothing is given, user will input data through stdin.")
         parser.add_argument('--debug', help="On error, enter an ipdb session", action="store_true")
         parser.add_argument('--fresh', help="Do not attempt to load any previous settings / results", action="store_true")
-        parser.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions.", action="store_true")
-        #parser.add_argument('-m', '--mute', help="Do not output information text.", action="store_true")
+        parser.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions.",
+                            action="store_true")
+        # parser.add_argument('-m', '--mute', help="Do not output information text.", action="store_true")
         parser.add_argument('-f', '--file', help="Treat <file_or_input> parameter as a file, never as an input",
                             action="store_true")
         parser.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
@@ -43,31 +44,33 @@ class Controller:
         parser.add_argument('--header', help="Treat file as having header", action="store_true")
         parser.add_argument('--no-header', help="Treat file as not having header", action="store_true")
         csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
-                 ("otrs_token", "OTRS token")]
+                     ("otrs_token", "OTRS token")]
         for flag in csv_flags:
             parser.add_argument('--' + flag[0], help=flag[1])
         parser.add_argument('--csirt-incident', action="store_true",
                             help=f"Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country"
-                            f" or csirt contact for foreign countries) and send everything by OTRS."
-                            f" You set local countries in config.ini, currently set to: {Config.get('local_country')}")
+                                 f" or csirt contact for foreign countries) and send everything by OTRS."
+                                 f" You set local countries in config.ini, currently set to: {Config.get('local_country')}")
         parser.add_argument('--scrape-url', help="When single value input contains a web page, we could fetch it and add"
                                                  " status (HTTP code) and text fields. Text is just mere text, no tags, style,"
-                                                 " script, or head. Leave blank for True or put true/on/1 or false/off/0.", action=BlankTrue, nargs="?")
+                                                 " script, or head. Leave blank for True or put true/on/1 or false/off/0.",
+                            action=BlankTrue, nargs="?", metavar="blank/false")
+        parser.add_argument('--config', help="Open config file and exit.", action="store_true")
         self.args = args = parser.parse_args()
+        if args.config:
+            self.edit_configuration()
+            quit()
         if args.debug:
             Config.set("debug", True)
-        if args.delimiter:
-            Config.set("delimiter", args.delimiter)
-        if args.quote_char:
-            Config.set("quote_char", args.quote_char)
         if args.header:
             Config.set("header", True)
         if args.no_header:
             Config.set("header", False)
-        Config.output = args.output
-        if args.scrape_url:
-            Config.set("scrape_url", args.scrape_url)
-            print("HEJ", args.scrape_url , " → ", Config.get("scrape_url"))
+        for flag in ["output", "scrape_url", "delimiter", "quote_char"]:
+            if flag == "scape_url":
+                import ipdb; ipdb.set_trace()
+            if getattr(args, flag) is not None:
+                Config.set(flag, getattr(args, flag))
 
         Config.init(args.yes)  # , args.mute
         self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
@@ -306,7 +309,7 @@ class Controller:
                 if module:
                     # inspect the .py file, extract methods and let the user choose one
                     code, fitting_type = dialog.menu("What method should be used in the file {}?".format(path),
-                                               choices=[(x, "") for x in dir(module) if not x.startswith("_")])
+                                                     choices=[(x, "") for x in dir(module) if not x.startswith("_")])
                     if code == "cancel":
                         return
 

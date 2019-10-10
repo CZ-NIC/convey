@@ -17,13 +17,17 @@
 - CIDR with host bits set ( = invalid network) translates to IP when asking whois (RIR would return 'invalid search key')
 - CIDR translated to an IP before asking whois
 - logs in format "time IP src port > IP dst port" can be automatically transformed to CSV before processing
-- number of discovered prefixes should during processing, as well as real whois server URLs
+- number of discovered prefixes should during processing displayed, as well as real whois server URLs
 - socket.gethostbyname non-existing domain exception catched
 - PyPi installer requirements fix
 - multiline base64 strings (seen in e-mails) may be input → automatically decoded
-- internal: os replaced by pathlib
 - new output CLI flag
 - new scrape_url config flag and --scrape-url CLI flag
+- new CLI flag --config to open configuration
+- internal
+    - os replaced by pathlib
+    - Config.getboolean merged to Config.get
+
 
 ## 1.1 (2019-05-13)
 - fix: do not reprocess file if moved to another location

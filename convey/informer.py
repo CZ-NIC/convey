@@ -36,7 +36,7 @@ class Informer:
         # sys.stderr.write("\x1b[2J\x1b[H") # clears gnome-terminal
         # print(chr(27) + "[2J")
         l = []
-        l.append("Source file: " + self.csv.source_file if self.csv.source_file else "Reading STDIN")
+        l.append("Source file: " + str(self.csv.source_file) if self.csv.source_file else "Reading STDIN")
         if self.csv.dialect:
             l.append("delimiter: '" + self.csv.dialect.delimiter + "'")
             l.append("quoting: '" + self.csv.dialect.quotechar + "'")
@@ -90,11 +90,11 @@ class Informer:
                 else:
                     ar.append(" " + f)
             if ar:
-                print("Fields after processing:", end="")
+                print("Fields after processing: ", end="")
                 csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect).writerow(ar)
-            if Config.output:
-                print(f"Output file specified: {Config.output}")
-        # if Config.is_debug():    print("Debug – Settings", self.csv.settings)
+            output = Config.get("output")
+            if output:
+                print(f"Output file specified: {output}")
 
         if self.csv.is_analyzed:
             if self.csv.target_file is False:
@@ -126,14 +126,14 @@ class Informer:
                     if non_deliverable:
                         print("* {} files undeliverable".format(non_deliverable))
 
-                if Config.get('testing') == "True":
+                if Config.get('testing'):
                     print(
                         "\n*** TESTING MOD - mails will be send to mail {} ***\n (For turning off testing mode set `testing = False` in config.ini.)".format(
                             Config.get('testing_mail')))
 
             stat = self.get_stats_phrase()
             print("\n Statistics overview:\n" + stat)
-            if Config.getboolean("write_statistics") and self.csv.source_file:
+            if Config.get("write_statistics") and self.csv.source_file:
                 # we write statistics.txt only if we're sourcing from a file, not from stdin
                 with open(Path(Path(self.csv.source_file).parent, "statistics.txt"), "w") as f:
                     f.write(stat)

@@ -3,7 +3,6 @@ import configparser
 import glob
 import logging
 import sys
-import webbrowser
 from pathlib import Path
 from shutil import copy
 from subprocess import Popen, PIPE
@@ -142,52 +141,79 @@ class Config:
 
     @staticmethod
     def is_debug():
-        return True if Config.get('debug') == "True" else False
+        return Config.get('debug')
 
     @staticmethod
     def is_testing():
-        return True if Config.get('testing') == "True" else False
+        return Config.get('testing')
 
     @staticmethod
-    def get(key, section='CONVEY'):
+    def get(key, section='CONVEY', get=None):
+        """
+
+        :type get: type If str, return value will always be str (ex: no conversion '1/true/on' to boolean happens)
+        :rtype: * boolean for text 0/off/false 1/on/true
+                * None for text = '' or non-inserted value
+                * or any inserted value if non-conforming to previous possibilities
+        """
         if key not in Config.cache:
             try:
-                Config.cache[key] = Config.config[section][key]
-            except KeyError:
-                input(f"The key {key} is not in the config file {Config.path} – integrity failed."
-                      " This should not happen. The program ends now."
-                      "\nPlease submit a Github issue at https://github.com/CZ-NIC/convey/issues/new")
-                url = f"https://github.com/CZ-NIC/convey/issues/new?" \
-                      f"title=integrity failed for key `{key}`&body=issue generated automatically"
-                webbrowser.open(url)
-                quit()
-        return Config.cache[key]
-        # return Config.config[section][key]
-
-    @staticmethod
-    def getboolean(key, true_boolean=True):
-        if true_boolean:
-            return Config.config.getboolean('CONVEY', key)
-        else:
-            try:
-                return Config.config.getboolean('CONVEY', key)
+                val = Config.config.getboolean('CONVEY', key)
             except ValueError:
-                val = Config.get(key)
+                val = Config.config[section][key]
                 if val == '':
-                    return None
-                else:
-                    return val
+                    val = None
+            except (configparser.NoOptionError, KeyError):
+                val = None
+            finally:
+                Config.cache[key] = val
+            # try:
+            #     Config.cache[key] = Config.config[section][key]
+            # except KeyError:
+            #     input(f"The key {key} is not in the config file {Config.path} – integrity failed."
+            #           " This should not happen. The program ends now."
+            #           "\nPlease submit a Github issue at https://github.com/CZ-NIC/convey/issues/new")
+            #     url = f"https://github.com/CZ-NIC/convey/issues/new?" \
+            #           f"title=integrity failed for key `{key}`&body=issue generated automatically"
+            #     webbrowser.open(url)
+            #     quit()
+        val = Config.cache[key]
+        if get is str and type(val) is not str:
+            try:
+                return str(Config.config[section][key])
+            except KeyError:
+                return ''
+        return val
 
-    # def setTemp(key,val):
-    #    Config.tempCache[key] = val
+    # @staticmethod
+    # def getboolean(key, true_boolean=True):
+    #     """
+    #     :param key: Key
+    #     :type true_boolean: True: returns configparser.getboolean or raise ValueError
+    #                         False: returns * boolean (text 0/off/false 1/on/true)
+    #                                        * None for text = '' or not inserted value
+    #                                        * or any inserted value if non-conforming to previous possibilities
+    #     """
+    #     if true_boolean:
+    #         return Config.config.getboolean('CONVEY', key)
+    #     else:
+    #         try:
+    #             return Config.config.getboolean('CONVEY', key)
+    #         except ValueError:
+    #             val = Config.get(key)
+    #             if val == '':
+    #                 return None
+    #             else:
+    #                 return val
+    #         except configparser.NoOptionError:
+    #             return None
 
     @staticmethod
     def set(key, val, section='CONVEY'):
-        Config.config.set(section, key, str(val))
-        # Can't update the file now, it would kill comments in config.ini :(
-        # XAnd I dont want to can do the update because Whois may set whois_mirror value and this change is meant to be temporary only (for the single run of program)
-        # with open(Config.file,"w") as f:
-        # Config.config.write(f)
+        if val is None:
+            Config.config.remove_option(section, key)
+        else:
+            Config.config.set(section, key, str(val))
 
     cache_dir = ""
     output = None  # True, False, None or str (path)

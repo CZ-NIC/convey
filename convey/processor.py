@@ -118,11 +118,11 @@ class Processor:
                 result = self.descriptors[1][0].getvalue()
                 print(result)
 
-                if Config.output is None:
+                if Config.get("output") is None:
                     ignore = is_no("Save to an output file?") if Config.get("save_stdin_output") == ""\
-                        else Config.getboolean("save_stdin_output") is False
+                        else Config.get("save_stdin_output") is False
                 else:
-                    ignore = not Config.output
+                    ignore = not Config.get("output")
                 if ignore:
                     # we didn't have a preference and replied "no" or we had a preference to not save the output
                     csv.target_file = False
