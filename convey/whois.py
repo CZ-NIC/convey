@@ -347,6 +347,7 @@ class Whois:
         Whois.ip_seen = ip_seen  # ip_seen[ip] = prefix
         Whois.servers = OrderedDict()
         Whois.unknown_mode = False  # if True, we use b flag in abusemails
+        Whois.see = Config.verbosity <= logging.INFO
         if Config.get("whois_mirror"):  # try a fast local whois-mirror first
             Whois.servers["mirror"] = Config.get("whois_mirror")
         Whois.servers["general"] = None
@@ -375,9 +376,11 @@ class Whois:
                     self.get = self.ranges[prefix]
                     return
 
-        print(self.ip, "...", end="", flush=True)
+        if self.see:
+            print(self.ip + " ...", end="", flush=True)
         get = self.analyze()  # prefix, location, mail, asn, netname, country
-        print(get[2])
+        if self.see:
+            print(get[2])
 
         prefix = get[0]
         self.ip_seen[self.ip] = prefix
@@ -436,7 +439,7 @@ class Whois:
                 return IPNetwork(s)
         except Exception as e:
             logger.warning("Prefix {} cannot be parsed.".format(s))
-            Config.error_catched()
+            Config.error_caught()
 
     def url2ip(url):
         """ Shorten URL to domain, find out related IPs list. """
@@ -446,7 +449,7 @@ class Whois:
             return socket.gethostbyname(uri)  # returns 1 address only, we do not want all of them
         except socket.gaierror as e:
             # logger.warning("Socket gethostbyname error for URI {} .".format(uri))
-            # Config.error_catched()
+            # Config.error_caught()
             return None
         # if we wanted all of the IPs:
         # recs = socket.getaddrinfo(uri, 0, 0, 0, socket.IPPROTO_TCP)
@@ -600,7 +603,7 @@ class Whois:
         for address in re.findall(r"address:\s+(.*)", "\n".join(self.whoisResponse)):
             for s in countries:
                 if s in address:
-                    print("Found country in", address)
+                    logger.info(f"Found country in {address}")
                     country = countries[s]
                     return country
         return ""

@@ -25,7 +25,7 @@ class MailDraft:
         else:
             return ""
 
-    def get_mail_preview(self):
+    def get_mail_preview(self) -> str:
         return (self.get_subject() + ": " + self.get_body()[0:50] + "... ").replace("\n", " ").replace("\r", " ")
 
     def _assure_mail_contents(self):

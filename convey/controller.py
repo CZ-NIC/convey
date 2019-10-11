@@ -1,17 +1,22 @@
 import argparse
 import csv
+import logging
 import sys
-from heapq import nsmallest
 from pathlib import Path
 from sys import exit
 
+import ipdb
 from dialog import Dialog
 
 from .config import Config
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
+from .identifier import Fields, get_uml, FieldGroup, get_computable_fields, fields
 from .mailSender import MailSenderOtrs, MailSenderSmtp
+from .sourceParser import SourceParser
 from .sourceWrapper import SourceWrapper
+
+logger = logging.getLogger(__name__)
 
 
 class BlankTrue(argparse.Action):
@@ -23,10 +28,21 @@ class BlankTrue(argparse.Action):
         setattr(namespace, self.dest, values)
 
 
-class Controller:
+class SmartFormatter(argparse.HelpFormatter):
 
+    def _split_lines(self, text, width):
+        if text.startswith('R|'):
+            return text[2:].splitlines()
+        # this is the RawTextHelpFormatter._split_lines
+        return argparse.HelpFormatter._split_lines(self, text, width)
+
+
+class Controller:
     def __init__(self):
-        parser = argparse.ArgumentParser(epilog="To launch a web service see README.md.")
+        #
+        #  formatter_class=argparse.RawTextHelpFormatter
+        epilog = "To launch a web service see README.md."
+        parser = argparse.ArgumentParser(description="Data conversion swiss knife", formatter_class=SmartFormatter, epilog=epilog)
         parser.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
                                                              "In nothing is given, user will input data through stdin.")
         parser.add_argument('--debug', help="On error, enter an ipdb session", action="store_true")
@@ -34,7 +50,7 @@ class Controller:
         parser.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions.",
                             action="store_true")
         # parser.add_argument('-m', '--mute', help="Do not output information text.", action="store_true")
-        parser.add_argument('-f', '--file', help="Treat <file_or_input> parameter as a file, never as an input",
+        parser.add_argument('--file', help="Treat <file_or_input> parameter as a file, never as an input",
                             action="store_true")
         parser.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
                             action="store_true")
@@ -43,6 +59,17 @@ class Controller:
         parser.add_argument('--quote-char', help="Force quoting character")
         parser.add_argument('--header', help="Treat file as having header", action="store_true")
         parser.add_argument('--no-header', help="Treat file as not having header", action="store_true")
+        parser.add_argument('-v', '--verbose', help="Sets the verbosity to see DEBUG messages.", action="store_true")
+        parser.add_argument('-q', '--quiet', help="Sets the verbosity to see WARNINGs and ERRORs only.", action="store_true")
+        parser.add_argument('-f', '--field',
+                            help="R|Compute field."
+                                 "\nCOLUMN is the number of the column (1st, 2nd, 3rd...) or the exact column name."
+                                 "\nSOURCE_FIELD is either field name or usual field name."
+                                 "\nEx: --field netname,ip  # would add netname column from any IP column"
+                                 "\n    (Note the comma without space behind 'netname'.)"
+                                 "\n\nComputable fields: " + "".join("\n* " + f.doc() for f in get_computable_fields()) +
+                                 "\n\nThis flag May be used multiple times.",
+                            action="append", metavar=("FIELD,[COLUMN],[SOURCE_FIELD]"))
         csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
                      ("otrs_token", "OTRS token")]
         for flag in csv_flags:
@@ -55,10 +82,15 @@ class Controller:
                                                  " status (HTTP code) and text fields. Text is just mere text, no tags, style,"
                                                  " script, or head. Leave blank for True or put true/on/1 or false/off/0.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
+        parser.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
         parser.add_argument('--config', help="Open config file and exit.", action="store_true")
+        parser.add_argument('--show-uml', help="Show UML of fields and methods and exit.", action="store_true")
         self.args = args = parser.parse_args()
         if args.config:
             self.edit_configuration()
+            quit()
+        if args.show_uml:
+            print(get_uml())
             quit()
         if args.debug:
             Config.set("debug", True)
@@ -67,33 +99,60 @@ class Controller:
         if args.no_header:
             Config.set("header", False)
         for flag in ["output", "scrape_url", "delimiter", "quote_char"]:
-            if flag == "scape_url":
-                import ipdb; ipdb.set_trace()
             if getattr(args, flag) is not None:
                 Config.set(flag, getattr(args, flag))
 
-        Config.init(args.yes)  # , args.mute
+        Config.init(args.yes, 30 if args.quiet else (10 if args.verbose else None))
         self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
-        Contacts.init()
-        csv = self.csv = self.wrapper.csv
+        self.csv : SourceParser = self.wrapper.csv
+
 
         # load flags
         for flag in csv_flags:
             if args.__dict__[flag[0]]:
-                csv.__dict__[flag[0]] = args.__dict__[flag[0]]
-                print("{}: {}".format(flag[1], flag[0]))
+                self.csv.__dict__[flag[0]] = args.__dict__[flag[0]]
+                logger.debug("{}: {}".format(flag[1], flag[0]))
 
-        if args.csirt_incident and not csv.is_analyzed:
-            csv.settings["split"] = self.extend_column("incident-contact", add=False)
-            csv.is_processable = True
+        # append new fields
+        new_fields = []
+        if args.field:
+            # append new fields from CLI
+            for task in args.field:  # FIELD,[COLUMN],[SOURCE_FIELD], ex: `netname 3|"IP address" ip|sourceip`
+                task = [x.strip() for x in task.split(",")]
+                if len(task) > 3:
+                    print("Invalid field", task)
+                    quit()
+                new_field = fields[fields.index(task[0])]  # determine FIELD
+                column_or_source = task[1] if len(task) > 1 else None
+                source = task[2] if len(task) > 2 else None
+                new_fields.append((new_field, column_or_source, source))
+            
+        if self.csv.is_single_value:
+            res = self.csv.run_single_value(json=args.json, new_fields=[x[0] for x in new_fields])
+            if res:
+                print(res)
+            quit()
+
+        for el in new_fields:
+            new_field, column_or_source, source = el
+            source_col_i, source_field = self.csv.identifier.get_fitting_source(*el)
+            self.source_new_column(new_field, True, source_col_i, source_field)
+            self.csv.is_processable = True
+            # XXX tohle pak umožni self.process() dej automatický procssing. Asi teda. Má convey pak skončit? Jaké mají být flagy?
+
+        # start csirt-incident macro
+        if args.csirt_incident and not self.csv.is_analyzed:
+            self.csv.settings["split"] = self.source_new_column(Fields.incident_contact, add=False)
+            self.csv.is_processable = True
             self.process()
+
 
         self.start_debugger = False
 
         # main menu
         while True:
-            csv = self.csv = self.wrapper.csv  # may be changed by reprocessing
-            csv.informer.sout_info()
+            self.csv = self.csv = self.wrapper.csv  # may be changed by reprocessing
+            self.csv.informer.sout_info()
 
             if self.start_debugger:
                 print("\nDebugging mode, you may want to see csv variable:")
@@ -111,12 +170,12 @@ class Controller:
                 menu.add("process", self.process, key="p", default=True)
             else:
                 menu.add("process  (choose some actions)")
-            if csv.is_analyzed and csv.is_split:
+            if self.csv.is_analyzed and self.csv.is_split:
                 menu.add("send", self.send_menu, key="s", default=True)
             else:
                 menu.add("send (split first)")
-            if csv.is_analyzed:
-                menu.add("show all details", lambda: (csv.informer.sout_info(full=True), input()), key="d")
+            if self.csv.is_analyzed:
+                menu.add("show all details", lambda: (self.csv.informer.sout_info(full=True), input()), key="d")
             else:
                 menu.add("show all details (process first)")
             menu.add("Refresh...", self.refresh_menu, key="r")
@@ -132,6 +191,7 @@ class Controller:
                 ipdb.set_trace()
 
     def send_menu(self):
+        method = "smtp"
         if self.args.csirt_incident:
             if Config.get("otrs_enabled", "OTRS"):
                 method = "otrs"
@@ -150,8 +210,6 @@ class Controller:
             else:
                 print("Unknown option")
                 return
-        else:
-            method = "smtp"
 
         if method == "otrs":
             sender = MailSenderOtrs(self.csv)
@@ -258,62 +316,61 @@ class Controller:
                  lambda: Contacts.mailDraft["local"].gui_edit() and Contacts.mailDraft["foreign"].gui_edit())
         menu.sout()
 
-    def extend_column(self, new_field, add=None):
-        """ We know what is new column, now determine how we should extend it
-                add - bool if the column should be added to the table; None ask
+    def source_new_column(self, new_field, add=None, source_col_i: int = None, source_field=None):
+        """ We know what Field the new column should be of, now determine how we should extend it:
+            Summarize what order has the source field and what type the source field should be considered alike.
+                :type source_field: Field
+                :type source_col_i: int
+                :type new_field: Field
+                :type add: bool if the column should be added to the table; None ask
         """
-        print("\nWhat column we base {} on?".format(new_field))
-        g = self.csv.guesses.get_graph()
-        valid_types = list(g.dijkstra(new_field))
-        possible_cols = {}
-        for (i, key), types in self.csv.guesses.field_type.items():
-            for val in types:
-                if val in valid_types:
-                    possible_cols[i] = types[val]
-                    break
-        source_col_i = pick_option(self.csv.get_fields_autodetection(),
-                                   title="Searching source for " + new_field,
-                                   guesses=sorted(possible_cols, key=possible_cols.get, reverse=True))
-
         dialog = Dialog(autowidgetsize=True)
-        fitting_type = self.csv.guesses.get_fitting_type(source_col_i, new_field)
-        if fitting_type is None:
-            # ask how should be treated the column as, even it seems not valid
-            # list all known methods to compute the desired new_field (e.g. for incident-contact it is: ip, hostname, ...)
-            choices = [(k, self.csv.guesses.get_description(k)) for k, _ in
-                       sorted(self.csv.guesses.get_graph().dijkstra(new_field, ignore_private=True).items(),
-                              key=lambda v: v[1], reverse=False)]  # whois is an internal keyword
+        if not source_col_i or not source_field:
+            print("\nWhat column we base {} on?".format(new_field))
+            cols = self.csv.identifier.get_fitting_source_i(new_field)
+            source_col_i = pick_option(self.csv.get_fields_autodetection(),
+                                       title="Searching source for " + str(new_field),
+                                       guesses=cols)
+            
+            source_field = self.csv.identifier.get_fitting_type(source_col_i, new_field)
+            if source_field is None:
+                # ask how should be treated the column as, even it seems not valid
+                # list all known methods to compute the desired new_field (e.g. for incident-contact it is: ip, hostname, ...)
+                choices = [(k.name, k.description)
+                           for k, _ in self.csv.identifier.get_graph().dijkstra(new_field, ignore_private=True).items()]
 
-            if len(choices) == 1 and choices[0][0] == "plaintext":
-                # if the only method is derivable from a plaintext, no worries that a method
-                # converting the column type to "plaintext" is not defined; everything's plaintext
-                fitting_type = "plaintext"
-            elif choices:
-                title = "Choose the right method\n\nNo known method for making {} from column {} because the column type wasn't identified. How should I treat the column?".format(
-                    new_field, self.csv.fields[source_col_i])
-                code, fitting_type = dialog.menu(title, choices=choices)
-                if code == "cancel":
-                    return
-            else:
-                dialog.msgbox("No known method for making {}. Raise your usecase as an issue at {}.".format(new_field,
-                                                                                                            Config.PROJECT_SITE))
+                if len(choices) == 1 and choices[0][0] == Fields.plaintext:
+                    # if the only method is derivable from a plaintext, no worries that a method
+                    # converting the column type to "plaintext" is not defined; everything's plaintext
+                    source_field = Fields.plaintext
+                elif choices:
+                    s = ""
+                    if self.csv.second_line_fields:
+                        s = f"\n\nWhat type of value '{self.csv.second_line_fields[source_col_i]}' is?"
+                    title = f"Choose the right method\n\nNo known method for making {new_field} from column {self.csv.fields[source_col_i]} because the column type wasn't identified. How should I treat the column?{s}"
+                    code, source_field = dialog.menu(title, choices=choices)
+                    if code == "cancel":
+                        return
+                else:
+                    dialog.msgbox("No known method for making {}. Raise your usecase as an issue at {}.".format(new_field,
+                                                                                                                Config.PROJECT_SITE))
 
         custom = None
-        if new_field == "custom":  # choose a file with a needed method
+        if new_field == Fields.custom:  # choose a file with a needed method
             while True:
                 title = "What .py file should be used as custom source?"
                 code, path = dialog.fselect(Path.cwd(), title=title)
                 if code != "ok" or not path:
                     return
-                module = self.csv.guesses.get_module_from_path(path)
+                module = self.csv.identifier.get_module_from_path(path)
                 if module:
                     # inspect the .py file, extract methods and let the user choose one
-                    code, fitting_type = dialog.menu("What method should be used in the file {}?".format(path),
+                    code, source_field = dialog.menu("What method should be used in the file {}?".format(path),
                                                      choices=[(x, "") for x in dir(module) if not x.startswith("_")])
                     if code == "cancel":
                         return
 
-                    custom = path, fitting_type
+                    custom = path, source_field
                     break
                 else:
                     dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
@@ -323,7 +380,7 @@ class Controller:
         #                   from an IP col at position 1,
         #                   by method whois because there is a path (("ip", "whois"), ("whois", "country")),
         #                   no custom method
-        self.csv.settings["add"].append((new_field, source_col_i, fitting_type, custom))
+        self.csv.settings["add"].append((new_field, source_col_i, source_field, custom))
         self.csv.fields.append(new_field)
 
         if add is None:
@@ -349,18 +406,20 @@ class Controller:
 
     def select_col(self, col_name="", only_extendables=False, add=None):
         fields = self.csv.get_fields_autodetection() if not only_extendables else []
-        for f in self.csv.guesses.extendable_fields:
-            d = self.csv.guesses.get_graph().dijkstra(f, ignore_private=True)
-            s = "from " + ", ".join(sorted([k for k in nsmallest(3, d, key=d.get)]))
-            if f == "custom":
+        for field in self.csv.identifier.extendable_fields:
+            if field == Fields.custom:
                 s = "from your .py file"
-            elif len(d) > 3:
-                s += "..."
-            fields.append(("new " + f + "...", s))
+            else:
+                node_distance = self.csv.identifier.get_graph().dijkstra(field, ignore_private=True)
+                s = field.group.name + " " if field.group != FieldGroup.general else ""
+                s += "from " + ", ".join([str(k) for k in node_distance][:3])
+                if len(node_distance) > 3:
+                    s += "..."
+            fields.append((f"new {field}...", s))
         col_i = pick_option(fields, col_name)
         if only_extendables or col_i >= len(self.csv.fields):
             new_field_i = col_i if only_extendables else col_i - len(self.csv.fields)
-            col_i = self.extend_column(self.csv.guesses.extendable_fields[new_field_i], add=add)
+            col_i = self.source_new_column(self.csv.identifier.extendable_fields[new_field_i], add=add)
         return col_i
 
     def add_filtering(self):
@@ -394,16 +453,15 @@ class Controller:
         self.csv.is_processable = True
 
     def add_column(self):
-        colI = self.select_col("new column", only_extendables=True, add=True)
-        # self.extend_column(self.csv.guesses.extendable_fields[colI])
+        self.select_col("new column", only_extendables=True, add=True)
         self.csv.is_processable = True
 
     def add_uniquing(self):
-        colI = self.select_col("unique")
-        self.csv.settings["unique"].append(colI)
+        col_i = self.select_col("unique")
+        self.csv.settings["unique"].append(col_i)
         self.csv.is_processable = True
 
     def close(self):
-        self.wrapper.save()  # resave cache file
+        self.wrapper.save()  # re-save cache file
         print("Finished.")
         exit(0)

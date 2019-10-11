@@ -1,32 +1,47 @@
 # CHANGELOG
 
 ## 1.2 (unreleased)
-- fix: new installation should now correctly place contacts files in .config
 - web service
-- flag --yes for skipping dialogues
+- flags:
+    - CHANGED: flag --file does not have anymore shortcut '-f'
+    - flag --yes for skipping dialogues
+    - new delimiter flag
+    - new quote_char flag
+    - new header / no-header flags
+    - new output CLI flag
+    - new scrape_url config flag and --scrape-url CLI flag
+    - new CLI flag --config to open configuration
+    - new CLI flag --show-fields to get UML overview
+    - new flag single_value_ignored_fields
+    - new flag --json
+    - flag --verbose, --quiet and config `verbosity`
+- fixes:
+    - fix: new installation should now correctly place contacts files in .config
+    - fix: refresh partner contact list e-mails when restart even if the file has been processed before
+    - PyPi installer requirements fix
 - Whois module 
     - won't throw error if host can't be resolved
     - huge refactoring (may lead to the behaviour when Country is taken from ARIN and Netname from AfriNIC if AfriNIC points us to ARIN that doesn't state Netname)
     - thousands of unique prefixes tried, many uses cases handled
     - naive database of country names, so that country may be guessed from non-standardised "address" field
     - some well known erroneous LIR responses are re-requested by their respective RIR
-- opens config file when a flag is not defined
-- new delimiter flag
-- new quote_char flag
-- new header / no-header flags
-- CIDR with host bits set ( = invalid network) translates to IP when asking whois (RIR would return 'invalid search key')
-- CIDR translated to an IP before asking whois
-- logs in format "time IP src port > IP dst port" can be automatically transformed to CSV before processing
-- number of discovered prefixes should during processing displayed, as well as real whois server URLs
-- socket.gethostbyname non-existing domain exception catched
-- PyPi installer requirements fix
-- multiline base64 strings (seen in e-mails) may be input → automatically decoded
-- new output CLI flag
-- new scrape_url config flag and --scrape-url CLI flag
-- new CLI flag --config to open configuration
+    - CIDR with host bits set ( = invalid network) translates to IP when asking whois (RIR would return 'invalid search key')
+    - CIDR translated to an IP before asking whois
+    - number of discovered prefixes should during processing displayed, as well as real whois server URLs
+    - socket.gethostbyname non-existing domain exception caught
+- processing:
+    - logs in format "time IP src port > IP dst port" can be automatically transformed to CSV before processing
+    - multiline base64 strings (seen in e-mails) may be input → automatically decoded
 - internal
     - os replaced by pathlib
     - Config.getboolean merged to Config.get
+    - Identifier (former CSVGuesses) is now object oriented, no more spaghetti
+    - huge refactoring
+    - fix: log files
+- dialogs
+    - opens config file when a flag is missing
+    - when no known method is known to process a field, an example is given
+    - when more than 9 options, you can use letters as shortcuts 
 
 
 ## 1.1 (2019-05-13)

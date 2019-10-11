@@ -13,23 +13,17 @@ from pathlib import Path
 from shutil import move
 from typing import List
 
-import requests
-from bs4 import BeautifulSoup
 from tabulate import tabulate
 
 from .config import Config
 from .contacts import Contacts, Attachment
-from .csvGuesses import CsvGuesses, b64decode
 from .dialogue import Cancelled, is_yes, ask
+from .identifier import Identifier, b64decode, Fields, get_computable_fields
 from .informer import Informer
 from .processor import Processor
 from .whois import Whois
 
-try:
-    logging.FileHandler('whois.log', 'a')
-except PermissionError:
-    input("Launching convey from a dir you don't have write permissions for. Exiting.")
-    quit()
+logger = logging.getLogger(__name__)
 
 
 class SourceParser:
@@ -42,10 +36,16 @@ class SourceParser:
         self.is_repeating = False
         self.dialect = None  # CSV dialect
         self.has_header = None  # CSV has header
-        self.header = None  # if CSV has header, it's here
-        self.sample = []  # up to first eight lines
-        self.fields = []  # CSV columns that will be generated to an output
-        self.first_line_fields = []  # initial CSV columns (equal to header if header is used)
+        self.header = ""  # if CSV has header, it's here so that Processor can take it
+        self.sample = []  # lines from the first to up to eighth
+        self.fields: List[str | "Field"] = []  # CSV columns that will be generated to an output
+        self.first_line_fields: List[str] = []  # initial CSV columns (equal to header if header is used)
+        self.second_line_fields: List[str] = []  # list of values on the 2nd line if available
+        # settings:
+        #    "add": new_field:Field,
+        #           source_col_i:int - number of field to compute from,
+        #           fitting_type:Field - possible type of source ,
+        #           custom:tuple - If target is a 'custom' field, we'll receive a tuple (module path, method name).
         self.settings = defaultdict(list)
         self.redo_invalids = Config.get("redo_invalids")
         self.otrs_cookie = False  # OTRS attributes to be linked to CSV
@@ -60,6 +60,7 @@ class SourceParser:
         self.line_count = 0
         self.time_last = self.time_start = self.time_end = None
         self.stdout = None  # when called from another program we communicate through this stream rather then through a file
+        self.is_single_value = False  # CSV processing vs single_value check usage
         self._reset()
 
         # load CSV
@@ -68,18 +69,25 @@ class SourceParser:
         self.target_file = None
         self.processor = Processor(self)
         self.informer = Informer(self)
-        self.guesses = CsvGuesses(self)
+        self.identifier = Identifier(self)
 
         if self.source_file:  # we're analysing a file on disk
             self.size = Path(self.source_file).stat().st_size
-            self.first_line, self.sample = self.guesses.get_sample(self.source_file)
+            self.first_line, self.sample = self.identifier.get_sample(self.source_file)
             self.lines_total = self.informer.source_file_len()
         elif stdin:  # we're analysing an input text
             self.set_stdin(stdin)
 
-        Contacts.init()
+        self.refresh()
         if prepare:
             self.prepare()
+
+    def refresh(self):
+        """
+        Refresh dependency files – contact list, we need to tell the attachments if they are deliverable.
+        """
+        Contacts.init()
+        Attachment.refresh_attachment_stats(self)
 
     def prepare(self):
         if self.size == 0:
@@ -87,14 +95,46 @@ class SourceParser:
             quit()
         self.prepare_target_file()
 
-        # if that's a single cell, just print out some useful information and exit
-        if self.stdin and self.check_single_cell():
-            quit()
+        # check if we are parsing a single cell
+        if self.stdin:
+            seems = True
 
+            def join_base(s):
+                return "".join(s).replace("\n", "").replace("\r", "")
+
+            len_ = len(self.sample)
+            if len_ > 1 and re.search("[^A-Za-z0-9+/=]", join_base(self.sample)) is None:
+                # in the sample, there is just base64-chars
+                s = join_base(self.stdin)
+                if not b64decode(s):  # all the input is base64 decodable
+                    seems = False
+                self.set_stdin([s])
+            elif not len_ or len_ > 1:
+                seems = False
+
+            if seems:
+                # init some basic parameters
+                self.fields = self.stdin
+                self.dialect = csv.unix_dialect
+                self.has_header = False
+                self.identifier.init()
+
+                # tell the user what type we think their input is
+                # access the detection message for the first (and supposedly only) field
+                detection = self.get_fields_autodetection()[0][1]
+                if not detection:
+                    # this is not a single cell despite it was probable, let's continue input parsing
+                    logger.info("We couldn't parse the input text easily.")
+                else:
+                    logger.info(f"Input value {detection}\n")
+                    self.is_single_value = True
+                    return self
+
+        # we are parsing a CSV file
         self.informer.sout_info()
         try:
             # Dialog to obtain basic information about CSV - delimiter, header
-            self.dialect, self.has_header = self.guesses.guess_dialect(self.sample)
+            self.dialect, self.has_header = self.identifier.guess_dialect(self.sample)
             uncertain = False
 
             if Config.get("delimiter"):
@@ -131,13 +171,15 @@ class SourceParser:
                 if not is_yes("Header " + ("" if self.has_header else "not found; ok?")):
                     self.has_header = not self.has_header
             self.first_line_fields = csv.reader([self.first_line], dialect=self.dialect).__next__()
+            if len(self.sample) >= 2:
+                self.second_line_fields = csv.reader([self.sample[1]], dialect=self.dialect).__next__()
             if self.has_header:
                 self.header = self.first_line_fields
             self.reset_settings()
-            self.guesses.identify_cols()
+            self.identifier.init()
         except Cancelled:
             print("Cancelled.")
-            return
+            return self
         self.informer.sout_info()
 
         # X self._guess_ip_count()
@@ -146,32 +188,33 @@ class SourceParser:
         #    continue
         # else:
         self.is_formatted = True  # delimiter and header has been detected etc.
-        # break
+        return self
 
-    def get_fields_autodetection(self, return_first_types=False):
+    def get_fields_autodetection(self):  # Xreturn_first_types=False
         """ returns list of tuples [ (field, detection), ("UrL", "url, hostname") ] 
         :type return_first_types: If True, we return possible types of the first field in []
         """
         fields = []
         for i, field in enumerate(self.fields):
             s = ""
-            if (i, field) in self.guesses.field_type and len(self.guesses.field_type[i, field]):
-                possible_types = self.guesses.field_type[i, field]
-                if "anyIP" in possible_types and ("ip" in possible_types or "portIP" in possible_types):
-                    del possible_types["anyIP"]
-                if "url" in possible_types and "wrongURL" in possible_types:
-                    del possible_types["wrongURL"]
-                l = sorted(possible_types, key=possible_types.get)
-                if return_first_types:
-                    return l
-                s = f"detected: {', '.join(l)}"
+            if i in self.identifier.field_type and len(self.identifier.field_type[i]):
+                possible_types = self.identifier.field_type[i]
+                if Fields.any_ip in possible_types and (Fields.ip in possible_types or Fields.port_ip in possible_types):
+                    del possible_types[Fields.any_ip]
+                if Fields.url in possible_types and Fields.wrong_url in possible_types:
+                    del possible_types[Fields.url]
+                # XX tohle asi pryč, l=possible_types l = sorted(possible_types, key=possible_types.get), checkni, jestli to funguje bez toho
+                # XXXXX ale když jsem to dal pryč, píše to Input value [('example.com', 'detected: hostname')])
+                # if return_first_types:
+                #     return l
+                s = f"detected: {', '.join((str(e) for e in possible_types))}"
             else:
                 for f, _, _type, custom_method in self.settings["add"]:
                     if field == f:
                         s = f"computed from: {_type}"
             fields.append((field, s))
-        if return_first_types:  # we did find nothing
-            return []
+        # if return_first_types:  # we did find nothing
+        #     return []
         return fields
 
     def set_stdin(self, stdin):
@@ -181,125 +224,64 @@ class SourceParser:
             self.first_line, self.sample = self.stdin[0], self.stdin[:7]
         return self
 
-    def check_single_cell(self):
-        """ Check if we are parsing a single cell and print out some meaningful details."""
-
-        def join_base(s):
-            return "".join(s).replace("\n", "").replace("\r", "")
-
-        len_ = len(self.sample)
-        if len_ > 1 and re.search("[^A-Za-z0-9+/=]", join_base(self.sample)) is None:
-            # in the sample, there is just base64-chars
-            s = join_base(self.stdin)
-            if not b64decode(s):  # all the input is base64 decodable
-                return False
-            self.set_stdin([s])
-        elif not len_ or len_ > 1:
-            return False
-
-        # init some basic parameters
-        self.fields = self.stdin
-        self.dialect = csv.unix_dialect
-        self.has_header = False
-        self.guesses.identify_cols()
-
-        # tell the user what type we think their input is
-        detection = self.get_fields_autodetection(True)  # access the detection message for the first (and supposedly only) field
-        if not detection:
-            print("\nWe couldn't parse the input text easily.")
-            return False  # this is not a single cell, let's continue input parsing
-        else:
-            print("\nInput value detected: " + " ,".join(detection))
-
+    def run_single_value(self, json=False, new_fields=[]):
+        """ Print out meaningful details about the single-value contents.
+        :type new_fields: List[Field] to compute
+        """
         # prepare the result variables
-        seen = set()
         rows = []
-        json = {}
+        data = {}
 
         def append(target_type, val):
-            rows.append([target_type, "×" if val is None else val])
-            json[target_type] = val
+            rows.append([str(target_type), "×" if val is None else val])
+            data[str(target_type)] = val
 
         # transform the field by all known means
-        for _, target_type in self.guesses.methods.keys():  # loop all existing methods
-            if target_type in seen:
+        for target_type in new_fields or get_computable_fields():  # loop all existing methods
+            if target_type.is_private:
                 continue
-            else:
-                seen.add(target_type)
-            fitting_type = self.guesses.get_fitting_type(0, target_type)
+            if not new_fields and target_type in Config.get("single_value_ignored_fields", get=list):
+                # do not automatically compute ignored fields
+                continue
+            fitting_type = self.identifier.get_fitting_type(0, target_type, try_plaintext=bool(new_fields))
+
             # print(f"Target type:{target_type} Treat value as type: {fitting_type}")
             if fitting_type:
                 val = self.first_line
-                for l in self.guesses.get_methods_from(target_type, fitting_type, None):
+                for l in self.identifier.get_methods_from(target_type, fitting_type, None):
                     val = l(val)
-                if type(val) is tuple and type(val[0]) is Whois:
+                if type(val) is tuple:  # XX and type(val[0]) is Whois:  # XX or SCRAPE WEB
                     val = val[1]
-                elif type(val) is Whois:  # we ignore this whois temp value
-                    continue
+                # elif type(val) is Whois:  # we ignore this whois temp value
+                #     continue
                 append(target_type, val)
 
-        # scrape the website if needed
-        if Config.get("scrape_url"):
-            url = None
-            for dict_ in [detection, json]:  # try to find and URL in input fields or worse in computed fields
-                if url:
-                    break
-                for key in ["url", "hostname", "ip"]:  # prefer url over ip
-                    if key in dict_:
-                        url = self.first_line if dict_ is detection else dict_[key]
-                        if key != "url":
-                            url = "http://" + url
-                        break
-            if url:
-                print(f"Scraping URL {url}...")
-                append("scrape-url", url)
-                try:
-                    response = requests.get(url, timeout=3)
-                except IOError as e:
-                    append("status", 0)
-                    append("scrape-error", str(e))
-                else:
-                    append("status", response.status_code)
-                    response.encoding = response.apparent_encoding  # https://stackoverflow.com/a/52615216/2036148
-                    soup = BeautifulSoup(response.text, features="html.parser")
-                    [s.extract() for s in soup(["style", "script", "head"])]  # remove tags with low probability of content
-                    text = re.sub(r'\n\s*\n', '\n', soup.text)  # reduce multiple new lines to singles
-                    text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ', text)  # reduce multiple spaces (not new lines) to singles
-                    append("text", text)
-
         # prepare json to return (useful in a web service)
-        if "csirt-contact" in json and json["csirt-contact"] == "-":
-            json["csirt-contact"] = ""  # empty value instead of a dash, stored in CsvGuesses-method-("whois", "csirt-contact")
+        if "csirt-contact" in data and data["csirt-contact"] == "-":
+            data["csirt-contact"] = ""  # empty value instead of a dash, stored in CsvGuesses-method-("whois", "csirt-contact")
 
-        # pad to the screen width
-        try:
-            _, width = (int(s) for s in os.popen('stty size', 'r').read().split())
-        except (OSError, ValueError):
-            pass
-        else:
-            width -= max(len(row[0]) for row in rows) + 2  # size of terminal - size of the longest field name + 2 column space
-            for i, row in enumerate(rows):
-                val = row[1]
-                if width and len(str(val)) > width:  # split the long text by new lines
-                    row[1] = "\n".join([val[i:i + width] for i in range(0, len(val), width)])
-
-        # print out output
-                # XX
-                # if len(rows) == 1 and len(rows[0][1]) > 150:
-                #     # we found a single possible output and that one is too long (ex: long base64 string), print it in lines, not in a table
-                #     output = rows[0][1].replace("\\n", "\n")
-                #     if Config.output:
-                #         print(f"Writing to {self.target_file}...")
-                #         self.target_file.write_text(output)
-                #     print(f"\nField: {rows[0][0]}\n" + "*" * 50)
-                #     print(output)
-                # else:
-        print("\n" + tabulate(rows, headers=("field", "value")))
+        # output in text, json or file
         if Config.get("output"):
-            print(f"Writing to {self.target_file}...")
-            self.target_file.write_text(dumps(json))
+            logger.info(f"Writing to {self.target_file}...")
+            self.target_file.write_text(dumps(data))
+        if json:
+            return dumps(data)
+        else:
+            # pad to the screen width
+            try:
+                _, width = (int(s) for s in os.popen('stty size', 'r').read().split())
+            except (OSError, ValueError):
+                pass
+            else:
+                if rows:
+                    # size of terminal - size of the longest field name + 2 column space
+                    width -= max(len(row[0]) for row in rows) + 2
+                    for i, row in enumerate(rows):
+                        val = row[1]
+                        if width and len(str(val)) > width:  # split the long text by new lines
+                            row[1] = "\n".join([val[i:i + width] for i in range(0, len(val), width)])
 
-        return dumps(json)
+            print(tabulate(rows, headers=("field", "value")))
 
     def reset_whois(self, hard=True, assure_init=False):
         """
@@ -328,7 +310,6 @@ class SourceParser:
         self.stats = defaultdict(set)
         self.invalid_lines_count = 0
 
-        Config.has_header = self.has_header
         if self.dialect:
             class Wr:  # very ugly way to correctly get the output from csv.writer
                 def write(self, row):
@@ -337,7 +318,7 @@ class SourceParser:
             wr = Wr()
             cw = csv.writer(wr, dialect=self.dialect)
             cw.writerow([self.fields[i] for i in self.settings["chosen_cols"]])
-            Config.header = wr.written
+            self.header = wr.written
         self._reset_output()
 
         self.time_start = None
@@ -363,7 +344,7 @@ class SourceParser:
             if not len(self.settings["chosen_cols"]) == len(self.fields):
                 l.append("shuffled")
             for name, _, _, _ in self.settings["add"]:
-                l.append(name)
+                l.append(str(name))
             if self.source_file:
                 l.insert(0, Path(self.source_file).name)
                 target_file = f"{'_'.join(l)}.csv"
@@ -387,7 +368,7 @@ class SourceParser:
             Contacts.mailDraft["foreign"].gui_edit()
 
         self.time_start = self.time_last = datetime.datetime.now().replace(microsecond=0)
-        Contacts.init()
+        self.refresh()
         # Config.update()
         self.prepare_target_file()
         self.processor.process_file(self.source_file, rewrite=True, stdin=self.stdin)
@@ -521,6 +502,7 @@ class SourceParser:
         state = self.__dict__.copy()
         del state['informer']
         del state['processor']
+        del state['identifier']
         state['dialect'] = self.dialect.__dict__.copy()
         return state
 
@@ -531,3 +513,5 @@ class SourceParser:
         self.dialect = csv.unix_dialect
         for k, v in state["dialect"].items():
             setattr(self.dialect, k, v)
+        self.identifier = Identifier(self)
+        self.identifier.init()

@@ -48,7 +48,7 @@ class Processor:
         # convert settings["add"] to lambdas
         adds = []
         for it in settings["add"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
-            methods = self.csv.guesses.get_methods_from(it[0], it[2], it[3])
+            methods = self.csv.identifier.get_methods_from(it[0], it[2], it[3])
             adds.append((it[0], it[1], methods))
         del settings["add"]
         settings["addByMethod"] = adds
@@ -259,6 +259,6 @@ class Processor:
         self.descriptorsStatsAll[location] += 1
         self.descriptorsStatsOpen[location] = self.descriptorsStatsAll[location]
         f = self.descriptors[location]
-        if method == "w" and Config.has_header:
-            f[0].write(Config.header)
+        if method == "w" and csv.has_header:
+            f[0].write(csv.header)
         f[1].writerow(chosen_fields)

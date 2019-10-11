@@ -23,7 +23,7 @@ class Graph:
         Performs Dijkstra's algorithm and returns
             [start node, ... , target node] (if start specified)
         OR
-            {"node": distance to target, ...}
+            {"node": distance to target, ...} (lower is better, sorted from lower)
 
             ignore_private = True - do not return private notes within results (ex. whois)
         """
@@ -66,7 +66,7 @@ class Graph:
                 path.append(pivot)
 
                 if i > 10:
-                    print("cycles", path, target)
+                    print("cycles", path, target) # XX logger.error
                     break
             return path
 
@@ -74,5 +74,5 @@ class Graph:
             for node in self.private_nodes:
                 if node in visited:
                     del visited[node]
-
-        return dict((k, v) for (k, v) in visited.items() if v > 0)  # skip the same node
+        d = dict((k, v) for (k, v) in visited.items() if v > 0)  # skip the same node
+        return d

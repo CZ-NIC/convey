@@ -80,6 +80,7 @@ class Attachment:
 class Contacts:
     abusemails: Dict[str, str]
     csirtmails: Dict[str, str]
+    mailDraft: Dict[str, MailDraft]
 
     @classmethod
     def init(cls):

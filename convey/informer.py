@@ -1,5 +1,6 @@
 import csv
 import datetime
+import logging
 import subprocess
 import sys
 from math import ceil
@@ -11,14 +12,6 @@ from tabulate import tabulate
 from .config import Config
 
 
-# _mute = False
-
-
-# def mute_info():
-#     global _mute
-#     _mute = True
-
-
 class Informer:
     """ Prints analysis data in nice manner. """
 
@@ -26,8 +19,9 @@ class Informer:
         self.csv = csv
 
     def sout_info(self, clear=True, full=False):
-        # if _mute:
-        #     return
+        if Config.verbosity >= logging.WARNING:
+            return
+
         """ Prints file information on the display. """
         if clear:
             sys.stderr.write("\x1b[2J\x1b[H")
@@ -43,7 +37,7 @@ class Informer:
         if self.csv.has_header is not None:
             l.append("header: " + ("used" if self.csv.has_header else "not used"))
         if self.csv.settings["filter"]:
-            l.append("Filter: " + ", ".join(["{}({})".format(self.csv.fields[f], val) for f, val in self.csv.settings["filter"]]))
+            l.append("Filter: " + ", ".join([f"{self.csv.fields[f]}({val})" for f, val in self.csv.settings["filter"]]))
         if self.csv.settings["unique"]:
             l.append("Unique col: " + ", ".join([self.csv.fields[f] for f in self.csv.settings["unique"]]))
         if self.csv.settings["split"]:
@@ -57,7 +51,7 @@ class Informer:
         if self.csv.settings["add"]:
             l2 = []
             for col, i, b, _ in self.csv.settings["add"] or []:
-                l2.append("{} (from {})".format(col, self.csv.fields[i]))
+                l2.append(f"{col} (from {self.csv.fields[i]})")
             sys.stdout.write("\nComputed columns: " + ", ".join(l2))
         l = []
         if self.csv.line_count:

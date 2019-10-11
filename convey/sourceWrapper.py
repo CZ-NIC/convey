@@ -10,8 +10,8 @@ import ipdb
 import jsonpickle
 
 from .config import Config
-from .csvGuesses import CsvGuesses
 from .dialogue import is_yes
+from .identifier import Identifier
 # from .informer import mute_info
 from .sourceParser import SourceParser
 
@@ -33,7 +33,7 @@ def choose_file():
         print(file)
         return file
     except ImportError:
-        print("Error importing Tkinter. Please specify the file name in the parameter.")
+        print("Error importing Tkinter. Please specify the file name in the parameter or install `apt install python3-tk`.")
         return None
 
 
@@ -48,7 +48,7 @@ class SourceWrapper:
         self.stdin = stdin = None
         try:
             case = int(Config.get("file_or_input"))
-        except ValueError:
+        except (ValueError, TypeError):
             case = 0
 
         if case == 5:
@@ -68,7 +68,7 @@ class SourceWrapper:
             stdin = read_stdin()
         else:  # choosing the file or input text
             if case == 0:
-                case = int(is_yes("Do you want to input text (otherwise you'll be asked to choose a file name)?"))
+                case = 1 if is_yes("Do you want to input text (otherwise you'll be asked to choose a file name)?") else 2
             if case == 1:
                 stdin = read_stdin()
             elif case == 2:
@@ -87,9 +87,9 @@ class SourceWrapper:
             quit()
         elif stdin:
             Config.set_cache_dir(Path.cwd())
-            self.stdin = stdin
-            self.csv = SourceParser(stdin=stdin)
             self.cache_file = None
+            self.stdin = stdin
+            self.csv: SourceParser = SourceParser(stdin=stdin)
             return
 
         if not Path(file).is_file():
@@ -98,8 +98,7 @@ class SourceWrapper:
 
         self.file = Path(file).resolve()
         info = Path(self.file).stat()
-        self.hash = str(
-            hash(info.st_size + round(info.st_mtime)))  # why round: during file copying we may cut microsecond part behind mantissa
+        self.hash = str(hash(info.st_size + round(info.st_mtime)))
         # cache-file with source file metadata
         Config.set_cache_dir(Path(Path(self.file).parent, Path(self.file).name + "_convey" + self.hash))
         self.cache_file = Path(Config.get_cache_dir(), Path(self.file).name + ".cache")
@@ -107,6 +106,7 @@ class SourceWrapper:
             print("File {} has already been processed.".format(self.file))
             try:  # try to depickle
                 self.csv = jsonpickle.decode(open(self.cache_file, "r").read(), keys=True)
+                self.csv.refresh()
                 # correction of a wrongly pickling: instead of {IPNetwork('...'): (IPNetwork('...'),
                 # we see {IPNetwork('...'): (<jsonpickle.unpickler._IDProxy object at 0x...>,
                 # Note that IPRange is pickled correctly.
@@ -154,6 +154,9 @@ class SourceWrapper:
             print("The program state is not picklable by 'jsonpickle' module. "
                   "Continuing will provide a file that will have to be reanalysed. "
                   "You may post this as a bug to the project issue tracker.")
+            if Config.is_debug():
+                import ipdb;
+                ipdb.set_trace()
             input("Continue...")
         if self.cache_file:
             with open(self.cache_file, "w") as output:  # save cache
@@ -164,8 +167,9 @@ class SourceWrapper:
         # ex: "06:25:13.378767 IP 142.234.39.36.51354 > 195.250.148.86.80: Flags [S], seq 1852455482, win 29200, length 0"
         re_ip_with_port = re.compile("((\d{1,3}\.){4})(\d+)")
         re_log_line = re.compile(r"([^\s]*)\sIP\s([^\s]*)\s>\s([^\s:]*)")
-        _, sample = CsvGuesses(None).get_sample(self.file)
-        if sample and re_log_line.match(sample[0]) and is_yes("\nThis seems like a log file. Do you wish to transform it to CSV first?"):
+        _, sample = Identifier(None).get_sample(self.file)
+        if sample and re_log_line.match(sample[0]) and is_yes(
+                "\nThis seems like a log file. Do you wish to transform it to CSV first?"):
             csv = SourceParser(self.file, prepare=False)
             csv.prepare_target_file()
             with open(csv.target_file, "w") as target:

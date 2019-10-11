@@ -9,8 +9,18 @@ from subprocess import Popen, PIPE
 
 from appdirs import user_config_dir
 
+# setup logging
+fileHandler = logging.FileHandler("convey.log")
+fileHandler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+fileHandler.setLevel(logging.WARNING)
+consoleHandler = logging.StreamHandler()
+consoleHandler.setFormatter(logging.Formatter('%(message)s'))
+consoleHandler.setLevel(logging.INFO)
+logging.basicConfig(level=logging.INFO, handlers=[fileHandler, consoleHandler])
+
+logger = logging.getLogger(__name__)
 Path.lexists = lambda self: self.is_symlink() or self.exists()  # not yet exist https://bugs.python.org/issue34137
-default_path = Path(Path(__file__).resolve().parent, "defaults")
+default_path = Path(Path(__file__).resolve().parent, "defaults")  # path to the 'defaults' folder with templates
 
 
 def get_path(file):
@@ -98,34 +108,30 @@ class Config:
         p = Popen(["xdg-open", path], shell=False)
         quit()
 
-    # set by SourceParser and used by Registry
-    has_header = False
-    header = ""
-    # conveying = "all" # quick access to the property
-    # redo_invalids = True # quick access to the property
-
     INVALID_NAME = ".invalidlines.tmp"
     UNKNOWN_NAME = "unknown"
     PROJECT_SITE = "https://github.com/CZ-NIC/convey/"
+    verbosity: int = logging.INFO  # standard python3 logging level int
 
     @staticmethod
-    def init(yes=False):  # , mute=False
-        # from .informer import mute_info
+    def init(yes=False, verbosity=None):
         from .dialogue import assume_yes
         if yes:
             assume_yes()
-        # Config.muted = mute
-        # if mute:
-        #     mute_info()
-        #
-        # if not Config.muted:
-        print("Config file loaded from: {}".format(Config.path))
+        if verbosity:
+            Config.verbosity = verbosity
         if Config.is_debug():
-            if 1 in logging.root.handlers:
-                logging.root.handlers[1].setLevel(logging.INFO)  # stream handler to debug level
+            if not verbosity:  # if user has not say the verbosity level, make it the most verbose
+                Config.verbosity = logging.DEBUG
+            logging.root.handlers[0].setLevel(logging.INFO)  # file handler to info level
+
+        logging.root.handlers[1].setLevel(Config.verbosity)  # stream handler to debug level
+        logging.getLogger().setLevel(min(Config.verbosity, logging.INFO))  # system sensitivity at least at INFO level
+
+        logger.debug("Config file loaded from: {}".format(Config.path))
 
     @staticmethod
-    def error_catched():
+    def error_caught():
         if Config.is_debug():
             import ipdb
             import traceback
@@ -151,14 +157,16 @@ class Config:
     def get(key, section='CONVEY', get=None):
         """
 
-        :type get: type If str, return value will always be str (ex: no conversion '1/true/on' to boolean happens)
+        :type get: type
+                * if str, return value will always be str (ex: no conversion '1/true/on' to boolean happens)
+                * if list, value tries to be splitted by l
         :rtype: * boolean for text 0/off/false 1/on/true
                 * None for text = '' or non-inserted value
                 * or any inserted value if non-conforming to previous possibilities
         """
         if key not in Config.cache:
             try:
-                val = Config.config.getboolean('CONVEY', key)
+                val = Config.config.getboolean(section, key)
             except ValueError:
                 val = Config.config[section][key]
                 if val == '':
@@ -183,6 +191,10 @@ class Config:
                 return str(Config.config[section][key])
             except KeyError:
                 return ''
+        if get is list:
+            if val:
+                return [x.strip() for x in val.split(",")]
+            return []
         return val
 
     # @staticmethod

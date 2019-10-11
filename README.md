@@ -1,5 +1,10 @@
 # Convey
 
+A tool to quickly convert data in a meaningful way. It either takes:
+* a CSV file  XXX
+* a text input –
+* a log file 
+
 A tool for information conveying – CSV swiss knife brought by [CSIRT.cz](https://csirt.cz). Convenable way to process large files that might freeze your spreadsheet processor.
 
 * It takes any CSV or text input (any delimiter, header or whatever) and perform one or more actions (below).
@@ -16,12 +21,17 @@ CSV Actions:
 
 Python3.6+ required.
 
-## Examples
+## Usage
 
-### Use it as a program
-Parses CSV file or returns table with WHOIS-related information and scraped HTTP content.
+Put file path or data as an argument or leave empty to be asked:
+
 ```bash
-$ convey my-file.csv # will trigger file parsing
+$ convey  # [file | data] 
+Do you want to input text (otherwise you'll be asked to choose a file name)? [y/n]
+```
+
+### Usage 1 – Single value check
+```bash
 $ convey 1.1.1.1 # single value input
 Config file loaded from: /home/edvard/.config/convey/config.ini
 We think the inputted value can be: ip
@@ -39,13 +49,28 @@ csirt-contact     -
 incident-contact  au
 status            200
 text              DNSThe free app that makes your (much longer text...)
+```
 
-$ convey 
-Do you want to input text (otherwise you'll be asked to choose a file name)? [y/n]
+### Usage 2 – CSV processor program
+Parses CSV file or returns table with WHOIS-related information and scraped HTTP content.
+```bash
+$ convey my-file.csv # will trigger file parsing
+Source file: /tmp/my-file.csv
+Log lines: 200
+
+Sample:
 ...
-```  
 
-### Use it as a web service
+Delimiter character found: ','
+Quoting character: '"'
+Header is present: not used
+
+Could you confirm this? [y]/n
+...
+...
+```
+
+### Usage 3 – Web service
 Returns JSON with WHOIS-related information and scraped HTTP content.
 ```bash
 # install convey and check where it is installed
@@ -108,7 +133,7 @@ We are able to compute these value types:
 * **ans** – got from whois
 * **base64** – encode/decode
 * **country** – country code from whois
-* **csirt-contact** – e-mail addres corresponding with country code, taken from your personal contacts_foreign CSV in the format `country,abusemail`. Path to this file has to be specified in `config.ini » contacts_foreign`
+* **csirt-contact** – e-mail address corresponding with country code, taken from your personal contacts_foreign CSV in the format `country,abusemail`. Path to this file has to be specified in `config.ini » contacts_foreign`
 * **custom** – you specify method in a custom .py file that receives the field and generates the value for you, see below
 * **hostname** – domain from url
 * **incident-contact** – if the IP comes from local country (specified in `config.ini » local_country`) the field gets *abusemail*, otherwise we get *country*. When splitting by this field, convey is subsequently able to send the splitted files to local abuse and foreign csirt contacts 

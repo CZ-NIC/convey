@@ -1,3 +1,5 @@
+import string
+
 from dialog import Dialog, ExecutableNotFound
 
 try:
@@ -44,42 +46,34 @@ def pick_option(options, title="", guesses=[], skippable=True):
 
         :type skippable: bool If True and there is single option, the dialog returns 'Ok' without asking user.
     """
+
+    # convert numbers `0-8` → `1-9` and `9-...` → `a-...` and then back to number
+    abc = string.ascii_lowercase
+    i_to_abc = lambda i: abc[i + 1 - 10] if (i + 1 >= 10 and i + 1 - 10 < len(abc)) else i + 1
+    abc_to_i = lambda s: int(s) - 1 if s.isdigit() else abc.index(s) + 10 - 1
+
     choices = []
     if guesses:
         # X SORTED GUESSES:
         opts = [it for it in enumerate(options)]
         for g in guesses:
             if g < len(opts):
-                choices.append(("{} * {} *".format(g + 1, opts[g][1][0]), opts[g][1][1]))
-
-        # for i, (fieldname, desc) in enumerate(options):# print columns
-        #    if i in guesses:
-        #        choices.append(("{} * {} *".format(i + 1, fieldname), desc))
+                choices.append(("{} * {} *".format(i_to_abc(g), opts[g][1][0]), opts[g][1][1]))
 
     if not len(guesses) == len(options):  # if every column highlighted, no need to list them all just again
         if guesses:
             title += "\n\nAutomatically detected fields on the top"
             choices.append(("-", "-----"))
-        for i, (fieldname, desc) in enumerate(options):
-            choices.append(("{} {}".format(i + 1, fieldname), desc))
+        for i, (field_name, desc) in enumerate(options):
+            choices.append((f"{i_to_abc(i)} {field_name}", desc))
 
-    code, colI = dialog.skippable_menu(title or " ", choices=choices, skippable=skippable)
+    code, col_i = dialog.skippable_menu(title or " ", choices=choices, skippable=skippable)
+    if col_i == '-':
+        return pick_option(options, title, guesses, skippable)
     if code != "ok":
         raise Cancelled(".. no column chosen")
-
-    colI = colI.split(" ")[0]
-    # colI = Dialogue.ask_number(colName + " column: ") - 1
-
-    """if colI == -1:
-        if guesses: # default value
-            return guesses[0]
-        raise Cancelled(".. no column chosen")
-    if colI > len(options):
-        print("Not found")
-        return Dialogue.pick_option(options, guesses, colName)
-    """
-
-    return int(colI) - 1
+    col_i = col_i.split(" ")[0]
+    return abc_to_i(col_i)
 
 
 def ask_number(text):
@@ -193,7 +187,7 @@ class Menu:
                 if ans == "x":
                     return
                 elif ans == "debug":
-                    import ipdb;
+                    import ipdb
                     ipdb.set_trace()
                     return
                 print("Invalid option")

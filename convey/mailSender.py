@@ -153,9 +153,6 @@ class MailSenderOtrs(MailSender):
         if Config.is_testing():
             logger.info(str(sys.stderr) + " Response length:\n " + str(len(response)))
 
-        with open("test.html", "w") as output:
-            output.write(response)
-
         mo = re_title.search(response)
         if not mo:
             logger.warning(str(sys.stderr) + " Unrecognized response")
