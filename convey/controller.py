@@ -11,9 +11,9 @@ from dialog import Dialog
 from .config import Config
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
-from .identifier import Fields, get_uml, FieldGroup, get_computable_fields, fields
+from .identifier import Types, get_uml, TypeGroup, types, computable_types, Type
 from .mailSender import MailSenderOtrs, MailSenderSmtp
-from .sourceParser import SourceParser
+from .sourceParser import SourceParser, Field
 from .sourceWrapper import SourceWrapper
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,7 @@ class Controller:
         #
         #  formatter_class=argparse.RawTextHelpFormatter
         epilog = "To launch a web service see README.md."
+        column_help = "COLUMN is the number of the column (1st, 2nd, 3rd...) or the exact column name."
         parser = argparse.ArgumentParser(description="Data conversion swiss knife", formatter_class=SmartFormatter, epilog=epilog)
         parser.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
                                                              "In nothing is given, user will input data through stdin.")
@@ -59,15 +60,17 @@ class Controller:
         parser.add_argument('--quote-char', help="Force quoting character")
         parser.add_argument('--header', help="Treat file as having header", action="store_true")
         parser.add_argument('--no-header', help="Treat file as not having header", action="store_true")
+        parser.add_argument('-d', '--delete', help="Delete a column. You may comma separate multiple columns." + column_help,
+                            metavar="COLUMN,[COLUMN]")
         parser.add_argument('-v', '--verbose', help="Sets the verbosity to see DEBUG messages.", action="store_true")
         parser.add_argument('-q', '--quiet', help="Sets the verbosity to see WARNINGs and ERRORs only.", action="store_true")
         parser.add_argument('-f', '--field',
                             help="R|Compute field."
-                                 "\nCOLUMN is the number of the column (1st, 2nd, 3rd...) or the exact column name."
+                                 "\n" + column_help +
                                  "\nSOURCE_FIELD is either field name or usual field name."
                                  "\nEx: --field netname,ip  # would add netname column from any IP column"
                                  "\n    (Note the comma without space behind 'netname'.)"
-                                 "\n\nComputable fields: " + "".join("\n* " + f.doc() for f in get_computable_fields()) +
+                                 "\n\nComputable fields: " + "".join("\n* " + f.doc() for f in computable_types) +
                                  "\n\nThis flag May be used multiple times.",
                             action="append", metavar=("FIELD,[COLUMN],[SOURCE_FIELD]"))
         csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
@@ -104,8 +107,7 @@ class Controller:
 
         Config.init(args.yes, 30 if args.quiet else (10 if args.verbose else None))
         self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
-        self.csv : SourceParser = self.wrapper.csv
-
+        self.csv: SourceParser = self.wrapper.csv
 
         # load flags
         for flag in csv_flags:
@@ -115,37 +117,43 @@ class Controller:
 
         # append new fields
         new_fields = []
-        if args.field:
-            # append new fields from CLI
-            for task in args.field:  # FIELD,[COLUMN],[SOURCE_FIELD], ex: `netname 3|"IP address" ip|sourceip`
-                task = [x.strip() for x in task.split(",")]
-                if len(task) > 3:
-                    print("Invalid field", task)
-                    quit()
-                new_field = fields[fields.index(task[0])]  # determine FIELD
-                column_or_source = task[1] if len(task) > 1 else None
-                source = task[2] if len(task) > 2 else None
-                new_fields.append((new_field, column_or_source, source))
-            
+        # append new fields from CLI
+        for task in args.field or ():  # FIELD,[COLUMN],[SOURCE_FIELD], ex: `netname 3|"IP address" ip|sourceip`
+            task = [x.strip() for x in task.split(",")]
+            if len(task) > 3:
+                print("Invalid field", task)
+                quit()
+            new_field = types[types.index(task[0])]  # determine FIELD
+            column_or_source = task[1] if len(task) > 1 else None
+            source = task[2] if len(task) > 2 else None
+            new_fields.append((new_field, column_or_source, source))
+
+        # run single value check if the input is not a CSV file
         if self.csv.is_single_value:
             res = self.csv.run_single_value(json=args.json, new_fields=[x[0] for x in new_fields])
             if res:
                 print(res)
             quit()
 
+        # prepare some columns to be removed
+        if args.delete:
+            for c in args.delete.split(","):
+                self.csv.fields[self.csv.identifier.get_column_i(c)].is_chosen = False
+            self.csv.is_processable = True
+
+        # prepare to add new fields
         for el in new_fields:
             new_field, column_or_source, source = el
-            source_col_i, source_field = self.csv.identifier.get_fitting_source(*el)
-            self.source_new_column(new_field, True, source_col_i, source_field)
+            source_field, source_type = self.csv.identifier.get_fitting_source(*el)
+            self.source_new_column(new_field, True, source_field, source_type)
             self.csv.is_processable = True
             # XXX tohle pak umožni self.process() dej automatický procssing. Asi teda. Má convey pak skončit? Jaké mají být flagy?
 
         # start csirt-incident macro
         if args.csirt_incident and not self.csv.is_analyzed:
-            self.csv.settings["split"] = self.source_new_column(Fields.incident_contact, add=False)
+            self.csv.settings["split"] = self.source_new_column(Types.incident_contact, add=False)
             self.csv.is_processable = True
             self.process()
-
 
         self.start_debugger = False
 
@@ -316,39 +324,40 @@ class Controller:
                  lambda: Contacts.mailDraft["local"].gui_edit() and Contacts.mailDraft["foreign"].gui_edit())
         menu.sout()
 
-    def source_new_column(self, new_field, add=None, source_col_i: int = None, source_field=None):
+    def source_new_column(self, new_field, add=None, source_field: Field = None, source_type : Type=None):
         """ We know what Field the new column should be of, now determine how we should extend it:
             Summarize what order has the source field and what type the source field should be considered alike.
-                :type source_field: Field
+                :type source_type: Field
                 :type source_col_i: int
                 :type new_field: Field
                 :type add: bool if the column should be added to the table; None ask
         """
         dialog = Dialog(autowidgetsize=True)
-        if not source_col_i or not source_field:
+        if not source_field or not source_type:
             print("\nWhat column we base {} on?".format(new_field))
             cols = self.csv.identifier.get_fitting_source_i(new_field)
             source_col_i = pick_option(self.csv.get_fields_autodetection(),
                                        title="Searching source for " + str(new_field),
                                        guesses=cols)
-            
-            source_field = self.csv.identifier.get_fitting_type(source_col_i, new_field)
-            if source_field is None:
+            source_field = self.csv.fields[source_col_i]
+
+            source_type = self.csv.identifier.get_fitting_type(source_col_i, new_field)
+            if source_type is None:
                 # ask how should be treated the column as, even it seems not valid
                 # list all known methods to compute the desired new_field (e.g. for incident-contact it is: ip, hostname, ...)
                 choices = [(k.name, k.description)
                            for k, _ in self.csv.identifier.get_graph().dijkstra(new_field, ignore_private=True).items()]
 
-                if len(choices) == 1 and choices[0][0] == Fields.plaintext:
+                if len(choices) == 1 and choices[0][0] == Types.plaintext:
                     # if the only method is derivable from a plaintext, no worries that a method
                     # converting the column type to "plaintext" is not defined; everything's plaintext
-                    source_field = Fields.plaintext
+                    source_type = Types.plaintext
                 elif choices:
                     s = ""
                     if self.csv.second_line_fields:
                         s = f"\n\nWhat type of value '{self.csv.second_line_fields[source_col_i]}' is?"
-                    title = f"Choose the right method\n\nNo known method for making {new_field} from column {self.csv.fields[source_col_i]} because the column type wasn't identified. How should I treat the column?{s}"
-                    code, source_field = dialog.menu(title, choices=choices)
+                    title = f"Choose the right method\n\nNo known method for making {new_field} from column {source_field} because the column type wasn't identified. How should I treat the column?{s}"
+                    code, source_type = dialog.menu(title, choices=choices)
                     if code == "cancel":
                         return
                 else:
@@ -356,7 +365,7 @@ class Controller:
                                                                                                                 Config.PROJECT_SITE))
 
         custom = None
-        if new_field == Fields.custom:  # choose a file with a needed method
+        if new_field == Types.custom:  # choose a file with a needed method
             while True:
                 title = "What .py file should be used as custom source?"
                 code, path = dialog.fselect(Path.cwd(), title=title)
@@ -365,53 +374,47 @@ class Controller:
                 module = self.csv.identifier.get_module_from_path(path)
                 if module:
                     # inspect the .py file, extract methods and let the user choose one
-                    code, source_field = dialog.menu("What method should be used in the file {}?".format(path),
-                                                     choices=[(x, "") for x in dir(module) if not x.startswith("_")])
+                    code, source_type = dialog.menu("What method should be used in the file {}?".format(path),
+                                                    choices=[(x, "") for x in dir(module) if not x.startswith("_")])
                     if code == "cancel":
                         return
 
-                    custom = path, source_field
+                    custom = path, source_type
                     break
                 else:
                     dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
-
-        # Ex: self.csv.settings["add"].append("country", 1, "whois", None)
-        # which stands for: I want to have a "country" column,
-        #                   from an IP col at position 1,
-        #                   by method whois because there is a path (("ip", "whois"), ("whois", "country")),
-        #                   no custom method
-        self.csv.settings["add"].append((new_field, source_col_i, source_field, custom))
-        self.csv.fields.append(new_field)
 
         if add is None:
             if dialog.yesno("New field added: {}\n\nDo you want to include this field as a new column?".format(
                     new_field)) == "ok":
                 add = True
 
-        if add is True:  # or (add is None and input("Do you want to include this field as a new column? [y]/n ") not in ["n","no"]):
-            self.csv.settings["chosen_cols"].append(len(self.csv.fields) - 1)
-        # if add is False or (add is None and input("Do you want to include this field as a new column? [y]/n ") in ["n","no"]):
-        # self.csv.settings["chosen_cols"].append(False)
-        return len(self.csv.fields) - 1  # + len(self.csv.settings["add"]) - 1
+        f = Field(new_field, is_chosen=add,
+                  source_field=source_field,
+                  source_type=source_type,
+                  new_custom=custom,
+                  identifier=self.csv.identifier)
+        self.csv.settings["add"].append(f)
+        self.csv.fields.append(f)
+        return len(self.csv.fields) - 1
 
     def choose_cols(self):
         # XX possibility un/check all
-        chosens = [(str(i + 1), f, i in self.csv.settings["chosen_cols"]) for i, f in enumerate(self.csv.fields)]
+        chosens = [(str(i + 1), str(f), f.is_chosen) for i, f in enumerate(self.csv.fields)]
         d = Dialog(autowidgetsize=True)
-        ret, values = d.checklist("What fields should be included in the output file?",
-                                  choices=chosens)
+        ret, values = d.checklist("What fields should be included in the output file?", choices=chosens)
         if ret == "ok":
             self.csv.settings["chosen_cols"] = [int(v) - 1 for v in values]
             self.csv.is_processable = True
 
     def select_col(self, col_name="", only_extendables=False, add=None):
         fields = self.csv.get_fields_autodetection() if not only_extendables else []
-        for field in self.csv.identifier.extendable_fields:
-            if field == Fields.custom:
+        for field in computable_types:
+            if field == Types.custom:
                 s = "from your .py file"
             else:
                 node_distance = self.csv.identifier.get_graph().dijkstra(field, ignore_private=True)
-                s = field.group.name + " " if field.group != FieldGroup.general else ""
+                s = field.group.name + " " if field.group != TypeGroup.general else ""
                 s += "from " + ", ".join([str(k) for k in node_distance][:3])
                 if len(node_distance) > 3:
                     s += "..."
@@ -419,7 +422,7 @@ class Controller:
         col_i = pick_option(fields, col_name)
         if only_extendables or col_i >= len(self.csv.fields):
             new_field_i = col_i if only_extendables else col_i - len(self.csv.fields)
-            col_i = self.source_new_column(self.csv.identifier.extendable_fields[new_field_i], add=add)
+            col_i = self.source_new_column(computable_types[new_field_i], add=add)
         return col_i
 
     def add_filtering(self):

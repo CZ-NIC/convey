@@ -107,6 +107,7 @@ class SourceWrapper:
             try:  # try to depickle
                 self.csv = jsonpickle.decode(open(self.cache_file, "r").read(), keys=True)
                 self.csv.refresh()
+                self.csv.reset_whois(assure_init=True)
                 # correction of a wrongly pickling: instead of {IPNetwork('...'): (IPNetwork('...'),
                 # we see {IPNetwork('...'): (<jsonpickle.unpickler._IDProxy object at 0x...>,
                 # Note that IPRange is pickled correctly.
@@ -139,6 +140,8 @@ class SourceWrapper:
                     print(e)
                     print("Format of the file may have changed since last time. "
                           "Let's process it all again. If you continue, cache gets deleted.")
+                    if Config.is_debug():
+                        ipdb.post_mortem()
         else:
             if not Path(Config.get_cache_dir()).exists():
                 Path(Config.get_cache_dir()).mkdir()

@@ -40,15 +40,24 @@ def check_ip(ip):
         return False
 
 
-def check_cidr(cidr):
-    try:
-        ipaddress.ip_interface(cidr)
+class Checker:
+    """ To not pollute the namespace, we put the methods here """
+
+    @staticmethod
+    def check_cidr(cidr):
         try:
-            ipaddress.ip_address(cidr)
-        except ValueError:  # "1.2.3.4" fail, "1.2.3.4/24" pass
-            return True
-    except ValueError:
-        pass
+            ipaddress.ip_interface(cidr)
+            try:
+                ipaddress.ip_address(cidr)
+            except ValueError:  # "1.2.3.4" fail, "1.2.3.4/24" pass
+                return True
+        except ValueError:
+            pass
+
+    @staticmethod
+    def is_base64(x):
+        # there must be at least single letter, port number would be mistaken for base64 fields
+        return base64decode(x) and re.search(r"[A-Za-z]", x)
 
 
 def wrong_url_2_url(s):
@@ -74,29 +83,37 @@ def base64decode(x):
         return None
 
 
-def scrape_url(url):
+class ScrapeUrl:
     """
     :return: [http status | error, shortened text, original html, redirects]
     """
-    try:
-        response = requests.get(url, timeout=3)
-    except IOError as e:
-        # append("status", 0)
-        # append("scrape-error", str(e))
-        return [str(e), None, None, None]
-    else:
-        response.encoding = response.apparent_encoding  # https://stackoverflow.com/a/52615216/2036148
-        soup = BeautifulSoup(response.text, features="html.parser")
-        [s.extract() for s in soup(["style", "script", "head"])]  # remove tags with low probability of content
-        text = re.sub(r'\n\s*\n', '\n', soup.text)  # reduce multiple new lines to singles
-        text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ', text)  # reduce multiple spaces (not new lines) to singles
-        redirects = ""
-        for res in response.history[1:]:
-            redirects = f"REDIRECT {res.status_code} → {res.url}\n" + text
-        return [response.status_code, text, response.text, redirects]
+    cache = {}
+
+    def __init__(self, url):
+        if url in self.cache:
+            self.get = self.cache[url]
+            return
+        try:
+            logger.info("Scrapping " + url + "...")
+            response = requests.get(url, timeout=3)
+        except IOError as e:
+            # append("status", 0)
+            # append("scrape-error", str(e))
+            self.get = str(e), None, None, None
+        else:
+            response.encoding = response.apparent_encoding  # https://stackoverflow.com/a/52615216/2036148
+            soup = BeautifulSoup(response.text, features="html.parser")
+            [s.extract() for s in soup(["style", "script", "head"])]  # remove tags with low probability of content
+            text = re.sub(r'\n\s*\n', '\n', soup.text)  # reduce multiple new lines to singles
+            text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ', text)  # reduce multiple spaces (not new lines) to singles
+            redirects = ""
+            for res in response.history[1:]:
+                redirects = f"REDIRECT {res.status_code} → {res.url}\n" + text
+            self.get = response.status_code, text, response.text, redirects
+        self.cache[url] = self.get
 
 
-def nmap(): # XXX
+def nmap():  # XXX
     logger.info("NMAPing...")
     text = subprocess.run(["nmap", object], stdout=subprocess.PIPE).stdout.decode("utf-8")
     text = text[text.find("PORT"):]
@@ -105,7 +122,7 @@ def nmap(): # XXX
     return text
 
 
-class FieldGroup(IntEnum):
+class TypeGroup(IntEnum):
     general = 1
     custom = 2
     whois = 3
@@ -114,18 +131,18 @@ class FieldGroup(IntEnum):
     scrape = 6
 
 
-class Field:
+class Type:
     """
     A field type Convey is able to identify or compute
     """
 
-    def __init__(self, name, group=FieldGroup.general, description=None, usual_names=[], identify_method=None, is_private=False):
+    def __init__(self, name, group=TypeGroup.general, description=None, usual_names=[], identify_method=None, is_private=False):
         """
         :param name: Key name
         :param description: Help text
         :param usual_names: Names this column usually has (ex: source_ip for an IP column). List of str, lowercase, no spaces.
         :param identify_method: Lambda used to identify a value may be of this field type
-        :param is_private: User cannot add the field (ex: whois, user can extend only netname which is accessed through it).
+        :param is_private: User cannot add the field type (ex: whois, user can extend only netname which is accessed through it).
             Private types must have 'class.private = True' attribute # XXX abych je mohl pozvat pri l= val(l). Možná stačí jenom tuple, všichni vrací string. Nebo vlastní class Box, z kterého by ta původní šla dostat.
         """
         self.name = name
@@ -134,9 +151,9 @@ class Field:
         self.identify_method = identify_method
         self.description = description
         self.is_private = is_private
-        fields.append(self)
+        types.append(self)
         if self.identify_method or self.usual_names:
-            guessable_fields.append(self)
+            guessable_types.append(self)
 
     def __eq__(self, other):
         if type(other) is str:
@@ -155,7 +172,7 @@ class Field:
         return self.name
 
     def __repr__(self):
-        return f"Field({self.name})"
+        return f"Type({self.name})"
 
     def doc(self):
         s = self.name
@@ -170,55 +187,59 @@ class Field:
             return self.name + " " + other
         return self.name + " " + other.name
 
-    __radd__ = __add__
+    def __radd__(self, other):  # sometimes we might get compared to string columns names from the CSV
+        if isinstance(other, str):
+            return other + " " + self.name
+        return self.other + " " + self.name
 
 
-fields: List[Field] = []  # all fields
-guessable_fields: List[Field] = []  # these fields can be guessed from a string
+types: List[Type] = []  # all field types
+guessable_types: List[Type] = []  # these field types can be guessed from a string
 
 
-class Fields:
+class Types:
     """
     Methods sourcing from private type should return a tuple, with the private type as the first
     Ex: (whois, asn): lambda x: (x, x.get[3])
 
     """
 
-    whois = Field("whois", FieldGroup.whois, "ask whois servers", is_private=True)
-    scrape = Field("scrape", FieldGroup.scrape, "scrape web contents", is_private=True)
+    whois = Type("whois", TypeGroup.whois, "ask whois servers", is_private=True)
+    scrape = Type("scrape", TypeGroup.scrape, "scrape web contents", is_private=True)
 
-    custom = Field("custom", FieldGroup.custom)
-    netname = Field("netname", FieldGroup.whois)
-    country = Field("country", FieldGroup.whois)
-    abusemail = Field("abusemail", FieldGroup.whois)
-    prefix = Field("prefix", FieldGroup.whois)
-    csirt_contact = Field("csirt_contact", FieldGroup.whois)
-    incident_contact = Field("incident_contact", FieldGroup.whois)
-    decoded_text = Field("decoded_text", FieldGroup.general)
-    web = Field("web", FieldGroup.scrape)
-    http_status = Field("http_status", FieldGroup.scrape)
-    html = Field("html", FieldGroup.scrape)
-    redirects = Field("redirects", FieldGroup.scrape)
-    ports = Field("ports", FieldGroup.ports)
+    custom = Type("custom", TypeGroup.custom)
+    netname = Type("netname", TypeGroup.whois)
+    country = Type("country", TypeGroup.whois)
+    abusemail = Type("abusemail", TypeGroup.whois)
+    prefix = Type("prefix", TypeGroup.whois)
+    csirt_contact = Type("csirt_contact", TypeGroup.whois)
+    incident_contact = Type("incident_contact", TypeGroup.whois)
+    decoded_text = Type("decoded_text", TypeGroup.general)
+    web = Type("web", TypeGroup.scrape)
+    http_status = Type("http_status", TypeGroup.scrape)
+    html = Type("html", TypeGroup.scrape)
+    redirects = Type("redirects", TypeGroup.scrape)
+    ports = Type("ports", TypeGroup.ports)
 
-    ip = Field("ip", FieldGroup.general, "valid IP address", ["ip", "sourceipaddress", "ipaddress", "source"], check_ip)
-    cidr = Field("cidr", FieldGroup.general, "CIDR 127.0.0.1/32", ["cidr"], check_cidr)
-    port_ip = Field("portIP", FieldGroup.general, "IP in the form 1.2.3.4.port", [], reIpWithPort.match)
-    any_ip = Field("anyIP", FieldGroup.general, "IP in the form 'any text 1.2.3.4 any text'", [], reAnyIp.search)
-    hostname = Field("hostname", FieldGroup.general, "2nd or 3rd domain name", ["fqdn", "hostname", "domain"], reFqdn.match)
-    url = Field("url", FieldGroup.general, "URL starting with http/https", ["url", "uri", "location"],
-                lambda s: reUrl.match(s) and "[.]" not in s)  # input "example[.]com" would be admitted as a valid URL)
-    asn = Field("asn", FieldGroup.whois, "AS Number", ["as", "asn", "asnumber"],
-                lambda field: re.search('AS\d+', field) is not None)
-    base64 = Field("base64", FieldGroup.general, "Text encoded with Base64", ["base64"],
-                   lambda field: bool(base64decode(field)))  # Xbool(reBase64.search(field)))
-    wrong_url = Field("wrongURL", FieldGroup.general, "Deactivated URL", [], lambda s: reUrl.match(wrong_url_2_url(s)))
-    plaintext = Field("plaintext", FieldGroup.general, "Plain text", ["plaintext", "text"], lambda field: False)
+    ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "sourceipaddress", "ipaddress", "source"], check_ip)
+    cidr = Type("cidr", TypeGroup.general, "CIDR 127.0.0.1/32", ["cidr"], Checker.check_cidr)
+    port_ip = Type("portIP", TypeGroup.general, "IP in the form 1.2.3.4.port", [], reIpWithPort.match)
+    any_ip = Type("anyIP", TypeGroup.general, "IP in the form 'any text 1.2.3.4 any text'", [], reAnyIp.search)
+    hostname = Type("hostname", TypeGroup.general, "2nd or 3rd domain name", ["fqdn", "hostname", "domain"], reFqdn.match)
+    url = Type("url", TypeGroup.general, "URL starting with http/https", ["url", "uri", "location"],
+               lambda s: reUrl.match(s) and "[.]" not in s)  # input "example[.]com" would be admitted as a valid URL)
+    asn = Type("asn", TypeGroup.whois, "AS Number", ["as", "asn", "asnumber"],
+               lambda x: re.search('AS\d+', x) is not None)
+    base64 = Type("base64", TypeGroup.general, "Text encoded with Base64", ["base64"], Checker.is_base64)
+    wrong_url = Type("wrongURL", TypeGroup.general, "Deactivated URL", [], lambda s: reUrl.match(wrong_url_2_url(s)))
+    plaintext = Type("plaintext", TypeGroup.general, "Plain text", ["plaintext", "text"], lambda x: False)
 
 
-# these are known methods to make a field from another field
 def _get_methods():
-    f = Fields
+    """  these are known methods to make a field from another field
+        Note that Whois only produces tuple to be fetchable to stats in Processor, the others are rather strings.
+    """
+    f = Types
     return {(f.any_ip, f.ip): any_ip_2_ip,
             # any IP: "91.222.204.175 93.171.205.34" -> "91.222.204.175" OR '"1.2.3.4"' -> 1.2.3.4
             (f.port_ip, f.ip): port_ip_2_ip,
@@ -242,11 +263,11 @@ def _get_methods():
             (f.wrong_url, f.url): wrong_url_2_url,
             (f.hostname, f.url): lambda x: "http://" + x,
             (f.ip, f.url): lambda x: "http://" + x,
-            (f.url, f.scrape): scrape_url,
-            (f.scrape, f.http_status): lambda x: x[0],
-            (f.scrape, f.web): lambda x: x[1],
-            (f.scrape, f.html): lambda x: x[2],
-            (f.scrape, f.redirects): lambda x: x[3]
+            (f.url, f.scrape): ScrapeUrl,
+            (f.scrape, f.http_status): lambda x: x.get[0],
+            (f.scrape, f.web): lambda x: x.get[1],
+            (f.scrape, f.html): lambda x: x.get[2],
+            (f.scrape, f.redirects): lambda x: x.get[3]
             # (hostname, ports): nmap, XX allow when you're able to disable it by default in config
             # (ip, ports): nmap
 
@@ -258,13 +279,15 @@ def _get_methods():
 
 
 methods = _get_methods()
+# List of all suitable fields that we may compute from a suitable output
+computable_types = sorted({target_type for _, target_type in methods.keys() if not target_type.is_private})
 
 
 def get_uml():
-    """ Return DOT UML source code of fields and methods"""
+    """ Return DOT UML source code of types and methods"""
     l = ['digraph { ']
-    l.append('label="Convey fields (dashed = identifiable automatically, circled = IO actions)"')
-    for f in fields:
+    l.append('label="Convey field types (dashed = identifiable automatically, circled = IO actions)"')
+    for f in types:
         label = [f.name]
         if f.description:
             label.append(f.description)
@@ -272,7 +295,7 @@ def get_uml():
             label.append("usual names: " + ", ".join(f.usual_names))
         s = "\n".join(label)
         l.append(f'{f.name} [label="{s}"]')
-        if f in guessable_fields:
+        if f in guessable_types:
             l.append(f'{f.name} [style=dashed]')
         if f.is_private:
             l.append(f'{f.name} [shape=circled]')
@@ -283,9 +306,9 @@ def get_uml():
     return "\n".join(l)
 
 
-def get_field_names():
+def get_type_names():
     l = []
-    for f in fields:
+    for f in types:
         s = f.name
         if f.description:
             s += f" ({f.description})"
@@ -313,24 +336,23 @@ class Identifier:
 
         self.csv = csv
         self.graph = None
-        self.extendable_fields = sorted(set([k for _, k in methods.keys() if not k.is_private]))
         self.field_type = None
 
     def get_graph(self):
         """
-          returns instance of Graph class with methods converting a field to another
+          returns instance of Graph class with methods converting a field type to another
         """
         if not self.graph:
-            self.graph = Graph([f for f in fields if f.is_private])
+            self.graph = Graph([f for f in types if f.is_private])
             [self.graph.add_edge(to, from_) for to, from_ in methods]
         return self.graph
 
     def get_methods_from(self, target, start, custom_module_method):
         """
         Returns the nested lambda list that'll receive a value from start field and should produce value in target field.
-        :param target: field name
-        :param start: field name
-        :param custom_module_method: If target is a 'custom' field, we'll receive a tuple (module path, method name).
+        :param target: field type name
+        :param start: field type name
+        :param custom_module_method: If target is a 'custom' field type, we'll receive a tuple (module path, method name).
         :return: lambda[]
         """
         if custom_module_method:
@@ -417,7 +439,6 @@ class Identifier:
                              ...}
 
         """
-        self.field_type = {i: {} for i in range(len(self.csv.fields))}
         samples = [[] for _ in self.csv.fields]
         if len(self.csv.sample) == 1:  # we have too few values, we have to use them
             s = self.csv.sample[:1]
@@ -430,19 +451,20 @@ class Identifier:
                     samples[i].append(val)
                 except IndexError:
                     print("It seems rows have different lengths. Cannot help you with column identifying.")
-                    print("First row: " + str(list(enumerate(self.csv.fields))))
+                    print("First row: " + str([(i, str(f)) for i, f in enumerate(self.csv.fields)]))
                     print("Current row: " + str(list(enumerate(row))))
                     input("\n... Press any key to continue.")
                     return
 
-        for i, field_name in enumerate(self.csv.fields):
-            for field in guessable_fields:
+        for i, field in enumerate(self.csv.fields):
+            possible_types = {}
+            for type_ in guessable_types:
                 score = 0
                 # print("Guess:", key, names, checkFn)
                 # guess field type by name
                 if self.csv.has_header:
-                    s = str(field_name).replace(" ", "").replace("'", "").replace('"', "").lower()
-                    for n in field.usual_names:
+                    s = str(field).replace(" ", "").replace("'", "").replace('"', "").lower()
+                    for n in type_.usual_names:
                         if s in n or n in s:
                             # print("HEADER match", field, names)
                             score += 1
@@ -451,7 +473,7 @@ class Identifier:
                 # guess field type by few values
                 hits = 0
                 for val in samples[i]:
-                    if field.identify_method(val):
+                    if type_.identify_method(val):
                         # print("Match")
                         hits += 1
                 try:
@@ -466,21 +488,18 @@ class Identifier:
                     if percent > 0.8:
                         score += 1
 
-                self.field_type[i][field] = score
+                possible_types[type_] = score
                 # print("hits", hits)
-            if self.field_type[i]:  # sort by biggest score - biggest probability the column is of this type
-                self.field_type[i] = {k: v for k, v in sorted(self.field_type[i].items(), key=lambda k: k[1], reverse=True)}
+            if possible_types:  # sort by biggest score - biggest probability the column is of this type
+                field.possible_types = {k: v for k, v in sorted(possible_types.items(), key=lambda k: k[1], reverse=True)}
 
-    def get_fitting_type(self, source_col_i, target_field, try_plaintext=False):
+    def get_fitting_type(self, source_field_i, target_field, try_plaintext=False):
         """ Loops all types the field could be and return the type best suited method for compute new field. """
         _min = 999
         fitting_type = None
-        try:
-            possible_fields = list(self.field_type[source_col_i])
-        except KeyError:  # dynamically added field
-            possible_fields = [self.csv.fields[source_col_i]]
+        possible_fields = list(self.csv.fields[source_field_i].possible_types)
         if try_plaintext:  # try plaintext field as the last one
-            possible_fields.append(Fields.plaintext)
+            possible_fields.append(Types.plaintext)
         dijkstra = self.get_graph().dijkstra(target_field)  # get all fields that new_field is computable from
         for _type in possible_fields:
             # loop all the types the field could be, loop from the FieldType we think the source_col correspond the most
@@ -497,29 +516,26 @@ class Identifier:
         valid_types = self.get_graph().dijkstra(new_field)
         possible_cols = {}
         for val in valid_types:  # loop from the best suited type
-            for i, types in self.field_type.items():  # loop from the column we are most sure with its field type
-                if val in types:
-                    possible_cols[i] = types[val]
+            for i, f in enumerate(self.csv.fields):  # loop from the column we are most sure with its field type
+                if val in f.possible_types:
+                    possible_cols[i] = f.possible_types[val]
                     break
         return list(possible_cols)
 
     def get_fitting_source(self, new_field, column_or_source, source):
         """
         For a new field, we need source column and its field type to compute new field from.
-        :param new_field: str of Field
+        :param new_field: str of Type
         :param column_or_source: [int|existing name|field name|field usual names]
         :param source: [field name|field usual names]
-        :return: source_col_i, source_field or exit.
+        :return: (source_field, source_type) or exit.
         """
         source_col_i = None
         source_field = None
         print(new_field, column_or_source, source)
         if column_or_source:  # determine COLUMN
-            if column_or_source.isdigit():  # number of column
-                source_col_i = int(column_or_source) - 1
-            elif column_or_source in self.csv.first_line_fields:  # exact column name
-                source_col_i = self.csv.first_line_fields.index(column_or_source)
-            elif source:
+            source_col_i = self.get_column_i(column_or_source)
+            if not source_col_i and source:
                 print("Invalid field", source, ", already having defined field by " + column_or_source)
                 quit()
             else:  # this was not COLUMN but SOURCE_FIELD, COLUMN remains empty
@@ -532,7 +548,7 @@ class Identifier:
         if source:  # determine SOURCE_FIELD
             source = source.lower().replace(" ", "")  # make it seem like a usual field name
             possible = None
-            for f in fields:
+            for f in types:
                 if source == f:  # exact field name
                     source_field = f
                     break
@@ -553,9 +569,9 @@ class Identifier:
             # searching for a fitting type amongst existing columns
             # for col in self.
             possibles = {}  # [source col i] = score (bigger is better)
-            for i, types in self.field_type.items():
-                if source_field in types:
-                    possibles[i] = types[source_field]
+            for i, f in enumerate(self.csv.fields):
+                if source_field in f.possible_types:
+                    possibles[i] = f.possible_types[source_field]
 
             try:
                 # XXX tohle vyzkoušet. Předně myslim, že v possibles[i] je celej dictionary. (Řazenej od nejlepšíc.)
@@ -568,9 +584,17 @@ class Identifier:
         if not source_field or not source_col_i:
             print(f"No suitable column found for field '{new_field}'")
             quit()
-        return source_col_i, source_field
+        return self.csv.fields[source_col_i], source_field
 
-
-def get_computable_fields():
-    """ List of all suitable fields that we may compute from a suitable output """
-    return sorted({target_field for _, target_field in methods.keys()})
+    def get_column_i(self, column):
+        """
+        Useful for parsing user input COLUMN from the CLI args.
+        :type column: object Either the order of the column or an exact column name
+        :rtype: int Either column_i or None if not found.
+        """
+        source_col_i = None
+        if column.isdigit():  # number of column
+            source_col_i = int(column) - 1
+        elif column in self.csv.first_line_fields:  # exact column name
+            source_col_i = self.csv.first_line_fields.index(column)
+        return source_col_i

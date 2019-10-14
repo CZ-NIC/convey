@@ -2,6 +2,7 @@
 import configparser
 import glob
 import logging
+import os
 import sys
 from pathlib import Path
 from shutil import copy
@@ -242,3 +243,11 @@ class Config:
     @staticmethod
     def edit_configuration():
         Popen(['xdg-open', Config.path], stdout=PIPE, stderr=PIPE)
+
+
+def get_terminal_width():
+    try:
+        _, width = (int(s) for s in os.popen('stty size', 'r').read().split())
+        return width
+    except (OSError, ValueError):
+        return 0

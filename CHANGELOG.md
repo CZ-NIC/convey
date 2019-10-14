@@ -9,12 +9,13 @@
     - new quote_char flag
     - new header / no-header flags
     - new output CLI flag
-    - new scrape_url config flag and --scrape-url CLI flag
+    - new ScrapeUrl config flag and --scrape-url CLI flag
     - new CLI flag --config to open configuration
     - new CLI flag --show-fields to get UML overview
     - new flag single_value_ignored_fields
     - new flag --json
     - flag --verbose, --quiet and config `verbosity`
+    - flag --field, --delete
 - fixes:
     - fix: new installation should now correctly place contacts files in .config
     - fix: refresh partner contact list e-mails when restart even if the file has been processed before

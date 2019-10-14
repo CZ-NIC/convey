@@ -339,6 +339,7 @@ rirs = ["whois.ripe.netf", "whois.arin.net", "whois.lacnic.net", "whois.apnic.ne
 
 class Whois:
     unknown_mode = False
+    see = Config.verbosity <= logging.INFO
 
     @staticmethod
     def init(stats, ranges, ip_seen):
@@ -347,7 +348,6 @@ class Whois:
         Whois.ip_seen = ip_seen  # ip_seen[ip] = prefix
         Whois.servers = OrderedDict()
         Whois.unknown_mode = False  # if True, we use b flag in abusemails
-        Whois.see = Config.verbosity <= logging.INFO
         if Config.get("whois_mirror"):  # try a fast local whois-mirror first
             Whois.servers["mirror"] = Config.get("whois_mirror")
         Whois.servers["general"] = None
@@ -377,7 +377,7 @@ class Whois:
                     return
 
         if self.see:
-            print(self.ip + " ...", end="", flush=True)
+            print(f"{self.ip} ...", end="", flush=True)
         get = self.analyze()  # prefix, location, mail, asn, netname, country
         if self.see:
             print(get[2])

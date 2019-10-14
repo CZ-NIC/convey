@@ -47,14 +47,13 @@ class Processor:
 
         # convert settings["add"] to lambdas
         adds = []
-        for it in settings["add"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
-            methods = self.csv.identifier.get_methods_from(it[0], it[2], it[3])
-            adds.append((it[0], it[1], methods))
+        for f in settings["add"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
+            adds.append((f.name, self.csv.fields.index(f.source_field), f.get_methods()))
         del settings["add"]
         settings["addByMethod"] = adds
 
-        if len(settings["chosen_cols"]) == len(csv.fields):
-            del settings["chosen_cols"]
+        if [f for f in self.csv.fields if not f.is_chosen]:
+            settings["chosen_cols"] = [i for i, f in enumerate(self.csv.fields) if f.is_chosen]
 
         if not settings["dialect"]:
             settings["dialect"] = csv.dialect

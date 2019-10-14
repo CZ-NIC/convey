@@ -3,13 +3,14 @@ import datetime
 import logging
 import subprocess
 import sys
+from itertools import zip_longest
 from math import ceil
 from pathlib import Path
 
 import humanize
 from tabulate import tabulate
 
-from .config import Config
+from .config import Config, get_terminal_width
 
 
 class Informer:
@@ -50,8 +51,8 @@ class Informer:
 
         if self.csv.settings["add"]:
             l2 = []
-            for col, i, b, _ in self.csv.settings["add"] or []:
-                l2.append(f"{col} (from {self.csv.fields[i]})")
+            for f in self.csv.settings["add"]:
+                l2.append(f"{f} (from {str(f.source_field)})")
             sys.stdout.write("\nComputed columns: " + ", ".join(l2))
         l = []
         if self.csv.line_count:
@@ -73,16 +74,63 @@ class Informer:
         if self.csv.whois_stats:
             print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whois_stats.items())
                   + f"; {len(self.csv.ranges)} prefixes discovered")
+
         print("\nSample:\n" + "".join(self.csv.sample[:4]))  # show first 3rd lines
 
-        if self.csv.settings["dialect"] or not (len(self.csv.fields) == len(self.csv.settings["chosen_cols"])) == len(
-                self.csv.first_line_fields):
+        if self.csv.is_formatted:
+            print("\nExperimental output XXX XXXX předělat X:")
+            # rows = [x for x in self.csv.sample_parsed]
+            rows = self.csv.sample_parsed
+            # print(tabulate(rows, headers=self.csv.first_line_fields))
+
+            shorten = lambda x: x[:17] + "..." if len(x) > 20 else x
+            rows = []
+            for l in self.csv.sample_parsed:
+                row = []
+
+                for f, c in zip_longest(self.csv.fields, l):
+                    if c:
+                        c = shorten(c)
+                    else:
+                        c = l[self.csv.fields.index(f.source_field)]
+                        # try:
+                        for m in f.get_methods() or ():
+                            c = m(c)
+                        if isinstance(c, tuple):
+                            c = c[1] or "unknown"
+                        # except:
+                        #     c = "X"
+                        # c = "..."
+                    if not f.is_chosen:
+                        row.append("\x1b[9m{}\x1b[0m".format(c or "empty"))
+                    else:
+                        row.append(c)
+                rows.append(row)
+                # print(",".join(row))
+            header = [f.get() for f in self.csv.fields]
+            # print(rows)
+            # XXX header = [f"{x} ({y})" for x, y in zip(self.csv.first_line_fields, self.csv.identifier.field_type.values())]
+            # ... ...
+            tab = tabulate(rows, headers=header)
+            if len(tab.split("\n")[0]) <= get_terminal_width():
+                print(tab)
+            else:
+                print("Result:")
+                s = ", ".join([f.name for f in self.csv.fields]) + "\n" + "\n".join([", ".join(r) for r in rows])
+                print(s)
+
+                lines = [[h + ": "] for h in header]
+                for r in rows:
+                    for i, f in enumerate(r):
+                        lines[i].append(f)
+                print(tabulate(lines, tablefmt="plain"))
+        if self.csv.settings["dialect"] or [f for f in self.csv.fields if (not f.is_chosen) or f.is_new]:
             ar = []
             for i, f in enumerate(self.csv.fields):
-                if i not in self.csv.settings["chosen_cols"]:
+                if not self.csv.fields[i].is_chosen:
                     ar.append(" \x1b[9m{}\x1b[0m".format(f or "empty"))
                 else:
-                    ar.append(" " + f)
+                    ar.append(" " + str(f))
             if ar:
                 print("Fields after processing: ", end="")
                 csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect).writerow(ar)

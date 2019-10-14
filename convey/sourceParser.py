@@ -2,7 +2,6 @@
 import csv
 import datetime
 import logging
-import os
 import re
 import subprocess
 import time
@@ -15,10 +14,10 @@ from typing import List
 
 from tabulate import tabulate
 
-from .config import Config
+from .config import Config, get_terminal_width
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, is_yes, ask
-from .identifier import Identifier, b64decode, Fields, get_computable_fields
+from .identifier import Identifier, b64decode, Types, Type, computable_types
 from .informer import Informer
 from .processor import Processor
 from .whois import Whois
@@ -38,7 +37,8 @@ class SourceParser:
         self.has_header = None  # CSV has header
         self.header = ""  # if CSV has header, it's here so that Processor can take it
         self.sample = []  # lines from the first to up to eighth
-        self.fields: List[str | "Field"] = []  # CSV columns that will be generated to an output
+        self.sample_parsed: List[List[str]] = []  # fields in the lines from the second to up to the fifth
+        self.fields: List[Field] = []  # CSV columns that will be generated to an output
         self.first_line_fields: List[str] = []  # initial CSV columns (equal to header if header is used)
         self.second_line_fields: List[str] = []  # list of values on the 2nd line if available
         # settings:
@@ -114,7 +114,7 @@ class SourceParser:
 
             if seems:
                 # init some basic parameters
-                self.fields = self.stdin
+                self.fields = [Field(self.stdin[0])]  # stdin has single field
                 self.dialect = csv.unix_dialect
                 self.has_header = False
                 self.identifier.init()
@@ -173,6 +173,7 @@ class SourceParser:
             self.first_line_fields = csv.reader([self.first_line], dialect=self.dialect).__next__()
             if len(self.sample) >= 2:
                 self.second_line_fields = csv.reader([self.sample[1]], dialect=self.dialect).__next__()
+            self.sample_parsed = [x for x in csv.reader(self.sample[1:5], dialect=self.dialect)]
             if self.has_header:
                 self.header = self.first_line_fields
             self.reset_settings()
@@ -190,28 +191,25 @@ class SourceParser:
         self.is_formatted = True  # delimiter and header has been detected etc.
         return self
 
-    def get_fields_autodetection(self):  # Xreturn_first_types=False
-        """ returns list of tuples [ (field, detection), ("UrL", "url, hostname") ] 
-        :type return_first_types: If True, we return possible types of the first field in []
+    def get_fields_autodetection(self):
+        """ returns list of tuples [ (field, detection str), ("Url", "url, hostname") ]
         """
         fields = []
         for i, field in enumerate(self.fields):
             s = ""
-            if i in self.identifier.field_type and len(self.identifier.field_type[i]):
-                possible_types = self.identifier.field_type[i]
-                if Fields.any_ip in possible_types and (Fields.ip in possible_types or Fields.port_ip in possible_types):
-                    del possible_types[Fields.any_ip]
-                if Fields.url in possible_types and Fields.wrong_url in possible_types:
-                    del possible_types[Fields.url]
+            if field.is_new:
+                s = f"computed from: {field.source_type}"
+            elif field.possible_types:
+                types = field.possible_types
+                if Types.any_ip in types and (Types.ip in types or Types.port_ip in types):
+                    del types[Types.any_ip]
+                if Types.url in types and Types.wrong_url in types:
+                    del types[Types.url]
                 # XX tohle asi pryč, l=possible_types l = sorted(possible_types, key=possible_types.get), checkni, jestli to funguje bez toho
                 # XXXXX ale když jsem to dal pryč, píše to Input value [('example.com', 'detected: hostname')])
                 # if return_first_types:
                 #     return l
-                s = f"detected: {', '.join((str(e) for e in possible_types))}"
-            else:
-                for f, _, _type, custom_method in self.settings["add"]:
-                    if field == f:
-                        s = f"computed from: {_type}"
+                s = f"detected: {', '.join((str(e) for e in types))}"
             fields.append((field, s))
         # if return_first_types:  # we did find nothing
         #     return []
@@ -237,9 +235,7 @@ class SourceParser:
             data[str(target_type)] = val
 
         # transform the field by all known means
-        for target_type in new_fields or get_computable_fields():  # loop all existing methods
-            if target_type.is_private:
-                continue
+        for target_type in new_fields or computable_types:  # loop all existing methods
             if not new_fields and target_type in Config.get("single_value_ignored_fields", get=list):
                 # do not automatically compute ignored fields
                 continue
@@ -250,10 +246,8 @@ class SourceParser:
                 val = self.first_line
                 for l in self.identifier.get_methods_from(target_type, fitting_type, None):
                     val = l(val)
-                if type(val) is tuple:  # XX and type(val[0]) is Whois:  # XX or SCRAPE WEB
+                if type(val) is tuple:  # currently Whois only returns tuple, see _get_methods.__doc__
                     val = val[1]
-                # elif type(val) is Whois:  # we ignore this whois temp value
-                #     continue
                 append(target_type, val)
 
         # prepare json to return (useful in a web service)
@@ -268,18 +262,14 @@ class SourceParser:
             return dumps(data)
         else:
             # pad to the screen width
-            try:
-                _, width = (int(s) for s in os.popen('stty size', 'r').read().split())
-            except (OSError, ValueError):
-                pass
-            else:
-                if rows:
-                    # size of terminal - size of the longest field name + 2 column space
-                    width -= max(len(row[0]) for row in rows) + 2
-                    for i, row in enumerate(rows):
-                        val = row[1]
-                        if width and len(str(val)) > width:  # split the long text by new lines
-                            row[1] = "\n".join([val[i:i + width] for i in range(0, len(val), width)])
+            width = get_terminal_width()
+            if rows and width:
+                # size of terminal - size of the longest field name + 2 column space
+                width -= max(len(row[0]) for row in rows) + 2
+                for i, row in enumerate(rows):
+                    val = row[1]
+                    if width and len(str(val)) > width:  # split the long text by new lines
+                        row[1] = "\n".join([val[i:i + width] for i in range(0, len(val), width)])
 
             print(tabulate(rows, headers=("field", "value")))
 
@@ -297,8 +287,7 @@ class SourceParser:
 
     def reset_settings(self):
         self.settings = defaultdict(list)
-        self.fields = list(self.first_line_fields)
-        self.settings["chosen_cols"] = list(range(len(self.fields)))
+        self.fields = [Field(f) for f in self.first_line_fields]
 
     def _reset_output(self):
         self.line_count = 0
@@ -317,7 +306,7 @@ class SourceParser:
 
             wr = Wr()
             cw = csv.writer(wr, dialect=self.dialect)
-            cw.writerow([self.fields[i] for i in self.settings["chosen_cols"]])
+            cw.writerow([f for f in self.fields if f.is_chosen])
             self.header = wr.written
         self._reset_output()
 
@@ -341,10 +330,10 @@ class SourceParser:
                 l.append("uniqued")
             if self.settings["dialect"]:
                 l.append("dialect")
-            if not len(self.settings["chosen_cols"]) == len(self.fields):
+            if [f for f in self.fields if not f.is_chosen]:
                 l.append("shuffled")
-            for name, _, _, _ in self.settings["add"]:
-                l.append(str(name))
+            for f in self.settings["add"]:
+                l.append(str(f))
             if self.source_file:
                 l.insert(0, Path(self.source_file).name)
                 target_file = f"{'_'.join(l)}.csv"
@@ -504,6 +493,8 @@ class SourceParser:
         del state['processor']
         del state['identifier']
         state['dialect'] = self.dialect.__dict__.copy()
+        for f in self.fields:
+            f.identifier = None
         return state
 
     def __setstate__(self, state):
@@ -515,3 +506,50 @@ class SourceParser:
             setattr(self.dialect, k, v)
         self.identifier = Identifier(self)
         self.identifier.init()
+        for f in self.fields:
+            f.identifier = self.identifier
+
+
+class Field:
+    def __init__(self, name, is_chosen=True, source_field=None, source_type=None, new_custom=None, identifier=None):
+        self.name = str(name)
+        self.is_chosen = is_chosen
+        self.possible_types = {}
+        if isinstance(name, Type):
+            self.type = name
+        else:
+            self.type = None
+        self.is_new = False
+        if source_field:
+            self.is_new = True
+            self.source_field = source_field
+            self.source_type = source_type
+            self.new_custom = new_custom
+            self.identifier = identifier
+
+    @property
+    def type(self):
+        if self._type:
+            return self._type
+        if self.possible_types:
+            return next(iter(self.possible_types))
+
+    @type.setter
+    def type(self, val):
+        self._type = val
+        if val:
+            self.possible_types[val] = 100
+
+    def get(self):
+        if self.is_new:
+            return f"{self.name} (from {self.source_field})"
+        elif self.type is None or self.type is Types.plaintext:
+            return self.name
+        else:
+            return f"{self.name} ({self.type})"
+
+    def get_methods(self):
+        return self.identifier.get_methods_from(self.type, self.source_type, self.new_custom)
+
+    def __str__(self):
+        return self.name
