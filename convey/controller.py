@@ -88,6 +88,8 @@ class Controller:
         parser.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
         parser.add_argument('--config', help="Open config file and exit.", action="store_true")
         parser.add_argument('--show-uml', help="Show UML of fields and methods and exit.", action="store_true")
+        parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
+                            action=BlankTrue, nargs="?", metavar="blank/false")
         self.args = args = parser.parse_args()
         if args.config:
             self.edit_configuration()
@@ -101,7 +103,7 @@ class Controller:
             Config.set("header", True)
         if args.no_header:
             Config.set("header", False)
-        for flag in ["output", "scrape_url", "delimiter", "quote_char"]:
+        for flag in ["output", "scrape_url", "delimiter", "quote_char", "compute_preview"]:
             if getattr(args, flag) is not None:
                 Config.set(flag, getattr(args, flag))
 

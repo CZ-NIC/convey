@@ -540,13 +540,35 @@ class Field:
         if val:
             self.possible_types[val] = 100
 
-    def get(self):
+    def color(self, v, shorten=False):
+        """ Colorize single line of a value. Strikes it if field is not chosen. """
+        if shorten:
+            v = v[:17] + "..." if len(v) > 20 else v
         if self.is_new:
-            return f"{self.name} (from {self.source_field})"
+            s = f"\033[0;33m{v}\033[0m"  # yellow
         elif self.type is None or self.type is Types.plaintext:
-            return self.name
+            s = f"\033[0;36m{v}\033[0m"  # blue
         else:
-            return f"{self.name} ({self.type})"
+            s = f"\033[0;32m{v}\033[0m"  # green
+        if not self.is_chosen:
+            s = f"\x1b[9m{s}\x1b[0m"  # strike
+        return s
+
+    def get(self, long=False, color=True):
+        s = ""
+        if long:
+            if self.is_new:
+                s = f"{self.name} ~\n{self.source_field}"
+            elif self.has_clear_type():
+                s = f"{self.name}\n   {self.type}"
+        if not s:
+            s = self.name
+        if color:
+            s = "\n".join((self.color(c) for c in s.split("\n")))
+        return s
+
+    def has_clear_type(self):
+        return self.type is not None and self.type is not Types.plaintext
 
     def get_methods(self):
         return self.identifier.get_methods_from(self.type, self.source_type, self.new_custom)

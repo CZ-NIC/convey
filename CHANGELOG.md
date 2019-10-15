@@ -4,18 +4,21 @@
 - web service
 - flags:
     - CHANGED: flag --file does not have anymore shortcut '-f'
-    - flag --yes for skipping dialogues
-    - new delimiter flag
-    - new quote_char flag
-    - new header / no-header flags
-    - new output CLI flag
-    - new ScrapeUrl config flag and --scrape-url CLI flag
-    - new CLI flag --config to open configuration
-    - new CLI flag --show-fields to get UML overview
-    - new flag single_value_ignored_fields
-    - new flag --json
-    - flag --verbose, --quiet and config `verbosity`
-    - flag --field, --delete
+    - both INI and CLI flags
+        - delimiter flag
+        - quote_char flag
+        - new header / no-header flags
+        - new output CLI flag
+        - new scrape_url config flag and --scrape-url CLI flag
+        - new flag single_value_ignored_fields
+        - flag --verbose, --quiet and config `verbosity`
+        - flag compute_preview
+    - CLI only flags
+        - flag --yes for skipping dialogues
+        - new CLI flag --config to open configuration
+        - new CLI flag --show-fields to get UML overview
+        - new flag --json
+        - flags --field, --delete
 - fixes:
     - fix: new installation should now correctly place contacts files in .config
     - fix: refresh partner contact list e-mails when restart even if the file has been processed before
@@ -42,7 +45,8 @@
 - dialogs
     - opens config file when a flag is missing
     - when no known method is known to process a field, an example is given
-    - when more than 9 options, you can use letters as shortcuts 
+    - when more than 9 options, you can use letters as shortcuts
+    - main screen shows colorized result, preferable in the form of table if the terminal is wide enough 
 
 
 ## 1.1 (2019-05-13)

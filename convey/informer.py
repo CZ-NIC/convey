@@ -49,10 +49,16 @@ class Informer:
         #    l.append("Redo invalids: " + str(self.csv.redo_invalids))
         sys.stdout.write(", ".join(l))
 
+        l3 = []
+        for f in self.csv.fields:
+            if not f.is_new and f.has_clear_type():
+                t = ", ".join([str(t) for t in f.possible_types])
+                l3.append(f.color(f"{f} ({t})"))
+        sys.stdout.write("\nIdentified columns: " + ", ".join(l3))
         if self.csv.settings["add"]:
             l2 = []
             for f in self.csv.settings["add"]:
-                l2.append(f"{f} (from {str(f.source_field)})")
+                l2.append(f.color(f"{f} (from {str(f.source_field)})"))
             sys.stdout.write("\nComputed columns: " + ", ".join(l2))
         l = []
         if self.csv.line_count:
@@ -77,66 +83,45 @@ class Informer:
 
         print("\nSample:\n" + "".join(self.csv.sample[:4]))  # show first 3rd lines
 
-        if self.csv.is_formatted:
-            print("\nExperimental output XXX XXXX předělat X:")
-            # rows = [x for x in self.csv.sample_parsed]
-            rows = self.csv.sample_parsed
-            # print(tabulate(rows, headers=self.csv.first_line_fields))
-
-            shorten = lambda x: x[:17] + "..." if len(x) > 20 else x
-            rows = []
+        if self.csv.is_formatted:  # show how would the result be alike
+            rows = []  # nice table formatting
+            full_rows = []  # formatting that optically matches the Sample above
             for l in self.csv.sample_parsed:
                 row = []
-
+                full_row = []
                 for f, c in zip_longest(self.csv.fields, l):
-                    if c:
-                        c = shorten(c)
-                    else:
-                        c = l[self.csv.fields.index(f.source_field)]
-                        # try:
-                        for m in f.get_methods() or ():
-                            c = m(c)
-                        if isinstance(c, tuple):
-                            c = c[1] or "unknown"
-                        # except:
-                        #     c = "X"
-                        # c = "..."
-                    if not f.is_chosen:
-                        row.append("\x1b[9m{}\x1b[0m".format(c or "empty"))
-                    else:
-                        row.append(c)
+                    if not c:
+                        if Config.get("compute_preview"):
+                            c = l[self.csv.fields.index(f.source_field)]
+                            for m in f.get_methods() or ():
+                                c = m(c)
+                            if isinstance(c, tuple):
+                                c = c[1] or "unknown"
+                            l.append(c)
+                        else:
+                            c = "..."
+                    row.append(f.color(c, True))
+                    full_row.append(f.color(c))
                 rows.append(row)
-                # print(",".join(row))
-            header = [f.get() for f in self.csv.fields]
-            # print(rows)
-            # XXX header = [f"{x} ({y})" for x, y in zip(self.csv.first_line_fields, self.csv.identifier.field_type.values())]
-            # ... ...
-            tab = tabulate(rows, headers=header)
-            if len(tab.split("\n")[0]) <= get_terminal_width():
-                print(tab)
-            else:
-                print("Result:")
-                s = ", ".join([f.name for f in self.csv.fields]) + "\n" + "\n".join([", ".join(r) for r in rows])
-                print(s)
+                full_rows.append(full_row)
 
-                lines = [[h + ": "] for h in header]
-                for r in rows:
-                    for i, f in enumerate(r):
-                        lines[i].append(f)
-                print(tabulate(lines, tablefmt="plain"))
-        if self.csv.settings["dialect"] or [f for f in self.csv.fields if (not f.is_chosen) or f.is_new]:
-            ar = []
-            for i, f in enumerate(self.csv.fields):
-                if not self.csv.fields[i].is_chosen:
-                    ar.append(" \x1b[9m{}\x1b[0m".format(f or "empty"))
-                else:
-                    ar.append(" " + str(f))
-            if ar:
-                print("Fields after processing: ", end="")
-                csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect).writerow(ar)
-            output = Config.get("output")
-            if output:
-                print(f"Output file specified: {output}")
+            first_line_length = tabulate(rows, headers=[f.get(True,color=False) for f in self.csv.fields]).split("\n")[0]
+            if not self.csv.settings["dialect"] and len(first_line_length) <= get_terminal_width():
+                # print big and nice table because we do not care about the dialect and terminal is wide enough
+                print("\033[0;36mResult table preview:\033[0m")
+                header = [f.get(True) for f in self.csv.fields]
+                print(tabulate(rows, headers=header))
+            else:
+                # print the rows in the same way so that they optically match the Sample above
+                print("\033[0;36mResult:\033[0m")
+                cw = csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect)
+                cw.writerow([f.get() for f in self.csv.fields])
+                for r in full_rows:
+                    cw.writerow(r)
+
+        output = Config.get("output")
+        if output:
+            print(f"Output file specified: {output}")
 
         if self.csv.is_analyzed:
             if self.csv.target_file is False:
