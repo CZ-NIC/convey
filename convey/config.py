@@ -120,6 +120,7 @@ class Config:
         from .dialogue import assume_yes
         if yes:
             assume_yes()
+            Config.set("yes", True)
         if verbosity:
             Config.verbosity = verbosity
         if Config.is_debug():

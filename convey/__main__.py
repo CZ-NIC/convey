@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import bdb
 import sys
 
 __doc__ = """Convey – CSV swiss knife brought by CSIRT.cz"""
@@ -16,7 +17,7 @@ def main():
         Controller()
     except KeyboardInterrupt:
         print("Interrupted")
-    except SystemExit as e:
+    except (bdb.BdbQuit, SystemExit) as e:
         pass
     except:
         import traceback
@@ -40,8 +41,9 @@ def main():
             mod.post_mortem(tb)
         elif Config:
             print(f"Convey crashed at {sys.exc_info()[1]}")
-            body = f"```bash\n{traceback.format_exc()}```\n\n```json\n{sys.exc_info()[2].tb_next.tb_frame.f_locals}```"
-            Config.github_issue(f"crash: {sys.exc_info()[1]}", body.replace("\n", "%0A"))
+            if Config.get("github_crash_submit"):
+                body = f"```bash\n{traceback.format_exc()}```\n\n```json\n{sys.exc_info()[2].tb_next.tb_frame.f_locals}```"
+                Config.github_issue(f"crash: {sys.exc_info()[1]}", body.replace("\n", "%0A"))
 
 
 class WebServer:

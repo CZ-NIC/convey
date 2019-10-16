@@ -88,6 +88,7 @@ class Controller:
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
         parser.add_argument('--config', help="Open config file and exit.", action="store_true")
+        parser.add_argument('--user-agent', help="Change user agent to be used when scraping a URL")
         parser.add_argument('--single-processing', help="Consider the input as a single value, not a CSV.", action="store_true")
         parser.add_argument('--csv-processing', help="Consider the input as a CSV, not a single.", action="store_true")
         parser.add_argument('--show-uml', help="Show UML of fields and methods and exit.", action="store_true")
@@ -110,7 +111,7 @@ class Controller:
             Config.set("single_processing", False)
         if args.single_processing:
             Config.set("single_processing", True)
-        for flag in ["output", "scrape_url", "delimiter", "quote_char", "compute_preview"]:
+        for flag in ["output", "scrape_url", "delimiter", "quote_char", "compute_preview", "user_agent"]:
             if getattr(args, flag) is not None:
                 Config.set(flag, getattr(args, flag))
 
@@ -174,8 +175,12 @@ class Controller:
             self.csv.settings["split"] = self.source_new_column(Types.incident_contact, add=False)
             self.csv.is_processable = True
             self.process()
+            self.csv.is_processable = False
 
         self.start_debugger = False
+
+        if self.csv.is_processable and Config.get("yes"):
+            self.process()
 
         # main menu
         while True:
@@ -438,8 +443,8 @@ class Controller:
             self.csv.settings["chosen_cols"] = [int(v) - 1 for v in values]
             self.csv.is_processable = True
 
-    def select_col(self, col_name="", only_extendables=False, add=None):
-        fields = self.csv.get_fields_autodetection() if not only_extendables else []
+    def select_col(self, col_name="", only_computables=False, add=None):
+        fields = [] if only_computables else self.csv.get_fields_autodetection()
         for field in computable_types:
             if field.from_message:
                 s = field.from_message
@@ -451,8 +456,8 @@ class Controller:
                     s += "..."
             fields.append((f"new {field}...", s))
         col_i = pick_option(fields, col_name)
-        if only_extendables or col_i >= len(self.csv.fields):
-            new_field_i = col_i if only_extendables else col_i - len(self.csv.fields)
+        if only_computables or col_i >= len(self.csv.fields):
+            new_field_i = col_i if only_computables else col_i - len(self.csv.fields)
             col_i = self.source_new_column(computable_types[new_field_i], add=add)
         return col_i
 
@@ -487,7 +492,7 @@ class Controller:
         self.csv.is_processable = True
 
     def add_column(self):
-        self.select_col("new column", only_extendables=True, add=True)
+        self.select_col("New column", only_computables=True, add=True)
         self.csv.is_processable = True
 
     def add_uniquing(self):

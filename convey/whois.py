@@ -377,7 +377,7 @@ class Whois:
                     return
 
         if self.see:
-            print(f"{self.ip} ...", end="", flush=True)
+            print(f"Whois {self.ip}...", end="", flush=True)
         get = self.analyze()  # prefix, location, mail, asn, netname, country
         if self.see:
             print(get[2])

@@ -13,6 +13,7 @@
         - new flag single_value_ignored_fields
         - flag --verbose, --quiet and config `verbosity`
         - flag compute_preview
+        - user-agent
     - CLI only flags
         - flag --yes for skipping dialogues
         - new CLI flag --config to open configuration
@@ -20,6 +21,8 @@
         - new flag --json
         - flags --field, --delete
         - flags --single-processing, --csv-processing
+    - INI only flags
+        - github_crash_submit
 - fixes:
     - fix: new installation should now correctly place contacts files in .config
     - fix: refresh partner contact list e-mails when restart even if the file has been processed before
@@ -50,6 +53,7 @@
     - main screen shows colorized result, preferable in the form of table if the terminal is wide enough
     - new 'code' field type for writing arbitrary code
     - when not in debug mode, a GitHub issue is filled out automatically at crash 
+    - autoopen_editor opens when analysis starts but now only if splitting by a column
 
 
 ## 1.1 (2019-05-13)

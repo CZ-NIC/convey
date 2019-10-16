@@ -17,7 +17,7 @@ from tabulate import tabulate
 from .config import Config, get_terminal_size
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, is_yes, ask
-from .identifier import Identifier, b64decode, Types, Type, computable_types
+from .identifier import Identifier, b64decode, Types, Type, computable_types, ScrapeUrl
 from .informer import Informer
 from .processor import Processor
 from .whois import Whois
@@ -36,8 +36,8 @@ class SourceParser:
         self.dialect = None  # CSV dialect
         self.has_header = None  # CSV has header
         self.header = ""  # if CSV has header, it's here so that Processor can take it
-        self.sample = []  # lines from the first to up to eighth
-        self.sample_parsed: List[List[str]] = []  # fields in the lines from the second to up to the fifth
+        self.sample = []  # lines from the first to up to eighth (includes first line - possible header)
+        self.sample_parsed: List[List[str]] = []  # fields in the lines from the second to up to the fifth (first line never there)
         self.fields: List[Field] = []  # CSV columns that will be generated to an output
         self.first_line_fields: List[str] = []  # initial CSV columns (equal to header if header is used)
         self.second_line_fields: List[str] = []  # list of values on the 2nd line if available
@@ -112,7 +112,7 @@ class SourceParser:
             elif not len_ or len_ > 1:
                 seems = False
 
-            if seems:
+            if seems and Config.get("single_processing") is not False:
                 # init some basic parameters
                 self.fields = [Field(self.stdin[0])]  # stdin has single field
                 self.dialect = csv.unix_dialect
@@ -120,7 +120,7 @@ class SourceParser:
                 if self.identifier.init(quiet=True):
                     # tell the user what type we think their input is
                     # access the detection message for the first (and supposedly only) field
-                    detection = self.get_fields_autodetection()[0][1]
+                    detection = self.get_fields_autodetection(False)[0][1]
                     if not detection:
                         # this is not a single cell despite it was probable, let's continue input parsing
                         logger.info("We couldn't parse the input text easily.")
@@ -133,7 +133,6 @@ class SourceParser:
                     self.fields[0].possible_types = {Types.plaintext: 1}
                     self.is_single_value = True
                     return self
-
 
         # we are parsing a CSV file
         self.informer.sout_info()
@@ -196,7 +195,7 @@ class SourceParser:
         self.is_formatted = True  # delimiter and header has been detected etc.
         return self
 
-    def get_fields_autodetection(self):
+    def get_fields_autodetection(self, append_values=True):
         """ returns list of tuples [ (field, detection str), ("Url", "url, hostname") ]
         """
         fields = []
@@ -211,6 +210,8 @@ class SourceParser:
                 if Types.url in types and Types.wrong_url in types:
                     del types[Types.url]
                 s = f"detected: {', '.join((str(e) for e in types))}"
+                if append_values:
+                    s += " – values: " + ", ".join([self.sample_parsed[line][i] for line in range(0, min(len(self.sample_parsed), 3))])
             fields.append((field, s))
         return fields
 
@@ -233,6 +234,7 @@ class SourceParser:
         # prepare the result variables
         rows = []
         data = {}
+        ScrapeUrl.init()
 
         def append(target_type, val):
             rows.append([str(target_type), "×" if val is None else val])
@@ -268,8 +270,8 @@ class SourceParser:
             # pad to the screen width
             width = get_terminal_size()[1]
             if rows and width:
-                # size of terminal - size of the longest field name + 2 column space
-                width -= max(len(row[0]) for row in rows) + 2
+                # size of terminal - size of the longest field name + 10 column space
+                width -= max(len(row[0]) for row in rows) + 10
                 for i, row in enumerate(rows):
                     val = row[1]
                     if width and len(str(val)) > width:  # split the long text by new lines
@@ -324,7 +326,6 @@ class SourceParser:
         self.is_split = False
         self.is_processable = False
         self.attachments.clear()
-        # self.is_formatted = False
         self.reset_whois(hard=hard)
 
     def prepare_target_file(self):
@@ -359,7 +360,7 @@ class SourceParser:
         """
         self._reset(hard=False)
 
-        if (autoopen_editor or autoopen_editor is None) and Config.get("autoopen_editor"):
+        if (autoopen_editor or autoopen_editor is None) and Config.get("autoopen_editor") and self.csv.is_split:
             Contacts.mailDraft["local"].gui_edit()
             Contacts.mailDraft["foreign"].gui_edit()
 

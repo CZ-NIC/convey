@@ -96,6 +96,17 @@ class ScrapeUrl:
     cache = {}
     store_html = True
     store_text = True
+    headers = {}
+
+    @classmethod
+    def init(cls, fields=[]):
+        if fields:
+            cls.store_html = Types.html in [f.type for f in fields]
+            cls.store_text = Types.web in [f.type for f in fields]
+        else:
+            cls.store_html = cls.store_text = True
+        if Config.get("user_agent"):
+            cls.headers = {"User-Agent": Config.get("user_agent")}
 
     def __init__(self, url):
         if url in self.cache:
@@ -103,7 +114,7 @@ class ScrapeUrl:
             return
         try:
             logger.info("Scrapping " + url + "...")
-            response = requests.get(url, timeout=3)
+            response = requests.get(url, timeout=3, headers=self.headers)
         except IOError as e:
             # append("status", 0)
             # append("scrape-error", str(e))
@@ -124,9 +135,9 @@ class ScrapeUrl:
         self.cache[url] = self.get
 
 
-def nmap():  # XXX
-    logger.info("NMAPing...")
-    text = subprocess.run(["nmap", object], stdout=subprocess.PIPE).stdout.decode("utf-8")
+def nmap(val):
+    logger.info(f"NMAPing... {val}")
+    text = subprocess.run(["nmap", val], stdout=subprocess.PIPE).stdout.decode("utf-8")
     text = text[text.find("PORT"):]
     text = text[text.find("\n") + 1:]
     text = text[:text.find("\n\n")]
@@ -155,7 +166,6 @@ class Type:
         :param usual_names: Names this column usually has (ex: source_ip for an IP column). List of str, lowercase, no spaces.
         :param identify_method: Lambda used to identify a value may be of this field type
         :param is_private: User cannot add the field type (ex: whois, user can extend only netname which is accessed through it).
-            Private types must have 'class.private = True' attribute # XXX abych je mohl pozvat pri l= val(l). Možná stačí jenom tuple, všichni vrací string. Nebo vlastní class Box, z kterého by ta původní šla dostat.
         """
         self.name = name
         self.group = group
@@ -283,10 +293,9 @@ def _get_methods():
             (f.scrape, f.http_status): lambda x: x.get[0],
             (f.scrape, f.web): lambda x: x.get[1],
             (f.scrape, f.html): lambda x: x.get[2],
-            (f.scrape, f.redirects): lambda x: x.get[3]
-            # (hostname, ports): nmap, XX allow when you're able to disable it by default in config
-            # (ip, ports): nmap
-
+            (f.scrape, f.redirects): lambda x: x.get[3],
+            (f.hostname, f.ports): nmap,
+            (f.ip, f.ports): nmap
             # ("hostname", "spf"):
             # XX dns dig
             # XX url decode
@@ -620,10 +629,7 @@ class Identifier:
                     possibles[i] = t.possible_types[source_type]
 
             try:
-                # XXX tohle vyzkoušet. Předně myslim, že v possibles[i] je celej dictionary. (Řazenej od nejlepšíc.)
-                # takže by to mělo bejt possibles[i] = max of types[source_field] a tady nechat max ze všech maxů
-                # takže spíš tady projít inner dictionaries na nejvyšší hodnotu vůbec. A toho source_col_i použít.
-                source_col_i = sorted(possibles, key=possibles.get, reverse=True)[0]  # XXXcatch key error?
+                source_col_i = sorted(possibles, key=possibles.get, reverse=True)[0]
             except IndexError:
                 print(f"No suitable column of type '{source_type}' found to make field '{new_field}'")
                 quit()
