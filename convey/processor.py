@@ -11,6 +11,7 @@ from typing import Dict
 
 import ipdb
 
+from convey.identifier import Types, ScrapeUrl
 from .config import Config
 from .contacts import Attachment, Contacts
 from .dialogue import ask, is_no
@@ -45,8 +46,8 @@ class Processor:
         self.__init__(csv, rewrite=rewrite)
         settings = csv.settings.copy()
 
-        # convert settings["add"] to lambdas
-        adds = []
+        # apply setup
+        adds = []  # convert settings["add"] to lambdas
         for f in settings["add"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
             adds.append((f.name, self.csv.fields.index(f.source_field), f.get_methods()))
         del settings["add"]
@@ -58,6 +59,10 @@ class Processor:
         if not settings["dialect"]:
             settings["dialect"] = csv.dialect
 
+        ScrapeUrl.store_html = Types.html in [f.type for f in self.csv.get_computed_fields()]
+        ScrapeUrl.store_text = Types.web in [f.type for f in self.csv.get_computed_fields()]
+
+        # start file processing
         try:
             if file:
                 source_stream = open(file, "r")

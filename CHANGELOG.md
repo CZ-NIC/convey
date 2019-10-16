@@ -19,6 +19,7 @@
         - new CLI flag --show-fields to get UML overview
         - new flag --json
         - flags --field, --delete
+        - flags --single-processing, --csv-processing
 - fixes:
     - fix: new installation should now correctly place contacts files in .config
     - fix: refresh partner contact list e-mails when restart even if the file has been processed before
@@ -46,7 +47,9 @@
     - opens config file when a flag is missing
     - when no known method is known to process a field, an example is given
     - when more than 9 options, you can use letters as shortcuts
-    - main screen shows colorized result, preferable in the form of table if the terminal is wide enough 
+    - main screen shows colorized result, preferable in the form of table if the terminal is wide enough
+    - new 'code' field type for writing arbitrary code
+    - when not in debug mode, a GitHub issue is filled out automatically at crash 
 
 
 ## 1.1 (2019-05-13)

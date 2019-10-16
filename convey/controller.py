@@ -6,9 +6,10 @@ from pathlib import Path
 from sys import exit
 
 import ipdb
-from dialog import Dialog
+from Levenshtein import distance  # ignore this unresolved reference
+from dialog import Dialog, DialogError
 
-from .config import Config
+from .config import Config, get_terminal_size
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
 from .identifier import Types, get_uml, TypeGroup, types, computable_types, Type
@@ -87,6 +88,8 @@ class Controller:
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
         parser.add_argument('--config', help="Open config file and exit.", action="store_true")
+        parser.add_argument('--single-processing', help="Consider the input as a single value, not a CSV.", action="store_true")
+        parser.add_argument('--csv-processing', help="Consider the input as a CSV, not a single.", action="store_true")
         parser.add_argument('--show-uml', help="Show UML of fields and methods and exit.", action="store_true")
         parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
@@ -103,9 +106,31 @@ class Controller:
             Config.set("header", True)
         if args.no_header:
             Config.set("header", False)
+        if args.csv_processing:
+            Config.set("single_processing", False)
+        if args.single_processing:
+            Config.set("single_processing", True)
         for flag in ["output", "scrape_url", "delimiter", "quote_char", "compute_preview"]:
             if getattr(args, flag) is not None:
                 Config.set(flag, getattr(args, flag))
+
+        # append new fields from CLI
+        new_fields = []  # append new fields
+        for task in args.field or ():  # FIELD,[COLUMN],[SOURCE_FIELD], ex: `netname 3|"IP address" ip|sourceip`
+            task = [x.strip() for x in task.split(",")]
+            if len(task) > 3:
+                print("Invalid field", task)
+                quit()
+            try:
+                new_field = types[types.index(task[0])]  # determine FIELD
+            except ValueError:
+                d = {t.name: distance(task[0],t.name) for t in computable_types}
+                rather = min(d, key=d.get)
+                logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
+                quit()
+            column_or_source = task[1] if len(task) > 1 else None
+            source = task[2] if len(task) > 2 else None
+            new_fields.append((new_field, column_or_source, source))
 
         Config.init(args.yes, 30 if args.quiet else (10 if args.verbose else None))
         self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
@@ -117,18 +142,6 @@ class Controller:
                 self.csv.__dict__[flag[0]] = args.__dict__[flag[0]]
                 logger.debug("{}: {}".format(flag[1], flag[0]))
 
-        # append new fields
-        new_fields = []
-        # append new fields from CLI
-        for task in args.field or ():  # FIELD,[COLUMN],[SOURCE_FIELD], ex: `netname 3|"IP address" ip|sourceip`
-            task = [x.strip() for x in task.split(",")]
-            if len(task) > 3:
-                print("Invalid field", task)
-                quit()
-            new_field = types[types.index(task[0])]  # determine FIELD
-            column_or_source = task[1] if len(task) > 1 else None
-            source = task[2] if len(task) > 2 else None
-            new_fields.append((new_field, column_or_source, source))
 
         # run single value check if the input is not a CSV file
         if self.csv.is_single_value:
@@ -140,14 +153,19 @@ class Controller:
         # prepare some columns to be removed
         if args.delete:
             for c in args.delete.split(","):
-                self.csv.fields[self.csv.identifier.get_column_i(c)].is_chosen = False
+                try:
+                    self.csv.fields[self.csv.identifier.get_column_i(c)].is_chosen = False
+                except TypeError:
+                    logger.error(f"Cannot identify COLUMN {c} to be deleted, "
+                                 f"put there an exact column name or the numerical order starting with 1.")
+                    quit()
             self.csv.is_processable = True
 
         # prepare to add new fields
         for el in new_fields:
             new_field, column_or_source, source = el
-            source_field, source_type = self.csv.identifier.get_fitting_source(*el)
-            self.source_new_column(new_field, True, source_field, source_type)
+            source_field, source_type, custom = self.csv.identifier.get_fitting_source(*el)
+            self.source_new_column(new_field, True, source_field, source_type, custom)
             self.csv.is_processable = True
             # XXX tohle pak umožni self.process() dej automatický procssing. Asi teda. Má convey pak skončit? Jaké mají být flagy?
 
@@ -326,7 +344,7 @@ class Controller:
                  lambda: Contacts.mailDraft["local"].gui_edit() and Contacts.mailDraft["foreign"].gui_edit())
         menu.sout()
 
-    def source_new_column(self, new_field, add=None, source_field: Field = None, source_type : Type=None):
+    def source_new_column(self, new_field, add=None, source_field: Field = None, source_type : Type=None, custom : str=None):
         """ We know what Field the new column should be of, now determine how we should extend it:
             Summarize what order has the source field and what type the source field should be considered alike.
                 :type source_type: Field
@@ -366,25 +384,36 @@ class Controller:
                     dialog.msgbox("No known method for making {}. Raise your usecase as an issue at {}.".format(new_field,
                                                                                                                 Config.PROJECT_SITE))
 
-        custom = None
-        if new_field == Types.custom:  # choose a file with a needed method
-            while True:
-                title = "What .py file should be used as custom source?"
-                code, path = dialog.fselect(Path.cwd(), title=title)
-                if code != "ok" or not path:
+        if not custom:
+            if new_field == Types.code:
+                code, custom = dialog.inputbox("What code should be executed? Change 'x'. Ex: x += \"append\";")
+                if code != "ok" or not custom:
                     return
-                module = self.csv.identifier.get_module_from_path(path)
-                if module:
-                    # inspect the .py file, extract methods and let the user choose one
-                    code, source_type = dialog.menu("What method should be used in the file {}?".format(path),
-                                                    choices=[(x, "") for x in dir(module) if not x.startswith("_")])
-                    if code == "cancel":
-                        return
+            if new_field == Types.custom:  # choose a file with a needed method
+                while True:
+                    title = "What .py file should be used as custom source?"
+                    try:
+                        code, path = dialog.fselect(str(Path.cwd()), title=title)
+                    except DialogError as e:
+                        try:  # I do not know why, fselect stopped working and this helped
+                            code, path = dialog.fselect(str(Path.cwd()), title=title, height=max(get_terminal_size()[0]-20, 10))
+                        except DialogError as e:
+                            input("Unable launch file dialog. Please post an issue to the Github! Hit any key...")
 
-                    custom = path, source_type
-                    break
-                else:
-                    dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
+                    if code != "ok" or not path:
+                        return
+                    module = self.csv.identifier.get_module_from_path(path)
+                    if module:
+                        # inspect the .py file, extract methods and let the user choose one
+                        code, source_type = dialog.menu("What method should be used in the file {}?".format(path),
+                                                        choices=[(x, "") for x in dir(module) if not x.startswith("_")])
+                        if code == "cancel":
+                            return
+
+                        custom = path, source_type
+                        break
+                    else:
+                        dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
 
         if add is None:
             if dialog.yesno("New field added: {}\n\nDo you want to include this field as a new column?".format(
@@ -412,8 +441,8 @@ class Controller:
     def select_col(self, col_name="", only_extendables=False, add=None):
         fields = self.csv.get_fields_autodetection() if not only_extendables else []
         for field in computable_types:
-            if field == Types.custom:
-                s = "from your .py file"
+            if field.from_message:
+                s = field.from_message
             else:
                 node_distance = self.csv.identifier.get_graph().dijkstra(field, ignore_private=True)
                 s = field.group.name + " " if field.group != TypeGroup.general else ""

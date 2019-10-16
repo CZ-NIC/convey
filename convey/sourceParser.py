@@ -14,7 +14,7 @@ from typing import List
 
 from tabulate import tabulate
 
-from .config import Config, get_terminal_width
+from .config import Config, get_terminal_size
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, is_yes, ask
 from .identifier import Identifier, b64decode, Types, Type, computable_types
@@ -117,18 +117,23 @@ class SourceParser:
                 self.fields = [Field(self.stdin[0])]  # stdin has single field
                 self.dialect = csv.unix_dialect
                 self.has_header = False
-                self.identifier.init()
-
-                # tell the user what type we think their input is
-                # access the detection message for the first (and supposedly only) field
-                detection = self.get_fields_autodetection()[0][1]
-                if not detection:
-                    # this is not a single cell despite it was probable, let's continue input parsing
-                    logger.info("We couldn't parse the input text easily.")
-                else:
-                    logger.info(f"Input value {detection}\n")
+                if self.identifier.init(quiet=True):
+                    # tell the user what type we think their input is
+                    # access the detection message for the first (and supposedly only) field
+                    detection = self.get_fields_autodetection()[0][1]
+                    if not detection:
+                        # this is not a single cell despite it was probable, let's continue input parsing
+                        logger.info("We couldn't parse the input text easily.")
+                    else:
+                        logger.info(f"Input value {detection}\n")
+                        self.is_single_value = True
+                        return self
+                elif Config.get("single_processing"):
+                    logger.info("Forced single processing")
+                    self.fields[0].possible_types = {Types.plaintext: 1}
                     self.is_single_value = True
                     return self
+
 
         # we are parsing a CSV file
         self.informer.sout_info()
@@ -205,15 +210,14 @@ class SourceParser:
                     del types[Types.any_ip]
                 if Types.url in types and Types.wrong_url in types:
                     del types[Types.url]
-                # XX tohle asi pryč, l=possible_types l = sorted(possible_types, key=possible_types.get), checkni, jestli to funguje bez toho
-                # XXXXX ale když jsem to dal pryč, píše to Input value [('example.com', 'detected: hostname')])
-                # if return_first_types:
-                #     return l
                 s = f"detected: {', '.join((str(e) for e in types))}"
             fields.append((field, s))
-        # if return_first_types:  # we did find nothing
-        #     return []
         return fields
+
+    def get_computed_fields(self):
+        for f in self.fields:
+            if f.is_new:
+                yield f
 
     def set_stdin(self, stdin):
         self.stdin = stdin
@@ -262,7 +266,7 @@ class SourceParser:
             return dumps(data)
         else:
             # pad to the screen width
-            width = get_terminal_width()
+            width = get_terminal_size()[1]
             if rows and width:
                 # size of terminal - size of the longest field name + 2 column space
                 width -= max(len(row[0]) for row in rows) + 2
@@ -270,8 +274,11 @@ class SourceParser:
                     val = row[1]
                     if width and len(str(val)) > width:  # split the long text by new lines
                         row[1] = "\n".join([val[i:i + width] for i in range(0, len(val), width)])
-
-            print(tabulate(rows, headers=("field", "value")))
+            if not rows and new_fields:
+                s = ", ".join([str(f) for f in new_fields])
+                print(f"Cannot compute {s}")
+            else:
+                print(tabulate(rows, headers=("field", "value")))
 
     def reset_whois(self, hard=True, assure_init=False):
         """
@@ -544,14 +551,14 @@ class Field:
         """ Colorize single line of a value. Strikes it if field is not chosen. """
         if shorten:
             v = v[:17] + "..." if len(v) > 20 else v
+        if not self.is_chosen:
+            v = f"\x1b[9m{v}\x1b[0m"  # strike (must be placed before colors)
         if self.is_new:
             s = f"\033[0;33m{v}\033[0m"  # yellow
         elif self.type is None or self.type is Types.plaintext:
             s = f"\033[0;36m{v}\033[0m"  # blue
         else:
             s = f"\033[0;32m{v}\033[0m"  # green
-        if not self.is_chosen:
-            s = f"\x1b[9m{s}\x1b[0m"  # strike
         return s
 
     def get(self, long=False, color=True):

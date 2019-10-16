@@ -20,17 +20,28 @@ def main():
         pass
     except:
         import traceback
-
+        debug = True
         try:
-            import pudb as mod
+            from .config import Config
+            debug = Config.is_debug()
         except ImportError:
+            Config = None
+
+        if debug:
             try:
-                import ipdb as mod
+                import pudb as mod
             except ImportError:
-                import pdb as mod
-        type_, value, tb = sys.exc_info()
-        traceback.print_exc()
-        mod.post_mortem(tb)
+                try:
+                    import ipdb as mod
+                except ImportError:
+                    import pdb as mod
+            type_, value, tb = sys.exc_info()
+            traceback.print_exc()
+            mod.post_mortem(tb)
+        elif Config:
+            print(f"Convey crashed at {sys.exc_info()[1]}")
+            body = f"```bash\n{traceback.format_exc()}```\n\n```json\n{sys.exc_info()[2].tb_next.tb_frame.f_locals}```"
+            Config.github_issue(f"crash: {sys.exc_info()[1]}", body.replace("\n", "%0A"))
 
 
 class WebServer:

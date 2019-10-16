@@ -4,6 +4,7 @@ import glob
 import logging
 import os
 import sys
+import webbrowser
 from pathlib import Path
 from shutil import copy
 from subprocess import Popen, PIPE
@@ -176,16 +177,6 @@ class Config:
                 val = None
             finally:
                 Config.cache[key] = val
-            # try:
-            #     Config.cache[key] = Config.config[section][key]
-            # except KeyError:
-            #     input(f"The key {key} is not in the config file {Config.path} – integrity failed."
-            #           " This should not happen. The program ends now."
-            #           "\nPlease submit a Github issue at https://github.com/CZ-NIC/convey/issues/new")
-            #     url = f"https://github.com/CZ-NIC/convey/issues/new?" \
-            #           f"title=integrity failed for key `{key}`&body=issue generated automatically"
-            #     webbrowser.open(url)
-            #     quit()
         val = Config.cache[key]
         if get is str and type(val) is not str:
             try:
@@ -197,6 +188,14 @@ class Config:
                 return [x.strip() for x in val.split(",")]
             return []
         return val
+
+    @staticmethod
+    def github_issue(title, body):
+        url = f"https://github.com/CZ-NIC/convey/issues/new?" \
+              f"title={title}&body={body}"
+        webbrowser.open(url)
+        input("\nPlease submit a Github issue at https://github.com/CZ-NIC/convey/issues/new"
+              "\nTrying to open issue tracker in a browser...")
 
     # @staticmethod
     # def getboolean(key, true_boolean=True):
@@ -222,11 +221,12 @@ class Config:
     #             return None
 
     @staticmethod
-    def set(key, val, section='CONVEY'):
+    def set(key, val):  # XX , section='CONVEY'
         if val is None:
             Config.config.remove_option(section, key)
         else:
-            Config.config.set(section, key, str(val))
+            Config.cache[key] = val
+            #XX Config.config.set(section, key, str(val))
 
     cache_dir = ""
     output = None  # True, False, None or str (path)
@@ -245,9 +245,9 @@ class Config:
         Popen(['xdg-open', Config.path], stdout=PIPE, stderr=PIPE)
 
 
-def get_terminal_width():
+def get_terminal_size():
     try:
-        _, width = (int(s) for s in os.popen('stty size', 'r').read().split())
-        return width
+        height, width = (int(s) for s in os.popen('stty size', 'r').read().split())
+        return height, width
     except (OSError, ValueError):
-        return 0
+        return 0, 0

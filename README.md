@@ -1,10 +1,5 @@
 # Convey
 
-A tool to quickly convert data in a meaningful way. It either takes:
-* a CSV file  XXX
-* a text input –
-* a log file 
-
 A tool for information conveying – CSV swiss knife brought by [CSIRT.cz](https://csirt.cz). Convenable way to process large files that might freeze your spreadsheet processor.
 
 * It takes any CSV or text input (any delimiter, header or whatever) and perform one or more actions (below).

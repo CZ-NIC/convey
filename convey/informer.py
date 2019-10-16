@@ -10,7 +10,7 @@ from pathlib import Path
 import humanize
 from tabulate import tabulate
 
-from .config import Config, get_terminal_width
+from .config import Config, get_terminal_size
 
 
 class Informer:
@@ -106,7 +106,7 @@ class Informer:
                 full_rows.append(full_row)
 
             first_line_length = tabulate(rows, headers=[f.get(True,color=False) for f in self.csv.fields]).split("\n")[0]
-            if not self.csv.settings["dialect"] and len(first_line_length) <= get_terminal_width():
+            if rows and not self.csv.settings["dialect"] and len(first_line_length) <= get_terminal_size()[1]:
                 # print big and nice table because we do not care about the dialect and terminal is wide enough
                 print("\033[0;36mResult table preview:\033[0m")
                 header = [f.get(True) for f in self.csv.fields]

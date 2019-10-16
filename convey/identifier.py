@@ -11,6 +11,7 @@ from enum import IntEnum
 from pathlib import Path
 from typing import List
 
+import ipdb
 import requests
 from bs4 import BeautifulSoup
 
@@ -59,6 +60,11 @@ class Checker:
         # there must be at least single letter, port number would be mistaken for base64 fields
         return base64decode(x) and re.search(r"[A-Za-z]", x)
 
+    @staticmethod
+    def check_wrong_url(w):
+        s = wrong_url_2_url(w)
+        return (not reUrl.match(w) and not reFqdn.match(w)) and (reUrl.match(s) or reFqdn.match(s))
+
 
 def wrong_url_2_url(s):
     return s.replace("hxxp", "http", 1).replace("[.]", ".").replace("[:]", ":")
@@ -85,9 +91,11 @@ def base64decode(x):
 
 class ScrapeUrl:
     """
-    :return: [http status | error, shortened text, original html, redirects]
+    :return: self.get = [http status | error, shortened text, original html, redirects]
     """
     cache = {}
+    store_html = True
+    store_text = True
 
     def __init__(self, url):
         if url in self.cache:
@@ -102,14 +110,17 @@ class ScrapeUrl:
             self.get = str(e), None, None, None
         else:
             response.encoding = response.apparent_encoding  # https://stackoverflow.com/a/52615216/2036148
-            soup = BeautifulSoup(response.text, features="html.parser")
-            [s.extract() for s in soup(["style", "script", "head"])]  # remove tags with low probability of content
-            text = re.sub(r'\n\s*\n', '\n', soup.text)  # reduce multiple new lines to singles
-            text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ', text)  # reduce multiple spaces (not new lines) to singles
+            if self.store_text:
+                soup = BeautifulSoup(response.text, features="html.parser")
+                [s.extract() for s in soup(["style", "script", "head"])]  # remove tags with low probability of content
+                text = re.sub(r'\n\s*\n', '\n', soup.text)  # reduce multiple new lines to singles
+                text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ', text)  # reduce multiple spaces (not new lines) to singles
+            else:
+                text = None
             redirects = ""
             for res in response.history[1:]:
                 redirects = f"REDIRECT {res.status_code} → {res.url}\n" + text
-            self.get = response.status_code, text, response.text, redirects
+            self.get = response.status_code, text, response.text if self.store_html else None, redirects
         self.cache[url] = self.get
 
 
@@ -136,7 +147,8 @@ class Type:
     A field type Convey is able to identify or compute
     """
 
-    def __init__(self, name, group=TypeGroup.general, description=None, usual_names=[], identify_method=None, is_private=False):
+    def __init__(self, name, group=TypeGroup.general, description=None, usual_names=[], identify_method=None, is_private=False,
+                 from_message=None):
         """
         :param name: Key name
         :param description: Help text
@@ -151,6 +163,7 @@ class Type:
         self.identify_method = identify_method
         self.description = description
         self.is_private = is_private
+        self.from_message = from_message
         types.append(self)
         if self.identify_method or self.usual_names:
             guessable_types.append(self)
@@ -207,7 +220,8 @@ class Types:
     whois = Type("whois", TypeGroup.whois, "ask whois servers", is_private=True)
     scrape = Type("scrape", TypeGroup.scrape, "scrape web contents", is_private=True)
 
-    custom = Type("custom", TypeGroup.custom)
+    custom = Type("custom", TypeGroup.custom, from_message="from a method in your .py file")
+    code = Type("code", TypeGroup.custom, from_message="from a code you write")
     netname = Type("netname", TypeGroup.whois)
     country = Type("country", TypeGroup.whois)
     abusemail = Type("abusemail", TypeGroup.whois)
@@ -224,14 +238,15 @@ class Types:
     ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "sourceipaddress", "ipaddress", "source"], check_ip)
     cidr = Type("cidr", TypeGroup.general, "CIDR 127.0.0.1/32", ["cidr"], Checker.check_cidr)
     port_ip = Type("portIP", TypeGroup.general, "IP in the form 1.2.3.4.port", [], reIpWithPort.match)
-    any_ip = Type("anyIP", TypeGroup.general, "IP in the form 'any text 1.2.3.4 any text'", [], reAnyIp.search)
+    any_ip = Type("anyIP", TypeGroup.general, "IP in the form 'any text 1.2.3.4 any text'", [],
+                  lambda x: reAnyIp.search(x) and not check_ip(x))
     hostname = Type("hostname", TypeGroup.general, "2nd or 3rd domain name", ["fqdn", "hostname", "domain"], reFqdn.match)
     url = Type("url", TypeGroup.general, "URL starting with http/https", ["url", "uri", "location"],
                lambda s: reUrl.match(s) and "[.]" not in s)  # input "example[.]com" would be admitted as a valid URL)
     asn = Type("asn", TypeGroup.whois, "AS Number", ["as", "asn", "asnumber"],
                lambda x: re.search('AS\d+', x) is not None)
     base64 = Type("base64", TypeGroup.general, "Text encoded with Base64", ["base64"], Checker.is_base64)
-    wrong_url = Type("wrongURL", TypeGroup.general, "Deactivated URL", [], lambda s: reUrl.match(wrong_url_2_url(s)))
+    wrong_url = Type("wrongURL", TypeGroup.general, "Deactivated URL", [], Checker.check_wrong_url)
     plaintext = Type("plaintext", TypeGroup.general, "Plain text", ["plaintext", "text"], lambda x: False)
 
 
@@ -260,6 +275,7 @@ def _get_methods():
             (f.base64, f.decoded_text): base64decode,
             (f.plaintext, f.base64): lambda x: b64encode(x.encode("UTF-8")).decode("UTF-8"),
             (f.plaintext, f.custom): lambda x: x,
+            (f.plaintext, f.code): lambda x: x,
             (f.wrong_url, f.url): wrong_url_2_url,
             (f.hostname, f.url): lambda x: "http://" + x,
             (f.ip, f.url): lambda x: "http://" + x,
@@ -336,14 +352,14 @@ class Identifier:
 
         self.csv = csv
         self.graph = None
-        self.field_type = None
+        #self.field_type = None
 
     def get_graph(self):
         """
           returns instance of Graph class with methods converting a field type to another
         """
         if not self.graph:
-            self.graph = Graph([f for f in types if f.is_private])
+            self.graph = Graph([t for t in types if t.is_private])
             [self.graph.add_edge(to, from_) for to, from_ in methods]
         return self.graph
 
@@ -355,8 +371,28 @@ class Identifier:
         :param custom_module_method: If target is a 'custom' field type, we'll receive a tuple (module path, method name).
         :return: lambda[]
         """
+
+        def custom_lambda(e):
+            def method(x):
+                l = locals()
+                try:
+                    exec(compile(e, '', 'exec'), l)
+                except Exception as exception:
+                    logger.error(f"{exception}: input value 'x' = {x}, your expression 'e' = {e}")
+                    if Config.is_debug():
+                        ipdb.set_trace()
+                    else:
+                        input("We consider 'x' unchanged...")
+                    return x
+                x = l["x"]
+                return x
+
+            return method
+
         if custom_module_method:
-            return [getattr(self.get_module_from_path(custom_module_method[0]), custom_module_method[1])]
+            if type(custom_module_method) is tuple:  # Type.custom
+                return [getattr(self.get_module_from_path(custom_module_method[0]), custom_module_method[1])]
+            return [custom_lambda(custom_module_method)]  # Type.code
         lambdas = []  # list of lambdas to calculate new field
         path = self.get_graph().dijkstra(target, start=start)  # list of method-names to calculate new fields
         for i in range(len(path) - 1):
@@ -429,15 +465,12 @@ class Identifier:
             has_header = False
         return dialect, has_header
 
-    def init(self):
+    def init(self, quiet=False):
         """
-        Identify columns of self.csv got in __init__
-         Higher score mean bigger probability that the field is of that type.
-         Inner dictionary is sorted by score.
-         self.field_type = { (colI): {type1: biggest score, another possible type: lesser score},
-                             (2): {"url": 3, "hostname": 1},
-                             ...}
-
+        Identify self.csv.fields got in __init__
+        Sets them possible types (sorted, higher score mean bigger probability that the field is of that type)
+        :type quiet: bool If True, we do not raise exception when sample cannot be processed.
+                            Ex: We attempt consider user input "1,2,3" as single field which is not, we silently return False
         """
         samples = [[] for _ in self.csv.fields]
         if len(self.csv.sample) == 1:  # we have too few values, we have to use them
@@ -450,11 +483,15 @@ class Identifier:
                 try:
                     samples[i].append(val)
                 except IndexError:
-                    print("It seems rows have different lengths. Cannot help you with column identifying.")
-                    print("First row: " + str([(i, str(f)) for i, f in enumerate(self.csv.fields)]))
-                    print("Current row: " + str(list(enumerate(row))))
-                    input("\n... Press any key to continue.")
-                    return
+                    if not quiet:
+                        print("It seems rows have different lengths. Cannot help you with column identifying.")
+                        print("Fields row: " + str([(i, str(f)) for i, f in enumerate(self.csv.fields)]))
+                        print("Current row: " + str(list(enumerate(row))))
+                        if Config.is_debug():
+                            ipdb.set_trace()
+                        else:
+                            input("\n... Press any key to continue.")
+                    return False
 
         for i, field in enumerate(self.csv.fields):
             possible_types = {}
@@ -492,6 +529,9 @@ class Identifier:
                 # print("hits", hits)
             if possible_types:  # sort by biggest score - biggest probability the column is of this type
                 field.possible_types = {k: v for k, v in sorted(possible_types.items(), key=lambda k: k[1], reverse=True)}
+            else:
+                field.possible_types = {Types.plaintext: 1}
+        return True
 
     def get_fitting_type(self, source_field_i, target_field, try_plaintext=False):
         """ Loops all types the field could be and return the type best suited method for compute new field. """
@@ -531,47 +571,53 @@ class Identifier:
         :return: (source_field, source_type) or exit.
         """
         source_col_i = None
-        source_field = None
-        print(new_field, column_or_source, source)
+        source_type = None
+        custom = None
+        print(new_field, column_or_source, source) # XX
         if column_or_source:  # determine COLUMN
             source_col_i = self.get_column_i(column_or_source)
-            if not source_col_i and source:
-                print("Invalid field", source, ", already having defined field by " + column_or_source)
-                quit()
-            else:  # this was not COLUMN but SOURCE_FIELD, COLUMN remains empty
-                source = column_or_source
+            if source_col_i is None:
+                if source:
+                    print("Invalid field", source, ", already having defined field by " + column_or_source)
+                    quit()
+                else:  # this was not COLUMN but SOURCE_FIELD, COLUMN remains empty
+                    source = column_or_source
         else:  # get a column whose field could be fitting for that new_field
             try:
                 source_col_i = self.get_fitting_source_i(new_field)[0]
             except IndexError:
                 pass
         if source:  # determine SOURCE_FIELD
-            source = source.lower().replace(" ", "")  # make it seem like a usual field name
-            possible = None
-            for f in types:
-                if source == f:  # exact field name
-                    source_field = f
-                    break
-                if source in f.usual_names:  # usual field name
-                    possible = f
+            if new_field.group is TypeGroup.custom:
+                custom = source
+                source_type = Types.plaintext
             else:
-                if possible:
-                    source_field = possible
-            if not source_field:
-                print("Cannot determine new field")
-                quit()
-        if source_col_i and not source_field:
-            source_field = self.get_fitting_type(source_col_i, new_field)
-            if not source_field:
+                source_t = source.lower().replace(" ", "")  # make it seem like a usual field name
+                possible = None
+                for t in types:
+                    if source_t == t:  # exact field name
+                        source_type = t
+                        break
+                    if source_t in t.usual_names:  # usual field name
+                        possible = t
+                else:
+                    if possible:
+                        source_type = possible
+                if not source_type:
+                    print(f"Cannot determine new field from {source_t}")
+                    quit()
+        if source_col_i is not None and not source_type:
+            source_type = self.get_fitting_type(source_col_i, new_field, try_plaintext=True)
+            if not source_type:
                 print(f"We could not identify a method how to make '{new_field}' from '{self.csv.fields[source_col_i]}'")
                 quit()
-        if source_field and not source_col_i:
+        if source_type and source_col_i is None:
             # searching for a fitting type amongst existing columns
             # for col in self.
             possibles = {}  # [source col i] = score (bigger is better)
-            for i, f in enumerate(self.csv.fields):
-                if source_field in f.possible_types:
-                    possibles[i] = f.possible_types[source_field]
+            for i, t in enumerate(self.csv.fields):
+                if source_type in t.possible_types:
+                    possibles[i] = t.possible_types[source_type]
 
             try:
                 # XXX tohle vyzkoušet. Předně myslim, že v possibles[i] je celej dictionary. (Řazenej od nejlepšíc.)
@@ -579,12 +625,12 @@ class Identifier:
                 # takže spíš tady projít inner dictionaries na nejvyšší hodnotu vůbec. A toho source_col_i použít.
                 source_col_i = sorted(possibles, key=possibles.get, reverse=True)[0]  # XXXcatch key error?
             except IndexError:
-                print(f"No suitable column of type '{source_field}' found to make field '{new_field}'")
+                print(f"No suitable column of type '{source_type}' found to make field '{new_field}'")
                 quit()
-        if not source_field or not source_col_i:
+        if not source_type or source_col_i is None:
             print(f"No suitable column found for field '{new_field}'")
             quit()
-        return self.csv.fields[source_col_i], source_field
+        return self.csv.fields[source_col_i], source_type, custom
 
     def get_column_i(self, column):
         """
