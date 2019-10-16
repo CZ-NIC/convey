@@ -14,6 +14,7 @@
         - flag --verbose, --quiet and config `verbosity`
         - flag compute_preview
         - user-agent
+        - headless
     - CLI only flags
         - flag --yes for skipping dialogues
         - new CLI flag --config to open configuration

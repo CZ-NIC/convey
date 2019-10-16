@@ -391,7 +391,6 @@ class Whois:
         #    X not valid for unknown_mode # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
         #    raise AssertionError("The prefix " + prefix + " shouldn't be already present. Tell the programmer")
         self.get = self.ranges[prefix] = get
-        # print("IP: {}, Prefix: {}, Record: {}, Kind: {}".format(ip, prefix,record, location)) # XX put to logging
 
     @staticmethod
     def url2hostname(url):

@@ -66,6 +66,7 @@ class SourceParser:
         # load CSV
         self.source_file = source_file
         self.stdin = []
+        self.stdout = None  # when accepting input from stdin and not saving the output into a file, we will have it here
         self.target_file = None
         self.processor = Processor(self)
         self.informer = Informer(self)
@@ -141,25 +142,26 @@ class SourceParser:
             self.dialect, self.has_header = self.identifier.guess_dialect(self.sample)
             uncertain = False
 
-            if Config.get("delimiter"):
-                self.dialect.delimiter = Config.get("delimiter")
-                print(f"Delimiter character set: '{self.dialect.delimiter}'\n", end="")
-            else:
-                uncertain = True
-                print(f"Delimiter character found: '{self.dialect.delimiter}'\n", end="")
+            if not Config.get("yes"):
+                if Config.get("delimiter"):
+                    self.dialect.delimiter = Config.get("delimiter")
+                    print(f"Delimiter character set: '{self.dialect.delimiter}'\n", end="")
+                else:
+                    uncertain = True
+                    print(f"Delimiter character found: '{self.dialect.delimiter}'\n", end="")
 
-            if Config.get("quote_char"):
-                self.dialect.quotechar = Config.get("quote_char")
-                print(f"Quoting character set: '{self.dialect.quotechar}'\n", end="")
-            else:
-                uncertain = True
-                print(f"Quoting character: '{self.dialect.quotechar}'\n", end="")
+                if Config.get("quote_char"):
+                    self.dialect.quotechar = Config.get("quote_char")
+                    print(f"Quoting character set: '{self.dialect.quotechar}'\n", end="")
+                else:
+                    uncertain = True
+                    print(f"Quoting character: '{self.dialect.quotechar}'\n", end="")
 
-            if Config.get("header") is not None:
-                self.has_header = Config.get("header")
-            else:
-                uncertain = True
-                print(f"Header is present: " + ("yes" if self.has_header else "not used"))
+                if Config.get("header") is not None:
+                    self.has_header = Config.get("header")
+                else:
+                    uncertain = True
+                    print(f"Header is present: " + ("yes" if self.has_header else "not used"))
 
             if uncertain and not is_yes("\nCould you confirm this?"):
                 while True:
@@ -229,6 +231,7 @@ class SourceParser:
 
     def run_single_value(self, json=False, new_fields=[]):
         """ Print out meaningful details about the single-value contents.
+        :param json: If true, returns json.
         :type new_fields: List[Field] to compute
         """
         # prepare the result variables
@@ -266,6 +269,8 @@ class SourceParser:
             self.target_file.write_text(dumps(data))
         if json:
             return dumps(data)
+        elif Config.is_quiet() and len(new_fields) == 1:
+            print(rows[0][1])
         else:
             # pad to the screen width
             width = get_terminal_size()[1]
@@ -329,7 +334,6 @@ class SourceParser:
         self.reset_whois(hard=hard)
 
     def prepare_target_file(self):
-        target_file = None
         if not self.settings["split"] and self.settings["split"] is not 0:  # 0 is a valid column
             l = []
             if self.settings["filter"]:
@@ -372,7 +376,6 @@ class SourceParser:
         self.time_end = datetime.datetime.now().replace(microsecond=0)
         self.lines_total = self.line_count  # if we guessed the total of lines, fix the guess now
         self.is_analyzed = True
-
         self.informer.sout_info()
         # print("Whois analysis COMPLETED.\n")
         if self.invalid_lines_count:

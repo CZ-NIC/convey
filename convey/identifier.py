@@ -582,7 +582,6 @@ class Identifier:
         source_col_i = None
         source_type = None
         custom = None
-        print(new_field, column_or_source, source) # XX
         if column_or_source:  # determine COLUMN
             source_col_i = self.get_column_i(column_or_source)
             if source_col_i is None:

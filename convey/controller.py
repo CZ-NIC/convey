@@ -64,7 +64,10 @@ class Controller:
         parser.add_argument('-d', '--delete', help="Delete a column. You may comma separate multiple columns." + column_help,
                             metavar="COLUMN,[COLUMN]")
         parser.add_argument('-v', '--verbose', help="Sets the verbosity to see DEBUG messages.", action="store_true")
-        parser.add_argument('-q', '--quiet', help="Sets the verbosity to see WARNINGs and ERRORs only.", action="store_true")
+        parser.add_argument('-q', '--quiet', help="R|Sets the verbosity to see WARNINGs and ERRORs only."
+                                                  " Prints out the least information possible."
+                                                  "\n(Ex: if checking single value outputs a single word, prints out just that.)",
+                            action="store_true")
         parser.add_argument('-f', '--field',
                             help="R|Compute field."
                                  "\n" + column_help +
@@ -88,6 +91,10 @@ class Controller:
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
         parser.add_argument('--config', help="Open config file and exit.", action="store_true")
+        parser.add_argument('-he', '--headless',
+                            help="Launch program in a headless mode which imposes --yes. No menu is shown."
+                                 "\nConsider using --quiet flag too.",
+                            action="store_true")
         parser.add_argument('--user-agent', help="Change user agent to be used when scraping a URL")
         parser.add_argument('--single-processing', help="Consider the input as a single value, not a CSV.", action="store_true")
         parser.add_argument('--csv-processing', help="Consider the input as a CSV, not a single.", action="store_true")
@@ -111,6 +118,8 @@ class Controller:
             Config.set("single_processing", False)
         if args.single_processing:
             Config.set("single_processing", True)
+        if args.headless:
+            args.yes = True
         for flag in ["output", "scrape_url", "delimiter", "quote_char", "compute_preview", "user_agent"]:
             if getattr(args, flag) is not None:
                 Config.set(flag, getattr(args, flag))
@@ -125,7 +134,7 @@ class Controller:
             try:
                 new_field = types[types.index(task[0])]  # determine FIELD
             except ValueError:
-                d = {t.name: distance(task[0],t.name) for t in computable_types}
+                d = {t.name: distance(task[0], t.name) for t in computable_types}
                 rather = min(d, key=d.get)
                 logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
                 quit()
@@ -142,7 +151,6 @@ class Controller:
             if args.__dict__[flag[0]]:
                 self.csv.__dict__[flag[0]] = args.__dict__[flag[0]]
                 logger.debug("{}: {}".format(flag[1], flag[0]))
-
 
         # run single value check if the input is not a CSV file
         if self.csv.is_single_value:
@@ -168,7 +176,6 @@ class Controller:
             source_field, source_type, custom = self.csv.identifier.get_fitting_source(*el)
             self.source_new_column(new_field, True, source_field, source_type, custom)
             self.csv.is_processable = True
-            # XXX tohle pak umožni self.process() dej automatický procssing. Asi teda. Má convey pak skončit? Jaké mají být flagy?
 
         # start csirt-incident macro
         if args.csirt_incident and not self.csv.is_analyzed:
@@ -181,6 +188,9 @@ class Controller:
 
         if self.csv.is_processable and Config.get("yes"):
             self.process()
+
+        if args.headless:
+            quit()
 
         # main menu
         while True:
@@ -251,13 +261,10 @@ class Controller:
         else:
             sender = MailSenderSmtp(self.csv)
 
-        # abuse_count = Contacts.count_mails(self.attachments.keys(), abusemails_only=True)
-        # partner_count = Contacts.count_mails(self.attachments.keys(), partners_only=True)
-        # info = ["In the next step, we connect to server to send e-mails: {}× to abuse contacts and {}× to partners.".format(abuse_count, partner_count)]
         info = ["In the next step, we connect to the server to send e-mails:"]
         cond1 = cond2 = False
         st = self.csv.stats
-        if st["abuse_count"][0]:  # XX should be equal if just splitted by computed column! = self.csv.stats["ispCzFound"]:
+        if st["abuse_count"][0]:  # XX should be equal if just split by computed column! = self.csv.stats["ispCzFound"]:
             info.append(f" Template of a basic e-mail starts: \n\n{Contacts.mailDraft['local'].get_mail_preview()}\n")
             cond1 = True
         else:
@@ -299,10 +306,6 @@ class Controller:
                 print("Couldn't send all abuse mails. (Details in convey.log.)")
         if option == "both" or option == "partner":
             print("Sending to partner mails...")
-            """ Xif not sender.send_list(Contacts.getContacts(self.csv.stats["countriesFound"], partners_only=True),
-                                    Contacts.mailDraft["foreign"],
-                                    len(self.csv.stats["countriesFound"]),
-                                    method=method):"""
             if not sender.send_list(Attachment.get_partner(self.csv.attachments), Contacts.mailDraft["foreign"], method=method):
                 print("Couldn't send all partner mails. (Details in convey.log.)")
 
@@ -349,7 +352,7 @@ class Controller:
                  lambda: Contacts.mailDraft["local"].gui_edit() and Contacts.mailDraft["foreign"].gui_edit())
         menu.sout()
 
-    def source_new_column(self, new_field, add=None, source_field: Field = None, source_type : Type=None, custom : str=None):
+    def source_new_column(self, new_field, add=None, source_field: Field = None, source_type: Type = None, custom: str = None):
         """ We know what Field the new column should be of, now determine how we should extend it:
             Summarize what order has the source field and what type the source field should be considered alike.
                 :type source_type: Field
@@ -401,7 +404,7 @@ class Controller:
                         code, path = dialog.fselect(str(Path.cwd()), title=title)
                     except DialogError as e:
                         try:  # I do not know why, fselect stopped working and this helped
-                            code, path = dialog.fselect(str(Path.cwd()), title=title, height=max(get_terminal_size()[0]-20, 10))
+                            code, path = dialog.fselect(str(Path.cwd()), title=title, height=max(get_terminal_size()[0] - 20, 10))
                         except DialogError as e:
                             input("Unable launch file dialog. Please post an issue to the Github! Hit any key...")
 

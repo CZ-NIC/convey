@@ -1,6 +1,5 @@
 import csv
 import datetime
-import logging
 import subprocess
 import sys
 from itertools import zip_longest
@@ -20,7 +19,7 @@ class Informer:
         self.csv = csv
 
     def sout_info(self, clear=True, full=False):
-        if Config.verbosity >= logging.WARNING:
+        if Config.is_quiet():
             return
 
         """ Prints file information on the display. """
@@ -108,12 +107,12 @@ class Informer:
             first_line_length = tabulate(rows, headers=[f.get(True,color=False) for f in self.csv.fields]).split("\n")[0]
             if rows and not self.csv.settings["dialect"] and len(first_line_length) <= get_terminal_size()[1]:
                 # print big and nice table because we do not care about the dialect and terminal is wide enough
-                print("\033[0;36mResult table preview:\033[0m")
+                print("\033[0;36mTable preview:\033[0m")
                 header = [f.get(True) for f in self.csv.fields]
                 print(tabulate(rows, headers=header))
             else:
                 # print the rows in the same way so that they optically match the Sample above
-                print("\033[0;36mResult:\033[0m")
+                print("\033[0;36mPreview:\033[0m")
                 cw = csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect)
                 cw.writerow([f.get() for f in self.csv.fields])
                 for r in full_rows:
@@ -126,6 +125,7 @@ class Informer:
         if self.csv.is_analyzed:
             if self.csv.target_file is False:
                 print("\n** Processing completed, results were not saved to a file.")
+                print(self.csv.stdout)
             elif self.csv.target_file:
                 print(f"\n** Processing completed: Result file in {self.csv.target_file}")
             else:

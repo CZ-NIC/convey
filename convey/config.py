@@ -153,6 +153,10 @@ class Config:
         return Config.get('debug')
 
     @staticmethod
+    def is_quiet():
+        return Config.verbosity >= logging.WARNING
+
+    @staticmethod
     def is_testing():
         return Config.get('testing')
 
@@ -198,31 +202,8 @@ class Config:
         input("\nPlease submit a Github issue at https://github.com/CZ-NIC/convey/issues/new"
               "\nTrying to open issue tracker in a browser...")
 
-    # @staticmethod
-    # def getboolean(key, true_boolean=True):
-    #     """
-    #     :param key: Key
-    #     :type true_boolean: True: returns configparser.getboolean or raise ValueError
-    #                         False: returns * boolean (text 0/off/false 1/on/true)
-    #                                        * None for text = '' or not inserted value
-    #                                        * or any inserted value if non-conforming to previous possibilities
-    #     """
-    #     if true_boolean:
-    #         return Config.config.getboolean('CONVEY', key)
-    #     else:
-    #         try:
-    #             return Config.config.getboolean('CONVEY', key)
-    #         except ValueError:
-    #             val = Config.get(key)
-    #             if val == '':
-    #                 return None
-    #             else:
-    #                 return val
-    #         except configparser.NoOptionError:
-    #             return None
-
     @staticmethod
-    def set(key, val):  # XX , section='CONVEY'
+    def set(key, val, section='CONVEY'):
         if val is None:
             Config.config.remove_option(section, key)
         else:

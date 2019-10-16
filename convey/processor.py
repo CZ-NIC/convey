@@ -117,18 +117,21 @@ class Processor:
             if file:
                 source_stream.close()
             elif not self.csv.is_split and 1 in self.descriptors:  # we have all data in a io.TextBuffer, not in a regular file
-                print("\n\n** Completed! **\n")
+                if Config.verbosity <= logging.INFO:
+                    print("\n\n** Completed! **\n")
                 result = self.descriptors[1][0].getvalue()
-                print(result)
+                print(result.strip())
+
 
                 if Config.get("output") is None:
-                    ignore = is_no("Save to an output file?") if Config.get("save_stdin_output") == ""\
+                    ignore = is_no("Save to an output file?") if Config.get("save_stdin_output") is None\
                         else Config.get("save_stdin_output") is False
                 else:
                     ignore = not Config.get("output")
                 if ignore:
                     # we didn't have a preference and replied "no" or we had a preference to not save the output
                     csv.target_file = False
+                    csv.stdout = result
                 else:
                     csv.target_file.write_text(result)
 
