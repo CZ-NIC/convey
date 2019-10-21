@@ -3,6 +3,7 @@ import configparser
 import glob
 import logging
 import os
+import re
 import sys
 import webbrowser
 from pathlib import Path
@@ -12,6 +13,8 @@ from subprocess import Popen, PIPE
 from appdirs import user_config_dir
 
 # setup logging
+from .dialogue import is_yes
+
 fileHandler = logging.FileHandler("convey.log")
 fileHandler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 fileHandler.setLevel(logging.WARNING)
@@ -85,31 +88,6 @@ class Config:
 
     # muted = False  # silence info text
 
-    # Config file integrity check (we may upgrade Convey from but some new parameters needs to be added manually)
-    default_config = configparser.ConfigParser()
-    default_config.read(Path(default_path, "config.ini"))
-    passed = True
-    for section in default_config:
-        if section not in config:
-            print(f"Missing section: {section}")
-            passed = False
-            continue
-        for key in default_config[section]:
-            if key not in config[section]:
-                print(f"Missing key {key} (defaulting to {repr(default_config[section][key])}) in section: {section}")
-                passed = False
-    for section in config:
-        if section not in default_config:
-            print(f"(Config has an unused section: {section})")
-            continue
-        for key in config[section]:
-            if key not in default_config[section]:
-                print(f"Config has an unused key {key} in section: {section}")
-    if not passed:
-        print("Please write missing items into the config file before continuing.\nOpening", path, "...")
-        p = Popen(["xdg-open", path], shell=False)
-        quit()
-
     INVALID_NAME = ".invalidlines.tmp"
     UNKNOWN_NAME = "unknown"
     PROJECT_SITE = "https://github.com/CZ-NIC/convey/"
@@ -117,6 +95,91 @@ class Config:
 
     @staticmethod
     def init(yes=False, verbosity=None):
+        # Config file integrity check (we may upgrade Convey from but some new parameters needs to be added manually)
+        default_config = configparser.ConfigParser()
+        default_ini = Path(default_path, "config.ini")
+        default_config.read(default_ini)
+        passed = True
+        section_missing = []
+        section_superfluous = []
+        key_missing = {}  # [key] => section
+        key_superfluous = []
+        for section in default_config:
+            missing_section= False
+            if section not in Config.config:
+                print(f"Missing section: {section}")
+                section_missing.append(section)
+                passed = False
+                missing_section = True
+                #continue
+            for key in default_config[section]:
+                if missing_section or key not in Config.config[section]:
+                    print(f"Missing key {key} (defaulting to {repr(default_config[section][key])}) in section: {section}")
+                    key_missing[key] = section
+                    passed = False
+        for section in Config.config:
+            if section not in default_config:
+                print(f"(Config has an unused section: {section})")
+                section_superfluous.append(section)
+                continue
+            for key in Config.config[section]:
+                if key not in default_config[section]:
+                    print(f"Config has an unused key {key} in section: {section}")
+                    key_superfluous.append(key)
+        if not passed:
+            # analyze current config file and get its section start line numbers
+            config_lines = Config.path.read_text().splitlines(keepends=True)
+            section_lines = {}  # [section name] = section start line number
+            for i, line in enumerate(config_lines):
+                try:
+                    section = re.match("\[([^]]*)\]", line).group(1)
+                except AttributeError:
+                    pass
+                else:
+                    section_lines[section] = i
+
+            # analyze the default config file
+            default_lines = default_ini.read_text().splitlines(keepends=True)
+            anchors = tuple(key_missing.keys())
+
+            def get_key(iterable, match):
+                """
+                :rtype: yields tuple of (key name, slice start-stop line of the iterable)
+                """
+                comment = None
+                for i, line in enumerate(iterable):  # add missing keys and sections
+                    if line.startswith("#"):
+                        if not comment:
+                            comment = i
+                        continue
+                    if line.startswith(anchors):
+                        key = re.match("[a-zA-Z0-9_]*", line).group(0)
+                        if key in match:  # we have found one of the matching keys
+                            yield key, slice(comment or i, i + 1)
+                    comment = None
+
+            # remove unused keys
+            for key, slice_ in get_key(config_lines, key_superfluous):
+                for i in range(slice_.start, slice_.stop):
+                    config_lines[i] = ""
+            # insert missing keys and sections
+            for key, slice_ in get_key(default_lines, key_missing):
+                block = default_lines[slice_]
+                try:
+                    start_line = section_lines[key_missing[key]]
+                except KeyError:  # insert missing section
+                    section_lines[key_missing[key]] = start_line = len(config_lines)
+                    config_lines.append(f"\n[{key_missing[key]}]")
+                config_lines[start_line] += "\n" + "".join(block)  # insert missing key
+            if is_yes("Should I add the missing keys (and remove the unused) from your config file?"):
+                Config.path.write_text("".join(config_lines))
+                print("Config file has been successfully modified. Restarting Convey.")
+            else:
+                print("Please write missing items into the config file before continuing.\nOpening", Config.path, "...")
+                p = Popen(["xdg-open", Config.path], shell=False)
+            quit()
+
+        # Set up logging and verbosity
         from .dialogue import assume_yes
         if yes:
             assume_yes()
@@ -134,19 +197,33 @@ class Config:
         logger.debug("Config file loaded from: {}".format(Config.path))
 
     @staticmethod
-    def error_caught():
-        if Config.is_debug():
-            import ipdb
+    def get_debugger():
+        try:
+            import pudb as mod
+        except ImportError:
+            try:
+                import ipdb as mod
+            except ImportError:
+                import pdb as mod
+        return mod
+
+    @staticmethod
+    def error_caught(force=False):
+        if Config.is_debug() or force:
             import traceback
             import sys
-            _, value, tb = sys.exc_info()
+
+            mod = Config.get_debugger()
+            type_, value, tb = sys.exc_info()
             traceback.print_exc()
             if tb:
                 print("Post mortem")
-                ipdb.post_mortem(tb)
+                mod.post_mortem(tb)
             else:
                 print("Lets debug. Hit n to get to the previous scope.")
-                ipdb.set_trace()
+                mod.set_trace()
+            return True
+        return False
 
     @staticmethod
     def is_debug():

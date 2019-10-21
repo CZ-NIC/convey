@@ -348,8 +348,8 @@ class Whois:
         Whois.ip_seen = ip_seen  # ip_seen[ip] = prefix
         Whois.servers = OrderedDict()
         Whois.unknown_mode = False  # if True, we use b flag in abusemails
-        if Config.get("whois_mirror"):  # try a fast local whois-mirror first
-            Whois.servers["mirror"] = Config.get("whois_mirror")
+        if Config.get("whois_mirror", "FIELDS"):  # try a fast local whois-mirror first
+            Whois.servers["mirror"] = Config.get("whois_mirror", "FIELDS")
         Whois.servers["general"] = None
         # Algorithm for querying custom servers:
         # for name, val in zip(["ripe", "arin", "lacnic", "apnic", "afrinic"],
@@ -587,7 +587,7 @@ class Whois:
         if match:
             prefix = self._str2prefix(match)
 
-        if country not in Config.get("local_country"):
+        if country not in Config.get("local_country", "FIELDS"):
             return prefix, "foreign", country, asn, netname, country, self.get_abusemail()
         else:
             # print("Abusemail: ")

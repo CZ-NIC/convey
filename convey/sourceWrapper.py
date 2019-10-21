@@ -6,7 +6,6 @@ import sys
 from bdb import BdbQuit
 from pathlib import Path
 
-import ipdb
 import jsonpickle
 
 from .config import Config
@@ -118,10 +117,9 @@ class SourceWrapper:
             except:
                 import traceback
                 print(traceback.format_exc())
+                Config.error_caught()
                 print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
                 input()
-                if Config.is_debug():
-                    ipdb.set_trace()
                 self.csv = None
             if self.csv:
                 if self.csv.source_file != self.file:  # file might have been moved to another location
@@ -140,8 +138,7 @@ class SourceWrapper:
                     print(e)
                     print("Format of the file may have changed since last time. "
                           "Let's process it all again. If you continue, cache gets deleted.")
-                    if Config.is_debug():
-                        ipdb.post_mortem()
+                    Config.error_caught()
         else:
             if not Path(Config.get_cache_dir()).exists():
                 Path(Config.get_cache_dir()).mkdir()
@@ -157,9 +154,7 @@ class SourceWrapper:
             print("The program state is not picklable by 'jsonpickle' module. "
                   "Continuing will provide a file that will have to be reanalysed. "
                   "You may post this as a bug to the project issue tracker.")
-            if Config.is_debug():
-                import ipdb;
-                ipdb.set_trace()
+            Config.error_caught()
             input("Continue...")
         if self.cache_file:
             with open(self.cache_file, "w") as output:  # save cache

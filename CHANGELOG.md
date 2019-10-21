@@ -9,7 +9,7 @@
         - quote_char flag
         - new header / no-header flags
         - new output CLI flag
-        - new scrape_url config flag and --scrape-url CLI flag
+        - web, whois, nmap
         - new flag single_value_ignored_fields
         - flag --verbose, --quiet and config `verbosity`
         - flag compute_preview
@@ -48,13 +48,14 @@
     - huge refactoring
     - fix: log files
 - dialogs
-    - opens config file when a flag is missing
+    - able to automatically add/remove config file flags at program upgrade if allowed by user
     - when no known method is known to process a field, an example is given
     - when more than 9 options, you can use letters as shortcuts
     - main screen shows colorized result, preferable in the form of table if the terminal is wide enough
     - new 'code' field type for writing arbitrary code
     - when not in debug mode, a GitHub issue is filled out automatically at crash 
     - autoopen_editor opens when analysis starts but now only if splitting by a column
+    - Config file startup integrity check: missing items and sections may be inserted automatically after an upgrade
 
 
 ## 1.1 (2019-05-13)

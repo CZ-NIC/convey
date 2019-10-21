@@ -17,25 +17,21 @@ def main():
         Controller()
     except KeyboardInterrupt:
         print("Interrupted")
-    except (bdb.BdbQuit, SystemExit) as e:
+    except SystemExit:
+        pass
+    except bdb.BdbQuit:
         pass
     except:
         import traceback
         debug = True
         try:
             from .config import Config
-            debug = Config.is_debug()
+            debug = Config.is_debug() or Config.get("crash_post_mortem")
         except ImportError:
             Config = None
 
         if debug:
-            try:
-                import pudb as mod
-            except ImportError:
-                try:
-                    import ipdb as mod
-                except ImportError:
-                    import pdb as mod
+            mod = Config.get_debugger()
             type_, value, tb = sys.exc_info()
             traceback.print_exc()
             mod.post_mortem(tb)

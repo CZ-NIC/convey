@@ -11,7 +11,7 @@ from typing import Dict
 
 import ipdb
 
-from convey.identifier import ScrapeUrl
+from convey.identifier import Web
 from .config import Config
 from .contacts import Attachment, Contacts
 from .dialogue import ask, is_no
@@ -59,7 +59,7 @@ class Processor:
         if not settings["dialect"]:
             settings["dialect"] = csv.dialect
 
-        ScrapeUrl.init(self.csv.get_computed_fields())
+        Web.init(self.csv.get_computed_fields())
 
         # start file processing
         try:

@@ -7,7 +7,7 @@ import subprocess
 import time
 from collections import defaultdict
 from json import dumps
-from math import ceil
+from math import ceil, inf
 from pathlib import Path
 from shutil import move
 from typing import List
@@ -17,7 +17,7 @@ from tabulate import tabulate
 from .config import Config, get_terminal_size
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, is_yes, ask
-from .identifier import Identifier, b64decode, Types, Type, computable_types, ScrapeUrl
+from .identifier import Identifier, b64decode, Types, Type, Web, TypeGroup
 from .informer import Informer
 from .processor import Processor
 from .whois import Whois
@@ -37,7 +37,7 @@ class SourceParser:
         self.has_header = None  # CSV has header
         self.header = ""  # if CSV has header, it's here so that Processor can take it
         self.sample = []  # lines from the first to up to eighth (includes first line - possible header)
-        self.sample_parsed: List[List[str]] = []  # fields in the lines from the second to up to the fifth (first line never there)
+        self.sample_parsed: List[List[str]] = []  # fields in the lines, always excluding header
         self.fields: List[Field] = []  # CSV columns that will be generated to an output
         self.first_line_fields: List[str] = []  # initial CSV columns (equal to header if header is used)
         self.second_line_fields: List[str] = []  # list of values on the 2nd line if available
@@ -115,9 +115,10 @@ class SourceParser:
 
             if seems and Config.get("single_processing") is not False:
                 # init some basic parameters
-                self.fields = [Field(self.stdin[0])]  # stdin has single field
+                self.add_field([Field(self.stdin[0])])  # stdin has single field
                 self.dialect = csv.unix_dialect
                 self.has_header = False
+                self.sample_parsed = [x for x in csv.reader(self.sample)]
                 if self.identifier.init(quiet=True):
                     # tell the user what type we think their input is
                     # access the detection message for the first (and supposedly only) field
@@ -129,7 +130,7 @@ class SourceParser:
                         logger.info(f"Input value {detection}\n")
                         self.is_single_value = True
                         return self
-                elif Config.get("single_processing"):
+                if Config.get("single_processing"):
                     logger.info("Forced single processing")
                     self.fields[0].possible_types = {Types.plaintext: 1}
                     self.is_single_value = True
@@ -143,22 +144,22 @@ class SourceParser:
             uncertain = False
 
             if not Config.get("yes"):
-                if Config.get("delimiter"):
-                    self.dialect.delimiter = Config.get("delimiter")
+                if Config.get("delimiter", "CSV"):
+                    self.dialect.delimiter = Config.get("delimiter", "CSV")
                     print(f"Delimiter character set: '{self.dialect.delimiter}'\n", end="")
                 else:
                     uncertain = True
                     print(f"Delimiter character found: '{self.dialect.delimiter}'\n", end="")
 
-                if Config.get("quote_char"):
-                    self.dialect.quotechar = Config.get("quote_char")
+                if Config.get("quote_char", "CSV"):
+                    self.dialect.quotechar = Config.get("quote_char", "CSV")
                     print(f"Quoting character set: '{self.dialect.quotechar}'\n", end="")
                 else:
                     uncertain = True
                     print(f"Quoting character: '{self.dialect.quotechar}'\n", end="")
 
-                if Config.get("header") is not None:
-                    self.has_header = Config.get("header")
+                if Config.get("header", "CSV") is not None:
+                    self.has_header = Config.get("header", "CSV")
                 else:
                     uncertain = True
                     print(f"Header is present: " + ("yes" if self.has_header else "not used"))
@@ -179,9 +180,10 @@ class SourceParser:
             self.first_line_fields = csv.reader([self.first_line], dialect=self.dialect).__next__()
             if len(self.sample) >= 2:
                 self.second_line_fields = csv.reader([self.sample[1]], dialect=self.dialect).__next__()
-            self.sample_parsed = [x for x in csv.reader(self.sample[1:5], dialect=self.dialect)]
             if self.has_header:
                 self.header = self.first_line_fields
+            self.sample_parsed = [x for x in
+                                  csv.reader(self.sample[slice(1 if self.has_header else 0, None)], dialect=self.dialect)]
             self.reset_settings()
             self.identifier.init()
         except Cancelled:
@@ -199,9 +201,10 @@ class SourceParser:
 
     def get_fields_autodetection(self, append_values=True):
         """ returns list of tuples [ (field, detection str), ("Url", "url, hostname") ]
+        :type append_values: bool Append sample values to the informative result string.
         """
         fields = []
-        for i, field in enumerate(self.fields):
+        for col, field in enumerate(self.fields):
             s = ""
             if field.is_new:
                 s = f"computed from: {field.source_type}"
@@ -213,9 +216,22 @@ class SourceParser:
                     del types[Types.url]
                 s = f"detected: {', '.join((str(e) for e in types))}"
                 if append_values:
-                    s += " – values: " + ", ".join([self.sample_parsed[line][i] for line in range(0, min(len(self.sample_parsed), 3))])
+                    s += " – values: " + ", ".join(field.get_samples(3))
             fields.append((field, s))
         return fields
+
+    def add_field(self, replace: List["Field"] = None, append: "Field" = None):
+        fields = []
+        if replace:
+            self.fields = []
+            fields = replace
+        if append:
+            fields += [append]
+
+        for f in fields:
+            f.col_i = len(self.fields)
+            f.parser = self
+            self.fields.append(f)
 
     def get_computed_fields(self):
         for f in self.fields:
@@ -229,35 +245,40 @@ class SourceParser:
             self.first_line, self.sample = self.stdin[0], self.stdin[:7]
         return self
 
-    def run_single_value(self, json=False, new_fields=[]):
+    def run_single_value(self, json=False):
         """ Print out meaningful details about the single-value contents.
         :param json: If true, returns json.
-        :type new_fields: List[Field] to compute
         """
         # prepare the result variables
         rows = []
         data = {}
-        ScrapeUrl.init()
+        Web.init()
 
         def append(target_type, val):
             rows.append([str(target_type), "×" if val is None else val])
             data[str(target_type)] = val
 
-        # transform the field by all known means
-        for target_type in new_fields or computable_types:  # loop all existing methods
-            if not new_fields and target_type in Config.get("single_value_ignored_fields", get=list):
-                # do not automatically compute ignored fields
-                continue
-            fitting_type = self.identifier.get_fitting_type(0, target_type, try_plaintext=bool(new_fields))
+        # get fields and their methods to be computed
+        fields = [(f.name, f.get_methods()) for f in self.fields if f.is_new]
+        if not fields:  # transform the field by all known means
+            for target_type in Types.get_computable_types():  # loop all existing methods
+                if target_type in Config.get("single_value_ignored_fields", "FIELDS", get=list):
+                    # do not automatically compute ignored fields
+                    continue
+                elif target_type.group is TypeGroup.custom:
+                    continue
+                fitting_type = self.identifier.get_fitting_type(0, target_type)
+                if fitting_type:
+                    methods = self.identifier.get_methods_from(target_type, fitting_type, None)
+                    fields.append((str(target_type), methods))
 
-            # print(f"Target type:{target_type} Treat value as type: {fitting_type}")
-            if fitting_type:
-                val = self.first_line
-                for l in self.identifier.get_methods_from(target_type, fitting_type, None):
-                    val = l(val)
-                if type(val) is tuple:  # currently Whois only returns tuple, see _get_methods.__doc__
-                    val = val[1]
-                append(target_type, val)
+        for field_name, methods in fields:
+            val = self.first_line
+            for l in methods:
+                val = l(val)
+            if type(val) is tuple:  # currently Whois only returns tuple, see _get_methods.__doc__
+                val = val[1]
+            append(field_name, val)
 
         # prepare json to return (useful in a web service)
         if "csirt-contact" in data and data["csirt-contact"] == "-":
@@ -269,7 +290,7 @@ class SourceParser:
             self.target_file.write_text(dumps(data))
         if json:
             return dumps(data)
-        elif Config.is_quiet() and len(new_fields) == 1:
+        elif Config.is_quiet() and len(rows) == 1:
             print(rows[0][1])
         else:
             # pad to the screen width
@@ -301,7 +322,7 @@ class SourceParser:
 
     def reset_settings(self):
         self.settings = defaultdict(list)
-        self.fields = [Field(f) for f in self.first_line_fields]
+        self.add_field([Field(f) for f in self.first_line_fields])
 
     def _reset_output(self):
         self.line_count = 0
@@ -504,8 +525,6 @@ class SourceParser:
         del state['processor']
         del state['identifier']
         state['dialect'] = self.dialect.__dict__.copy()
-        for f in self.fields:
-            f.identifier = None
         return state
 
     def __setstate__(self, state):
@@ -517,12 +536,12 @@ class SourceParser:
             setattr(self.dialect, k, v)
         self.identifier = Identifier(self)
         self.identifier.init()
-        for f in self.fields:
-            f.identifier = self.identifier
 
 
 class Field:
-    def __init__(self, name, is_chosen=True, source_field=None, source_type=None, new_custom=None, identifier=None):
+    def __init__(self, name, is_chosen=True, source_field=None, source_type=None, new_custom=None, parser: SourceParser = None):
+        self.col_i = None  # index of the field in parser.fields
+        self.parser = None  # ref to parser
         self.name = str(name)
         self.is_chosen = is_chosen
         self.possible_types = {}
@@ -534,9 +553,10 @@ class Field:
         if source_field:
             self.is_new = True
             self.source_field = source_field
-            self.source_type = source_type
+            self.source_type = source_type if type(source_type) is Type else getattr(Types, source_type)
             self.new_custom = new_custom
-            self.identifier = identifier
+        else:
+            self.source_field = self.source_type = self.new_custom = None
 
     @property
     def type(self):
@@ -569,9 +589,9 @@ class Field:
         s = ""
         if long:
             if self.is_new:
-                s = f"{self.name} ~\n{self.source_field}"
+                s = f"{self.name} from:\n{self.source_field}"
             elif self.has_clear_type():
-                s = f"{self.name}\n   {self.type}"
+                s = f"{self.name}\n   ({self.type})"
         if not s:
             s = self.name
         if color:
@@ -582,7 +602,12 @@ class Field:
         return self.type is not None and self.type is not Types.plaintext
 
     def get_methods(self):
-        return self.identifier.get_methods_from(self.type, self.source_type, self.new_custom)
+        return self.parser.identifier.get_methods_from(self.type, self.source_type, self.new_custom)
 
     def __str__(self):
         return self.name
+
+    def get_samples(self, max_samples=inf):
+        """ get few sample values of a field """
+        return [self.parser.sample_parsed[line][self.col_i] for line in
+                range(0, min(len(self.parser.sample_parsed), max_samples))]

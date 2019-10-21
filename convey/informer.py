@@ -85,7 +85,7 @@ class Informer:
         if self.csv.is_formatted:  # show how would the result be alike
             rows = []  # nice table formatting
             full_rows = []  # formatting that optically matches the Sample above
-            for l in self.csv.sample_parsed:
+            for l in self.csv.sample_parsed[:5]:
                 row = []
                 full_row = []
                 for f, c in zip_longest(self.csv.fields, l):

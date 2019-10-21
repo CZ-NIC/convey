@@ -5,15 +5,15 @@ import sys
 from pathlib import Path
 from sys import exit
 
-import ipdb
 from Levenshtein import distance  # ignore this unresolved reference
 from dialog import Dialog, DialogError
 
 from .config import Config, get_terminal_size
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
-from .identifier import Types, get_uml, TypeGroup, types, computable_types, Type
+from .identifier import Types, TypeGroup, types, Type, graph
 from .mailSender import MailSenderOtrs, MailSenderSmtp
+from .previewer import code_preview
 from .sourceParser import SourceParser, Field
 from .sourceWrapper import SourceWrapper
 
@@ -26,6 +26,12 @@ class BlankTrue(argparse.Action):
     def __call__(self, _, namespace, values, option_string=None):
         if values in [None, []]:  # blank argument with nargs="?" produces None, with ="*" produces []
             values = True
+        elif values.lower() in ["0", "false", "off"]:
+            values = False
+        elif values.lower() in ["1", "true", "on"]:
+            values = True
+        else:
+            raise ValueError(f"Unrecognised value {values} of {self.dest}")
         setattr(namespace, self.dest, values)
 
 
@@ -74,7 +80,7 @@ class Controller:
                                  "\nSOURCE_FIELD is either field name or usual field name."
                                  "\nEx: --field netname,ip  # would add netname column from any IP column"
                                  "\n    (Note the comma without space behind 'netname'.)"
-                                 "\n\nComputable fields: " + "".join("\n* " + f.doc() for f in computable_types) +
+                                 "\n\nComputable fields: " + "".join("\n* " + f.doc() for f in Types.get_computable_types()) +
                                  "\n\nThis flag May be used multiple times.",
                             action="append", metavar=("FIELD,[COLUMN],[SOURCE_FIELD]"))
         csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
@@ -84,20 +90,28 @@ class Controller:
         parser.add_argument('--csirt-incident', action="store_true",
                             help=f"Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country"
                                  f" or csirt contact for foreign countries) and send everything by OTRS."
-                                 f" You set local countries in config.ini, currently set to: {Config.get('local_country')}")
-        parser.add_argument('--scrape-url', help="When single value input contains a web page, we could fetch it and add"
-                                                 " status (HTTP code) and text fields. Text is just mere text, no tags, style,"
-                                                 " script, or head. Leave blank for True or put true/on/1 or false/off/0.",
+                                 f" You set local countries in config.ini, currently set to: {Config.get('local_country', 'FIELDS')}")
+        parser.add_argument('--whois', help="R|Allowing Whois module: Leave blank for True or put true/on/1 or false/off/0.",
+                            action=BlankTrue, nargs="?", metavar="blank/false")
+        parser.add_argument('--nmap', help="R|Allowing NMAP module: Leave blank for True or put true/on/1 or false/off/0.",
+                            action=BlankTrue, nargs="?", metavar="blank/false")
+        parser.add_argument('--web', help="R|Allowing Web module: Leave blank for True or put true/on/1 or false/off/0."
+                                             "\nWhen single value input contains a web page, we could fetch it and add"
+                                             " status (HTTP code) and text fields. Text is just mere text, no tags, style,"
+                                             " script, or head. ",
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
         parser.add_argument('--config', help="Open config file and exit.", action="store_true")
-        parser.add_argument('-he', '--headless',
-                            help="Launch program in a headless mode which imposes --yes. No menu is shown."
-                                 "\nConsider using --quiet flag too.",
+        parser.add_argument('-H', '--headless',
+                            help="Launch program in a headless mode which imposes --yes and --quiet. No menu is shown.",
                             action="store_true")
         parser.add_argument('--user-agent', help="Change user agent to be used when scraping a URL")
-        parser.add_argument('--single-processing', help="Consider the input as a single value, not a CSV.", action="store_true")
-        parser.add_argument('--csv-processing', help="Consider the input as a CSV, not a single.", action="store_true")
+        parser.add_argument('-S', '--single-processing', help="Consider the input as a single value, not a CSV.",
+                            action="store_true")
+        parser.add_argument('--single-detect', help="Consider the input as a single value, not a CSV,"
+                                                    " and just print out possible types of the input."
+                            , action="store_true")
+        parser.add_argument('-C', '--csv-processing', help="Consider the input as a CSV, not a single.", action="store_true")
         parser.add_argument('--show-uml', help="Show UML of fields and methods and exit.", action="store_true")
         parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
@@ -106,35 +120,40 @@ class Controller:
             self.edit_configuration()
             quit()
         if args.show_uml:
-            print(get_uml())
+            print(Types.get_uml())
             quit()
         if args.debug:
             Config.set("debug", True)
+        if args.headless:
+            args.yes = True
+            args.quiet = True
+        Config.init(args.yes, 30 if args.quiet else (10 if args.verbose else None))
         if args.header:
             Config.set("header", True)
         if args.no_header:
             Config.set("header", False)
         if args.csv_processing:
             Config.set("single_processing", False)
-        if args.single_processing:
+        if args.single_processing or args.single_detect:
             Config.set("single_processing", True)
-        if args.headless:
-            args.yes = True
-        for flag in ["output", "scrape_url", "delimiter", "quote_char", "compute_preview", "user_agent"]:
+        for flag in ["output", "web", "whois", "nmap", "delimiter", "quote_char", "compute_preview", "user_agent"]:
             if getattr(args, flag) is not None:
                 Config.set(flag, getattr(args, flag))
+        for module in ["whois", "web", "nmap"]:
+            if Config.get(module, "FIELDS") is False:
+                getattr(TypeGroup, module).disable()
 
         # append new fields from CLI
         new_fields = []  # append new fields
         for task in args.field or ():  # FIELD,[COLUMN],[SOURCE_FIELD], ex: `netname 3|"IP address" ip|sourceip`
-            task = [x.strip() for x in task.split(",")]
+            task = [x for x in csv.reader([task])][0]
             if len(task) > 3:
                 print("Invalid field", task)
                 quit()
             try:
                 new_field = types[types.index(task[0])]  # determine FIELD
             except ValueError:
-                d = {t.name: distance(task[0], t.name) for t in computable_types}
+                d = {t.name: distance(task[0], t.name) for t in Types.get_computable_types()}
                 rather = min(d, key=d.get)
                 logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
                 quit()
@@ -142,7 +161,6 @@ class Controller:
             source = task[2] if len(task) > 2 else None
             new_fields.append((new_field, column_or_source, source))
 
-        Config.init(args.yes, 30 if args.quiet else (10 if args.verbose else None))
         self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
         self.csv: SourceParser = self.wrapper.csv
 
@@ -151,13 +169,6 @@ class Controller:
             if args.__dict__[flag[0]]:
                 self.csv.__dict__[flag[0]] = args.__dict__[flag[0]]
                 logger.debug("{}: {}".format(flag[1], flag[0]))
-
-        # run single value check if the input is not a CSV file
-        if self.csv.is_single_value:
-            res = self.csv.run_single_value(json=args.json, new_fields=[x[0] for x in new_fields])
-            if res:
-                print(res)
-            quit()
 
         # prepare some columns to be removed
         if args.delete:
@@ -177,9 +188,19 @@ class Controller:
             self.source_new_column(new_field, True, source_field, source_type, custom)
             self.csv.is_processable = True
 
+        # run single value check if the input is not a CSV file
+        if args.single_detect:
+            quit()
+        if self.csv.is_single_value:
+            res = self.csv.run_single_value(json=args.json)
+            if res:
+                print(res)
+            quit()
+
         # start csirt-incident macro
         if args.csirt_incident and not self.csv.is_analyzed:
-            self.csv.settings["split"] = self.source_new_column(Types.incident_contact, add=False)
+            self.csv.settings["split"] = len(self.csv.fields)
+            self.source_new_column(Types.incident_contact, add=False)
             self.csv.is_processable = True
             self.process()
             self.csv.is_processable = False
@@ -194,13 +215,13 @@ class Controller:
 
         # main menu
         while True:
-            self.csv = self.csv = self.wrapper.csv  # may be changed by reprocessing
+            parser = self.csv = self.wrapper.csv  # may be changed by reprocessing
             self.csv.informer.sout_info()
 
             if self.start_debugger:
-                print("\nDebugging mode, you may want to see csv variable:")
+                print("\nDebugging mode, you may want to see `parser` variable:")
                 self.start_debugger = False
-                ipdb.set_trace()
+                Config.get_debugger().set_trace()
 
             menu = Menu(title="Main menu - how the file should be processed?")
             menu.add("Pick or delete columns", self.choose_cols)
@@ -231,7 +252,7 @@ class Controller:
                 print(e)
                 pass
             except Debugged as e:
-                ipdb.set_trace()
+                Config.get_debugger().set_trace()
 
     def send_menu(self):
         method = "smtp"
@@ -355,32 +376,33 @@ class Controller:
     def source_new_column(self, new_field, add=None, source_field: Field = None, source_type: Type = None, custom: str = None):
         """ We know what Field the new column should be of, now determine how we should extend it:
             Summarize what order has the source field and what type the source field should be considered alike.
-                :type source_type: Field
-                :type source_col_i: int
+                :type source_field: Field
+                :type source_type: Type
                 :type new_field: Field
                 :type add: bool if the column should be added to the table; None ask
+                :return Field
         """
         dialog = Dialog(autowidgetsize=True)
         if not source_field or not source_type:
             print("\nWhat column we base {} on?".format(new_field))
-            cols = self.csv.identifier.get_fitting_source_i(new_field)
+            guesses = self.csv.identifier.get_fitting_source_i(new_field)
             source_col_i = pick_option(self.csv.get_fields_autodetection(),
                                        title="Searching source for " + str(new_field),
-                                       guesses=cols)
+                                       guesses=guesses)
             source_field = self.csv.fields[source_col_i]
-
-            source_type = self.csv.identifier.get_fitting_type(source_col_i, new_field)
+            source_type = self.csv.identifier.get_fitting_type(source_col_i, new_field, try_plaintext=True)
             if source_type is None:
                 # ask how should be treated the column as, even it seems not valid
                 # list all known methods to compute the desired new_field (e.g. for incident-contact it is: ip, hostname, ...)
                 choices = [(k.name, k.description)
-                           for k, _ in self.csv.identifier.get_graph().dijkstra(new_field, ignore_private=True).items()]
+                           for k, _ in graph.dijkstra(new_field, ignore_private=True).items()]
 
-                if len(choices) == 1 and choices[0][0] == Types.plaintext:
-                    # if the only method is derivable from a plaintext, no worries that a method
-                    # converting the column type to "plaintext" is not defined; everything's plaintext
-                    source_type = Types.plaintext
-                elif choices:
+                # if len(choices) == 1 and choices[0][0] == Types.plaintext:
+                #     # if the only method is derivable from a plaintext, no worries that a method
+                #     # converting the column type to "plaintext" is not defined; everything's plaintext
+                #     source_type = Types.plaintext
+                # el
+                if choices:
                     s = ""
                     if self.csv.second_line_fields:
                         s = f"\n\nWhat type of value '{self.csv.second_line_fields[source_col_i]}' is?"
@@ -394,8 +416,8 @@ class Controller:
 
         if not custom:
             if new_field == Types.code:
-                code, custom = dialog.inputbox("What code should be executed? Change 'x'. Ex: x += \"append\";")
-                if code != "ok" or not custom:
+                custom = code_preview("What code should be executed? Change 'x'. Ex: x += \"append\";", source_field)
+                if not custom:
                     return
             if new_field == Types.custom:  # choose a file with a needed method
                 while True:
@@ -431,11 +453,10 @@ class Controller:
         f = Field(new_field, is_chosen=add,
                   source_field=source_field,
                   source_type=source_type,
-                  new_custom=custom,
-                  identifier=self.csv.identifier)
+                  new_custom=custom)
         self.csv.settings["add"].append(f)
-        self.csv.fields.append(f)
-        return len(self.csv.fields) - 1
+        self.csv.add_field(append=f)
+        return f
 
     def choose_cols(self):
         # XX possibility un/check all
@@ -448,11 +469,11 @@ class Controller:
 
     def select_col(self, col_name="", only_computables=False, add=None):
         fields = [] if only_computables else self.csv.get_fields_autodetection()
-        for field in computable_types:
+        for field in Types.get_computable_types():
             if field.from_message:
                 s = field.from_message
             else:
-                node_distance = self.csv.identifier.get_graph().dijkstra(field, ignore_private=True)
+                node_distance = graph.dijkstra(field, ignore_private=True)
                 s = field.group.name + " " if field.group != TypeGroup.general else ""
                 s += "from " + ", ".join([str(k) for k in node_distance][:3])
                 if len(node_distance) > 3:
@@ -461,7 +482,8 @@ class Controller:
         col_i = pick_option(fields, col_name)
         if only_computables or col_i >= len(self.csv.fields):
             new_field_i = col_i if only_computables else col_i - len(self.csv.fields)
-            col_i = self.source_new_column(computable_types[new_field_i], add=add)
+            col_i = len(self.csv.fields)
+            self.source_new_column(Types.get_computable_types()[new_field_i], add=add)
         return col_i
 
     def add_filtering(self):

@@ -9,3 +9,5 @@ appdirs
 humanize
 bs4
 python-Levenshtein
+prompt_toolkit>=2
+pygments

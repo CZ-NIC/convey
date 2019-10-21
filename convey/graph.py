@@ -1,5 +1,7 @@
+import logging
 from collections import defaultdict
 
+logger = logging.getLogger(__name__)
 
 class Graph:
     def __init__(self, private_nodes=set()):
@@ -26,6 +28,9 @@ class Graph:
             {"node": distance to target, ...} (lower is better, sorted from lower)
 
             ignore_private = True - do not return private notes within results (ex. whois)
+            :param target: Type
+            :type start: Type
+            :type ignore_private: bool
         """
         visited = {target: 0}
         tree = {}
@@ -57,16 +62,20 @@ class Graph:
                     pass
 
         if start:
+            start = start.after
             path = [start]
             pivot = start
             i = 0
             while pivot != target:
                 i += 1
-                pivot = tree[pivot]
+                try:
+                    pivot = tree[pivot]
+                except KeyError:  # path does not exist
+                    return False
                 path.append(pivot)
 
                 if i > 10:
-                    print("cycles", path, target) # XX logger.error
+                    logger.error("cycles", path, target)
                     break
             return path
 
@@ -74,5 +83,5 @@ class Graph:
             for node in self.private_nodes:
                 if node in visited:
                     del visited[node]
-        d = dict((k, v) for (k, v) in visited.items() if v > 0)  # skip the same node
+        d = dict((k.before, v) for (k, v) in visited.items() if v > 0)  # skip the same node
         return d

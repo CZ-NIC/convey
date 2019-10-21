@@ -1,35 +1,30 @@
 # Convey
 
-A tool for information conveying – CSV swiss knife brought by [CSIRT.cz](https://csirt.cz). Convenable way to process large files that might freeze your spreadsheet processor.
+Swiss knife for mutual conversion of the web related data types, like `base64` or outputs of the programs `whois`, `dig`, `curl`.
+Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.
 
-* It takes any CSV or text input (any delimiter, header or whatever) and perform one or more actions (below).
-* Should the input be a log file, it is converted to CSV, base64 encoded text is decoded.
+Any input is accepted: 
+* a **single value** input is detected and all **meaningful information** is fetched
+* multiline **base64** string gets decoded
+* **log file** is converted to CSV 
+* **CSV file** (any delimiter, header or whatever) performs one or more actions
+    1) **Pick or delete columns** (if only some columns are needed)
+    2) **Add a column** (computes one field from another – see below)
+    3) **Unique filter** (no value duplicates)
+    4) **Value filter** (only rows with a specific values are preserved)
+    5) **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
+    6) **Change CSV dialect** (change delimiter or quoting character)
 
-CSV Actions:
-
-1) **Pick or delete columns** (if only some columns are needed)
-2) **Add a column** (computes one field from another – see below)
-3) **Unique filter** (no value duplicates)
-4) **Value filter** (only rows with a specific values are preserved)
-5) **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
-6) **Change CSV dialect** (change delimiter or quoting character)
 
 Python3.6+ required.
 
 ## Usage
 
-Put file path or data as an argument or leave empty to be asked:
-
-```bash
-$ convey  # [file | data] 
-Do you want to input text (otherwise you'll be asked to choose a file name)? [y/n]
-```
-
 ### Usage 1 – Single value check
+Check what happens if an IP is provided, it returns table with WHOIS-related information and scraped HTTP content.
 ```bash
 $ convey 1.1.1.1 # single value input
-Config file loaded from: /home/edvard/.config/convey/config.ini
-We think the inputted value can be: ip
+Input value detected: ip
 
 1.1.1.1 ...au
 
@@ -47,9 +42,9 @@ text              DNSThe free app that makes your (much longer text...)
 ```
 
 ### Usage 2 – CSV processor program
-Parses CSV file or returns table with WHOIS-related information and scraped HTTP content.
+Parses CSV file.
 ```bash
-$ convey my-file.csv # will trigger file parsing
+$ convey my-file-with-ips.csv # will trigger file parsing
 Source file: /tmp/my-file.csv
 Log lines: 200
 
@@ -66,7 +61,7 @@ Could you confirm this? [y]/n
 ```
 
 ### Usage 3 – Web service
-Returns JSON with WHOIS-related information and scraped HTTP content.
+Again, let's provide an IP to the web service, it returns JSON with WHOIS-related information and scraped HTTP content.
 ```bash
 # install convey and check where it is installed
 $ pip3 show convey
@@ -166,3 +161,7 @@ Handsome feature if you're willing to use the Shodan API as our partner or to do
 
 ## CSIRT Usecase
 We are using the tool to automate incident handling tasks. The input is any CSV we receive from partners; there is at least one column with IP addresses or URLs. We fetch whois information and produce a set of CSV grouped by country AND/OR abusemail related to IPs. These CSVs are then sent by through OTRS from within the tool.
+
+## Credits
+
+Brought by [CSIRT.cz](https://csirt.cz).

@@ -6,12 +6,12 @@ import re
 import subprocess
 from base64 import b64decode, b64encode
 from builtins import ZeroDivisionError
+from copy import copy
 from csv import Error, Sniffer, reader
 from enum import IntEnum
 from pathlib import Path
 from typing import List
 
-import ipdb
 import requests
 from bs4 import BeautifulSoup
 
@@ -26,7 +26,7 @@ reIpWithPort = re.compile("((\d{1,3}\.){4})(\d+)")
 reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")
 reFqdn = re.compile(
     "(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)")  # Xtoo long, infinite loop: ^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+){1,63}\.))+){1,255}$
-reUrl = re.compile('[a-z]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
+reUrl = re.compile('[htps]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
 
 
 # reBase64 = re.compile('^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$')
@@ -61,13 +61,16 @@ class Checker:
         return base64decode(x) and re.search(r"[A-Za-z]", x)
 
     @staticmethod
-    def check_wrong_url(w):
-        s = wrong_url_2_url(w)
-        return (not reUrl.match(w) and not reFqdn.match(w)) and (reUrl.match(s) or reFqdn.match(s))
+    def check_wrong_url(wrong):
+        s = wrong_url_2_url(wrong, make=False)
+        return (not reUrl.match(wrong) and not reFqdn.match(wrong)) and (reUrl.match(s) or reFqdn.match(s))
 
 
-def wrong_url_2_url(s):
-    return s.replace("hxxp", "http", 1).replace("[.]", ".").replace("[:]", ":")
+def wrong_url_2_url(s, make=True):
+    s = s.replace("hxxp", "http", 1).replace("[.]", ".").replace("[:]", ":")
+    if make and not s.startswith("http"):
+        s = "http://" + s
+    return s
 
 
 def any_ip_2_ip(s):
@@ -89,7 +92,7 @@ def base64decode(x):
         return None
 
 
-class ScrapeUrl:
+class Web:
     """
     :return: self.get = [http status | error, shortened text, original html, redirects]
     """
@@ -102,22 +105,20 @@ class ScrapeUrl:
     def init(cls, fields=[]):
         if fields:
             cls.store_html = Types.html in [f.type for f in fields]
-            cls.store_text = Types.web in [f.type for f in fields]
+            cls.store_text = Types.text in [f.type for f in fields]
         else:
             cls.store_html = cls.store_text = True
-        if Config.get("user_agent"):
-            cls.headers = {"User-Agent": Config.get("user_agent")}
+        if Config.get("user_agent", "FIELDS"):
+            cls.headers = {"User-Agent": Config.get("user_agent", "FIELDS")}
 
     def __init__(self, url):
         if url in self.cache:
             self.get = self.cache[url]
             return
         try:
-            logger.info("Scrapping " + url + "...")
+            logger.info(f"Scrapping {url}...")
             response = requests.get(url, timeout=3, headers=self.headers)
         except IOError as e:
-            # append("status", 0)
-            # append("scrape-error", str(e))
             self.get = str(e), None, None, None
         else:
             response.encoding = response.apparent_encoding  # https://stackoverflow.com/a/52615216/2036148
@@ -136,7 +137,7 @@ class ScrapeUrl:
 
 
 def nmap(val):
-    logger.info(f"NMAPing... {val}")
+    logger.info(f"NMAPing {val}...")
     text = subprocess.run(["nmap", val], stdout=subprocess.PIPE).stdout.decode("utf-8")
     text = text[text.find("PORT"):]
     text = text[text.find("\n") + 1:]
@@ -149,8 +150,16 @@ class TypeGroup(IntEnum):
     custom = 2
     whois = 3
     dns = 4
-    ports = 5
-    scrape = 6
+    nmap = 5
+    web = 6
+
+    def disable(self):
+        for start, target in copy(methods):
+            if start.group is self or target.group is self:
+                del methods[start, target]
+        for f in Types.get_guessable_types():
+            if f.group is self:
+                f.is_disabled = True
 
 
 class Type:
@@ -173,10 +182,11 @@ class Type:
         self.identify_method = identify_method
         self.description = description
         self.is_private = is_private
+        self.is_disabled = False  # disabled field cannot be added (and computed)
         self.from_message = from_message
         types.append(self)
-        if self.identify_method or self.usual_names:
-            guessable_types.append(self)
+        self.after = self.before = self
+        self.is_plaintext_derivable = False
 
     def __eq__(self, other):
         if type(other) is str:
@@ -215,9 +225,25 @@ class Type:
             return other + " " + self.name
         return self.other + " " + self.name
 
+    def _init(self):
+        """ Init self.after and self.before . """
+        afters = [stop for start, stop in methods if start is self and methods[start, stop] is True]
+        befores = [start for start, stop in methods if stop is self and methods[start, stop] is True]
+        if len(afters) == 1:
+            self.after = afters[0]
+        elif len(afters):
+            raise RuntimeWarning(f"Multiple 'afters' types defined for {self}: {afters}")
+        if len(befores) == 1:
+            self.before = befores[0]
+        elif len(befores):
+            raise RuntimeWarning(f"Multiple 'befores' types defined for {self}: {befores}")
+
+        # check if this is plaintext derivable
+        if self is not Types.plaintext:
+            self.is_plaintext_derivable = bool(graph.dijkstra(self, start=Types.plaintext))
+
 
 types: List[Type] = []  # all field types
-guessable_types: List[Type] = []  # these field types can be guessed from a string
 
 
 class Types:
@@ -228,10 +254,11 @@ class Types:
     """
 
     whois = Type("whois", TypeGroup.whois, "ask whois servers", is_private=True)
-    scrape = Type("scrape", TypeGroup.scrape, "scrape web contents", is_private=True)
+    web = Type("web", TypeGroup.web, "scrape web contents", is_private=True)
 
     custom = Type("custom", TypeGroup.custom, from_message="from a method in your .py file")
     code = Type("code", TypeGroup.custom, from_message="from a code you write")
+    reg = Type("reg", TypeGroup.custom, from_message="from a regular expression")
     netname = Type("netname", TypeGroup.whois)
     country = Type("country", TypeGroup.whois)
     abusemail = Type("abusemail", TypeGroup.whois)
@@ -239,11 +266,11 @@ class Types:
     csirt_contact = Type("csirt_contact", TypeGroup.whois)
     incident_contact = Type("incident_contact", TypeGroup.whois)
     decoded_text = Type("decoded_text", TypeGroup.general)
-    web = Type("web", TypeGroup.scrape)
-    http_status = Type("http_status", TypeGroup.scrape)
-    html = Type("html", TypeGroup.scrape)
-    redirects = Type("redirects", TypeGroup.scrape)
-    ports = Type("ports", TypeGroup.ports)
+    text = Type("text", TypeGroup.web)
+    http_status = Type("http_status", TypeGroup.web)
+    html = Type("html", TypeGroup.web)
+    redirects = Type("redirects", TypeGroup.web)
+    ports = Type("ports", TypeGroup.nmap)
 
     ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "sourceipaddress", "ipaddress", "source"], check_ip)
     cidr = Type("cidr", TypeGroup.general, "CIDR 127.0.0.1/32", ["cidr"], Checker.check_cidr)
@@ -256,103 +283,123 @@ class Types:
     asn = Type("asn", TypeGroup.whois, "AS Number", ["as", "asn", "asnumber"],
                lambda x: re.search('AS\d+', x) is not None)
     base64 = Type("base64", TypeGroup.general, "Text encoded with Base64", ["base64"], Checker.is_base64)
+    base64_encoded = Type("base64_encoded", TypeGroup.general)
     wrong_url = Type("wrongURL", TypeGroup.general, "Deactivated URL", [], Checker.check_wrong_url)
     plaintext = Type("plaintext", TypeGroup.general, "Plain text", ["plaintext", "text"], lambda x: False)
 
+    @staticmethod
+    def get_computable_types():
+        """ List of all suitable fields that we may compute from a suitable output """
+        return sorted({target_type for _, target_type in methods.keys() if not (target_type.is_private or target_type.is_disabled)})
 
-def _get_methods():
-    """  these are known methods to make a field from another field
-        Note that Whois only produces tuple to be fetchable to stats in Processor, the others are rather strings.
-    """
-    f = Types
-    return {(f.any_ip, f.ip): any_ip_2_ip,
-            # any IP: "91.222.204.175 93.171.205.34" -> "91.222.204.175" OR '"1.2.3.4"' -> 1.2.3.4
-            (f.port_ip, f.ip): port_ip_2_ip,
-            # portIP: IP written with a port 91.222.204.175.23 -> 91.222.204.175
-            (f.url, f.hostname): Whois.url2hostname,
-            (f.hostname, f.ip): Whois.hostname2ip,
-            (f.url, f.ip): Whois.url2ip,
-            (f.ip, f.whois): Whois,
-            (f.cidr, f.ip): lambda x: str(ipaddress.ip_interface(x).ip),
-            (f.whois, f.prefix): lambda x: (x, str(x.get[0])),
-            (f.whois, f.asn): lambda x: (x, x.get[3]),
-            (f.whois, f.abusemail): lambda x: (x, x.get[6]),
-            (f.whois, f.country): lambda x: (x, x.get[5]),
-            (f.whois, f.netname): lambda x: (x, x.get[4]),
-            (f.whois, f.csirt_contact): lambda x: (x, Contacts.csirtmails[x.get[5]] if x.get[5] in Contacts.csirtmails else "-"),
-            # returns tuple (local|country_code, whois-mail|abuse-contact)
-            (f.whois, f.incident_contact): lambda x: (x, x.get[2]),
-            (f.base64, f.decoded_text): base64decode,
-            (f.plaintext, f.base64): lambda x: b64encode(x.encode("UTF-8")).decode("UTF-8"),
-            (f.plaintext, f.custom): lambda x: x,
-            (f.plaintext, f.code): lambda x: x,
-            (f.wrong_url, f.url): wrong_url_2_url,
-            (f.hostname, f.url): lambda x: "http://" + x,
-            (f.ip, f.url): lambda x: "http://" + x,
-            (f.url, f.scrape): ScrapeUrl,
-            (f.scrape, f.http_status): lambda x: x.get[0],
-            (f.scrape, f.web): lambda x: x.get[1],
-            (f.scrape, f.html): lambda x: x.get[2],
-            (f.scrape, f.redirects): lambda x: x.get[3],
-            (f.hostname, f.ports): nmap,
-            (f.ip, f.ports): nmap
-            # ("hostname", "spf"):
-            # XX dns dig
-            # XX url decode
-            # XX timestamp
-            }
+    @staticmethod
+    def get_guessable_types() -> List[Type]:
+        """ these field types can be guessed from a string """
+        return sorted([t for t in types if not t.is_disabled and (t.identify_method or t.usual_names)])
+
+    @staticmethod
+    def get_uml():
+        """ Return DOT UML source code of types and methods"""
+        l = ['digraph { ']
+        l.append('label="Convey field types (dashed = identifiable automatically, circled = IO actions)"')
+        for f in types:
+            label = [f.name]
+            if f.description:
+                label.append(f.description)
+            if f.usual_names:
+                label.append("usual names: " + ", ".join(f.usual_names))
+            s = "\n".join(label)
+            l.append(f'{f.name} [label="{s}"]')
+            if f in Types.get_guessable_types():
+                l.append(f'{f.name} [style=dashed]')
+            if f.is_private:
+                l.append(f'{f.name} [shape=circled]')
+
+        for k, v in methods:
+            l.append(f"{k} -> {v};")
+        l.append("}")
+        return "\n".join(l)
+
+    @staticmethod
+    def _get_methods():
+        """  these are known methods to make a field from another field
+            Note that Whois only produces tuple to be fetchable to stats in Processor, the others are rather strings.
+
+            Method ~ None: TypeGroup.custom fields should have the method be None.
+            Method ~ True: The user should not be offered to compute from the field to another.
+                However if they already got the first type, it is the same as if they had the other.
+                Example: XXX source_ip,
+                Example: (base64 → base64_encoded) We do not want to offer the conversion plaintext → base64 → decoded_text,
+                    however we allow conversion base64 → (invisible base64_encoded) → decoded_text
+        """
+        t = Types
+        return {(t.any_ip, t.ip): any_ip_2_ip,
+                # any IP: "91.222.204.175 93.171.205.34" -> "91.222.204.175" OR '"1.2.3.4"' -> 1.2.3.4
+                (t.port_ip, t.ip): port_ip_2_ip,
+                # portIP: IP written with a port 91.222.204.175.23 -> 91.222.204.175
+                (t.url, t.hostname): Whois.url2hostname,
+                (t.hostname, t.ip): Whois.hostname2ip,
+                (t.url, t.ip): Whois.url2ip,
+                (t.ip, t.whois): Whois,
+                (t.cidr, t.ip): lambda x: str(ipaddress.ip_interface(x).ip),
+                (t.whois, t.prefix): lambda x: (x, str(x.get[0])),
+                (t.whois, t.asn): lambda x: (x, x.get[3]),
+                (t.whois, t.abusemail): lambda x: (x, x.get[6]),
+                (t.whois, t.country): lambda x: (x, x.get[5]),
+                (t.whois, t.netname): lambda x: (x, x.get[4]),
+                (t.whois, t.csirt_contact): lambda x: (
+                    x, Contacts.csirtmails[x.get[5]] if x.get[5] in Contacts.csirtmails else "-"),
+                # returns tuple (local|country_code, whois-mail|abuse-contact)
+                (t.whois, t.incident_contact): lambda x: (x, x.get[2]),
+                # (t.base64, t.base64_encoded): True,
+                # (t.base64_encoded, t.decoded_text): base64decode,
+                (t.base64, t.plaintext): base64decode,
+                (t.plaintext, t.base64): lambda x: b64encode(x.encode("UTF-8")).decode("UTF-8"),
+                (t.plaintext, t.custom): None,
+                (t.plaintext, t.code): None,
+                (t.plaintext, t.reg): None,
+                (t.wrong_url, t.url): wrong_url_2_url,
+                (t.hostname, t.url): lambda x: "http://" + x,
+                (t.ip, t.url): lambda x: "http://" + x,
+                (t.url, t.web): Web,
+                (t.web, t.http_status): lambda x: x.get[0],
+                (t.web, t.text): lambda x: x.get[1],
+                (t.web, t.html): lambda x: x.get[2],
+                (t.web, t.redirects): lambda x: x.get[3],
+                (t.hostname, t.ports): nmap,
+                (t.ip, t.ports): nmap
+                # (t.abusemail, t.email): True
+                # (t.email, t.hostname): ...
+                # (t.email, check legit mailbox)
+                # (t.source_ip, t.ip): True
+                # (t.phone, t.country): True
+                # ("hostname", "spf"):
+                # (t.country, t.country_name):
+                # (t.hostname, t.tld)
+                # (t.tld, t.country)
+                # (t.prefix, t.cidr)
+                # XX dns dig
+                # XX url decode
+                # XX timestamp
+                }
 
 
-methods = _get_methods()
-# List of all suitable fields that we may compute from a suitable output
-computable_types = sorted({target_type for _, target_type in methods.keys() if not target_type.is_private})
-
-
-def get_uml():
-    """ Return DOT UML source code of types and methods"""
-    l = ['digraph { ']
-    l.append('label="Convey field types (dashed = identifiable automatically, circled = IO actions)"')
-    for f in types:
-        label = [f.name]
-        if f.description:
-            label.append(f.description)
-        if f.usual_names:
-            label.append("usual names: " + ", ".join(f.usual_names))
-        s = "\n".join(label)
-        l.append(f'{f.name} [label="{s}"]')
-        if f in guessable_types:
-            l.append(f'{f.name} [style=dashed]')
-        if f.is_private:
-            l.append(f'{f.name} [shape=circled]')
-
-    for k, v in methods:
-        l.append(f"{k} -> {v};")
-    l.append("}")
-    return "\n".join(l)
-
-
-def get_type_names():
-    l = []
-    for f in types:
-        s = f.name
-        if f.description:
-            s += f" ({f.description})"
-        if f.usual_names:
-            s += f" usual names: " + ", ".join(f.usual_names)
-        l.append(s)
-    return "\n* ".join(l)
+methods = Types._get_methods()
+graph = Graph([t for t in types if t.is_private])  # methods converting a field type to another
+[graph.add_edge(to, from_) for to, from_ in methods if methods[to, from_] is not True]
+[t._init() for t in types]
 
 
 class Identifier:
 
     def __init__(self, csv):
         """ import custom methods from files """
-        for path in (x.strip() for x in Config.get("custom_fields_modules", get=str).split(",")):
+        for path in (x.strip() for x in Config.get("custom_fields_modules", "FIELDS", get=str).split(",")):
             try:
                 module = self.get_module_from_path(path)
                 if module:
                     for method in (x for x in dir(module) if not x.startswith("_")):
-                        methods[("plaintext", method)] = getattr(module, method)
+                        methods[(Types.plaintext, method)] = getattr(module, method)
                         logger.info("Successfully added method {method} from module {path}")
             except Exception as e:
                 s = "Can't import custom file from path: {}".format(path)
@@ -361,23 +408,13 @@ class Identifier:
 
         self.csv = csv
         self.graph = None
-        #self.field_type = None
 
-    def get_graph(self):
-        """
-          returns instance of Graph class with methods converting a field type to another
-        """
-        if not self.graph:
-            self.graph = Graph([t for t in types if t.is_private])
-            [self.graph.add_edge(to, from_) for to, from_ in methods]
-        return self.graph
-
-    def get_methods_from(self, target, start, custom_module_method):
+    def get_methods_from(self, target, start, custom):
         """
         Returns the nested lambda list that'll receive a value from start field and should produce value in target field.
         :param target: field type name
         :param start: field type name
-        :param custom_module_method: If target is a 'custom' field type, we'll receive a tuple (module path, method name).
+        :param custom: If target is a 'custom' field type, we'll receive a tuple (module path, method name).
         :return: lambda[]
         """
 
@@ -387,10 +424,9 @@ class Identifier:
                 try:
                     exec(compile(e, '', 'exec'), l)
                 except Exception as exception:
-                    logger.error(f"{exception}: input value 'x' = {x}, your expression 'e' = {e}")
-                    if Config.is_debug():
-                        ipdb.set_trace()
-                    else:
+                    code = "\n  ".join(e.split("\n"))
+                    logger.error(f"Statement failed with {exception}.\n  x = '{x}'; {code}")
+                    if not Config.error_caught():  # XX ipdb cant be quit with q here
                         input("We consider 'x' unchanged...")
                     return x
                 x = l["x"]
@@ -398,14 +434,22 @@ class Identifier:
 
             return method
 
-        if custom_module_method:
-            if type(custom_module_method) is tuple:  # Type.custom
-                return [getattr(self.get_module_from_path(custom_module_method[0]), custom_module_method[1])]
-            return [custom_lambda(custom_module_method)]  # Type.code
+        if target.group is TypeGroup.custom:
+            if target is Types.custom:
+                return [getattr(self.get_module_from_path(custom[0]), custom[1])]
+            elif target is Types.code:
+                return [custom_lambda(custom)]
+            elif target is Types.reg:
+                return [custom_lambda(custom)]  # XXX
+            else:
+                raise ValueError(f"Unknown type {target}")
         lambdas = []  # list of lambdas to calculate new field
-        path = self.get_graph().dijkstra(target, start=start)  # list of method-names to calculate new fields
+        path = graph.dijkstra(target, start=start)  # list of method-names to calculate new fields
         for i in range(len(path) - 1):
-            lambdas.append(methods[path[i], path[i + 1]])
+            lambda_ = methods[path[i], path[i + 1]]
+            if lambda_ is True:  # the field is invisible, see help text for Types
+                continue
+            lambdas.append(lambda_)
         return lambdas
 
     @staticmethod
@@ -496,15 +540,13 @@ class Identifier:
                         print("It seems rows have different lengths. Cannot help you with column identifying.")
                         print("Fields row: " + str([(i, str(f)) for i, f in enumerate(self.csv.fields)]))
                         print("Current row: " + str(list(enumerate(row))))
-                        if Config.is_debug():
-                            ipdb.set_trace()
-                        else:
+                        if not Config.error_caught():
                             input("\n... Press any key to continue.")
                     return False
 
         for i, field in enumerate(self.csv.fields):
             possible_types = {}
-            for type_ in guessable_types:
+            for type_ in Types.get_guessable_types():
                 score = 0
                 # print("Guess:", key, names, checkFn)
                 # guess field type by name
@@ -538,8 +580,6 @@ class Identifier:
                 # print("hits", hits)
             if possible_types:  # sort by biggest score - biggest probability the column is of this type
                 field.possible_types = {k: v for k, v in sorted(possible_types.items(), key=lambda k: k[1], reverse=True)}
-            else:
-                field.possible_types = {Types.plaintext: 1}
         return True
 
     def get_fitting_type(self, source_field_i, target_field, try_plaintext=False):
@@ -549,7 +589,7 @@ class Identifier:
         possible_fields = list(self.csv.fields[source_field_i].possible_types)
         if try_plaintext:  # try plaintext field as the last one
             possible_fields.append(Types.plaintext)
-        dijkstra = self.get_graph().dijkstra(target_field)  # get all fields that new_field is computable from
+        dijkstra = graph.dijkstra(target_field)  # get all fields that new_field is computable from
         for _type in possible_fields:
             # loop all the types the field could be, loop from the FieldType we think the source_col correspond the most
             # a column may have multiple types (url, hostname), use the best
@@ -562,7 +602,7 @@ class Identifier:
 
     def get_fitting_source_i(self, new_field):
         """ Get list of source_i that may be of such a field type that new_field would be computed effectively. """
-        valid_types = self.get_graph().dijkstra(new_field)
+        valid_types = graph.dijkstra(new_field)
         possible_cols = {}
         for val in valid_types:  # loop from the best suited type
             for i, f in enumerate(self.csv.fields):  # loop from the column we are most sure with its field type
@@ -571,7 +611,7 @@ class Identifier:
                     break
         return list(possible_cols)
 
-    def get_fitting_source(self, new_field, column_or_source, source):
+    def get_fitting_source(self, new_field: Type, column_or_source, source):
         """
         For a new field, we need source column and its field type to compute new field from.
         :param new_field: str of Type
@@ -593,8 +633,9 @@ class Identifier:
         else:  # get a column whose field could be fitting for that new_field
             try:
                 source_col_i = self.get_fitting_source_i(new_field)[0]
-            except IndexError:
-                pass
+            except IndexError:  # because any plaintext would do (and no plaintext-only type has been found), take the first column
+                if new_field.is_plaintext_derivable:
+                    source_col_i = 0
         if source:  # determine SOURCE_FIELD
             if new_field.group is TypeGroup.custom:
                 custom = source
