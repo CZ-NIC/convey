@@ -239,7 +239,7 @@ class Type:
             raise RuntimeWarning(f"Multiple 'befores' types defined for {self}: {befores}")
 
         # check if this is plaintext derivable
-        if self is not Types.plaintext:
+        if self != Types.plaintext:
             self.is_plaintext_derivable = bool(graph.dijkstra(self, start=Types.plaintext))
 
 
@@ -259,6 +259,8 @@ class Types:
     custom = Type("custom", TypeGroup.custom, from_message="from a method in your .py file")
     code = Type("code", TypeGroup.custom, from_message="from a code you write")
     reg = Type("reg", TypeGroup.custom, from_message="from a regular expression")
+    #reg_s = Type("reg_s", TypeGroup.custom, from_message="substitution from a regular expression")
+    #reg_m = Type("reg_m", TypeGroup.custom, from_message="match from a regular expression")
     netname = Type("netname", TypeGroup.whois)
     country = Type("country", TypeGroup.whois)
     abusemail = Type("abusemail", TypeGroup.whois)
@@ -358,6 +360,8 @@ class Types:
                 (t.plaintext, t.custom): None,
                 (t.plaintext, t.code): None,
                 (t.plaintext, t.reg): None,
+                # (t.reg, t.reg_s): None,
+                # (t.reg, t.reg_m): None,
                 (t.wrong_url, t.url): wrong_url_2_url,
                 (t.hostname, t.url): lambda x: "http://" + x,
                 (t.ip, t.url): lambda x: "http://" + x,
@@ -418,7 +422,7 @@ class Identifier:
         :return: lambda[]
         """
 
-        def custom_lambda(e):
+        def custom_code(e):
             def method(x):
                 l = locals()
                 try:
@@ -434,13 +438,39 @@ class Identifier:
 
             return method
 
-        if target.group is TypeGroup.custom:
-            if target is Types.custom:
+        def regex(search, replace=None):
+            search = re.compile(search)
+
+            def method(s):
+                match = search.search(s)
+                # print(match) XXX
+                # print("Groups:", match.groups())
+                # print("Nula:", match.group(0))
+
+                if not match:
+                    return ""
+                groups = match.groups()
+                if not replace:
+                    if not groups:
+                        return match.group(0)
+                    return match.group(1)
+                try:
+                    return replace.format(match.group(0), *[g for g in groups])
+                except IndexError:
+                    logger.error(f"RegExp failed: `{replace}` cannot be used to replace `{s}` with `{search}`")
+                    if not Config.error_caught():
+                        input("We consider string unmatched...")
+                    return ""
+
+            return method
+
+        if target.group == TypeGroup.custom:
+            if target == Types.custom:
                 return [getattr(self.get_module_from_path(custom[0]), custom[1])]
-            elif target is Types.code:
-                return [custom_lambda(custom)]
-            elif target is Types.reg:
-                return [custom_lambda(custom)]  # XXX
+            elif target == Types.code:
+                return [custom_code(custom)]
+            elif target == Types.reg:
+                return [regex(*custom)]  # custom is in the form (search, replace)
             else:
                 raise ValueError(f"Unknown type {target}")
         lambdas = []  # list of lambdas to calculate new field
@@ -600,23 +630,29 @@ class Identifier:
                 _min, fitting_type = i, _type
         return fitting_type
 
-    def get_fitting_source_i(self, new_field):
-        """ Get list of source_i that may be of such a field type that new_field would be computed effectively. """
-        valid_types = graph.dijkstra(new_field)
+    def get_fitting_source_i(self, new_field, try_hard=False):
+        """ Get list of source_i that may be of such a field type that new_field would be computed effectively.
+            Note there is no fitting column for TypeGroup.custom, if you try_hard, you receive first column as a plaintext.
+        """
         possible_cols = {}
-        for val in valid_types:  # loop from the best suited type
-            for i, f in enumerate(self.csv.fields):  # loop from the column we are most sure with its field type
-                if val in f.possible_types:
-                    possible_cols[i] = f.possible_types[val]
-                    break
+        if new_field.group != TypeGroup.custom:
+            valid_types = graph.dijkstra(new_field)
+            for val in valid_types:  # loop from the best suited type
+                for i, f in enumerate(self.csv.fields):  # loop from the column we are most sure with its field type
+                    if val in f.possible_types:
+                        possible_cols[i] = f.possible_types[val]
+                        break
+        if not possible_cols and try_hard and new_field.is_plaintext_derivable:
+            # because any plaintext would do (and no plaintext-only type has been found), take the first column
+            possible_cols = [0]
         return list(possible_cols)
 
-    def get_fitting_source(self, new_field: Type, column_or_source, source):
+    def get_fitting_source(self, new_field: Type, column_or_source, source_type_candidate):
         """
         For a new field, we need source column and its field type to compute new field from.
         :param new_field: str of Type
         :param column_or_source: [int|existing name|field name|field usual names]
-        :param source: [field name|field usual names]
+        :param source_type_candidate: [field name|field usual names]
         :return: (source_field, source_type) or exit.
         """
         source_col_i = None
@@ -625,23 +661,22 @@ class Identifier:
         if column_or_source:  # determine COLUMN
             source_col_i = self.get_column_i(column_or_source)
             if source_col_i is None:
-                if source:
-                    print("Invalid field", source, ", already having defined field by " + column_or_source)
+                if source_type_candidate:
+                    print("Invalid field", source_type_candidate, ", already having defined field by " + column_or_source)
                     quit()
-                else:  # this was not COLUMN but SOURCE_FIELD, COLUMN remains empty
-                    source = column_or_source
+                else:  # this was not COLUMN but SOURCE_TYPE, COLUMN remains empty
+                    source_type_candidate = column_or_source
         else:  # get a column whose field could be fitting for that new_field
             try:
-                source_col_i = self.get_fitting_source_i(new_field)[0]
-            except IndexError:  # because any plaintext would do (and no plaintext-only type has been found), take the first column
-                if new_field.is_plaintext_derivable:
-                    source_col_i = 0
-        if source:  # determine SOURCE_FIELD
-            if new_field.group is TypeGroup.custom:
-                custom = source
+                source_col_i = self.get_fitting_source_i(new_field, True)[0]
+            except IndexError:
+                pass
+        if source_type_candidate:  # determine SOURCE_TYPE
+            if new_field.group == TypeGroup.custom:
+                custom = source_type_candidate
                 source_type = Types.plaintext
             else:
-                source_t = source.lower().replace(" ", "")  # make it seem like a usual field name
+                source_t = source_type_candidate.lower().replace(" ", "")  # make it seem like a usual field name
                 possible = None
                 for t in types:
                     if source_t == t:  # exact field name

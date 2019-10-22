@@ -90,15 +90,7 @@ class Informer:
                 full_row = []
                 for f, c in zip_longest(self.csv.fields, l):
                     if not c:
-                        if Config.get("compute_preview"):
-                            c = l[self.csv.fields.index(f.source_field)]
-                            for m in f.get_methods() or ():
-                                c = m(c)
-                            if isinstance(c, tuple):
-                                c = c[1] or "unknown"
-                            l.append(c)
-                        else:
-                            c = "..."
+                        c = f.compute_preview(l)
                     row.append(f.color(c, True))
                     full_row.append(f.color(c))
                 rows.append(row)

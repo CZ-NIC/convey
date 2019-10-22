@@ -7,13 +7,14 @@ from sys import exit
 
 from Levenshtein import distance  # ignore this unresolved reference
 from dialog import Dialog, DialogError
+from prompt_toolkit.shortcuts import clear
 
 from .config import Config, get_terminal_size
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
 from .identifier import Types, TypeGroup, types, Type, graph
 from .mailSender import MailSenderOtrs, MailSenderSmtp
-from .previewer import code_preview
+from .previewer import Preview
 from .sourceParser import SourceParser, Field
 from .sourceWrapper import SourceWrapper
 
@@ -77,12 +78,12 @@ class Controller:
         parser.add_argument('-f', '--field',
                             help="R|Compute field."
                                  "\n" + column_help +
-                                 "\nSOURCE_FIELD is either field name or usual field name."
+                                 "\nSOURCE_TYPE is either field type name or usual field type name."
                                  "\nEx: --field netname,ip  # would add netname column from any IP column"
                                  "\n    (Note the comma without space behind 'netname'.)"
                                  "\n\nComputable fields: " + "".join("\n* " + f.doc() for f in Types.get_computable_types()) +
                                  "\n\nThis flag May be used multiple times.",
-                            action="append", metavar=("FIELD,[COLUMN],[SOURCE_FIELD]"))
+                            action="append", metavar=("FIELD,[COLUMN],[SOURCE_TYPE]"))
         csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
                      ("otrs_token", "OTRS token")]
         for flag in csv_flags:
@@ -96,9 +97,9 @@ class Controller:
         parser.add_argument('--nmap', help="R|Allowing NMAP module: Leave blank for True or put true/on/1 or false/off/0.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--web', help="R|Allowing Web module: Leave blank for True or put true/on/1 or false/off/0."
-                                             "\nWhen single value input contains a web page, we could fetch it and add"
-                                             " status (HTTP code) and text fields. Text is just mere text, no tags, style,"
-                                             " script, or head. ",
+                                          "\nWhen single value input contains a web page, we could fetch it and add"
+                                          " status (HTTP code) and text fields. Text is just mere text, no tags, style,"
+                                          " script, or head. ",
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
         parser.add_argument('--config', help="Open config file and exit.", action="store_true")
@@ -145,7 +146,7 @@ class Controller:
 
         # append new fields from CLI
         new_fields = []  # append new fields
-        for task in args.field or ():  # FIELD,[COLUMN],[SOURCE_FIELD], ex: `netname 3|"IP address" ip|sourceip`
+        for task in args.field or ():  # FIELD,[COLUMN],[SOURCE_TYPE], ex: `netname 3|"IP address" ip|sourceip`
             task = [x for x in csv.reader([task])][0]
             if len(task) > 3:
                 print("Invalid field", task)
@@ -157,9 +158,9 @@ class Controller:
                 rather = min(d, key=d.get)
                 logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
                 quit()
-            column_or_source = task[1] if len(task) > 1 else None
-            source = task[2] if len(task) > 2 else None
-            new_fields.append((new_field, column_or_source, source))
+            column_or_source_type = task[1] if len(task) > 1 else None  #  [COLUMN|SOURCE_TYPE] `3|"IP address"|ip|sourceip`
+            source_type = task[2] if len(task) > 2 else None  # [SOURCE_TYPE] ip|sourceip
+            new_fields.append((new_field, column_or_source_type, source_type))
 
         self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
         self.csv: SourceParser = self.wrapper.csv
@@ -183,7 +184,7 @@ class Controller:
 
         # prepare to add new fields
         for el in new_fields:
-            new_field, column_or_source, source = el
+            new_field = el[0]
             source_field, source_type, custom = self.csv.identifier.get_fitting_source(*el)
             self.source_new_column(new_field, True, source_field, source_type, custom)
             self.csv.is_processable = True
@@ -413,13 +414,19 @@ class Controller:
                 else:
                     dialog.msgbox("No known method for making {}. Raise your usecase as an issue at {}.".format(new_field,
                                                                                                                 Config.PROJECT_SITE))
+            clear()
 
         if not custom:
             if new_field == Types.code:
-                custom = code_preview("What code should be executed? Change 'x'. Ex: x += \"append\";", source_field)
+                print("What code should be executed? Change 'x'. Ex: x += \"append\";")
+                custom = Preview(source_field).code()
                 if not custom:
                     return
-            if new_field == Types.custom:  # choose a file with a needed method
+            elif new_field == Types.reg:
+                custom = Preview(source_field).reg()
+                if not custom:
+                    return
+            elif new_field == Types.custom:  # choose a file with a needed method
                 while True:
                     title = "What .py file should be used as custom source?"
                     try:

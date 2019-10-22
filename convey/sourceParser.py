@@ -265,7 +265,7 @@ class SourceParser:
                 if target_type in Config.get("single_value_ignored_fields", "FIELDS", get=list):
                     # do not automatically compute ignored fields
                     continue
-                elif target_type.group is TypeGroup.custom:
+                elif target_type.group == TypeGroup.custom:
                     continue
                 fitting_type = self.identifier.get_fitting_type(0, target_type)
                 if fitting_type:
@@ -539,7 +539,7 @@ class SourceParser:
 
 
 class Field:
-    def __init__(self, name, is_chosen=True, source_field=None, source_type=None, new_custom=None, parser: SourceParser = None):
+    def __init__(self, name, is_chosen=True, source_field:"Field"=None, source_type=None, new_custom=None, parser: SourceParser = None):
         self.col_i = None  # index of the field in parser.fields
         self.parser = None  # ref to parser
         self.name = str(name)
@@ -579,7 +579,7 @@ class Field:
             v = f"\x1b[9m{v}\x1b[0m"  # strike (must be placed before colors)
         if self.is_new:
             s = f"\033[0;33m{v}\033[0m"  # yellow
-        elif self.type is None or self.type is Types.plaintext:
+        elif self.type is None or self.type == Types.plaintext:
             s = f"\033[0;36m{v}\033[0m"  # blue
         else:
             s = f"\033[0;32m{v}\033[0m"  # green
@@ -599,7 +599,7 @@ class Field:
         return s
 
     def has_clear_type(self):
-        return self.type is not None and self.type is not Types.plaintext
+        return self.type is not None and self.type != Types.plaintext
 
     def get_methods(self):
         return self.parser.identifier.get_methods_from(self.type, self.source_type, self.new_custom)
@@ -609,5 +609,23 @@ class Field:
 
     def get_samples(self, max_samples=inf):
         """ get few sample values of a field """
-        return [self.parser.sample_parsed[line][self.col_i] for line in
-                range(0, min(len(self.parser.sample_parsed), max_samples))]
+        c = min(len(self.parser.sample_parsed), max_samples)
+        try:
+            return [self.parser.sample_parsed[line][self.col_i] for line in
+                    range(0, c)]
+        except IndexError:
+            rows = []
+            for l in self.parser.sample_parsed[slice(None, c)]:
+                rows.append(self.compute_preview(l))
+            return rows
+
+    def compute_preview(self, source_line):
+        if Config.get("compute_preview"):
+            c = source_line[self.source_field.col_i]
+            for m in self.get_methods():
+                c = m(c)
+            if isinstance(c, tuple):
+                c = c[1] or "unknown"
+        else:
+            c = "..."
+        return c
