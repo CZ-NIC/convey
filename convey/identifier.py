@@ -259,8 +259,8 @@ class Types:
     custom = Type("custom", TypeGroup.custom, from_message="from a method in your .py file")
     code = Type("code", TypeGroup.custom, from_message="from a code you write")
     reg = Type("reg", TypeGroup.custom, from_message="from a regular expression")
-    #reg_s = Type("reg_s", TypeGroup.custom, from_message="substitution from a regular expression")
-    #reg_m = Type("reg_m", TypeGroup.custom, from_message="match from a regular expression")
+    reg_s = Type("reg_s", TypeGroup.custom, from_message="substitution from a regular expression")
+    reg_m = Type("reg_m", TypeGroup.custom, from_message="match from a regular expression")
     netname = Type("netname", TypeGroup.whois)
     country = Type("country", TypeGroup.whois)
     abusemail = Type("abusemail", TypeGroup.whois)
@@ -360,8 +360,8 @@ class Types:
                 (t.plaintext, t.custom): None,
                 (t.plaintext, t.code): None,
                 (t.plaintext, t.reg): None,
-                # (t.reg, t.reg_s): None,
-                # (t.reg, t.reg_m): None,
+                (t.reg, t.reg_s): None,
+                (t.reg, t.reg_m): None,
                 (t.wrong_url, t.url): wrong_url_2_url,
                 (t.hostname, t.url): lambda x: "http://" + x,
                 (t.ip, t.url): lambda x: "http://" + x,
@@ -438,15 +438,11 @@ class Identifier:
 
             return method
 
-        def regex(search, replace=None):
+        def regex(type_, search, replace=None):
             search = re.compile(search)
 
-            def method(s):
+            def reg_m_method(s):
                 match = search.search(s)
-                # print(match) XXX
-                # print("Groups:", match.groups())
-                # print("Nula:", match.group(0))
-
                 if not match:
                     return ""
                 groups = match.groups()
@@ -462,15 +458,30 @@ class Identifier:
                         input("We consider string unmatched...")
                     return ""
 
-            return method
+            def reg_s_method(s):
+                match = search.search(s)
+                if not match:
+                    return ""
+                if not replace:
+                    return search.sub("", s)
+                try:
+                    # we convert "str{0}" → "\g<0>" (works better than conversion to a mere "\0" that may result to ambiguity
+                    return search.sub(re.sub("{(\d+)}", r"\\g<\1>", replace), s)
+                except IndexError:
+                    logger.error(f"RegExp failed: `{replace}` cannot be used to substitute `{s}` with `{search}`")
+                    if not Config.error_caught():
+                        input("We consider string unmatched...")
+                    return ""
+
+            return reg_s_method if type_ == Types.reg_s else reg_m_method
 
         if target.group == TypeGroup.custom:
             if target == Types.custom:
                 return [getattr(self.get_module_from_path(custom[0]), custom[1])]
             elif target == Types.code:
                 return [custom_code(custom)]
-            elif target == Types.reg:
-                return [regex(*custom)]  # custom is in the form (search, replace)
+            elif target in [Types.reg, Types.reg_m, Types.reg_s]:
+                return [regex(target, *custom)]  # custom is in the form (search, replace)
             else:
                 raise ValueError(f"Unknown type {target}")
         lambdas = []  # list of lambdas to calculate new field
@@ -548,7 +559,7 @@ class Identifier:
             has_header = False
         return dialect, has_header
 
-    def init(self, quiet=False):
+    def identify_fields(self, quiet=False):
         """
         Identify self.csv.fields got in __init__
         Sets them possible types (sorted, higher score mean bigger probability that the field is of that type)

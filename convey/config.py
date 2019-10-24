@@ -13,8 +13,6 @@ from subprocess import Popen, PIPE
 from appdirs import user_config_dir
 
 # setup logging
-from .dialogue import is_yes
-
 fileHandler = logging.FileHandler("convey.log")
 fileHandler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 fileHandler.setLevel(logging.WARNING)
@@ -95,6 +93,7 @@ class Config:
 
     @staticmethod
     def init(yes=False, verbosity=None):
+        from .dialogue import is_yes  # since Config should be the very first package file to be loaded, we postpone this import
         # Config file integrity check (we may upgrade Convey from but some new parameters needs to be added manually)
         default_config = configparser.ConfigParser()
         default_ini = Path(default_path, "config.ini")
@@ -105,13 +104,13 @@ class Config:
         key_missing = {}  # [key] => section
         key_superfluous = []
         for section in default_config:
-            missing_section= False
+            missing_section = False
             if section not in Config.config:
                 print(f"Missing section: {section}")
                 section_missing.append(section)
                 passed = False
                 missing_section = True
-                #continue
+                # continue
             for key in default_config[section]:
                 if missing_section or key not in Config.config[section]:
                     print(f"Missing key {key} (defaulting to {repr(default_config[section][key])}) in section: {section}")
@@ -285,7 +284,7 @@ class Config:
             Config.config.remove_option(section, key)
         else:
             Config.cache[key] = val
-            #XX Config.config.set(section, key, str(val))
+            # XX Config.config.set(section, key, str(val))
 
     cache_dir = ""
     output = None  # True, False, None or str (path)

@@ -2,6 +2,8 @@ import string
 
 from dialog import Dialog, ExecutableNotFound
 
+from .config import Config
+
 try:
     dialog = Dialog(autowidgetsize=True)
 except ExecutableNotFound:
@@ -146,7 +148,7 @@ class Menu:
             key = str(self._keyCount)
         self.menu.append((str(key), title, fn))
 
-    def sout(self):
+    def sout(self, session=None, options={}):
         while True:
             if self.title:
                 print("\n" + self.title)
@@ -165,6 +167,10 @@ class Menu:
                 if self.fullscreen:
                     code, ans = dialog.skippable_menu(self.title, choices=[(it[0], it[1]) for it in l], skippable=self.skippable)
                     if code != "ok":
+                        return
+                elif session:
+                    ans = session.prompt("? ", **options)
+                    if ans == "refresh":
                         return
                 else:
                     ans = input("? ")
@@ -187,7 +193,6 @@ class Menu:
                 if ans == "x":
                     return
                 elif ans == "debug":
-                    import ipdb
-                    ipdb.set_trace()
+                    Config.get_debugger().set_trace()
                     return
                 print("Invalid option")

@@ -56,8 +56,9 @@
     - when not in debug mode, a GitHub issue is filled out automatically at crash 
     - autoopen_editor opens when analysis starts but now only if splitting by a column
     - Config file startup integrity check: missing items and sections may be inserted automatically after an upgrade
+    - column sorting/picking in the main menu
 - types
-    - reg type
+    - reg type and its reg_m and reg_s
 
 
 ## 1.1 (2019-05-13)

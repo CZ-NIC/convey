@@ -43,6 +43,7 @@ def read_stdin():
 
 class SourceWrapper:
     def __init__(self, file_or_input, force_file=False, force_input=False, fresh=False):
+        self.csv:SourceParser
         self.file = file = None
         self.stdin = stdin = None
         try:

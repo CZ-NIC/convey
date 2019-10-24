@@ -96,7 +96,7 @@ class Informer:
                 rows.append(row)
                 full_rows.append(full_row)
 
-            first_line_length = tabulate(rows, headers=[f.get(True,color=False) for f in self.csv.fields]).split("\n")[0]
+            first_line_length = tabulate(rows, headers=[f.get(True, color=False) for f in self.csv.fields]).split("\n")[0]
             if rows and not self.csv.settings["dialect"] and len(first_line_length) <= get_terminal_size()[1]:
                 # print big and nice table because we do not care about the dialect and terminal is wide enough
                 print("\033[0;36mTable preview:\033[0m")

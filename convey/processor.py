@@ -53,8 +53,8 @@ class Processor:
         del settings["add"]
         settings["addByMethod"] = adds
 
-        if [f for f in self.csv.fields if not f.is_chosen]:
-            settings["chosen_cols"] = [i for i, f in enumerate(self.csv.fields) if f.is_chosen]
+        if [f for f in self.csv.fields if (not f.is_chosen or f.col_i_original != f.col_i)]:
+            settings["chosen_cols"] = [f.col_i_original for f in self.csv.fields if f.is_chosen]
 
         if not settings["dialect"]:
             settings["dialect"] = csv.dialect

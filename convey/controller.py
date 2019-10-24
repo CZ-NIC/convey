@@ -7,6 +7,8 @@ from sys import exit
 
 from Levenshtein import distance  # ignore this unresolved reference
 from dialog import Dialog, DialogError
+from prompt_toolkit import PromptSession, HTML
+from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
 
 from .config import Config, get_terminal_size
@@ -14,9 +16,9 @@ from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
 from .identifier import Types, TypeGroup, types, Type, graph
 from .mailSender import MailSenderOtrs, MailSenderSmtp
-from .previewer import Preview
 from .sourceParser import SourceParser, Field
 from .sourceWrapper import SourceWrapper
+from .wizzard import Preview, bottom_plain_style
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +57,7 @@ class Controller:
         parser.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
                                                              "In nothing is given, user will input data through stdin.")
         parser.add_argument('--debug', help="On error, enter an ipdb session", action="store_true")
-        parser.add_argument('--fresh', help="Do not attempt to load any previous settings / results", action="store_true")
+        parser.add_argument('-F', '--fresh', help="Do not attempt to load any previous settings / results", action="store_true")
         parser.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions.",
                             action="store_true")
         # parser.add_argument('-m', '--mute', help="Do not output information text.", action="store_true")
@@ -152,13 +154,13 @@ class Controller:
                 print("Invalid field", task)
                 quit()
             try:
-                new_field = types[types.index(task[0])]  # determine FIELD
+                new_field = types[types.index(task[0])]  # determine FIELD by exact name
             except ValueError:
                 d = {t.name: distance(task[0], t.name) for t in Types.get_computable_types()}
                 rather = min(d, key=d.get)
                 logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
                 quit()
-            column_or_source_type = task[1] if len(task) > 1 else None  #  [COLUMN|SOURCE_TYPE] `3|"IP address"|ip|sourceip`
+            column_or_source_type = task[1] if len(task) > 1 else None  # [COLUMN|SOURCE_TYPE] `3|"IP address"|ip|sourceip`
             source_type = task[2] if len(task) > 2 else None  # [SOURCE_TYPE] ip|sourceip
             new_fields.append((new_field, column_or_source_type, source_type))
 
@@ -248,7 +250,42 @@ class Controller:
             menu.add("exit", self.close, key="x")
 
             try:
-                menu.sout()
+                bindings = KeyBindings()
+                session = PromptSession()
+
+                def refresh():
+                    session.app.exit(session.layout.current_buffer.text or "refresh")
+
+                @bindings.add('right')  # select column
+                def _(_):
+                    self.csv.move_selection(1)
+                    refresh()
+
+                @bindings.add('left')  # select column
+                def _(_):
+                    self.csv.move_selection(-1)
+                    refresh()
+
+                @bindings.add('c-right')  # control-right to move the column
+                def _(_):
+                    self.csv.move_selection(1, True)
+                    refresh()
+
+                @bindings.add('c-left')  # control-left to move the column
+                def _(_):
+                    self.csv.move_selection(-1, True)
+                    refresh()
+
+                @bindings.add('delete')  # enter to toggle selected field
+                def _(_):
+                    [f.toggle_chosen() for f in self.csv.fields if f.is_selected]
+                    refresh()
+
+                options = {'key_bindings': bindings,
+                           "bottom_toolbar": HTML("Ctrl+<b>←/→</b> arrows for column manipulation, <b>Delete</b> for exclusion"),
+                           "style": bottom_plain_style
+                           }
+                menu.sout(session, options)
             except Cancelled as e:
                 print(e)
                 pass
@@ -405,8 +442,8 @@ class Controller:
                 # el
                 if choices:
                     s = ""
-                    if self.csv.second_line_fields:
-                        s = f"\n\nWhat type of value '{self.csv.second_line_fields[source_col_i]}' is?"
+                    if self.csv.sample_parsed:
+                        s = f"\n\nWhat type of value '{self.csv.sample_parsed[0][source_col_i]}' is?"
                     title = f"Choose the right method\n\nNo known method for making {new_field} from column {source_field} because the column type wasn't identified. How should I treat the column?{s}"
                     code, source_type = dialog.menu(title, choices=choices)
                     if code == "cancel":
@@ -417,40 +454,40 @@ class Controller:
             clear()
 
         if not custom:
-            if new_field == Types.code:
-                print("What code should be executed? Change 'x'. Ex: x += \"append\";")
-                custom = Preview(source_field).code()
-                if not custom:
-                    return
-            elif new_field == Types.reg:
-                custom = Preview(source_field).reg()
-                if not custom:
-                    return
-            elif new_field == Types.custom:  # choose a file with a needed method
-                while True:
-                    title = "What .py file should be used as custom source?"
-                    try:
-                        code, path = dialog.fselect(str(Path.cwd()), title=title)
-                    except DialogError as e:
-                        try:  # I do not know why, fselect stopped working and this helped
-                            code, path = dialog.fselect(str(Path.cwd()), title=title, height=max(get_terminal_size()[0] - 20, 10))
+            if new_field.group == TypeGroup.custom:
+                if new_field == Types.code:
+                    print("What code should be executed? Change 'x'. Ex: x += \"append\";")
+                    custom = Preview(source_field).code()
+                elif new_field in [Types.reg, Types.reg_m, Types.reg_s]:
+                    *custom, new_field = Preview(source_field).reg(new_field)
+                elif new_field == Types.custom:  # choose a file with a needed method
+                    while True:
+                        title = "What .py file should be used as custom source?"
+                        try:
+                            code, path = dialog.fselect(str(Path.cwd()), title=title)
                         except DialogError as e:
-                            input("Unable launch file dialog. Please post an issue to the Github! Hit any key...")
+                            try:  # I do not know why, fselect stopped working and this helped
+                                code, path = dialog.fselect(str(Path.cwd()), title=title,
+                                                            height=max(get_terminal_size()[0] - 20, 10))
+                            except DialogError as e:
+                                input("Unable launch file dialog. Please post an issue to the Github! Hit any key...")
 
-                    if code != "ok" or not path:
-                        return
-                    module = self.csv.identifier.get_module_from_path(path)
-                    if module:
-                        # inspect the .py file, extract methods and let the user choose one
-                        code, source_type = dialog.menu("What method should be used in the file {}?".format(path),
-                                                        choices=[(x, "") for x in dir(module) if not x.startswith("_")])
-                        if code == "cancel":
+                        if code != "ok" or not path:
                             return
+                        module = self.csv.identifier.get_module_from_path(path)
+                        if module:
+                            # inspect the .py file, extract methods and let the user choose one
+                            code, source_type = dialog.menu("What method should be used in the file {}?".format(path),
+                                                            choices=[(x, "") for x in dir(module) if not x.startswith("_")])
+                            if code == "cancel":
+                                return
 
-                        custom = path, source_type
-                        break
-                    else:
-                        dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
+                            custom = path, source_type
+                            break
+                        else:
+                            dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
+                if not custom:
+                    return
 
         if add is None:
             if dialog.yesno("New field added: {}\n\nDo you want to include this field as a new column?".format(
@@ -471,7 +508,10 @@ class Controller:
         d = Dialog(autowidgetsize=True)
         ret, values = d.checklist("What fields should be included in the output file?", choices=chosens)
         if ret == "ok":
-            self.csv.settings["chosen_cols"] = [int(v) - 1 for v in values]
+            for f in self.csv.fields:
+                f.is_chosen = False
+            for v in values:
+                self.csv.fields[int(v) - 1].is_chosen = True
             self.csv.is_processable = True
 
     def select_col(self, col_name="", only_computables=False, add=None):

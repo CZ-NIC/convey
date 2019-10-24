@@ -4,6 +4,7 @@ from prompt_toolkit import PromptSession, ANSI, HTML
 from prompt_toolkit.application import get_app
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.lexers import PygmentsLexer
+from prompt_toolkit.shortcuts import clear
 from prompt_toolkit.styles import Style
 from prompt_toolkit.styles import merge_styles
 from prompt_toolkit.styles.pygments import style_from_pygments_cls
@@ -13,6 +14,23 @@ from pygments.lexers.python import Python3Lexer
 from pygments.styles import get_style_by_name
 from pygments.token import Token
 from tabulate import tabulate
+
+from .identifier import Type, Types
+
+
+def yellow(s, error=False):
+    s = f"\033[0;33m{s}\033[0m"
+    if error:
+        s += red("!")
+    return s
+
+
+def blue(s):
+    return f"\033[0;36m{s}\033[0m"
+
+
+def red(s):
+    return f"\033[0;41m{s}\033[0m"
 
 
 class RegularLexer(RegexLexer):
@@ -80,6 +98,9 @@ reg_style = merge_styles([reg_style, Style.from_dict({
     'pygments.square_negative': '#fff bg:#870000',
     'pygments.square_text_negative': '#fff bg:#870000',
 })])
+bottom_plain_style = Style.from_dict({
+    'bottom-toolbar': 'noreverse',
+})
 
 
 def _code_method(e, x):
@@ -96,28 +117,31 @@ def _code_method(e, x):
 def _reg_method(s, search, replace=None):
     """ simulate real reg ex matching in the Identifier """
     match = search.search(s)
+    reg_s = ""
 
     if not match:
-        return "", ""
+        return "", "", ""
     groups = match.groups()
     if not groups:
-        preview = match.group(0)
+        groups_preview = [match.group(0)]
     else:
-        preview = "0: " + match.group(0) + "\n" + "\n".join([f"{i + 1}: {g}" for i, g in enumerate(groups)])
+        groups_preview = ["{0}: " + match.group(0)] + ["{" + str(i + 1) + "}: " + g for i, g in enumerate(groups)]
 
-    # print(s, search, replace, match)
-    # print(match.groups())
     if not replace:
         if not groups:
-            result = match.group(0)
+            reg_m = match.group(0)
         else:
-            result = match.group(1)
+            reg_m = match.group(1)
+        reg_s = search.sub("", s)
     else:
         try:
-            result = replace.format(match.group(0), *[g for g in groups])
+            reg_m = replace.format(match.group(0), *[g for g in groups])
+            # we convert "str{0}" → "\g<0>" (works better than conversion to a mere "\0" that may result to ambiguity
+            replace_pattern = re.sub("{(\d+)}", r"\\g<\1>", replace)
+            reg_s = search.sub(replace_pattern, s)
         except IndexError:
-            result = ""
-    return preview, result
+            reg_m = ""
+    return groups_preview, reg_m, reg_s
 
 
 class ReValidator(Validator):
@@ -136,6 +160,12 @@ class ReValidator(Validator):
             raise ValidationError(message='Cannot be used as a regexp.', cursor_position=len(text) - 1)
 
 
+class TypeValidator(Validator):
+    def validate(self, document):
+        if document.text not in ["reg_m", "reg_s"]:
+            raise ValidationError(message='Type reg_m or reg_s')
+
+
 class Preview:
 
     def __init__(self, source_field):
@@ -144,7 +174,7 @@ class Preview:
         self.samples = source_field.get_samples()
 
         # define key self.bindings
-        self.session = PromptSession()
+        self.session = self.reset_session()
         self.bindings = KeyBindings()
 
         # cancel on control-c (escape inaccessible, waits for another keystroke)
@@ -153,9 +183,7 @@ class Preview:
             get_app().exit("")
 
         # define styling
-        self.style = merge_styles([reg_style, Style.from_dict({
-            'bottom-toolbar': 'noreverse',
-        })])
+        self.style = merge_styles([reg_style, bottom_plain_style])
 
     def code(self):
         """ code preview specific part """
@@ -179,76 +207,143 @@ class Preview:
             return HTML(f'Code <i>({s} to confirm)</i>: ')
 
         # prints the application
-        text = self.session.prompt(get_prompt, bottom_toolbar=get_toolbar, style=self.style,
-                                   lexer=PygmentsLexer(Python3Lexer), multiline=True, key_bindings=self.bindings)
+        text = self.reset_session().prompt(get_prompt, bottom_toolbar=get_toolbar, style=self.style,
+                                           lexer=PygmentsLexer(Python3Lexer), multiline=True, key_bindings=self.bindings)
         return text
 
-    def reg(self):
+    def reg(self, reg_type: "Type"):
         """ regex preview specific part """
-        self.ask_search = True
+        # self.ask_search = True
         self.phase = None
         self.search = ""
         self.replace = ""
+        self.reg_type = [reg_type] if reg_type != Types.reg else [Types.reg_m, Types.reg_s]
+        self.chosen_type = None
 
+        # @self.bindings.add('escape', 'left')  # alt-left
         @self.bindings.add('c-i')  # tab to jump back
         def _(_):
-            if self.phase == 2:
-                self.ask_search = True
-            get_app().exit(self.session.layout.current_buffer.text)
+            if self.phase > 1:
+                clear()
+                self.phase = "continue"
+            self.session.app.exit(self.session.layout.current_buffer.text)
+
+        if len(self.reg_type) > 1:
+            def toggle_type(default):
+                if self.chosen_type is None:
+                    self.chosen_type = default
+                else:
+                    self.chosen_type = Types.reg_m if self.chosen_type == Types.reg_s else Types.reg_s
+                if self.phase == 3:
+                    self.session.layout.current_buffer.text = str(self.chosen_type)
+
+            @self.bindings.add('escape', 'left')  # cycle preferred method
+            def _(_):
+                toggle_type(Types.reg_s)
+
+            @self.bindings.add('escape', 'right')  # cycle preferred method
+            def _(_):
+                toggle_type(Types.reg_m)
 
         # prints the application
         options = {"bottom_toolbar": self.get_toolbar_search, "style": self.style,
                    "lexer": PygmentsLexer(RegularLexer), "multiline": False, "key_bindings": self.bindings}
         while True:
-            if self.ask_search:
-                self.ask_search = False
-                self.phase = 1
-                self.search = self.session.prompt('Regular match: ', **options, default=self.search, validator=ReValidator())
-                self.phase = 2
-                self.replace = self.session.prompt('Regular replace: ', rprompt=HTML('hit <b>tab</b> to jump back'), **options,
-                                                   default=self.replace)
-            else:
+            # self.ask_search = False
+            self.phase = 1
+            self.search = self.reset_session().prompt('Regular match: ', **options, default=self.search,
+                                                      validator=ReValidator())
+            if self.phase == "continue":
+                continue
+            self.phase = 2
+            self.replace = self.reset_session().prompt('Regular replace: ', **options, default=self.replace,
+                                                       rprompt=HTML('hit <b>tab</b> to jump back'))
+            if self.phase == "continue":
+                continue
+            self.phase = 3
+            if len(self.reg_type) > 1:  # we have to choose the column
+                if self.chosen_type is None:
+                    # we are not using groups, match has no sense
+                    self.chosen_type = Types.reg_s if "{" not in self.replace and self.replace else Types.reg_m
+                type_ = self.reset_session().prompt('Do you prefer match or substitution? ', **options,
+                                                    default=str(self.chosen_type),
+                                                    rprompt=HTML('choose with <b>Alt+←/→</b>'), validator=TypeValidator())
+                if self.phase == "continue":
+                    continue
+                if type_:
+                    self.reg_type = Types.reg_s if type_ == "reg_s" else Types.reg_m
                 break
-        return self.search, self.replace
+        return self.search, self.replace, self.reg_type
+
+    def reset_session(self):
+        """ Calling
+            self.session = PromptSession()
+            self.session.prompt(validator=V)
+            self.session.prompt(validator=None) → would still have previous validator
+
+        """
+        self.session = PromptSession()
+        return self.session
 
     # define bottom preview toolbar
     def get_toolbar_search(self):
-        second = third = helper = ""
+        helper = ""
         rows = []
         for line in self.samples:
             text = self.session.layout.current_buffer.text
             error = False  # prompt text is erroneous, probably not completed yet
             while True:
+                row = [blue(line)]
                 if self.phase == 1:  # first phase - searching for match string
+                    contents = text
                     try:
-                        search_re = re.compile(text)
+                        search_re = re.compile(contents)
                     except re.error:
                         text = text[:-1]
                         error = True
                         continue
-                    match, result = _reg_method(line, search_re, self.replace)
-                    # blue, yellow, blue
-                    second = "\n".join([f"\033[0;33m{m}\033[0m" for m in match.split("\n")])  # colorize lines separately
+                    match, reg_m_preview, reg_s_preview = _reg_method(line, search_re, self.replace)
+                    row.append("\n".join([yellow(m) for m in match]))  # colorize lines separately
                     if error:
-                        second += "\033[0;41m!\033[0m"
-                    third = f"\033[0;36m{result}\033[0m"
+                        row[-1] += red("!")
+                    reg_m_preview = blue(self.highlight(reg_m_preview, Types.reg_m))
+                    reg_s_preview = blue(self.highlight(reg_s_preview, Types.reg_s))
                     helper = ". - any char, \w - word, \d - digit, () - matching group"
-                elif self.phase == 2:  # second phase - searching for replace string
-                    search_re = re.compile(self.search)
+                else:  # second phase - searching for replace string (and third phase just diplaying)
+                    contents = self.search
+                    search_re = re.compile(contents)
                     try:
-                        match, result = _reg_method(line, search_re, text)
+                        match, reg_m_preview, reg_s_preview = _reg_method(line, search_re, text if self.phase == 2 else self.replace)
                     except ValueError:
                         text = text[:-1]
                         error = True
                         continue
                     # blue, blue, yellow
-                    second = "\n".join([f"\033[0;36m{m}\033[0m" for m in match.split("\n")])  # colorize lines separately
-                    third = f"\033[0;33m{result}\033[0m"
-                    if error:
-                        third += "\033[0;41m!\033[0m"
+                    row.append("\n".join([blue(m) for m in match]))
+                    reg_m_preview = yellow(self.highlight(reg_m_preview, Types.reg_m), error)
+                    reg_s_preview = yellow(self.highlight(reg_s_preview, Types.reg_s), error)
                     helper = "Access matched parts with {0}, ex: string {1} string."
-                rows.append((f"\033[0;36m{line}\033[0m", second, third))
+                if Types.reg_m in self.reg_type:
+                    row.append(reg_m_preview)
+                if Types.reg_s in self.reg_type:
+                    if contents:
+                        row.append(reg_s_preview)
+                    else:
+                        row.append("")
+                rows.append(row)
                 break
-
+        headers = ["original", "groups" if len(match) > 1 else "group {0}"]
+        if Types.reg_m in self.reg_type:
+            headers.append(self.highlight("match", Types.reg_m))
+        if Types.reg_s in self.reg_type:
+            headers.append(self.highlight("substitution", Types.reg_s))
             # 'grid' handles multiline rows well, 'github' handles them bad, despite the documentation
-        return ANSI('\n\nPreview\n' + tabulate(rows, headers=["original", "match", "result"], tablefmt="grid") + "\n\n" + helper)
+        return ANSI('\n\nPreview\n' + tabulate(rows, headers=headers, tablefmt="grid") + "\n\n" + helper)
+
+    def highlight(self, s, current):
+        if self.chosen_type is None:
+            return s
+        elif self.chosen_type == current:
+            return f"\033[1m{s}\033[0m"
+        else:
+            return f"\033[38;5;7m{s}\033[0m"

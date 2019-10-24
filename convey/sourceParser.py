@@ -35,12 +35,11 @@ class SourceParser:
         self.is_repeating = False
         self.dialect = None  # CSV dialect
         self.has_header = None  # CSV has header
-        self.header = ""  # if CSV has header, it's here so that Processor can take it
-        self.sample = []  # lines from the first to up to eighth (includes first line - possible header)
-        self.sample_parsed: List[List[str]] = []  # fields in the lines, always excluding header
+        self.header: str = ""  # if CSV has header, it's here so that Processor can take it
+        self.sample: List[str] = []  # lines  of the original file, including first line - possible header
+        self.sample_parsed: List[List[str]] = []  # values of the prepared output (ex re-sorted), always excluding header
         self.fields: List[Field] = []  # CSV columns that will be generated to an output
-        self.first_line_fields: List[str] = []  # initial CSV columns (equal to header if header is used)
-        self.second_line_fields: List[str] = []  # list of values on the 2nd line if available
+        self.first_line_fields: List[str] = []  # CSV columns (equal to header if used) in the original file
         # settings:
         #    "add": new_field:Field,
         #           source_col_i:int - number of field to compute from,
@@ -62,6 +61,7 @@ class SourceParser:
         self.stdout = None  # when called from another program we communicate through this stream rather then through a file
         self.is_single_value = False  # CSV processing vs single_value check usage
         self._reset()
+        self.selected: List[int] = []  # list of selected fields col_i that may be in/excluded and moved in the menu
 
         # load CSV
         self.source_file = source_file
@@ -114,12 +114,12 @@ class SourceParser:
                 seems = False
 
             if seems and Config.get("single_processing") is not False:
-                # init some basic parameters
+                # identify_fields some basic parameters
                 self.add_field([Field(self.stdin[0])])  # stdin has single field
                 self.dialect = csv.unix_dialect
                 self.has_header = False
                 self.sample_parsed = [x for x in csv.reader(self.sample)]
-                if self.identifier.init(quiet=True):
+                if self.identifier.identify_fields(quiet=True):
                     # tell the user what type we think their input is
                     # access the detection message for the first (and supposedly only) field
                     detection = self.get_fields_autodetection(False)[0][1]
@@ -178,24 +178,12 @@ class SourceParser:
                 if not is_yes("Header " + ("" if self.has_header else "not found; ok?")):
                     self.has_header = not self.has_header
             self.first_line_fields = csv.reader([self.first_line], dialect=self.dialect).__next__()
-            if len(self.sample) >= 2:
-                self.second_line_fields = csv.reader([self.sample[1]], dialect=self.dialect).__next__()
-            if self.has_header:
-                self.header = self.first_line_fields
-            self.sample_parsed = [x for x in
-                                  csv.reader(self.sample[slice(1 if self.has_header else 0, None)], dialect=self.dialect)]
             self.reset_settings()
-            self.identifier.init()
+            self.identifier.identify_fields()
         except Cancelled:
             print("Cancelled.")
             return self
         self.informer.sout_info()
-
-        # X self._guess_ip_count()
-        # if not Dialogue.is_yes("Everything set alright?"):
-        #    self.is_repeating = True
-        #    continue
-        # else:
         self.is_formatted = True  # delimiter and header has been detected etc.
         return self
 
@@ -229,7 +217,7 @@ class SourceParser:
             fields += [append]
 
         for f in fields:
-            f.col_i = len(self.fields)
+            f.col_i_original = f.col_i = len(self.fields)
             f.parser = self
             self.fields.append(f)
 
@@ -260,7 +248,9 @@ class SourceParser:
 
         # get fields and their methods to be computed
         fields = [(f.name, f.get_methods()) for f in self.fields if f.is_new]
+        custom_fields = True
         if not fields:  # transform the field by all known means
+            custom_fields = False
             for target_type in Types.get_computable_types():  # loop all existing methods
                 if target_type in Config.get("single_value_ignored_fields", "FIELDS", get=list):
                     # do not automatically compute ignored fields
@@ -302,8 +292,8 @@ class SourceParser:
                     val = row[1]
                     if width and len(str(val)) > width:  # split the long text by new lines
                         row[1] = "\n".join([val[i:i + width] for i in range(0, len(val), width)])
-            if not rows and new_fields:
-                s = ", ".join([str(f) for f in new_fields])
+            if not rows and custom_fields:
+                s = ", ".join([str(f) for f in fields])
                 print(f"Cannot compute {s}")
             else:
                 print(tabulate(rows, headers=("field", "value")))
@@ -322,6 +312,8 @@ class SourceParser:
 
     def reset_settings(self):
         self.settings = defaultdict(list)
+        self.sample_parsed = [x for x in
+                              csv.reader(self.sample[slice(1 if self.has_header else 0, None)], dialect=self.dialect)]
         self.add_field([Field(f) for f in self.first_line_fields])
 
     def _reset_output(self):
@@ -519,6 +511,27 @@ class SourceParser:
             print("\n" + s)
             self.resolve_invalid()
 
+    def move_selection(self, direction=0, move_contents=False):
+        """ Move cursor or whole columns
+            :type move_contents: bool Move whole columns, not only cursor.
+            :type direction: int +1 right, -1 left
+        """
+        selected = [f for f in self.fields if f.is_selected]
+        if not selected:  # initial value is on an either border
+            i = direction - 1 if direction > 0 else direction
+            self.fields[i % len(self.fields)].is_selected = True
+            if not move_contents:
+                return
+        if move_contents:
+            for f in [f for f in self.fields if f.is_selected]:
+                f.move(direction)
+            self.is_processable = True
+        else:
+            for f in selected:  # deselect previous ones
+                f.is_selected = False
+            for f in selected:  # select new ones
+                self.fields[(f.col_i + direction) % len(self.fields)].is_selected = True
+
     def __getstate__(self):
         state = self.__dict__.copy()
         del state['informer']
@@ -535,15 +548,16 @@ class SourceParser:
         for k, v in state["dialect"].items():
             setattr(self.dialect, k, v)
         self.identifier = Identifier(self)
-        self.identifier.init()
 
 
 class Field:
-    def __init__(self, name, is_chosen=True, source_field:"Field"=None, source_type=None, new_custom=None, parser: SourceParser = None):
+    def __init__(self, name, is_chosen=True, source_field: "Field" = None, source_type=None, new_custom=None,
+                 parser: SourceParser = None):
         self.col_i = None  # index of the field in parser.fields
         self.parser = None  # ref to parser
         self.name = str(name)
         self.is_chosen = is_chosen
+        self.is_selected = False
         self.possible_types = {}
         if isinstance(name, Type):
             self.type = name
@@ -557,6 +571,27 @@ class Field:
             self.new_custom = new_custom
         else:
             self.source_field = self.source_type = self.new_custom = None
+
+    def move(self, direction=0):
+        """ direction = +1 right, -1 left """
+        p = self.parser
+        i, i2 = self.col_i, (self.col_i + direction) % len(p.fields)
+        p.fields[i2].col_i, self.col_i = i, i2
+
+        def swap(i, i2):
+            """ Swap given iterable elements on the positions i and i2 """
+
+            def _(it):
+                it[i], it[i2] = it[i2], it[i]
+
+            return _
+
+        transposed = list(zip(*p.sample_parsed))
+        list(map(swap(i, i2), [p.fields, transposed]))
+        p.sample_parsed = list(zip(*transposed))
+
+    def toggle_chosen(self):
+        self.is_chosen = not self.is_chosen
 
     @property
     def type(self):
@@ -575,14 +610,18 @@ class Field:
         """ Colorize single line of a value. Strikes it if field is not chosen. """
         if shorten:
             v = v[:17] + "..." if len(v) > 20 else v
+        l = []
         if not self.is_chosen:
-            v = f"\x1b[9m{v}\x1b[0m"  # strike (must be placed before colors)
+            l.append("9")  # strike
+        if self.is_selected:
+            l.append("1")  # bold
         if self.is_new:
-            s = f"\033[0;33m{v}\033[0m"  # yellow
+            l.append("33")  # yellow
         elif self.type is None or self.type == Types.plaintext:
-            s = f"\033[0;36m{v}\033[0m"  # blue
+            l.append("36")  # blue
         else:
-            s = f"\033[0;32m{v}\033[0m"  # green
+            l.append("32")  # green
+        s = "\033[" + ";".join(l) + f"m{v}\033[0m"
         return s
 
     def get(self, long=False, color=True):
