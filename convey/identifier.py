@@ -236,13 +236,13 @@ class Type:
         elif len(afters):
             raise RuntimeWarning(f"Multiple 'afters' types defined for {self}: {afters}")
         if len(befores) == 1:
-            self.before = befores[0]
+            self.before = befores[0] # XXX turn to befores probably
         elif len(befores):
             raise RuntimeWarning(f"Multiple 'befores' types defined for {self}: {befores}")
 
         # check if this is plaintext derivable
         if self != Types.plaintext:
-            self.is_plaintext_derivable = bool(graph.dijkstra(self, start=Types.plaintext))  # XXX remove self I suppose.
+            self.is_plaintext_derivable = bool(graph.dijkstra(self, start=Types.plaintext))
 
 
 types: List[Type] = []  # all field types

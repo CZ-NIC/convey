@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from sys import exit
 
+import pkg_resources
 from Levenshtein import distance  # ignore this unresolved reference
 from dialog import Dialog, DialogError
 from prompt_toolkit import PromptSession, HTML
@@ -21,6 +22,11 @@ from .sourceWrapper import SourceWrapper
 from .wizzard import Preview, bottom_plain_style
 
 logger = logging.getLogger(__name__)
+
+try:
+    __version__ = pkg_resources.require("convey")[0].version
+except pkg_resources.DistributionNotFound:
+    __version__ = "unknown"
 
 
 class BlankTrue(argparse.Action):
@@ -126,12 +132,16 @@ class Controller:
         parser.add_argument('--show-uml', help="Show UML of fields and methods and exit.", action="store_true")
         parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
+        parser.add_argument('--version', help=f"Show the version number (which is currently {__version__}).", action="store_true")
         self.args = args = parser.parse_args()
         if args.config:
             self.edit_configuration()
             quit()
         if args.show_uml:
             print(Types.get_uml())
+            quit()
+        if args.version:
+            print(__version__)
             quit()
         if args.debug:
             Config.set("debug", True)

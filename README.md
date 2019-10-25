@@ -85,8 +85,11 @@ python3 -m venv venv
 . venv/bin/activate
 (venv) $ ... # continue below
 
-# download from GitHub
-pip3 install git+https://github.com/CZ-NIC/convey.git  # without root use may want to use --user
+# install from PyPi
+pip3 install convey  # without root use may want to use --user
+
+# (optional) alternatively, you may want to install current master from GitHub
+pip3 install git+https://github.com/CZ-NIC/convey.git
 
 # launch
 convey [filename or input text] # or try `python3 -m convey` if you're not having `.local/bin` in your executable path
@@ -108,7 +111,7 @@ pip3 install -r requirements.txt  --user
 
 ### Dependencies and troubleshooting
 * You'll be asked to install `dialog` library at the first run if not already present in the system.
-* If something is missing on your system, maybe you may find help in this command: `sudo apt install python3-pip git python3-tk && pip3 install setuptools`
+* If something is missing on your system, maybe you may find help in this command: `sudo apt install python3-pip git python3-tk dialog && pip3 install setuptools`
 
 ### Customisation
 * A file `config.ini` is automatically created in user config folder. This file may be edited for further customisation.

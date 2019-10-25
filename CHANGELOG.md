@@ -22,6 +22,7 @@
         - new flag --json
         - flags --field, --field-excluded, --delete, --split, --sort
         - flags --single-processing, --csv-processing
+        - --version
     - INI only flags
         - github_crash_submit
 - fixes:
