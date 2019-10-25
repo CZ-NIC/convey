@@ -67,7 +67,7 @@ class Checker:
 
 
 def wrong_url_2_url(s, make=True):
-    s = s.replace("hxxp", "http", 1).replace("[.]", ".").replace("[:]", ":")
+    s = s.replace("hxxp", "http", 1).replace("[.]", ".").replace("(.)", ".").replace("[:]", ":")
     if make and not s.startswith("http"):
         s = "http://" + s
     return s
@@ -189,6 +189,8 @@ class Type:
         self.is_plaintext_derivable = False
 
     def __eq__(self, other):
+        if other is None:
+            return False
         if type(other) is str:
             return self.name == other
         return self.name == other.name
@@ -240,7 +242,7 @@ class Type:
 
         # check if this is plaintext derivable
         if self != Types.plaintext:
-            self.is_plaintext_derivable = bool(graph.dijkstra(self, start=Types.plaintext))
+            self.is_plaintext_derivable = bool(graph.dijkstra(self, start=Types.plaintext))  # XXX remove self I suppose.
 
 
 types: List[Type] = []  # all field types
@@ -327,7 +329,8 @@ class Types:
         """  these are known methods to make a field from another field
             Note that Whois only produces tuple to be fetchable to stats in Processor, the others are rather strings.
 
-            Method ~ None: TypeGroup.custom fields should have the method be None.
+            Method ~ lambda: Will be processed when converting one type to another
+            Method ~ None: Will be skipped. (TypeGroup.custom fields usually have None.)
             Method ~ True: The user should not be offered to compute from the field to another.
                 However if they already got the first type, it is the same as if they had the other.
                 Example: XXX source_ip,
@@ -353,8 +356,6 @@ class Types:
                     x, Contacts.csirtmails[x.get[5]] if x.get[5] in Contacts.csirtmails else "-"),
                 # returns tuple (local|country_code, whois-mail|abuse-contact)
                 (t.whois, t.incident_contact): lambda x: (x, x.get[2]),
-                # (t.base64, t.base64_encoded): True,
-                # (t.base64_encoded, t.decoded_text): base64decode,
                 (t.base64, t.plaintext): base64decode,
                 (t.plaintext, t.base64): lambda x: b64encode(x.encode("UTF-8")).decode("UTF-8"),
                 (t.plaintext, t.custom): None,
@@ -384,7 +385,7 @@ class Types:
                 # (t.prefix, t.cidr)
                 # XX dns dig
                 # XX url decode
-                # XX timestamp
+                # XX timestamp  dateutil.parser.parse except ValueError
                 }
 
 
@@ -396,7 +397,7 @@ graph = Graph([t for t in types if t.is_private])  # methods converting a field 
 
 class Identifier:
 
-    def __init__(self, csv):
+    def __init__(self, parser):
         """ import custom methods from files """
         for path in (x.strip() for x in Config.get("custom_fields_modules", "FIELDS", get=str).split(",")):
             try:
@@ -410,7 +411,7 @@ class Identifier:
                 input(s + ". Press any key...")
                 logger.warning(s)
 
-        self.csv = csv
+        self.parser = parser
         self.graph = None
 
     def get_methods_from(self, target, start, custom):
@@ -467,7 +468,7 @@ class Identifier:
                 try:
                     # we convert "str{0}" → "\g<0>" (works better than conversion to a mere "\0" that may result to ambiguity
                     return search.sub(re.sub("{(\d+)}", r"\\g<\1>", replace), s)
-                except IndexError:
+                except re.error:
                     logger.error(f"RegExp failed: `{replace}` cannot be used to substitute `{s}` with `{search}`")
                     if not Config.error_caught():
                         input("We consider string unmatched...")
@@ -475,22 +476,26 @@ class Identifier:
 
             return reg_s_method if type_ == Types.reg_s else reg_m_method
 
-        if target.group == TypeGroup.custom:
-            if target == Types.custom:
-                return [getattr(self.get_module_from_path(custom[0]), custom[1])]
-            elif target == Types.code:
-                return [custom_code(custom)]
-            elif target in [Types.reg, Types.reg_m, Types.reg_s]:
-                return [regex(target, *custom)]  # custom is in the form (search, replace)
-            else:
-                raise ValueError(f"Unknown type {target}")
-        lambdas = []  # list of lambdas to calculate new field
         path = graph.dijkstra(target, start=start)  # list of method-names to calculate new fields
+        lambdas = []  # list of lambdas to calculate new field
         for i in range(len(path) - 1):
             lambda_ = methods[path[i], path[i + 1]]
-            if lambda_ is True:  # the field is invisible, see help text for Types
+            if not hasattr(lambda_, "__call__"):  # the field is invisible, see help text for Types; may be False, None or True
                 continue
             lambdas.append(lambda_)
+
+        if target.group == TypeGroup.custom:
+            if target == Types.custom:
+                lambdas += [getattr(self.get_module_from_path(custom[0]), custom[1])]
+            elif target == Types.code:
+                lambdas += [custom_code(custom)]
+            elif target in [Types.reg, Types.reg_m, Types.reg_s]:
+                lambdas += [regex(target, *custom)]  # custom is in the form (search, replace)
+            else:
+                raise ValueError(f"Unknown type {target}")
+
+        logger.debug(f"Preparing path from {start} to {target}: " + ", ".join([str(p) for p in path])
+                     + " ('" + "', '".join(custom) + "')" if custom else "")
         return lambdas
 
     @staticmethod
@@ -551,12 +556,15 @@ class Identifier:
         # dialect.quoting = 3
         dialect.doublequote = True
 
-        if dialect.delimiter == "." and "," not in sample_text:
-            # let's propose common use case (bare list of IP addresses) over a strange use case with "." delimiting
-            dialect.delimiter = ","
         if len(sample) == 1:
             # there is single line in sample = in the input, so this is definitely not a header
             has_header = False
+            if dialect.delimiter not in [".", ",", "\t"] and "|" not in sample_text:
+                # usecase: short one-line like "convey hello" would produce stupid "l" delimiter
+                dialect.delimiter = "|"  # XX should be None, let's think a whole row is a single column
+        if dialect.delimiter == "." and "," not in sample_text:
+            # let's propose common use case (bare list of IP addresses) over a strange use case with "." delimiting
+            dialect.delimiter = ","
         return dialect, has_header
 
     def identify_fields(self, quiet=False):
@@ -566,32 +574,32 @@ class Identifier:
         :type quiet: bool If True, we do not raise exception when sample cannot be processed.
                             Ex: We attempt consider user input "1,2,3" as single field which is not, we silently return False
         """
-        samples = [[] for _ in self.csv.fields]
-        if len(self.csv.sample) == 1:  # we have too few values, we have to use them
-            s = self.csv.sample[:1]
+        samples = [[] for _ in self.parser.fields]
+        if len(self.parser.sample) == 1:  # we have too few values, we have to use them
+            s = self.parser.sample[:1]
         else:  # we have many values and the first one could be header, let's omit it
-            s = self.csv.sample[1:]
+            s = self.parser.sample[1:]
 
-        for row in reader(s, dialect=self.csv.dialect):
+        for row in reader(s, dialect=self.parser.dialect):
             for i, val in enumerate(row):
                 try:
                     samples[i].append(val)
                 except IndexError:
                     if not quiet:
                         print("It seems rows have different lengths. Cannot help you with column identifying.")
-                        print("Fields row: " + str([(i, str(f)) for i, f in enumerate(self.csv.fields)]))
+                        print("Fields row: " + str([(i, str(f)) for i, f in enumerate(self.parser.fields)]))
                         print("Current row: " + str(list(enumerate(row))))
                         if not Config.error_caught():
                             input("\n... Press any key to continue.")
                     return False
 
-        for i, field in enumerate(self.csv.fields):
+        for i, field in enumerate(self.parser.fields):
             possible_types = {}
             for type_ in Types.get_guessable_types():
                 score = 0
                 # print("Guess:", key, names, checkFn)
                 # guess field type by name
-                if self.csv.has_header:
+                if self.parser.has_header:
                     s = str(field).replace(" ", "").replace("'", "").replace('"', "").lower()
                     for n in type_.usual_names:
                         if s in n or n in s:
@@ -627,9 +635,7 @@ class Identifier:
         """ Loops all types the field could be and return the type best suited method for compute new field. """
         _min = 999
         fitting_type = None
-        possible_fields = list(self.csv.fields[source_field_i].possible_types)
-        if try_plaintext:  # try plaintext field as the last one
-            possible_fields.append(Types.plaintext)
+        possible_fields = list(self.parser.fields[source_field_i].possible_types)
         dijkstra = graph.dijkstra(target_field)  # get all fields that new_field is computable from
         for _type in possible_fields:
             # loop all the types the field could be, loop from the FieldType we think the source_col correspond the most
@@ -639,100 +645,136 @@ class Identifier:
             i = dijkstra[_type]
             if i < _min:
                 _min, fitting_type = i, _type
+        if not fitting_type and try_plaintext and Types.plaintext in dijkstra:
+            # try plaintext field as the last one. Do not try it earlier, usecase:
+            # we want to produce reg_s from base64. If we inserted plaintext earlier,
+            #  fitting_type would be plaintext since it is a step nearer - but the field would not be decoded
+            return Types.plaintext
         return fitting_type
 
-    def get_fitting_source_i(self, new_field, try_hard=False):
+    def get_fitting_source_i(self, target_type, try_hard=False):
         """ Get list of source_i that may be of such a field type that new_field would be computed effectively.
             Note there is no fitting column for TypeGroup.custom, if you try_hard, you receive first column as a plaintext.
         """
         possible_cols = {}
-        if new_field.group != TypeGroup.custom:
-            valid_types = graph.dijkstra(new_field)
+        if target_type.group != TypeGroup.custom:
+            valid_types = graph.dijkstra(target_type)
             for val in valid_types:  # loop from the best suited type
-                for i, f in enumerate(self.csv.fields):  # loop from the column we are most sure with its field type
+                for i, f in enumerate(self.parser.fields):  # loop from the column we are most sure with its field type
                     if val in f.possible_types:
                         possible_cols[i] = f.possible_types[val]
                         break
-        if not possible_cols and try_hard and new_field.is_plaintext_derivable:
+        if not possible_cols and try_hard and target_type.is_plaintext_derivable:
             # because any plaintext would do (and no plaintext-only type has been found), take the first column
             possible_cols = [0]
         return list(possible_cols)
 
-    def get_fitting_source(self, new_field: Type, column_or_source, source_type_candidate):
+    def get_fitting_source(self, target_type: Type, *task):
         """
         For a new field, we need source column and its field type to compute new field from.
-        :param new_field: str of Type
-        :param column_or_source: [int|existing name|field name|field usual names]
-        :param source_type_candidate: [field name|field usual names]
-        :return: (source_field, source_type) or exit.
+        :rtype: source_field: Field, source_type: Type, custom: List[str]
+        :param target_type: Type
+        :type task: List[str]: [COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM...]
+            COLUMN: int|existing name
+            SOURCE_TYPE: field type name|field type usual names
+            CUSTOM: any parameter
         """
         source_col_i = None
         source_type = None
-        custom = None
-        if column_or_source:  # determine COLUMN
-            source_col_i = self.get_column_i(column_or_source)
+        task = list(task)
+
+        # determining source_col_i from a column candidate
+        column_candidate = task.pop(0) if len(task) else None
+        if column_candidate:  # determine COLUMN
+            source_col_i = self.get_column_i(column_candidate)  # get field by exact column name, ID or type
             if source_col_i is None:
-                if source_type_candidate:
-                    print("Invalid field", source_type_candidate, ", already having defined field by " + column_or_source)
+                if len(task) and target_type.group != TypeGroup.custom:
+                    print(f"Invalid field type {task[0]}, already having defined by {column_candidate}")
                     quit()
-                else:  # this was not COLUMN but SOURCE_TYPE, COLUMN remains empty
-                    source_type_candidate = column_or_source
-        else:  # get a column whose field could be fitting for that new_field
+                task.insert(0, column_candidate)  # this was not COLUMN but SOURCE_TYPE or CUSTOM, COLUMN remains empty
+        if source_col_i is None:  # get a column whose field could be fitting for that target_tape or any column as a plaintext
             try:
-                source_col_i = self.get_fitting_source_i(new_field, True)[0]
+                source_col_i = self.get_fitting_source_i(target_type, True)[0]
             except IndexError:
                 pass
+
+        # determining source_type
+        source_type_candidate = task.pop(0) if len(task) else None
         if source_type_candidate:  # determine SOURCE_TYPE
-            if new_field.group == TypeGroup.custom:
-                custom = source_type_candidate
-                source_type = Types.plaintext
-            else:
-                source_t = source_type_candidate.lower().replace(" ", "")  # make it seem like a usual field name
-                possible = None
-                for t in types:
-                    if source_t == t:  # exact field name
-                        source_type = t
-                        break
-                    if source_t in t.usual_names:  # usual field name
-                        possible = t
-                else:
-                    if possible:
-                        source_type = possible
-                if not source_type:
-                    print(f"Cannot determine new field from {source_t}")
-                    quit()
-        if source_col_i is not None and not source_type:
-            source_type = self.get_fitting_type(source_col_i, new_field, try_plaintext=True)
+            source_type = self.find_type(source_type_candidate)
             if not source_type:
-                print(f"We could not identify a method how to make '{new_field}' from '{self.csv.fields[source_col_i]}'")
+                if target_type.group == TypeGroup.custom:
+                    # this was not SOURCE_TYPE but CUSTOM, for custom fields, SOURCE_TYPE may be implicitly plaintext
+                    #   (if preprocessing ex: from base64 to plaintext is not needed)
+                    task.insert(0, source_type_candidate)
+                    # source_type = Types.plaintext
+                else:
+                    print(f"Cannot determine new field from {source_type_candidate}")
+                    quit()
+
+        # determining missing info
+        if source_col_i is not None and not source_type:
+            source_type = self.get_fitting_type(source_col_i, target_type, try_plaintext=True)
+            if not source_type:
+                print(f"We could not identify a method how to make '{target_type}' from '{self.parser.fields[source_col_i]}'")
                 quit()
         if source_type and source_col_i is None:
             # searching for a fitting type amongst existing columns
             # for col in self.
             possibles = {}  # [source col i] = score (bigger is better)
-            for i, t in enumerate(self.csv.fields):
+            for i, t in enumerate(self.parser.fields):
                 if source_type in t.possible_types:
                     possibles[i] = t.possible_types[source_type]
 
             try:
                 source_col_i = sorted(possibles, key=possibles.get, reverse=True)[0]
             except IndexError:
-                print(f"No suitable column of type '{source_type}' found to make field '{new_field}'")
+                print(f"No suitable column of type '{source_type}' found to make field '{target_type}'")
                 quit()
+
         if not source_type or source_col_i is None:
-            print(f"No suitable column found for field '{new_field}'")
+            print(f"No suitable column found for field '{target_type}'")
             quit()
-        return self.csv.fields[source_col_i], source_type, custom
+
+        f = self.parser.fields[source_col_i]
+        if graph.dijkstra(target_type, start=source_type) is False:
+            print(f"No suitable path from '{f.name}' treated as '{source_type}' to '{target_type}'")
+            quit()
+        return f, source_type, task
+
+
+    @staticmethod
+    def find_type(source_type_candidate):
+        source_type = None
+        source_t = source_type_candidate.lower().replace(" ", "")  # make it seem like a usual field name
+        possible = None
+        for t in types:
+            if source_t == t:  # exact field name
+                source_type = t
+                break
+            if source_t in t.usual_names:  # usual field name
+                possible = t
+        else:
+            if possible:
+                source_type = possible
+        return source_type
 
     def get_column_i(self, column):
         """
         Useful for parsing user input COLUMN from the CLI args.
-        :type column: object Either the order of the column or an exact column name
+        :type column: object Either column ID (ex "1" points to column index 0) or an exact column name or the field
         :rtype: int Either column_i or None if not found.
         """
         source_col_i = None
+        if hasattr(column, "col_i"):
+            return column.col_i
         if column.isdigit():  # number of column
             source_col_i = int(column) - 1
-        elif column in self.csv.first_line_fields:  # exact column name
-            source_col_i = self.csv.first_line_fields.index(column)
+        elif column in self.parser.first_line_fields:  # exact column name
+            source_col_i = self.parser.first_line_fields.index(column)
+        else:
+            searched_type = self.find_type(column)  # get field by its type
+            for f in self.parser.fields:
+                if f.type == searched_type:
+                    source_col_i = f.col_i
         return source_col_i

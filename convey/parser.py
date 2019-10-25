@@ -25,7 +25,7 @@ from .whois import Whois
 logger = logging.getLogger(__name__)
 
 
-class SourceParser:
+class Parser:
     is_split: bool
     is_analyzed: bool
     attachments: List[Attachment]
@@ -123,11 +123,15 @@ class SourceParser:
                     # tell the user what type we think their input is
                     # access the detection message for the first (and supposedly only) field
                     detection = self.get_fields_autodetection(False)[0][1]
-                    if not detection:
+                    if not detection and not Config.get("adding-new-fields"):
                         # this is not a single cell despite it was probable, let's continue input parsing
                         logger.info("We couldn't parse the input text easily.")
                     else:
-                        logger.info(f"Input value {detection}\n")
+                        if not detection :
+                            # we are adding new fields - there is a reason to continue single processing
+                            logger.info("Input value seems to be plaintext.")
+                        else:
+                            logger.info(f"Input value {detection}\n")
                         self.is_single_value = True
                         return self
                 if Config.get("single_processing"):
@@ -301,7 +305,7 @@ class SourceParser:
     def reset_whois(self, hard=True, assure_init=False):
         """
 
-        :type assure_init: Just assure the connection between picklable SourceParser and current Whois class.
+        :type assure_init: Just assure the connection between picklable Parser and current Whois class.
         """
         if not assure_init:
             self.whois_stats = defaultdict(int)
@@ -511,6 +515,24 @@ class SourceParser:
             print("\n" + s)
             self.resolve_invalid()
 
+    def resort(self, chosens=[]):
+        """
+        :type chosens: List[str] Column IDs in str, ex: "1" points to column index 0
+        """
+        for f in self.fields:
+            f.is_chosen = False
+        excluded = set([str(c + 1) for c in range(len(self.fields))]) - set(chosens)
+
+        transposed = list(zip(*self.sample_parsed))
+        sp = []
+        for i, (col, is_chosen) in enumerate([(col, True) for col in chosens] + [(col, False) for col in excluded]):
+            col_i = self.identifier.get_column_i(col)
+            self.fields[col_i].col_i = i
+            sp.append(transposed[col_i])
+            self.fields[col_i].is_chosen = is_chosen
+        self.fields = sorted(self.fields, key=lambda f: f.col_i)
+        self.sample_parsed = list(zip(*sp))
+
     def move_selection(self, direction=0, move_contents=False):
         """ Move cursor or whole columns
             :type move_contents: bool Move whole columns, not only cursor.
@@ -552,7 +574,7 @@ class SourceParser:
 
 class Field:
     def __init__(self, name, is_chosen=True, source_field: "Field" = None, source_type=None, new_custom=None,
-                 parser: SourceParser = None):
+                 parser: Parser = None):
         self.col_i = None  # index of the field in parser.fields
         self.parser = None  # ref to parser
         self.name = str(name)
@@ -640,23 +662,34 @@ class Field:
     def has_clear_type(self):
         return self.type is not None and self.type != Types.plaintext
 
-    def get_methods(self):
-        return self.parser.identifier.get_methods_from(self.type, self.source_type, self.new_custom)
+    def get_methods(self, target=None, start=None):
+        if start is None:
+            start = self.source_type
+        if target is None:
+            target = self.type
+        return self.parser.identifier.get_methods_from(target, start, self.new_custom)
 
     def __str__(self):
         return self.name
 
-    def get_samples(self, max_samples=inf):
+    def get_samples(self, max_samples=inf, supposed_type=None):
         """ get few sample values of a field """
         c = min(len(self.parser.sample_parsed), max_samples)
         try:
-            return [self.parser.sample_parsed[line][self.col_i] for line in
+            res = [self.parser.sample_parsed[line][self.col_i] for line in
                     range(0, c)]
         except IndexError:
             rows = []
             for l in self.parser.sample_parsed[slice(None, c)]:
                 rows.append(self.compute_preview(l))
-            return rows
+            res = rows
+        if supposed_type and supposed_type.is_plaintext_derivable:
+            rows, res = res.copy(), []
+            for c in rows:
+                for m in self.get_methods(Types.plaintext, self.type):
+                    c = m(c)
+                res.append(c)
+        return res
 
     def compute_preview(self, source_line):
         if Config.get("compute_preview"):

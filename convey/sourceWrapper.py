@@ -12,7 +12,7 @@ from .config import Config
 from .dialogue import is_yes
 from .identifier import Identifier
 # from .informer import mute_info
-from .sourceParser import SourceParser
+from .parser import Parser
 
 __author__ = "Edvard Rejthar"
 __date__ = "$Mar 23, 2015 8:33:24 PM$"
@@ -43,7 +43,7 @@ def read_stdin():
 
 class SourceWrapper:
     def __init__(self, file_or_input, force_file=False, force_input=False, fresh=False):
-        self.csv:SourceParser
+        self.parser: Parser
         self.file = file = None
         self.stdin = stdin = None
         try:
@@ -89,7 +89,7 @@ class SourceWrapper:
             Config.set_cache_dir(Path.cwd())
             self.cache_file = None
             self.stdin = stdin
-            self.csv: SourceParser = SourceParser(stdin=stdin)
+            self.parser: Parser = Parser(stdin=stdin)
             return
 
         if not Path(file).is_file():
@@ -105,31 +105,31 @@ class SourceWrapper:
         if Path(self.cache_file).is_file() and not fresh:
             print("File {} has already been processed.".format(self.file))
             try:  # try to depickle
-                self.csv = jsonpickle.decode(open(self.cache_file, "r").read(), keys=True)
-                self.csv.refresh()
-                self.csv.reset_whois(assure_init=True)
+                self.parser = jsonpickle.decode(open(self.cache_file, "r").read(), keys=True)
+                self.parser.refresh()
+                self.parser.reset_whois(assure_init=True)
                 # correction of a wrongly pickling: instead of {IPNetwork('...'): (IPNetwork('...'),
                 # we see {IPNetwork('...'): (<jsonpickle.unpickler._IDProxy object at 0x...>,
                 # Note that IPRange is pickled correctly.
-                for prefix, o in self.csv.ranges.items():
+                for prefix, o in self.parser.ranges.items():
                     l = list(o)
                     l[0] = prefix
-                    self.csv.ranges[prefix] = tuple(l)
+                    self.parser.ranges[prefix] = tuple(l)
             except:
                 import traceback
                 print(traceback.format_exc())
                 Config.error_caught()
                 print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
                 input()
-                self.csv = None
-            if self.csv:
-                if self.csv.source_file != self.file:  # file might have been moved to another location
-                    self.csv.source_file = self.file
+                self.parser = None
+            if self.parser:
+                if self.parser.source_file != self.file:  # file might have been moved to another location
+                    self.parser.source_file = self.file
                 try:
-                    if self.csv.is_analyzed:
-                        self.csv.informer.sout_info()
-                    elif self.csv.is_formatted:
-                        self.csv.informer.sout_info()
+                    if self.parser.is_analyzed:
+                        self.parser.informer.sout_info()
+                    elif self.parser.is_formatted:
+                        self.parser.informer.sout_info()
                         print("It seems the file has already been formatted.")
                     return
                 except BdbQuit:  # we do not want to catch quit() signal from ipdb
@@ -148,7 +148,7 @@ class SourceWrapper:
     ##
     # Store
     def save(self):
-        string = jsonpickle.encode(self.csv, keys=True)
+        string = jsonpickle.encode(self.parser, keys=True)
         try:
             jsonpickle.decode(string, keys=True)
         except Exception:
@@ -169,11 +169,11 @@ class SourceWrapper:
         _, sample = Identifier(None).get_sample(self.file)
         if sample and re_log_line.match(sample[0]) and is_yes(
                 "\nThis seems like a log file. Do you wish to transform it to CSV first?"):
-            csv = SourceParser(self.file, prepare=False)
-            csv.prepare_target_file()
-            with open(csv.target_file, "w") as target:
+            parser = Parser(self.file, prepare=False)
+            parser.prepare_target_file()
+            with open(parser.target_file, "w") as target:
                 target.write(",".join(["time", "source", "src_port", "dst", "dst_port"]) + "\n")
-                with open(csv.source_file) as f:
+                with open(parser.source_file) as f:
                     for line in f.readlines():
                         try:
                             res = re_log_line.search(line).groups()
@@ -193,8 +193,8 @@ class SourceWrapper:
                             dst, dst_port = parse_ip(res[2])
 
                             target.write(",".join([timestamp, source, src_port, dst, dst_port]) + "\n")
-                input(f"Successfully written to {csv.target_file}. Hit any key.")
-                self.file = csv.target_file
+                input(f"Successfully written to {parser.target_file}. Hit any key.")
+                self.file = parser.target_file
 
-        self.csv = SourceParser(self.file, self.stdin)
+        self.parser = Parser(self.file, self.stdin)
         self.save()

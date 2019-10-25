@@ -53,9 +53,9 @@ def application(env, start_response):
     """
     if not WebServer.source_parser:
         from convey.config import Config
-        from convey.sourceParser import SourceParser
+        from convey.parser import Parser
         Config.init()
-        WebServer.source_parser = SourceParser(prepare=False)
+        WebServer.source_parser = Parser(prepare=False)
 
     headers = [('Access-Control-Allow-Origin', '*')]
     t = env["QUERY_STRING"].split("q=")  # XX sanitize?

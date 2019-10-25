@@ -159,6 +159,40 @@ You may as well hard code custom fields in the [`config.ini`](convey/config.ini.
 
 Handsome feature if you're willing to use the Shodan API as our partner or to do anything else.
 
+## Examples
+
+### Base64 and Regular expressions
+```python3
+# -f, --field adding field syntax: FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]
+# -H, --headless: just quietly print out single value, no dialog
+
+$ convey hello -f base64  -H  # --headless conversion to base64
+aGVsbG8=
+$ convey aGVsbG8= -H  # automatically identifies input as base64 and produces plaintext
+hello
+
+$ convey aGVsbG8= -f reg  # start adding a new reg column wizzard that will take decoded "hello" as input 
+$ convey aGVsbG8= -f reg_s,"ll","LL" -H   # substitute 'll' with 'LL'
+heLLo
+
+$ convey aGVsbG8= -f reg,plaintext # start adding a new reg column wizzard that will take plaintext "aGVsbG8=" as input 
+# specifying plaintext as a source type will prevent implicit convertion from base64
+$ convey aGVsbG8= -f reg_s,plaintext,"[A-Z]","!" -H  # substitute uppercase letters with '!'
+a!!sb!8=
+
+
+
+# We will create an ASN field and split the file.csv by this field, without adding it into the output.
+#
+# file.csv
+# 1.2.3.4,25,2016-02-28T02:27:21-05:00,16019,CZ
+# 5.6.7.8,443,2016-02-09T01:12:26-05:00,16019,CZ
+# 9.10.11.12,25,2016-02-27T22:20:21-05:00,16019,CZ
+$ convey file.csv --field-excluded asn --split asn
+
+
+```
+
 ## CSIRT Usecase
 We are using the tool to automate incident handling tasks. The input is any CSV we receive from partners; there is at least one column with IP addresses or URLs. We fetch whois information and produce a set of CSV grouped by country AND/OR abusemail related to IPs. These CSVs are then sent by through OTRS from within the tool.
 

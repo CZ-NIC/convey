@@ -168,10 +168,11 @@ class TypeValidator(Validator):
 
 class Preview:
 
-    def __init__(self, source_field):
+    def __init__(self, source_field, source_type: "Type"):
         self.source_field = source_field
+        self.source_type = source_type
         # common part of every preview
-        self.samples = source_field.get_samples()
+        self.samples = source_field.get_samples(supposed_type=source_type)
 
         # define key self.bindings
         self.session = self.reset_session()
@@ -272,7 +273,9 @@ class Preview:
                     continue
                 if type_:
                     self.reg_type = Types.reg_s if type_ == "reg_s" else Types.reg_m
-                break
+            else:
+                self.reg_type = self.reg_type[0]
+            break
         return self.search, self.replace, self.reg_type
 
     def reset_session(self):

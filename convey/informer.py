@@ -89,7 +89,7 @@ class Informer:
                 row = []
                 full_row = []
                 for f, c in zip_longest(self.csv.fields, l):
-                    if not c:
+                    if c is None:
                         c = f.compute_preview(l)
                     row.append(f.color(c, True))
                     full_row.append(f.color(c))

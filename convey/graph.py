@@ -20,6 +20,7 @@ class Graph:
         self.add_node(to_node)
         self.distances[(from_node, to_node)] = distance
 
+    # @lru_cache(maxsize=512) XX is it a good performance tip?
     def dijkstra(self, target, start=None, ignore_private=False):
         """
         Performs Dijkstra's algorithm and returns

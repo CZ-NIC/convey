@@ -20,7 +20,7 @@
         - new CLI flag --config to open configuration
         - new CLI flag --show-fields to get UML overview
         - new flag --json
-        - flags --field, --delete
+        - flags --field, --field-excluded, --delete, --split, --sort
         - flags --single-processing, --csv-processing
     - INI only flags
         - github_crash_submit
@@ -47,6 +47,7 @@
     - Identifier (former CSVGuesses) is now object oriented, no more spaghetti
     - huge refactoring
     - fix: log files
+    - implicitly convert to plaintext if possible when adding new column (ex: base64 will be implicitly decoded before its value being passed to a new reg column)
 - dialogs
     - able to automatically add/remove config file flags at program upgrade if allowed by user
     - when no known method is known to process a field, an example is given
