@@ -63,8 +63,8 @@ Could you confirm this? [y]/n
 ### Usage 3 – Web service
 Again, let's provide an IP to the web service, it returns JSON with WHOIS-related information and scraped HTTP content.
 ```bash
-# install convey and check where it is installed
-$ pip3 show convey
+check
+$ pip3 check_if_typeconvey
 Location: /home/$USER/.local/lib/python3.7/site-packages
 # launch __main__.py with uwsgi (note that LACNIC may freeze for 300 s, hence the timeout recommendation)
 $ uwsgi --http :26683 --http-timeout 310 --wsgi-file /home/$USER/.local/lib/python3.7/site-packages/convey/__main__.py
@@ -127,7 +127,7 @@ We are able to compute these value types:
 * **base64** – encode/decode
 * **country** – country code from whois
 * **csirt-contact** – e-mail address corresponding with country code, taken from your personal contacts_foreign CSV in the format `country,abusemail`. Path to this file has to be specified in `config.ini » contacts_foreign`
-* **custom** – you specify method in a custom .py file that receives the field and generates the value for you, see below
+* **external** – you specify method in a custom .py file that receives the field and generates the value for you, see below
 * **hostname** – domain from url
 * **incident-contact** – if the IP comes from local country (specified in `config.ini » local_country`) the field gets *abusemail*, otherwise we get *country*. When splitting by this field, convey is subsequently able to send the splitted files to local abuse and foreign csirt contacts 
 * **ip** – translated from url
@@ -150,7 +150,7 @@ We are able to auto-detect these columns:
            
 
 ### Custom field example
-If you wish to compute a **custom** field, you'll be dialogued for a path of a python file and desired method that should be used. The contents of the file can be as simple as this:
+If you wish to compute an **external** field, you'll be dialogued for a path of a python file and desired method that should be used. The contents of the file can be as simple as this:
 
 ```python3
 def any_method(value):
@@ -159,6 +159,17 @@ def any_method(value):
 ```
 
 You may as well hard code custom fields in the [`config.ini`](convey/config.ini.default) by providing paths to the entrypoint Python files delimited by a comma: `custom_fields_modules = /tmp/myfile.py, /tmp/anotherfile.py`. All the public methods in the defined files will become custom fields!
+
+If you need a single call to generate multiple rows, return list and decorate with @duplicate_row.
+
+```python3
+from convey import duplicate_row
+
+@duplicate_row
+def any_method(value):
+    # do something
+    return ["foo", "bar"]
+```
 
 Handsome feature if you're willing to use the Shodan API as our partner or to do anything else.
 
@@ -182,7 +193,6 @@ $ convey aGVsbG8= -f reg,plaintext # start adding a new reg column wizzard that 
 # specifying plaintext as a source type will prevent implicit convertion from base64
 $ convey aGVsbG8= -f reg_s,plaintext,"[A-Z]","!" -H  # substitute uppercase letters with '!'
 a!!sb!8=
-
 
 
 # We will create an ASN field and split the file.csv by this field, without adding it into the output.

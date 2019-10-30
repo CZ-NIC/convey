@@ -2,7 +2,6 @@ import csv
 import datetime
 import subprocess
 import sys
-from itertools import zip_longest
 from math import ceil
 from pathlib import Path
 
@@ -83,18 +82,7 @@ class Informer:
         print("\nSample:\n" + "".join(self.csv.sample[:4]))  # show first 3rd lines
 
         if self.csv.is_formatted:  # show how would the result be alike
-            rows = []  # nice table formatting
-            full_rows = []  # formatting that optically matches the Sample above
-            for l in self.csv.sample_parsed[:5]:
-                row = []
-                full_row = []
-                for f, c in zip_longest(self.csv.fields, l):
-                    if c is None:
-                        c = f.compute_preview(l)
-                    row.append(f.color(c, True))
-                    full_row.append(f.color(c))
-                rows.append(row)
-                full_rows.append(full_row)
+            full_rows, rows = self.csv.get_sample_values()
 
             first_line_length = tabulate(rows, headers=[f.get(True, color=False) for f in self.csv.fields]).split("\n")[0]
             if rows and not self.csv.settings["dialect"] and len(first_line_length) <= get_terminal_size()[1]:

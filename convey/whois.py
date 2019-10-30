@@ -337,6 +337,7 @@ countries = {"andorra": "ad",
              "zimbabwe": "zw"}
 rirs = ["whois.ripe.netf", "whois.arin.net", "whois.lacnic.net", "whois.apnic.net", "whois.afrinic.net"]
 
+
 class Whois:
     unknown_mode = False
     see = Config.verbosity <= logging.INFO
@@ -398,16 +399,6 @@ class Whois:
         s = urlsplit(url)
         return s.netloc or s.path.split("/")[:1][0]
 
-    hostname_cache = {}
-
-    @classmethod
-    def hostname2ip(cls, hostname):
-        if hostname not in cls.hostname_cache:
-            try:
-                cls.hostname_cache[hostname] = socket.gethostbyname(hostname)
-            except OSError:
-                cls.hostname_cache[hostname] = False
-        return cls.hostname_cache[hostname]
 
     def resolve_unknown_mail(self):
         """ Forces to load abusemail for an IP.
@@ -534,7 +525,8 @@ class Whois:
                         self._exec(server="apnic", server_url="whois.apnic.net")
                         continue
                     if self._match_response("query rate limit exceeded"):  # LACNIC gave me this - seems 300 s needed
-                        logger.warning(f"Whois server {self.last_server} query rate limit exceeded for: {self.ip}. Sleeping for 300 s...")
+                        logger.warning(
+                            f"Whois server {self.last_server} query rate limit exceeded for: {self.ip}. Sleeping for 300 s...")
                         time.sleep(300)
                         self._exec(server=server)
                         continue

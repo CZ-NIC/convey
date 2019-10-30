@@ -6,6 +6,7 @@ import re
 import subprocess
 import time
 from collections import defaultdict
+from itertools import zip_longest
 from json import dumps
 from math import ceil, inf
 from pathlib import Path
@@ -17,7 +18,7 @@ from tabulate import tabulate
 from .config import Config, get_terminal_size
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, is_yes, ask
-from .identifier import Identifier, b64decode, Types, Type, Web, TypeGroup
+from .identifier import Identifier, b64decode, Types, Type, Web, TypeGroup, MultipleRows
 from .informer import Informer
 from .processor import Processor
 from .whois import Whois
@@ -32,6 +33,7 @@ class Parser:
 
     def __init__(self, source_file=False, stdin=None, prepare=True):
         self.is_formatted = False
+        self.is_processable = False
         self.is_repeating = False
         self.dialect = None  # CSV dialect
         self.has_header = None  # CSV has header
@@ -127,7 +129,7 @@ class Parser:
                         # this is not a single cell despite it was probable, let's continue input parsing
                         logger.info("We couldn't parse the input text easily.")
                     else:
-                        if not detection :
+                        if not detection:
                             # we are adding new fields - there is a reason to continue single processing
                             logger.info("Input value seems to be plaintext.")
                         else:
@@ -340,6 +342,8 @@ class Parser:
             cw.writerow([f for f in self.fields if f.is_chosen])
             self.header = wr.written
         self._reset_output()
+        self.get_sample_values()  # assure sout_info would consume a result from duplicate_row
+        MultipleRows.clear()
 
         self.time_start = None
         self.time_end = None
@@ -521,17 +525,20 @@ class Parser:
         """
         for f in self.fields:
             f.is_chosen = False
-        excluded = set([str(c + 1) for c in range(len(self.fields))]) - set(chosens)
-
+        l = [str(c + 1) for c in range(len(self.fields))]
+        excluded = [f for f in l if f in set(l) - set(chosens)]
         transposed = list(zip(*self.sample_parsed))
         sp = []
         for i, (col, is_chosen) in enumerate([(col, True) for col in chosens] + [(col, False) for col in excluded]):
             col_i = self.identifier.get_column_i(col)
             self.fields[col_i].col_i = i
-            sp.append(transposed[col_i])
+            if self.fields[col_i].is_new:
+                sp.append([None] * len(self.sample_parsed))
+            else:
+                sp.append(transposed[col_i])
             self.fields[col_i].is_chosen = is_chosen
         self.fields = sorted(self.fields, key=lambda f: f.col_i)
-        self.sample_parsed = list(zip(*sp))
+        self.sample_parsed = list(map(list, zip(*sp)))  # force list preventing tuples
 
     def move_selection(self, direction=0, move_contents=False):
         """ Move cursor or whole columns
@@ -553,6 +560,21 @@ class Parser:
                 f.is_selected = False
             for f in selected:  # select new ones
                 self.fields[(f.col_i + direction) % len(self.fields)].is_selected = True
+
+    def get_sample_values(self):
+        rows = []  # nice table formatting
+        full_rows = []  # formatting that optically matches the Sample above
+        for l in self.sample_parsed[:5]:
+            row = []
+            full_row = []
+            for f, c in zip_longest(self.fields, l):
+                if c is None:
+                    c = f.compute_preview(l)
+                row.append(f.color(c, True))
+                full_row.append(f.color(c))
+            rows.append(row)
+            full_rows.append(full_row)
+        return full_rows, rows
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -576,6 +598,7 @@ class Field:
     def __init__(self, name, is_chosen=True, source_field: "Field" = None, source_type=None, new_custom=None,
                  parser: Parser = None):
         self.col_i = None  # index of the field in parser.fields
+        self.col_i_original = None  # original index before any sorting
         self.parser = None  # ref to parser
         self.name = str(name)
         self.is_chosen = is_chosen
@@ -610,7 +633,7 @@ class Field:
 
         transposed = list(zip(*p.sample_parsed))
         list(map(swap(i, i2), [p.fields, transposed]))
-        p.sample_parsed = list(zip(*transposed))
+        p.sample_parsed = list(map(list, zip(*transposed)))
 
     def toggle_chosen(self):
         self.is_chosen = not self.is_chosen
@@ -630,6 +653,7 @@ class Field:
 
     def color(self, v, shorten=False):
         """ Colorize single line of a value. Strikes it if field is not chosen. """
+        v = str(v)  # ex: Types.http_status returns int
         if shorten:
             v = v[:17] + "..." if len(v) > 20 else v
         l = []
@@ -677,7 +701,7 @@ class Field:
         c = min(len(self.parser.sample_parsed), max_samples)
         try:
             res = [self.parser.sample_parsed[line][self.col_i] for line in
-                    range(0, c)]
+                   range(0, c)]
         except IndexError:
             rows = []
             for l in self.parser.sample_parsed[slice(None, c)]:
@@ -694,10 +718,22 @@ class Field:
     def compute_preview(self, source_line):
         if Config.get("compute_preview"):
             c = source_line[self.source_field.col_i]
+            if c is None:
+                # source column has not yet been resolved because of column resorting
+                # (note this will not a problem when processing)
+                return "..."
             for m in self.get_methods():
                 c = m(c)
             if isinstance(c, tuple):
-                c = c[1] or "unknown"
+                if len(c) == 1:  # this must be "duplicate_row" decorator,
+                    # however, we do not duplicate row to get another value here
+                    c = c[0]
+                else:  # this must be whois info-tuple
+                    c = c[1] or "unknown"
         else:
             c = "..."
+        # add a newly computed value to source_parsed
+        for _ in range(self.col_i - len(source_line) + 1):  # source_line is shorter than we need - fill the missing cols with Nones
+            source_line.append(None)
+        source_line[self.col_i] = c
         return c

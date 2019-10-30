@@ -3,12 +3,16 @@ from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
+
 class Graph:
-    def __init__(self, private_nodes=set()):
+    def __init__(self):
         self.nodes = set()
         self.edges = defaultdict(list)
         self.distances = {}
-        self.private_nodes = private_nodes
+        self.private_nodes = set()
+
+    def set_private_nodes(self, nodes):
+        self.private_nodes = nodes
 
     def add_node(self, value):
         self.nodes.add(value)
@@ -63,7 +67,7 @@ class Graph:
                     pass
 
         if start:
-            start = start.after
+            start = start.computing_start
             path = [start]
             pivot = start
             i = 0
@@ -84,5 +88,9 @@ class Graph:
             for node in self.private_nodes:
                 if node in visited:
                     del visited[node]
-        d = dict((k.before, v) for (k, v) in visited.items() if v > 0)  # skip the same node
-        return d
+        distance_from_type = {}
+        for (k, v) in visited.items():
+            if v > 0:  # skip the same node
+                for b in k.equals:
+                    distance_from_type[b] = v
+        return distance_from_type

@@ -2,13 +2,16 @@ import csv
 import importlib.util
 import ipaddress
 import logging
+import operator
 import re
+import socket
 import subprocess
 from base64 import b64decode, b64encode
 from builtins import ZeroDivisionError
 from copy import copy
 from csv import Error, Sniffer, reader
 from enum import IntEnum
+from functools import wraps, reduce
 from pathlib import Path
 from typing import List
 
@@ -28,8 +31,12 @@ reFqdn = re.compile(
     "(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)")  # Xtoo long, infinite loop: ^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+){1,63}\.))+){1,255}$
 reUrl = re.compile('[htps]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
 
-
 # reBase64 = re.compile('^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$')
+
+
+types: List["Type"] = []  # all field types
+methods = {}
+graph = Graph()
 
 
 def check_ip(ip):
@@ -41,8 +48,84 @@ def check_ip(ip):
         return False
 
 
+def prod(iterable):  # XX as of Python3.8, replace with math.prod
+    return reduce(operator.mul, iterable, 1)
+
+
+class MultipleRows:
+    el_on_row: List["MultipleRows"] = []
+
+    def __init__(self, func):
+        """   # every column using @duplicate_row has a dict cache allowing it to loop result from an inner lambda
+
+        """
+        self.queue = []
+        self.pos = 0
+        self.func = func
+        self.el_on_row.append(self)
+
+    def is_last(self):
+        """ This is the last MultipleRows field on the processed row """
+        return self.el_on_row[-1] == self
+
+    def run(self):
+        @wraps(self.func)
+        def func_wrapper(val):
+            if self.pos == 0:
+                self.queue.extend(copy(self.func(val)))  # load new list from the inner lambda
+                if not self.queue:  # lambda returned an empty list - this is not a fail, return empty string then
+                    self.queue.append("")
+                if self.is_last():
+                    max_ = prod([len(el.queue) for el in self.el_on_row])
+                    for el in self.el_on_row:  # 1st col returns 3 values, 2nd 2 values → both should have 3*2 = 6 values
+                        el.queue *= max_ // len(self.queue)
+            v = self.queue[self.pos]
+            self.pos += 1
+            if self.pos == len(self.queue):
+                self.queue.clear()
+                self.pos = 0
+                return v
+            if self.is_last():  # tuple indicates that Processor should duplicate row because we have some values in the queues
+                return v,
+            return v
+
+        return func_wrapper
+
+    @staticmethod
+    def clear():
+        """ Clear caches that ex allow a column using @duplicate_row to loop result from an inner lambda """
+        MultipleRows.el_on_row.clear()
+
+    @staticmethod
+    def duplicate_row(func):
+        """ Decorate a function that computes a list instead of a scalar. """
+        return MultipleRows, func
+
+
 class Checker:
     """ To not pollute the namespace, we put the methods here """
+
+    hostname_ips_cache = {}
+    hostname_cache = {}
+
+    @staticmethod
+    @MultipleRows.duplicate_row
+    def hostname2ips(hostname):
+        if hostname not in Checker.hostname_ips_cache:
+            try:
+                Checker.hostname_ips_cache[hostname] = {addr[4][0] for addr in socket.getaddrinfo(hostname, None)}
+            except OSError:
+                Checker.hostname_ips_cache[hostname] = []
+        return Checker.hostname_ips_cache[hostname]
+
+    @classmethod
+    def hostname2ip(cls, hostname):
+        if hostname not in cls.hostname_cache:
+            try:
+                cls.hostname_cache[hostname] = socket.gethostbyname(hostname)
+            except OSError:
+                cls.hostname_cache[hostname] = False
+        return cls.hostname_cache[hostname]
 
     @staticmethod
     def check_cidr(cidr):
@@ -168,7 +251,7 @@ class Type:
     """
 
     def __init__(self, name, group=TypeGroup.general, description=None, usual_names=[], identify_method=None, is_private=False,
-                 from_message=None):
+                 from_message=None, usual_must_match=False):
         """
         :param name: Key name
         :param description: Help text
@@ -179,14 +262,28 @@ class Type:
         self.name = name
         self.group = group
         self.usual_names = usual_names
+        self.usual_must_match = usual_must_match
         self.identify_method = identify_method
         self.description = description
         self.is_private = is_private
         self.is_disabled = False  # disabled field cannot be added (and computed)
         self.from_message = from_message
         types.append(self)
-        self.after = self.before = self
+        # Type considered equal when starting computing.
+        # Ex: hostname from source_ip will be computed as if from an ip.
+        # So that Types.source_ip will have `computing_start = ip`
+        self.computing_start: Type = self
+        # Types considered equal to be computed from.
+        # Ex: hostname from ip may be computed even from a source_ip.
+        # So that Types.ip will have `equals = [ip, source_ip]`
+        self.equals: List["Types"] = [self]
         self.is_plaintext_derivable = False
+
+    def __getstate__(self):
+        return str(self)
+
+    def __setstate__(self, state):
+        self.__dict__.update(getattr(Types, state).__dict__)
 
     def __eq__(self, other):
         if other is None:
@@ -227,25 +324,57 @@ class Type:
             return other + " " + self.name
         return self.other + " " + self.name
 
-    def _init(self):
-        """ Init self.after and self.before . """
-        afters = [stop for start, stop in methods if start is self and methods[start, stop] is True]
-        befores = [start for start, stop in methods if stop is self and methods[start, stop] is True]
-        if len(afters) == 1:
-            self.after = afters[0]
-        elif len(afters):
-            raise RuntimeWarning(f"Multiple 'afters' types defined for {self}: {afters}")
-        if len(befores) == 1:
-            self.before = befores[0] # XXX turn to befores probably
-        elif len(befores):
-            raise RuntimeWarning(f"Multiple 'befores' types defined for {self}: {befores}")
+    def init(self):
+        """ Init self.computing_start and self.equals . """
+        computing_start = [stop for start, stop in methods if start is self and methods[start, stop] is True]
+        equals = [start for start, stop in methods if stop is self and methods[start, stop] is True]
+        if len(computing_start) == 1:
+            self.computing_start = computing_start[0]
+        elif len(computing_start):
+            raise RuntimeWarning(f"Multiple 'computing_start' types defined for {self}: {computing_start}")
+        if equals:
+            self.equals = equals + [self]
 
         # check if this is plaintext derivable
         if self != Types.plaintext:
             self.is_plaintext_derivable = bool(graph.dijkstra(self, start=Types.plaintext))
 
+    def check_conformity(self, samples, has_header, field):
+        """
+        :rtype: int|False Score if the given info conforms to this type.
+        """
+        score = 0
+        # print("Guess:", key, names, checkFn)
+        # guess field type by name
 
-types: List[Type] = []  # all field types
+        if has_header:
+            s = str(field).replace(" ", "").replace("'", "").replace('"', "").lower()
+            for n in self.usual_names:
+                if s in n or n in s:
+                    print("HEADER match", field, self, self.usual_names)
+                    score += 2 if self.usual_must_match else 1
+                    break
+        if not score and self.usual_must_match:
+            return False
+        # else:
+        # guess field type by few values
+        hits = 0
+        for val in samples:
+            if self.identify_method(val):
+                # print("Match")
+                hits += 1
+        try:
+            percent = hits / len(samples)
+        except ZeroDivisionError:
+            percent = 0
+        if percent == 0:
+            return False
+        elif percent > 0.6:
+            # print("Function match", field, checkFn)
+            score += 1
+            if percent > 0.8:
+                score += 1
+        return score
 
 
 class Types:
@@ -255,10 +384,33 @@ class Types:
 
     """
 
+    @staticmethod
+    def init():
+        methods.update(Types._get_methods())
+        graph.set_private_nodes([t for t in types if t.is_private])  # methods converting a field type to another
+        [graph.add_edge(to, from_) for to, from_ in methods if methods[to, from_] is not True]
+        [t.init() for t in types]
+
+    @staticmethod
+    def find_type(source_type_candidate):
+        source_type = None
+        source_t = source_type_candidate.lower().replace(" ", "")  # make it seem like a usual field name
+        possible = None
+        for t in types:
+            if source_t == t:  # exact field name
+                source_type = t
+                break
+            if source_t in t.usual_names:  # usual field name
+                possible = t
+        else:
+            if possible:
+                source_type = possible
+        return source_type
+
     whois = Type("whois", TypeGroup.whois, "ask whois servers", is_private=True)
     web = Type("web", TypeGroup.web, "scrape web contents", is_private=True)
 
-    custom = Type("custom", TypeGroup.custom, from_message="from a method in your .py file")
+    external = Type("external", TypeGroup.custom, from_message="from a method in your .py file")
     code = Type("code", TypeGroup.custom, from_message="from a code you write")
     reg = Type("reg", TypeGroup.custom, from_message="from a regular expression")
     reg_s = Type("reg_s", TypeGroup.custom, from_message="substitution from a regular expression")
@@ -276,7 +428,11 @@ class Types:
     redirects = Type("redirects", TypeGroup.web)
     ports = Type("ports", TypeGroup.nmap)
 
-    ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "sourceipaddress", "ipaddress", "source"], check_ip)
+    ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "ipaddress"], check_ip)
+    source_ip = Type("source_ip", TypeGroup.general, "valid source IP address",
+                     ["sourceipaddress", "source", "src"], check_ip, usual_must_match=True)
+    destination_ip = Type("destination_ip", TypeGroup.general, "valid destination IP address",
+                          ["destinationipaddress", "destination", "dest", "dst"], check_ip, usual_must_match=True)
     cidr = Type("cidr", TypeGroup.general, "CIDR 127.0.0.1/32", ["cidr"], Checker.check_cidr)
     port_ip = Type("portIP", TypeGroup.general, "IP in the form 1.2.3.4.port", [], reIpWithPort.match)
     any_ip = Type("anyIP", TypeGroup.general, "IP in the form 'any text 1.2.3.4 any text'", [],
@@ -331,68 +487,66 @@ class Types:
 
             Method ~ lambda: Will be processed when converting one type to another
             Method ~ None: Will be skipped. (TypeGroup.custom fields usually have None.)
-            Method ~ True: The user should not be offered to compute from the field to another.
+            Method ~ True: The user should not be offered to compute from the field to another from a longer distance.
                 However if they already got the first type, it is the same as if they had the other.
-                Example: XXX source_ip,
-                Example: (base64 → base64_encoded) We do not want to offer the conversion plaintext → base64 → decoded_text,
-                    however we allow conversion base64 → (invisible base64_encoded) → decoded_text
+                Example: (source_ip → ip) hostname from source_ip will be computed as if from an ip,
+                Example: (abusemail → email) We do not want to offer the conversion hostname → whois → abusemail → email → hostname,
+                    in other words we do not offer to compute a hostname from a hostname, however when selecting
+                    an existing abusemail column, we offer conversion abusemail → (invisible email) → hostname
         """
         t = Types
-        return {(t.any_ip, t.ip): any_ip_2_ip,
-                # any IP: "91.222.204.175 93.171.205.34" -> "91.222.204.175" OR '"1.2.3.4"' -> 1.2.3.4
-                (t.port_ip, t.ip): port_ip_2_ip,
-                # portIP: IP written with a port 91.222.204.175.23 -> 91.222.204.175
-                (t.url, t.hostname): Whois.url2hostname,
-                (t.hostname, t.ip): Whois.hostname2ip,
-                (t.url, t.ip): Whois.url2ip,
-                (t.ip, t.whois): Whois,
-                (t.cidr, t.ip): lambda x: str(ipaddress.ip_interface(x).ip),
-                (t.whois, t.prefix): lambda x: (x, str(x.get[0])),
-                (t.whois, t.asn): lambda x: (x, x.get[3]),
-                (t.whois, t.abusemail): lambda x: (x, x.get[6]),
-                (t.whois, t.country): lambda x: (x, x.get[5]),
-                (t.whois, t.netname): lambda x: (x, x.get[4]),
-                (t.whois, t.csirt_contact): lambda x: (
-                    x, Contacts.csirtmails[x.get[5]] if x.get[5] in Contacts.csirtmails else "-"),
-                # returns tuple (local|country_code, whois-mail|abuse-contact)
-                (t.whois, t.incident_contact): lambda x: (x, x.get[2]),
-                (t.base64, t.plaintext): base64decode,
-                (t.plaintext, t.base64): lambda x: b64encode(x.encode("UTF-8")).decode("UTF-8"),
-                (t.plaintext, t.custom): None,
-                (t.plaintext, t.code): None,
-                (t.plaintext, t.reg): None,
-                (t.reg, t.reg_s): None,
-                (t.reg, t.reg_m): None,
-                (t.wrong_url, t.url): wrong_url_2_url,
-                (t.hostname, t.url): lambda x: "http://" + x,
-                (t.ip, t.url): lambda x: "http://" + x,
-                (t.url, t.web): Web,
-                (t.web, t.http_status): lambda x: x.get[0],
-                (t.web, t.text): lambda x: x.get[1],
-                (t.web, t.html): lambda x: x.get[2],
-                (t.web, t.redirects): lambda x: x.get[3],
-                (t.hostname, t.ports): nmap,
-                (t.ip, t.ports): nmap
-                # (t.abusemail, t.email): True
-                # (t.email, t.hostname): ...
-                # (t.email, check legit mailbox)
-                # (t.source_ip, t.ip): True
-                # (t.phone, t.country): True
-                # ("hostname", "spf"):
-                # (t.country, t.country_name):
-                # (t.hostname, t.tld)
-                # (t.tld, t.country)
-                # (t.prefix, t.cidr)
-                # XX dns dig
-                # XX url decode
-                # XX timestamp  dateutil.parser.parse except ValueError
-                }
-
-
-methods = Types._get_methods()
-graph = Graph([t for t in types if t.is_private])  # methods converting a field type to another
-[graph.add_edge(to, from_) for to, from_ in methods if methods[to, from_] is not True]
-[t._init() for t in types]
+        return {
+            (t.source_ip, t.ip): True,
+            (t.destination_ip, t.ip): True,
+            (t.any_ip, t.ip): any_ip_2_ip,
+            # any IP: "91.222.204.175 93.171.205.34" -> "91.222.204.175" OR '"1.2.3.4"' -> 1.2.3.4
+            (t.port_ip, t.ip): port_ip_2_ip,
+            # portIP: IP written with a port 91.222.204.175.23 -> 91.222.204.175
+            (t.url, t.hostname): Whois.url2hostname,
+            (t.hostname, t.ip): Checker.hostname2ips if Config.get("multiple_ips_from_hostname", "FIELDS") else Checker.hostname2ip,
+            (t.url, t.ip): Whois.url2ip,
+            (t.ip, t.whois): Whois,
+            (t.cidr, t.ip): lambda x: str(ipaddress.ip_interface(x).ip),
+            (t.whois, t.prefix): lambda x: (x, str(x.get[0])),
+            (t.whois, t.asn): lambda x: (x, x.get[3]),
+            (t.whois, t.abusemail): lambda x: (x, x.get[6]),
+            (t.whois, t.country): lambda x: (x, x.get[5]),
+            (t.whois, t.netname): lambda x: (x, x.get[4]),
+            (t.whois, t.csirt_contact): lambda x: (
+                x, Contacts.csirtmails[x.get[5]] if x.get[5] in Contacts.csirtmails else "-"),
+            # returns tuple (local|country_code, whois-mail|abuse-contact)
+            (t.whois, t.incident_contact): lambda x: (x, x.get[2]),
+            (t.base64, t.plaintext): base64decode,
+            (t.plaintext, t.base64): lambda x: b64encode(x.encode("UTF-8")).decode("UTF-8"),
+            (t.plaintext, t.external): None,
+            (t.plaintext, t.code): None,
+            (t.plaintext, t.reg): None,
+            (t.reg, t.reg_s): None,
+            (t.reg, t.reg_m): None,
+            (t.wrong_url, t.url): wrong_url_2_url,
+            (t.hostname, t.url): lambda x: "http://" + x,
+            (t.ip, t.url): lambda x: "http://" + x,
+            (t.url, t.web): Web,
+            (t.web, t.http_status): lambda x: x.get[0],
+            (t.web, t.text): lambda x: x.get[1],
+            (t.web, t.html): lambda x: x.get[2],
+            (t.web, t.redirects): lambda x: x.get[3],
+            (t.hostname, t.ports): nmap,
+            (t.ip, t.ports): nmap
+            # (t.abusemail, t.email): True
+            # (t.email, t.hostname): ...
+            # (t.email, check legit mailbox)
+            # (t.source_ip, t.ip): True
+            # (t.phone, t.country): True
+            # ("hostname", "spf"):
+            # (t.country, t.country_name):
+            # (t.hostname, t.tld)
+            # (t.tld, t.country)
+            # (t.prefix, t.cidr)
+            # XX dns dig
+            # XX url decode, url encode urllib.parse.quote
+            # XX timestamp  dateutil.parser.parse except ValueError
+        }
 
 
 class Identifier:
@@ -423,7 +577,7 @@ class Identifier:
         :return: lambda[]
         """
 
-        def custom_code(e):
+        def custom_code(e: str):
             def method(x):
                 l = locals()
                 try:
@@ -480,14 +634,18 @@ class Identifier:
         lambdas = []  # list of lambdas to calculate new field
         for i in range(len(path) - 1):
             lambda_ = methods[path[i], path[i + 1]]
-            if not hasattr(lambda_, "__call__"):  # the field is invisible, see help text for Types; may be False, None or True
+            if type(lambda_) == tuple and lambda_[0] == MultipleRows:
+                lambda_ = MultipleRows(lambda_[1]).run()
+            elif not hasattr(lambda_, "__call__"):  # the field is invisible, see help text for Types; may be False, None or True
                 continue
             lambdas.append(lambda_)
 
         if target.group == TypeGroup.custom:
-            if target == Types.custom:
+            if target == Types.external:
                 lambdas += [getattr(self.get_module_from_path(custom[0]), custom[1])]
             elif target == Types.code:
+                if type(custom) is list and len(custom) == 1:
+                    custom = custom[0]  # code accepts a string
                 lambdas += [custom_code(custom)]
             elif target in [Types.reg, Types.reg_m, Types.reg_s]:
                 lambdas += [regex(target, *custom)]  # custom is in the form (search, replace)
@@ -596,37 +754,11 @@ class Identifier:
         for i, field in enumerate(self.parser.fields):
             possible_types = {}
             for type_ in Types.get_guessable_types():
-                score = 0
-                # print("Guess:", key, names, checkFn)
-                # guess field type by name
-                if self.parser.has_header:
-                    s = str(field).replace(" ", "").replace("'", "").replace('"', "").lower()
-                    for n in type_.usual_names:
-                        if s in n or n in s:
-                            # print("HEADER match", field, names)
-                            score += 1
-                            break
-                # else:
-                # guess field type by few values
-                hits = 0
-                for val in samples[i]:
-                    if type_.identify_method(val):
-                        # print("Match")
-                        hits += 1
-                try:
-                    percent = hits / len(samples[i])
-                except ZeroDivisionError:
-                    percent = 0
-                if percent == 0:
-                    continue
-                elif percent > 0.6:
-                    # print("Function match", field, checkFn)
-                    score += 1
-                    if percent > 0.8:
-                        score += 1
-
-                possible_types[type_] = score
+                score = type_.check_conformity(samples[i], self.parser.has_header, field)
+                if score:
+                    possible_types[type_] = score
                 # print("hits", hits)
+
             if possible_types:  # sort by biggest score - biggest probability the column is of this type
                 field.possible_types = {k: v for k, v in sorted(possible_types.items(), key=lambda k: k[1], reverse=True)}
         return True
@@ -701,7 +833,7 @@ class Identifier:
         # determining source_type
         source_type_candidate = task.pop(0) if len(task) else None
         if source_type_candidate:  # determine SOURCE_TYPE
-            source_type = self.find_type(source_type_candidate)
+            source_type = Types.find_type(source_type_candidate)
             if not source_type:
                 if target_type.group == TypeGroup.custom:
                     # this was not SOURCE_TYPE but CUSTOM, for custom fields, SOURCE_TYPE may be implicitly plaintext
@@ -742,23 +874,6 @@ class Identifier:
             quit()
         return f, source_type, task
 
-
-    @staticmethod
-    def find_type(source_type_candidate):
-        source_type = None
-        source_t = source_type_candidate.lower().replace(" ", "")  # make it seem like a usual field name
-        possible = None
-        for t in types:
-            if source_t == t:  # exact field name
-                source_type = t
-                break
-            if source_t in t.usual_names:  # usual field name
-                possible = t
-        else:
-            if possible:
-                source_type = possible
-        return source_type
-
     def get_column_i(self, column):
         """
         Useful for parsing user input COLUMN from the CLI args.
@@ -773,8 +888,13 @@ class Identifier:
         elif column in self.parser.first_line_fields:  # exact column name
             source_col_i = self.parser.first_line_fields.index(column)
         else:
-            searched_type = self.find_type(column)  # get field by its type
+            searched_type = Types.find_type(column)  # get field by its type
+            reserve = None
             for f in self.parser.fields:
                 if f.type == searched_type:
                     source_col_i = f.col_i
+                elif searched_type in f.possible_types and not reserve:
+                    reserve = f.col_i
+            if not source_col_i:
+                source_col_i = reserve
         return source_col_i

@@ -9,8 +9,6 @@ from math import ceil
 from pathlib import Path
 from typing import Dict
 
-import ipdb
-
 from convey.identifier import Web
 from .config import Config
 from .contacts import Attachment, Contacts
@@ -49,7 +47,7 @@ class Processor:
         # apply setup
         adds = []  # convert settings["add"] to lambdas
         for f in settings["add"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
-            adds.append((f.name, self.csv.fields.index(f.source_field), f.get_methods()))
+            adds.append((f.name, f.source_field.col_i_original, f.get_methods()))
         del settings["add"]
         settings["addByMethod"] = adds
 
@@ -103,8 +101,7 @@ class Processor:
                             "[s]kip the line, [d]ebug, [q]uit: ")
                     if o == "d":
                         print("Maybe you should hit n multiple times because pdb takes you to the wrong scope.")  # I dont know why.
-                        import ipdb
-                        ipdb.set_trace()
+                        Config.get_debugger().set_trace()
                     elif o == "s":
                         continue  # skip to the next line
                     elif o == "q":
@@ -164,15 +161,22 @@ class Processor:
 
             # add fields
             whois = None
+            duplicate = False
             for col in settings["addByMethod"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
                 val = fields[col[1]]
                 for l in col[2]:
                     val = l(val)
-                if isinstance(val, tuple):  # we get whois info-tuple
-                    whois = val[0]
-                    fields.append(val[1])
+                if isinstance(val, tuple):
+                    if len(val) == 1:  # this must be "duplicate_row" decorator
+                        fields.append(val[0])
+                        duplicate = True
+                    else:  # this must be whois info-tuple
+                        whois = val[0]
+                        fields.append(val[1])
                 else:
                     fields.append(val)
+            if duplicate:
+                self.process_line(csv, line, settings)  # duplicate row because single lambda produced a list
 
             # inclusive filter
             for f in settings["filter"]:  # list of tuples (col, value): [(23, "passed-value"), (13, "another-value")]
@@ -224,7 +228,7 @@ class Processor:
             else:
                 if Config.is_debug():
                     traceback.print_exc()
-                    ipdb.set_trace()
+                    Config.get_debugger().set_trace()
                 else:
                     logger.warning(e, exc_info=True)
                 csv.invalid_lines_count += 1

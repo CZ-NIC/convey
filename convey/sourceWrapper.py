@@ -118,9 +118,9 @@ class SourceWrapper:
             except:
                 import traceback
                 print(traceback.format_exc())
-                Config.error_caught()
                 print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
-                input()
+                if not Config.error_caught():
+                    input()
                 self.parser = None
             if self.parser:
                 if self.parser.source_file != self.file:  # file might have been moved to another location
@@ -139,7 +139,8 @@ class SourceWrapper:
                     print(e)
                     print("Format of the file may have changed since last time. "
                           "Let's process it all again. If you continue, cache gets deleted.")
-                    Config.error_caught()
+                    if not Config.error_caught():
+                        input()
         else:
             if not Path(Config.get_cache_dir()).exists():
                 Path(Config.get_cache_dir()).mkdir()

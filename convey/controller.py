@@ -129,6 +129,9 @@ class Controller:
                                                     " and just print out possible types of the input."
                             , action="store_true")
         parser.add_argument('-C', '--csv-processing', help="Consider the input as a CSV, not a single.", action="store_true")
+        parser.add_argument('--multiple-ips-from-hostname', help="Hostname can be resolved into multiple IP addresses."
+                                                                " Duplicate row for each.",
+                            action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--show-uml', help="Show UML of fields and methods and exit.", action="store_true")
         parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
@@ -137,6 +140,13 @@ class Controller:
         if args.config:
             self.edit_configuration()
             quit()
+        for flag in ["output", "web", "whois", "nmap", "delimiter", "quote_char", "compute_preview", "user_agent", "multiple_ips_from_hostname"]:
+            if getattr(args, flag) is not None:
+                Config.set(flag, getattr(args, flag))
+        for module in ["whois", "web", "nmap"]:
+            if Config.get(module, "FIELDS") is False:
+                getattr(TypeGroup, module).disable()
+        Types.init()
         if args.show_uml:
             print(Types.get_uml())
             quit()
@@ -157,12 +167,7 @@ class Controller:
             Config.set("single_processing", False)
         if args.single_processing or args.single_detect:
             Config.set("single_processing", True)
-        for flag in ["output", "web", "whois", "nmap", "delimiter", "quote_char", "compute_preview", "user_agent"]:
-            if getattr(args, flag) is not None:
-                Config.set(flag, getattr(args, flag))
-        for module in ["whois", "web", "nmap"]:
-            if Config.get(module, "FIELDS") is False:
-                getattr(TypeGroup, module).disable()
+
 
         # append new fields from CLI
         new_fields = []  # append new fields
@@ -439,7 +444,7 @@ class Controller:
                  lambda: Contacts.mailDraft["local"].gui_edit() and Contacts.mailDraft["foreign"].gui_edit())
         menu.sout()
 
-    def source_new_column(self, target_type, add=None, source_field: Field = None, source_type: Type = None, custom: str = None):
+    def source_new_column(self, target_type, add=None, source_field: Field = None, source_type: Type = None, custom: list = None):
         """ We know what Field the new column should be of, now determine how we should extend it:
             Summarize what order has the source field and what type the source field should be considered alike.
                 :type source_field: Field
@@ -485,10 +490,10 @@ class Controller:
             if target_type.group == TypeGroup.custom:
                 if target_type == Types.code:
                     print("What code should be executed? Change 'x'. Ex: x += \"append\";")
-                    custom = Preview(source_field, source_type).code(target_type)
+                    custom = Preview(source_field, source_type).code()
                 elif target_type in [Types.reg, Types.reg_m, Types.reg_s]:
                     *custom, target_type = Preview(source_field, source_type).reg(target_type)
-                elif target_type == Types.custom:  # choose a file with a needed method
+                elif target_type == Types.external:  # choose a file with a needed method
                     while True:
                         title = "What .py file should be used as custom source?"
                         try:
@@ -505,12 +510,12 @@ class Controller:
                         module = self.parser.identifier.get_module_from_path(path)
                         if module:
                             # inspect the .py file, extract methods and let the user choose one
-                            code, source_type = dialog.menu("What method should be used in the file {}?".format(path),
+                            code, method_name = dialog.menu(f"What method should be used in the file {path}?",
                                                             choices=[(x, "") for x in dir(module) if not x.startswith("_")])
                             if code == "cancel":
                                 return
 
-                            custom = path, source_type
+                            custom = path, method_name
                             break
                         else:
                             dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))

@@ -15,6 +15,7 @@
         - flag compute_preview
         - user-agent
         - headless
+        - multiple-ips-from-hostname #32
     - CLI only flags
         - flag --yes for skipping dialogues
         - new CLI flag --config to open configuration
