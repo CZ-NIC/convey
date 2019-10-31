@@ -112,6 +112,8 @@ class Controller:
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--nmap', help="R|Allowing NMAP module: Leave blank for True or put true/on/1 or false/off/0.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
+        parser.add_argument('--dig', help="R|Allowing DNS DIG module: Leave blank for True or put true/on/1 or false/off/0.",
+                            action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--web', help="R|Allowing Web module: Leave blank for True or put true/on/1 or false/off/0."
                                           "\nWhen single value input contains a web page, we could fetch it and add"
                                           " status (HTTP code) and text fields. Text is just mere text, no tags, style,"
@@ -140,11 +142,13 @@ class Controller:
         if args.config:
             self.edit_configuration()
             quit()
-        for flag in ["output", "web", "whois", "nmap", "delimiter", "quote_char", "compute_preview", "user_agent", "multiple_ips_from_hostname"]:
+        for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent", "multiple_ips_from_hostname"]:
             if getattr(args, flag) is not None:
                 Config.set(flag, getattr(args, flag))
-        for module in ["whois", "web", "nmap"]:
+        for module in ["whois", "web", "nmap", "dig"]:
             if Config.get(module, "FIELDS") is False:
+                if module == "dig":
+                    module = "dns"
                 getattr(TypeGroup, module).disable()
         Types.init()
         if args.show_uml:

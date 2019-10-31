@@ -249,7 +249,7 @@ class Parser:
         Web.init()
 
         def append(target_type, val):
-            rows.append([str(target_type), "×" if val is None else val])
+            rows.append([str(target_type), "×" if (val is None or val == []) else val])
             data[str(target_type)] = val
 
         # get fields and their methods to be computed

@@ -181,6 +181,28 @@ class Web:
         self.cache[url] = self.get
 
 
+def dig(rr):
+    def dig_query(query):
+        if rr == "SPF":
+            t = "TXT"
+        elif rr == "DMARC":
+            query = "_dmarc." + query
+            t = "TXT"
+        else:
+            t = rr
+        text = subprocess.check_output(["dig", "+short", "-t", t, query]).decode("utf-8")
+        if text.startswith(";;"):
+            return None
+        spl = text.split("\n")[:-1]
+        if t == "TXT":
+            spl = [r[1:-1] for r in spl if r.startswith('"') and r.endswith('"')]  # row without " may be CNAME redirect
+            if rr == "SPF":
+                return [r for r in spl if r.startswith('v=spf')]
+            elif rr == "TXT":
+                return [r for r in spl if not r.startswith('v=spf')]
+        return spl
+    return dig_query
+
 def nmap(val):
     logger.info(f"NMAPing {val}...")
     text = subprocess.run(["nmap", val], stdout=subprocess.PIPE).stdout.decode("utf-8")
@@ -389,6 +411,13 @@ class Types:
     html = Type("html", TypeGroup.web)
     redirects = Type("redirects", TypeGroup.web)
     ports = Type("ports", TypeGroup.nmap)
+    spf = Type("spf", TypeGroup.dns)
+    txt = Type("txt", TypeGroup.dns)
+    a = Type("a", TypeGroup.dns)
+    aaaa = Type("aaaa", TypeGroup.dns)
+    ns = Type("ns", TypeGroup.dns)
+    mx = Type("mx", TypeGroup.dns)
+    dmarc = Type("dmarc", TypeGroup.dns)
 
     ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "ipaddress"], check_ip)
     source_ip = Type("source_ip", TypeGroup.general, "valid source IP address",
@@ -422,8 +451,7 @@ class Types:
     @staticmethod
     def get_uml():
         """ Return DOT UML source code of types and methods"""
-        l = ['digraph { ']
-        l.append('label="Convey field types (dashed = identifiable automatically, circled = IO actions)"')
+        l = ['digraph { ', 'label="Convey field types (dashed = identifiable automatically, circled = IO actions)"']
         for f in types:
             label = [f.name]
             if f.description:
@@ -494,7 +522,14 @@ class Types:
             (t.web, t.html): lambda x: x.get[2],
             (t.web, t.redirects): lambda x: x.get[3],
             (t.hostname, t.ports): nmap,
-            (t.ip, t.ports): nmap
+            (t.ip, t.ports): nmap,
+            (t.hostname, t.spf): dig("SPF"),
+            (t.hostname, t.txt): dig("TXT"),
+            (t.hostname, t.a): dig("A"),
+            (t.hostname, t.aaaa): dig("AAAA"),
+            (t.hostname, t.ns): dig("NS"),
+            (t.hostname, t.mx): dig("MX"),
+            (t.hostname, t.dmarc): dig("DMARC"),
             # (t.abusemail, t.email): True
             # (t.email, t.hostname): ...
             # (t.email, check legit mailbox)
@@ -505,7 +540,6 @@ class Types:
             # (t.hostname, t.tld)
             # (t.tld, t.country)
             # (t.prefix, t.cidr)
-            # XX dns dig
             # XX url decode, url encode urllib.parse.quote
             # XX timestamp  dateutil.parser.parse except ValueError
         }
