@@ -188,7 +188,7 @@ class Parser:
             self.identifier.identify_fields()
         except Cancelled:
             print("Cancelled.")
-            return self
+            quit()
         self.informer.sout_info()
         self.is_formatted = True  # delimiter and header has been detected etc.
         return self

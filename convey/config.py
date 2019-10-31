@@ -92,7 +92,7 @@ class Config:
     verbosity: int = logging.INFO  # standard python3 logging level int
 
     @staticmethod
-    def init(yes=False, verbosity=None):
+    def integrity_check():
         from .dialogue import is_yes  # since Config should be the very first package file to be loaded, we postpone this import
         # Config file integrity check (we may upgrade Convey from but some new parameters needs to be added manually)
         default_config = configparser.ConfigParser()
@@ -172,12 +172,14 @@ class Config:
                 config_lines[start_line] += "\n" + "".join(block)  # insert missing key
             if is_yes("Should I add the missing keys (and remove the unused) from your config file?"):
                 Config.path.write_text("".join(config_lines))
-                print("Config file has been successfully modified. Restarting Convey.")
+                print("Config file has been successfully modified. Restart Convey.")
             else:
                 print("Please write missing items into the config file before continuing.\nOpening", Config.path, "...")
                 p = Popen(["xdg-open", Config.path], shell=False)
             quit()
 
+    @staticmethod
+    def init_verbosity(yes=False, verbosity=None):
         # Set up logging and verbosity
         from .dialogue import assume_yes
         if yes:
@@ -231,6 +233,10 @@ class Config:
     @staticmethod
     def is_quiet():
         return Config.verbosity >= logging.WARNING
+
+    @staticmethod
+    def is_verbose():
+        return Config.verbosity <= logging.DEBUG
 
     @staticmethod
     def is_testing():

@@ -15,7 +15,7 @@
         - flag compute_preview
         - user-agent
         - headless
-        - multiple-ips-from-hostname #32
+        - multiple-hostname-ip #32
     - CLI only flags
         - flag --yes for skipping dialogues
         - new CLI flag --config to open configuration
@@ -43,13 +43,15 @@
 - processing:
     - logs in format "time IP src port > IP dst port" can be automatically transformed to CSV before processing
     - multiline base64 strings (seen in e-mails) may be input → automatically decoded
+    - methods may return a list (the row will be duplicated)
+    - implicitly convert to plaintext if possible when adding new column (ex: base64 will be implicitly decoded before its value being passed to a new reg column)
+    - class Subtype may be inherited to allow the user choose the way generating will work
 - internal
     - os replaced by pathlib
     - Config.getboolean merged to Config.get
     - Identifier (former CSVGuesses) is now object oriented, no more spaghetti
     - huge refactoring
     - fix: log files
-    - implicitly convert to plaintext if possible when adding new column (ex: base64 will be implicitly decoded before its value being passed to a new reg column)
 - dialogs
     - able to automatically add/remove config file flags at program upgrade if allowed by user
     - when no known method is known to process a field, an example is given
@@ -62,7 +64,10 @@
     - column sorting/picking in the main menu
 - types
     - reg type and its reg_m and reg_s
-
+    - dns types (a, aaaa, mx, spf, ns, dmarc, txt)
+    - tld
+    - web: text, http_status, html, redirects
+    - ports
 
 ## 1.1 (2019-05-13)
 - fix: do not reprocess file if moved to another location

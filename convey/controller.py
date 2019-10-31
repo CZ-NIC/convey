@@ -1,6 +1,7 @@
 import argparse
 import csv
 import logging
+import re
 import sys
 from pathlib import Path
 from sys import exit
@@ -15,7 +16,7 @@ from prompt_toolkit.shortcuts import clear
 from .config import Config, get_terminal_size
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
-from .identifier import Types, TypeGroup, types, Type, graph
+from .identifier import Types, TypeGroup, types, Type, graph, Subtype, methods
 from .mailSender import MailSenderOtrs, MailSenderSmtp
 from .parser import Parser, Field
 from .sourceWrapper import SourceWrapper
@@ -55,8 +56,7 @@ class SmartFormatter(argparse.HelpFormatter):
 
 class Controller:
     def __init__(self):
-        #
-        #  formatter_class=argparse.RawTextHelpFormatter
+        Types.init()
         epilog = "To launch a web service see README.md."
         column_help = "COLUMN is ID the column (1, 2, 3...), the exact column name, field type name or its usual name."
         parser = argparse.ArgumentParser(description="Data conversion swiss knife", formatter_class=SmartFormatter, epilog=epilog)
@@ -85,10 +85,12 @@ class Controller:
                             action="store_true")
         parser.add_argument('-f', '--field',
                             help="R|Compute field."
+                                 "\n* FIELD is a field type (see below) that may be appended with a [CUSTOM] in square brackets."
                                  "\n* " + column_help +
                                  "\n* SOURCE_TYPE is either field type or usual field type. "
                                  "That way, you may specify processing method."
                                  "\n* CUSTOM is any string dependent on the new FIELD type (if not provided, will be asked it for)."
+                                 "\nEx: --field tld[gTLD]  # would add TLD from probably a hostname, filtered by CUSTOM=gTLD"
                                  "\nEx: --field netname,ip  # would add netname column from any IP column"
                                  "\n    (Note the comma without space behind 'netname'.)"
                                  "\n\nComputable fields: " + "".join("\n* " + f.doc() for f in Types.get_computable_types()) +
@@ -131,10 +133,12 @@ class Controller:
                                                     " and just print out possible types of the input."
                             , action="store_true")
         parser.add_argument('-C', '--csv-processing', help="Consider the input as a CSV, not a single.", action="store_true")
-        parser.add_argument('--multiple-ips-from-hostname', help="Hostname can be resolved into multiple IP addresses."
-                                                                " Duplicate row for each.",
+        parser.add_argument('--multiple-hostname-ip', help="Hostname can be resolved into multiple IP addresses."
+                                                           " Duplicate row for each.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('--show-uml', help="Show UML of fields and methods and exit.", action="store_true")
+        parser.add_argument('--show-uml', help="Show UML of fields and methods and exit."
+                                               " Methods that are currently disabled via flags or config file are grayed out."
+                                               " You may add --verbose to generate more info.", action="store_true")
         parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--version', help=f"Show the version number (which is currently {__version__}).", action="store_true")
@@ -142,7 +146,9 @@ class Controller:
         if args.config:
             self.edit_configuration()
             quit()
-        for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent", "multiple_ips_from_hostname"]:
+
+        for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
+                     "multiple_hostname_ip"]:
             if getattr(args, flag) is not None:
                 Config.set(flag, getattr(args, flag))
         for module in ["whois", "web", "nmap", "dig"]:
@@ -150,7 +156,7 @@ class Controller:
                 if module == "dig":
                     module = "dns"
                 getattr(TypeGroup, module).disable()
-        Types.init()
+        Config.init_verbosity(args.yes, 30 if args.quiet else (10 if args.verbose else None))
         if args.show_uml:
             print(Types.get_uml())
             quit()
@@ -162,7 +168,7 @@ class Controller:
         if args.headless:
             args.yes = True
             args.quiet = True
-        Config.init(args.yes, 30 if args.quiet else (10 if args.verbose else None))
+        Config.integrity_check()
         if args.header:
             Config.set("header", True)
         if args.no_header:
@@ -171,26 +177,7 @@ class Controller:
             Config.set("single_processing", False)
         if args.single_processing or args.single_detect:
             Config.set("single_processing", True)
-
-
-        # append new fields from CLI
-        new_fields = []  # append new fields
-
-        def add(l, add):
-            for task in l or ():  # FIELD,[COLUMN],[SOURCE_TYPE], ex: `netname 3|"IP address" ip|sourceip`
-                task = [x for x in csv.reader([task])][0]
-                try:
-                    target_type = types[types.index(task[0])]  # determine FIELD by exact name
-                except ValueError:
-                    d = {t.name: distance(task[0], t.name) for t in Types.get_computable_types()}
-                    rather = min(d, key=d.get)
-                    logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
-                    quit()
-                new_fields.append([add, target_type, *task[1:]])
-                Config.set("adding-new-fields", True)
-
-        add(args.field, True)
-        add(args.field_excluded, False)
+        Config.set("adding-new-fields", args.field or args.field_excluded)
 
         self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
         self.parser: Parser = self.wrapper.parser
@@ -212,11 +199,27 @@ class Controller:
                     quit()
             self.parser.is_processable = True
 
-        # prepare to add new fields
-        for el in new_fields:
-            add = el.pop(0)
-            target_type = el[0]
-            source_field, source_type, custom = self.parser.identifier.get_fitting_source(*el)
+        # append new fields from CLI
+        for add, task in [(True, l) for l in (args.field or [])] + [(False, l) for l in (args.field_excluded or [])]:
+            # FIELD,[COLUMN],[SOURCE_TYPE], ex: `netname 3|"IP address" ip|sourceip`
+            task = [x for x in csv.reader([task])][0]
+            #add = task.pop(0)
+            custom = []
+            target_type = task[0]
+            m = re.search(r"(\w*)\[(\w*)\]", target_type)
+            if m:
+                target_type = m.group(1)
+                custom = [m.group(2)]
+            try:
+                target_type = types[types.index(target_type)]  # determine FIELD by exact name
+            except ValueError:
+                d = {t.name: distance(task[0], t.name) for t in Types.get_computable_types()}
+                rather = min(d, key=d.get)
+                logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
+                quit()
+            source_field, source_type, c = self.parser.identifier.get_fitting_source(target_type, *task[1:])
+            custom = c + custom
+
             self.source_new_column(target_type, add, source_field, source_type, custom)
             self.parser.is_processable = True
 
@@ -255,11 +258,12 @@ class Controller:
 
         # main menu
         while True:
-            parser = self.parser = self.wrapper.parser  # may be changed by reprocessing
+            self.parser = self.wrapper.parser  # may be changed by reprocessing
             self.parser.informer.sout_info()
 
             if self.start_debugger:
-                print("\nDebugging mode, you may want to see `parser` variable:")
+                parser = self.parser
+                print("\nDebugging mode, you may want to see `self.parser` variable:")
                 self.start_debugger = False
                 Config.get_debugger().set_trace()
 
@@ -457,6 +461,9 @@ class Controller:
                 :type add: bool if the column should be added to the table; None ask
                 :return Field
         """
+        if custom is None:
+            # default [] would be evaluated at the time the function is defined, multiple columns may share the same function
+            custom = []
         dialog = Dialog(autowidgetsize=True)
         if not source_field or not source_type:
             print("\nWhat column we base {} on?".format(target_type))
@@ -525,7 +532,16 @@ class Controller:
                             dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
                 if not custom:
                     return
-
+            path = graph.dijkstra(target_type, start=source_field.type, ignore_private=True)
+            # import ipdb; ipdb.set_trace()
+            for i in range(len(path) - 1):
+                m = methods[path[i], path[i + 1]]
+                if type(m) is type and issubclass(m, Subtype):
+                    code, c = dialog.menu(f"Choose subtype", choices=m.get_options())
+                    if code == "cancel":
+                        return
+                    # import ipdb; ipdb.set_trace()
+                    custom.insert(0, c)
         if add is None:
             if dialog.yesno("New field added: {}\n\nDo you want to include this field as a new column?".format(
                     target_type)) == "ok":

@@ -56,7 +56,8 @@ def application(env, start_response):
         from convey.parser import Parser
         from convey.identifier import Types
         Types.init()
-        Config.init()
+        Config.integrity_check()
+        Config.init_verbosity()
         WebServer.source_parser = Parser(prepare=False)
 
     headers = [('Access-Control-Allow-Origin', '*')]

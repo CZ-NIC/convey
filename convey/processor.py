@@ -179,10 +179,6 @@ class Processor:
                         else:
                             val = l(val)
                     if isinstance(val, tuple):
-                        # if len(val) == 1:  # this must be "duplicate_row" decorator # XXX
-                        #     fields.append(val[0])
-                        #     list_lengths = True
-                        # else:
                         # this must be whois info-tuple
                         # we are sure that whois will be the last-in-row computed val because there is no path from whois further
                         # if we implement a direct path (ex: whois → abusemail → hostname) we should put this statement below

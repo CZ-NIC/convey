@@ -170,13 +170,35 @@ def any_method(value):
 
 Ex: If a method returns 2 items and another 3 items, you will receive 6 similar rows.
 
+
+Should there be multiple ways of using your generator, you may inherit `Subtype` and let the user decide at the runtime.
+
+```python3
+from convey import Subtype
+ class any_method(Subtype):
+    def all(x):
+        ''' All of them.  '''
+        return x
+
+    def filtered(cls, x):
+        ''' Filter some of them '''
+        if x in country_code_set:
+            return x
+```
+
+```bash
+$ convey file.csv --field any_method  # user will be asked whether to use `all` or `filtered`
+$ convey file.csv --field any_method[filtered]  # filtered sub-method will be used
+```
+
+
 Handsome feature if you're willing to use the Shodan API as our partner or to do anything else.
 
 ## Examples
 
 ### Base64 and Regular expressions
 ```python3
-# -f, --field adding field syntax: FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]
+# -f, --field adding field syntax: FIELD[[CUSTOM]],[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]
 # -H, --headless: just quietly print out single value, no dialog
 
 $ convey hello -f base64  -H  # --headless conversion to base64
@@ -201,6 +223,10 @@ a!!sb!8=
 # 5.6.7.8,443,2016-02-09T01:12:26-05:00,16019,CZ
 # 9.10.11.12,25,2016-02-27T22:20:21-05:00,16019,CZ
 $ convey file.csv --field-excluded asn --split asn
+
+These are equivalent. If "gTLD" is not provided, user will be asked for.
+$ convey test.csv --fresh -field tld[gTLD]
+$ convey test.csv --fresh -field tld,,,gTLD
 
 
 ```

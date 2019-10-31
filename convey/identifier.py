@@ -15,6 +15,7 @@ from typing import List
 
 import requests
 from bs4 import BeautifulSoup
+from validate_email import validate_email
 
 from .config import Config
 from .contacts import Contacts
@@ -35,6 +36,42 @@ reUrl = re.compile('[htps]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA
 types: List["Type"] = []  # all field types
 methods = {}
 graph = Graph()
+
+
+class Subtype:
+    """ Inherit if you need to ask a sub-question while computing a column.
+     Put options as methods, user will be asked what sub-method they tend to use,
+     with the description taken directly from the __doc__ string.
+
+     Ex: Hostname to TLD computation may be unfiltered, or take ccTLD records only.
+
+     class get_tld(Subtype):
+        def all(x):
+            ''' this text will be displayed to the user '''
+            return x
+
+        def ccTLD(cls, x):
+            ''' we return only TLD of specific countries '''
+            if x in country_code_set:
+                return x
+    """
+
+    @classmethod
+    def get_lambda(cls, custom):
+        for name in cls._get_options():
+            if name == custom:
+                return getattr(cls, name)
+        else:
+            raise NotImplementedError(f"Option {custom} has not been implemented for {cls}, only {cls._get_options()}.")
+
+    @classmethod
+    def get_options(cls):
+        """ Return generator of options name and description tuples """
+        return ((name, getattr(cls, name).__doc__.strip()) for name in cls._get_options())
+
+    @classmethod
+    def _get_options(cls):
+        return (name for name in cls.__dict__ if not name.startswith("_"))
 
 
 def check_ip(ip):
@@ -90,6 +127,25 @@ class Checker:
     def check_wrong_url(wrong):
         s = wrong_url_2_url(wrong, make=False)
         return (not reUrl.match(wrong) and not reFqdn.match(wrong)) and (reUrl.match(s) or reFqdn.match(s))
+
+    @staticmethod
+    class HostnameTld(Subtype):
+        @staticmethod
+        def all(x):
+            """ take all TLD """
+            return x[x.rindex(".") + 1:]
+
+        @classmethod
+        def ccTLD(cls, x):
+            """ country code only """
+            x = cls.all(x)
+            return x if len(x) == 2 else ""
+
+        @classmethod
+        def gTLD(cls, x):
+            """ generic only """
+            x = cls.all(x)
+            return x if len(x) != 2 else ""
 
 
 def wrong_url_2_url(s, make=True):
@@ -201,7 +257,9 @@ def dig(rr):
             elif rr == "TXT":
                 return [r for r in spl if not r.startswith('v=spf')]
         return spl
+
     return dig_query
+
 
 def nmap(val):
     logger.info(f"NMAPing {val}...")
@@ -211,6 +269,7 @@ def nmap(val):
     text = text[:text.find("\n\n")]
     return text
 
+methods_deleted = {}
 
 class TypeGroup(IntEnum):
     general = 1
@@ -223,10 +282,11 @@ class TypeGroup(IntEnum):
     def disable(self):
         for start, target in copy(methods):
             if start.group is self or target.group is self:
+                methods_deleted[start, target] = methods[start, target]
                 del methods[start, target]
-        for f in Types.get_guessable_types():
-            if f.group is self:
-                f.is_disabled = True
+        for t in Types.get_guessable_types():
+            if t.group is self:
+                t.is_disabled = True
 
 
 class Type:
@@ -405,7 +465,6 @@ class Types:
     prefix = Type("prefix", TypeGroup.whois)
     csirt_contact = Type("csirt_contact", TypeGroup.whois)
     incident_contact = Type("incident_contact", TypeGroup.whois)
-    decoded_text = Type("decoded_text", TypeGroup.general)
     text = Type("text", TypeGroup.web)
     http_status = Type("http_status", TypeGroup.web)
     html = Type("html", TypeGroup.web)
@@ -418,6 +477,7 @@ class Types:
     ns = Type("ns", TypeGroup.dns)
     mx = Type("mx", TypeGroup.dns)
     dmarc = Type("dmarc", TypeGroup.dns)
+    tld = Type("tld", TypeGroup.general)
 
     ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "ipaddress"], check_ip)
     source_ip = Type("source_ip", TypeGroup.general, "valid source IP address",
@@ -429,13 +489,13 @@ class Types:
     any_ip = Type("anyIP", TypeGroup.general, "IP in the form 'any text 1.2.3.4 any text'", [],
                   lambda x: reAnyIp.search(x) and not check_ip(x))
     hostname = Type("hostname", TypeGroup.general, "2nd or 3rd domain name", ["fqdn", "hostname", "domain"], reFqdn.match)
+    email = Type("email", TypeGroup.general, "E-mail address", ["mail"], validate_email)
     url = Type("url", TypeGroup.general, "URL starting with http/https", ["url", "uri", "location"],
                lambda s: reUrl.match(s) and "[.]" not in s)  # input "example[.]com" would be admitted as a valid URL)
     asn = Type("asn", TypeGroup.whois, "AS Number", ["as", "asn", "asnumber"],
                lambda x: re.search('AS\d+', x) is not None)
     base64 = Type("base64", TypeGroup.general, "Text encoded with Base64", ["base64"], Checker.is_base64)
-    base64_encoded = Type("base64_encoded", TypeGroup.general)
-    wrong_url = Type("wrongURL", TypeGroup.general, "Deactivated URL", [], Checker.check_wrong_url)
+    wrong_url = Type("wrong_url", TypeGroup.general, "Deactivated URL", [], Checker.check_wrong_url)
     plaintext = Type("plaintext", TypeGroup.general, "Plain text", ["plaintext", "text"], lambda x: False)
 
     @staticmethod
@@ -452,21 +512,54 @@ class Types:
     def get_uml():
         """ Return DOT UML source code of types and methods"""
         l = ['digraph { ', 'label="Convey field types (dashed = identifiable automatically, circled = IO actions)"']
+        used = set()
+
+        def add(start, target, s_enabled):
+            if (start, target) not in used:
+                used.add((start, target))
+                if not s_enabled:
+                    used.update([start, target])
+                l.append(f"{start} -> {target}{s_enabled}")
+
+        s_disabled = "[color=lightgray fontcolor=lightgray]"
+        for enabled, ((start, target), m) in [(True, f) for f in methods.items()] + [(False, f) for f in methods_deleted.items()]:
+            s_enabled = "" if enabled else s_disabled
+            if start.group != target.group and target.group.name != target and target.group is not TypeGroup.general:
+                add(start, target.group.name, s_enabled)
+                start = target.group.name
+            add(start, target, s_enabled)
+            if m is True:
+                l[-1] += "[style=dashed]"
+            if type(m) is type and issubclass(m, Subtype):
+                s = "[style=dashed][arrowhead=diamond arrowtail=diamond dir=both]" + s_enabled
+                [l.append(f"{target} -> {name} {s}") for name, _ in m.get_options()]
+        for tg in TypeGroup:
+            if tg is not TypeGroup.general:
+                if tg.name in used:
+                    l.append(f"{tg.name} [shape=box]")
+                else:
+                    l.append(f"{tg.name} [shape=box]{s_disabled}")
         for f in types:
+            s_enabled = "" if f in used else s_disabled
+                # if f.is_private:
+                #     continue
+                #add(f, "disabled")
+                #l[-1] += "[dir=none]"
             label = [f.name]
+            s = ""
             if f.description:
                 label.append(f.description)
-            if f.usual_names:
-                label.append("usual names: " + ", ".join(f.usual_names))
-            s = "\n".join(label)
-            l.append(f'{f.name} [label="{s}"]')
+            if Config.is_verbose():
+                if f.usual_names:
+                    label.append("usual names: " + ", ".join(f.usual_names))
+                s = ' [label="' + r"\n".join(label) + '"]'
+            l.append(f'{f.name}{s}{s_enabled}')
             if f in Types.get_guessable_types():
                 l.append(f'{f.name} [style=dashed]')
-            if f.is_private:
-                l.append(f'{f.name} [shape=circled]')
+            # if f.is_private:
+            #    l.append(f'{f.name} [shape=box]')
 
-        for k, v in methods:
-            l.append(f"{k} -> {v};")
+
         l.append("}")
         return "\n".join(l)
 
@@ -493,10 +586,11 @@ class Types:
             (t.port_ip, t.ip): port_ip_2_ip,
             # portIP: IP written with a port 91.222.204.175.23 -> 91.222.204.175
             (t.url, t.hostname): Whois.url2hostname,
-            (t.hostname, t.ip): Checker.hostname2ips if Config.get("multiple_ips_from_hostname", "FIELDS") else Checker.hostname2ip,
+            (t.hostname, t.ip): Checker.hostname2ips if Config.get("multiple_hostname_ip", "FIELDS") else Checker.hostname2ip,
             # (t.url, t.ip): Whois.url2ip,
             (t.ip, t.whois): Whois,
-            (t.cidr, t.ip): lambda x: str(ipaddress.ip_interface(x).ip),
+            (t.cidr, t.ip): lambda x: x if Config.get("multiple_cidr_ip", "FIELDS") else lambda x: str(
+                ipaddress.ip_interface(x).ip),  # XXX
             (t.whois, t.prefix): lambda x: (x, str(x.get[0])),
             (t.whois, t.asn): lambda x: (x, x.get[3]),
             (t.whois, t.abusemail): lambda x: (x, x.get[6]),
@@ -530,15 +624,17 @@ class Types:
             (t.hostname, t.ns): dig("NS"),
             (t.hostname, t.mx): dig("MX"),
             (t.hostname, t.dmarc): dig("DMARC"),
-            # (t.abusemail, t.email): True
-            # (t.email, t.hostname): ...
+            (t.abusemail, t.email): True,
+            (t.email, t.hostname): lambda x: x[x.index("@") + 1:],
             # (t.email, check legit mailbox)
             # (t.source_ip, t.ip): True
             # (t.phone, t.country): True
-            # ("hostname", "spf"):
             # (t.country, t.country_name):
-            # (t.hostname, t.tld)
-            # (t.tld, t.country)
+            (t.hostname, t.tld): Checker.HostnameTld,
+            (t.prefix, t.cidr): lambda x: x,
+            # XXX asi nahraď whois ať vrací radši cidr, jestli jsou stejný, a ten lze případně expandovat na prefix
+            (t.redirects, t.url): True,
+            # (t.cc_tld, t.country): True
             # (t.prefix, t.cidr)
             # XX url decode, url encode urllib.parse.quote
             # XX timestamp  dateutil.parser.parse except ValueError
@@ -572,6 +668,7 @@ class Identifier:
         :param custom: If target is a 'custom' field type, we'll receive a tuple (module path, method name).
         :return: lambda[]
         """
+        custom = copy(custom)
 
         def custom_code(e: str):
             def method(x):
@@ -630,7 +727,9 @@ class Identifier:
         lambdas = []  # list of lambdas to calculate new field
         for i in range(len(path) - 1):
             lambda_ = methods[path[i], path[i + 1]]
-            if not hasattr(lambda_, "__call__"):  # the field is invisible, see help text for Types; may be False, None or True
+            if type(lambda_) is type and issubclass(lambda_, Subtype):
+                lambda_ = lambda_.get_lambda(custom.pop(0))
+            elif not hasattr(lambda_, "__call__"):  # the field is invisible, see help text for Types; may be False, None or True
                 continue
             lambdas.append(lambda_)
 
@@ -893,12 +992,13 @@ class Identifier:
             source_col_i = self.parser.first_line_fields.index(column)
         else:
             searched_type = Types.find_type(column)  # get field by its type
-            reserve = None
-            for f in self.parser.fields:
-                if f.type == searched_type:
-                    source_col_i = f.col_i
-                elif searched_type in f.possible_types and not reserve:
-                    reserve = f.col_i
-            if not source_col_i:
-                source_col_i = reserve
+            if searched_type:
+                reserve = None
+                for f in self.parser.fields:
+                    if f.type == searched_type:
+                        source_col_i = f.col_i
+                    elif searched_type in f.possible_types and not reserve:
+                        reserve = f.col_i
+                if not source_col_i:
+                    source_col_i = reserve
         return source_col_i
