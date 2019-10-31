@@ -18,7 +18,7 @@ from tabulate import tabulate
 from .config import Config, get_terminal_size
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, is_yes, ask
-from .identifier import Identifier, b64decode, Types, Type, Web, TypeGroup, MultipleRows
+from .identifier import Identifier, b64decode, Types, Type, Web, TypeGroup
 from .informer import Informer
 from .processor import Processor
 from .whois import Whois
@@ -342,8 +342,7 @@ class Parser:
             cw.writerow([f for f in self.fields if f.is_chosen])
             self.header = wr.written
         self._reset_output()
-        self.get_sample_values()  # assure sout_info would consume a result from duplicate_row
-        MultipleRows.clear()
+        #self.get_sample_values()  # assure sout_info would consume a result from duplicate_row
 
         self.time_start = None
         self.time_end = None

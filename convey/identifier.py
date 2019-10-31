@@ -2,7 +2,6 @@ import csv
 import importlib.util
 import ipaddress
 import logging
-import operator
 import re
 import socket
 import subprocess
@@ -11,7 +10,6 @@ from builtins import ZeroDivisionError
 from copy import copy
 from csv import Error, Sniffer, reader
 from enum import IntEnum
-from functools import wraps, reduce
 from pathlib import Path
 from typing import List
 
@@ -48,60 +46,6 @@ def check_ip(ip):
         return False
 
 
-def prod(iterable):  # XX as of Python3.8, replace with math.prod
-    return reduce(operator.mul, iterable, 1)
-
-
-class MultipleRows:
-    el_on_row: List["MultipleRows"] = []
-
-    def __init__(self, func):
-        """   # every column using @duplicate_row has a dict cache allowing it to loop result from an inner lambda
-
-        """
-        self.queue = []
-        self.pos = 0
-        self.func = func
-        self.el_on_row.append(self)
-
-    def is_last(self):
-        """ This is the last MultipleRows field on the processed row """
-        return self.el_on_row[-1] == self
-
-    def run(self):
-        @wraps(self.func)
-        def func_wrapper(val):
-            if self.pos == 0:
-                self.queue.extend(copy(self.func(val)))  # load new list from the inner lambda
-                if not self.queue:  # lambda returned an empty list - this is not a fail, return empty string then
-                    self.queue.append("")
-                if self.is_last():
-                    max_ = prod([len(el.queue) for el in self.el_on_row])
-                    for el in self.el_on_row:  # 1st col returns 3 values, 2nd 2 values → both should have 3*2 = 6 values
-                        el.queue *= max_ // len(self.queue)
-            v = self.queue[self.pos]
-            self.pos += 1
-            if self.pos == len(self.queue):
-                self.queue.clear()
-                self.pos = 0
-                return v
-            if self.is_last():  # tuple indicates that Processor should duplicate row because we have some values in the queues
-                return v,
-            return v
-
-        return func_wrapper
-
-    @staticmethod
-    def clear():
-        """ Clear caches that ex allow a column using @duplicate_row to loop result from an inner lambda """
-        MultipleRows.el_on_row.clear()
-
-    @staticmethod
-    def duplicate_row(func):
-        """ Decorate a function that computes a list instead of a scalar. """
-        return MultipleRows, func
-
-
 class Checker:
     """ To not pollute the namespace, we put the methods here """
 
@@ -109,11 +53,10 @@ class Checker:
     hostname_cache = {}
 
     @staticmethod
-    @MultipleRows.duplicate_row
     def hostname2ips(hostname):
         if hostname not in Checker.hostname_ips_cache:
             try:
-                Checker.hostname_ips_cache[hostname] = {addr[4][0] for addr in socket.getaddrinfo(hostname, None)}
+                Checker.hostname_ips_cache[hostname] = list({addr[4][0] for addr in socket.getaddrinfo(hostname, None)})
             except OSError:
                 Checker.hostname_ips_cache[hostname] = []
         return Checker.hostname_ips_cache[hostname]
@@ -198,24 +141,43 @@ class Web:
         if url in self.cache:
             self.get = self.cache[url]
             return
-        try:
-            logger.info(f"Scrapping {url}...")
-            response = requests.get(url, timeout=3, headers=self.headers)
-        except IOError as e:
-            self.get = str(e), None, None, None
-        else:
-            response.encoding = response.apparent_encoding  # https://stackoverflow.com/a/52615216/2036148
-            if self.store_text:
-                soup = BeautifulSoup(response.text, features="html.parser")
-                [s.extract() for s in soup(["style", "script", "head"])]  # remove tags with low probability of content
-                text = re.sub(r'\n\s*\n', '\n', soup.text)  # reduce multiple new lines to singles
-                text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ', text)  # reduce multiple spaces (not new lines) to singles
+        logger.info(f"Scrapping {url}...")
+        redirects = []
+        current_url = url
+        while True:
+            try:
+                response = requests.get(current_url, timeout=3, headers=self.headers, allow_redirects=False)
+            except IOError as e:
+                if isinstance(e, requests.exceptions.HTTPError):
+                    s = "Http error"
+                elif isinstance(e, requests.exceptions.ConnectionError):
+                    s = "Error Connecting"
+                elif isinstance(e, requests.exceptions.Timeout):
+                    s = "Timeout Error:"
+                elif isinstance(e, requests.exceptions.RequestException):
+                    s = "Oops : Something Else"
+                else:
+                    s = e
+                self.get = str(s), None, None, redirects
+                break
+            if response.headers.get("Location"):
+                current_url = response.headers.get("Location")
+                redirects.append(current_url)
+                continue
             else:
-                text = None
-            redirects = ""
-            for res in response.history[1:]:
-                redirects = f"REDIRECT {res.status_code} → {res.url}\n" + text
-            self.get = response.status_code, text, response.text if self.store_html else None, redirects
+                response.encoding = response.apparent_encoding  # https://stackoverflow.com/a/52615216/2036148
+                if self.store_text:
+                    soup = BeautifulSoup(response.text, features="html.parser")
+                    [s.extract() for s in soup(["style", "script", "head"])]  # remove tags with low probability of content
+                    text = re.sub(r'\n\s*\n', '\n', soup.text)  # reduce multiple new lines to singles
+                    text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ', text)  # reduce multiple spaces (not new lines) to singles
+                else:
+                    text = None
+                # for res in response.history[1:]:
+                #     redirects += f"REDIRECT {res.status_code} → {res.url}\n" + text
+                #     redirects.append(res.url)
+                self.get = response.status_code, text, response.text if self.store_html else None, redirects
+                break
         self.cache[url] = self.get
 
 
@@ -351,7 +313,7 @@ class Type:
             s = str(field).replace(" ", "").replace("'", "").replace('"', "").lower()
             for n in self.usual_names:
                 if s in n or n in s:
-                    print("HEADER match", field, self, self.usual_names)
+                    # print("HEADER match", field, self, self.usual_names)
                     score += 2 if self.usual_must_match else 1
                     break
         if not score and self.usual_must_match:
@@ -504,7 +466,7 @@ class Types:
             # portIP: IP written with a port 91.222.204.175.23 -> 91.222.204.175
             (t.url, t.hostname): Whois.url2hostname,
             (t.hostname, t.ip): Checker.hostname2ips if Config.get("multiple_ips_from_hostname", "FIELDS") else Checker.hostname2ip,
-            (t.url, t.ip): Whois.url2ip,
+            # (t.url, t.ip): Whois.url2ip,
             (t.ip, t.whois): Whois,
             (t.cidr, t.ip): lambda x: str(ipaddress.ip_interface(x).ip),
             (t.whois, t.prefix): lambda x: (x, str(x.get[0])),
@@ -559,7 +521,7 @@ class Identifier:
                 if module:
                     for method in (x for x in dir(module) if not x.startswith("_")):
                         methods[(Types.plaintext, method)] = getattr(module, method)
-                        logger.info("Successfully added method {method} from module {path}")
+                        logger.info(f"Successfully added method {method} from module {path}")
             except Exception as e:
                 s = "Can't import custom file from path: {}".format(path)
                 input(s + ". Press any key...")
@@ -634,9 +596,7 @@ class Identifier:
         lambdas = []  # list of lambdas to calculate new field
         for i in range(len(path) - 1):
             lambda_ = methods[path[i], path[i + 1]]
-            if type(lambda_) == tuple and lambda_[0] == MultipleRows:
-                lambda_ = MultipleRows(lambda_[1]).run()
-            elif not hasattr(lambda_, "__call__"):  # the field is invisible, see help text for Types; may be False, None or True
+            if not hasattr(lambda_, "__call__"):  # the field is invisible, see help text for Types; may be False, None or True
                 continue
             lambdas.append(lambda_)
 
@@ -815,6 +775,9 @@ class Identifier:
         source_type = None
         task = list(task)
 
+        if Config.is_debug():
+            print(f"Getting type {target_type} with args {task}")
+
         # determining source_col_i from a column candidate
         column_candidate = task.pop(0) if len(task) else None
         if column_candidate:  # determine COLUMN
@@ -868,10 +831,17 @@ class Identifier:
             print(f"No suitable column found for field '{target_type}'")
             quit()
 
-        f = self.parser.fields[source_col_i]
+        try:
+            f = self.parser.fields[source_col_i]
+        except IndexError:
+            print(f"Column ID {source_col_i + 1} does not exist, only these: " + ", ".join(f.name for f in self.parser.fields))
+            quit()
         if graph.dijkstra(target_type, start=source_type) is False:
             print(f"No suitable path from '{f.name}' treated as '{source_type}' to '{target_type}'")
             quit()
+
+        if Config.is_debug():
+            print(f"Got type {target_type} of field={f}, source_type={source_type}, custom={task}")
         return f, source_type, task
 
     def get_column_i(self, column):

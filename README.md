@@ -160,16 +160,15 @@ def any_method(value):
 
 You may as well hard code custom fields in the [`config.ini`](convey/config.ini.default) by providing paths to the entrypoint Python files delimited by a comma: `custom_fields_modules = /tmp/myfile.py, /tmp/anotherfile.py`. All the public methods in the defined files will become custom fields!
 
-If you need a single call to generate multiple rows, return list and decorate with @duplicate_row.
+If you need a single call to generate multiple rows, return list, the row accepting a list will be duplicated.
 
 ```python3
-from convey import duplicate_row
-
-@duplicate_row
 def any_method(value):
     # do something
     return ["foo", "bar"]
 ```
+
+Ex: If a method returns 2 items and another 3 items, you will receive 6 similar rows.
 
 Handsome feature if you're willing to use the Shodan API as our partner or to do anything else.
 

@@ -1,10 +1,12 @@
 import datetime
 import io
 import logging
+import operator
 import traceback
 from bdb import BdbQuit
 from collections import defaultdict
 from csv import reader as csvreader, writer as csvwriter
+from functools import reduce
 from math import ceil
 from pathlib import Path
 from typing import Dict
@@ -15,6 +17,10 @@ from .contacts import Attachment, Contacts
 from .dialogue import ask, is_no
 
 logger = logging.getLogger(__name__)
+
+
+def prod(iterable):  # XX as of Python3.8, replace with math.prod
+    return reduce(operator.mul, iterable, 1)
 
 
 class Processor:
@@ -119,9 +125,8 @@ class Processor:
                 result = self.descriptors[1][0].getvalue()
                 print(result.strip())
 
-
                 if Config.get("output") is None:
-                    ignore = is_no("Save to an output file?") if Config.get("save_stdin_output") is None\
+                    ignore = is_no("Save to an output file?") if Config.get("save_stdin_output") is None \
                         else Config.get("save_stdin_output") is False
                 else:
                     ignore = not Config.get("output")
@@ -149,34 +154,55 @@ class Processor:
         for f in self.descriptors.values():
             f[0].close()
 
-    def process_line(self, csv, line, settings):
+    def process_line(self, csv, line, settings, fields=None):
         """
         Parses line – compute fields while adding, perform filters, pick or delete cols, split and write to a file.
         """
         try:
-            fields = line.copy()
+            whoises = []
+            if not fields:
+                fields = line.copy()
 
-            if len(fields) is not len(csv.first_line_fields):
-                raise ValueError("Invalid number of line fields: {}".format(len(fields)))
+                if len(fields) is not len(csv.first_line_fields):
+                    raise ValueError("Invalid number of line fields: {}".format(len(fields)))
 
-            # add fields
-            whois = None
-            duplicate = False
-            for col in settings["addByMethod"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
-                val = fields[col[1]]
-                for l in col[2]:
-                    val = l(val)
-                if isinstance(val, tuple):
-                    if len(val) == 1:  # this must be "duplicate_row" decorator
-                        fields.append(val[0])
-                        duplicate = True
-                    else:  # this must be whois info-tuple
-                        whois = val[0]
+                # add fields
+                list_lengths = []
+                for col in settings["addByMethod"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
+                    val = fields[col[1]]
+                    for l in col[2]:
+                        if isinstance(val, list):
+                            r = []
+                            for v in val:
+                                r.extend(l(v))
+                            val = r
+                        else:
+                            val = l(val)
+                    if isinstance(val, tuple):
+                        # if len(val) == 1:  # this must be "duplicate_row" decorator # XXX
+                        #     fields.append(val[0])
+                        #     list_lengths = True
+                        # else:
+                        # this must be whois info-tuple
+                        # we are sure that whois will be the last-in-row computed val because there is no path from whois further
+                        # if we implement a direct path (ex: whois → abusemail → hostname) we should put this statement below
+                        # val = l(val)
+                        whoises.append(val[0])
                         fields.append(val[1])
-                else:
-                    fields.append(val)
-            if duplicate:
-                self.process_line(csv, line, settings)  # duplicate row because single lambda produced a list
+                    else:
+                        fields.append(val)
+                        if isinstance(val, list):
+                            list_lengths.append(len(val))
+                if list_lengths:
+                    row_count = prod(list_lengths)
+                    for i, f in enumerate(fields):  # 1st col returns 3 values, 2nd 2 values → both should have 3*2 = 6 values
+                        if type(f) is not list:
+                            fields[i] = [f]
+                        fields[i] *= row_count // len(fields[i])
+                    it = zip(*fields)
+                    fields = it.__next__()
+                    for v in it:
+                        self.process_line(csv, line, settings, v)  # duplicate row because single lambda produced a list
 
             # inclusive filter
             for f in settings["filter"]:  # list of tuples (col, value): [(23, "passed-value"), (13, "another-value")]
@@ -198,7 +224,7 @@ class Processor:
             else:
                 chosen_fields = fields
 
-            if whois:
+            for whois in whoises:
                 csv.stats["ipsUnique"].add(whois.ip)
                 mail = whois.get[2]
                 if whois.get[1] == "local":

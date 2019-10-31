@@ -54,6 +54,8 @@ def application(env, start_response):
     if not WebServer.source_parser:
         from convey.config import Config
         from convey.parser import Parser
+        from convey.identifier import Types
+        Types.init()
         Config.init()
         WebServer.source_parser = Parser(prepare=False)
 
@@ -61,7 +63,7 @@ def application(env, start_response):
     t = env["QUERY_STRING"].split("q=")  # XX sanitize?
     if len(t) == 2:
         res = WebServer.source_parser.set_stdin([t[1]]).prepare()
-        if res.single_value:
+        if res.is_single_value:
             response = res.run_single_value(json=True)
             headers.append(('Content-Type', 'application/json'))
             status = '200 OK'
