@@ -280,12 +280,15 @@ class Parser:
                 val = self.first_line
             else:
                 val = self.sample_parsed[0][field.source_field.col_i]
-            for l in methods:
-                if isinstance(val, list):
-                    # resolve all items, while flattening any list encountered
-                    val = [y for x in (l(v) for v in val) for y in (x if type(x) is list else [x])]
-                else:
-                    val = l(val)
+            try:
+                for l in methods:
+                    if isinstance(val, list):
+                        # resolve all items, while flattening any list encountered
+                        val = [y for x in (l(v) for v in val) for y in (x if type(x) is list else [x])]
+                    else:
+                        val = l(val)
+            except Exception as e:
+                val = str(e)
             self.sample_parsed[0].append(val)
             append(field.name, val)
 
@@ -711,7 +714,7 @@ class Field:
     def __str__(self):
         return self.name
 
-    def get_samples(self, max_samples=inf, supposed_type=None):
+    def get_samples(self, max_samples=inf, supposed_type=None, target_type=None):
         """ get few sample values of a field """
         c = min(len(self.parser.sample_parsed), max_samples)
         try:
@@ -725,7 +728,7 @@ class Field:
         if supposed_type and supposed_type.is_plaintext_derivable:
             rows, res = res.copy(), []
             for c in rows:
-                for m in self.get_methods(Types.plaintext, self.type):
+                for m in self.get_methods(Types.bytes if target_type == Types.charset else Types.plaintext, self.type):
                     c = m(c)
                 res.append(c)
         return res
@@ -737,12 +740,19 @@ class Field:
                 # source column has not yet been resolved because of column resorting
                 # (note this will not a problem when processing)
                 return "..."
-            for m in self.get_methods():
-                c = m(c)
+            for l in self.get_methods():
+                #c = l(c)
+                if isinstance(c, list):
+                    # resolve all items, while flattening any list encountered
+                    c = [y for x in (l(v) for v in c) for y in (x if type(x) is list else [x])]
+                else:
+                    c = l(c)
         else:
             c = "..."
         # add a newly computed value to source_parsed
         for _ in range(self.col_i - len(source_line) + 1):  # source_line is shorter than we need - fill the missing cols with Nones
             source_line.append(None)
+        if type(c) is list and len(c) == 1:
+            c = c[0]
         source_line[self.col_i] = c
         return c

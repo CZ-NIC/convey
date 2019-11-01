@@ -12,13 +12,17 @@ from base64 import b64decode, b64encode
 from builtins import ZeroDivisionError
 from copy import copy
 from csv import Error, Sniffer, reader
+from datetime import datetime
 from enum import IntEnum
 from pathlib import Path
 from typing import List
+from urllib.parse import unquote, quote
 
 import dateutil.parser
 import requests
 from bs4 import BeautifulSoup
+from chardet import detect
+from netaddr import IPRange, IPNetwork
 from validate_email import validate_email
 
 from .config import Config
@@ -108,6 +112,7 @@ class PickInput(PickBase):
         if len(par) != 2:
             raise RuntimeError(f"Cannot import {subtype.__name__}, it has not got two parameters.")
         self.description = subtype.__doc__ or (f"Input {subtype.__name__} variable " + par[0])
+        self.parameter_name = par[0]
 
 
 def check_ip(ip):
@@ -157,7 +162,28 @@ class Checker:
     @staticmethod
     def is_base64(x):
         # there must be at least single letter, port number would be mistaken for base64 fields
-        return base64decode(x) and re.search(r"[A-Za-z]", x)
+        try:
+            #         return b64decode(x).decode("UTF-8").replace("\n", r"\n") except (UnicodeDecodeError, ValueError):
+            return b64decode(x) and re.search(r"[A-Za-z]", x)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def bytes_plaintext(x):
+        try:
+            return x.decode("UTF-8").replace("\n", r"\n")
+        except UnicodeDecodeError:
+            enc = detect(x)["encoding"]
+            # Czech phrase: "Žluťoučký kůň pěl ďábelské ódy.".encode("iso-8859-2")
+            # results in turkish {'encoding': 'ISO-8859-9', 'confidence': 0.47567063613812527, 'language': 'Turkish'}
+            # which is not perfect but better than nothing.
+            if enc:
+                return x.decode(enc)
+            return x
+
+    @staticmethod
+    def is_urlencode(x):
+        return unquote(x) != x
 
     @staticmethod
     def check_wrong_url(wrong):
@@ -166,8 +192,46 @@ class Checker:
 
     @staticmethod
     @PickInput
+    def decode(encoding, val):
+        if type(val) is str:
+            val = val.encode("utf-8")
+        return val.decode(encoding).replace("\n", r"\n")
+
+    @staticmethod
+    @PickInput
     def time_format(fmt, val):
-        return dateutil.parser.parse(val).strftime(fmt)
+        return dateutil.parser.parse(val, fuzzy=True).strftime(fmt)
+
+    @staticmethod
+    def check_time(val):
+        try:
+            o = Checker.parse_timestamp(val)
+            if o.year != 1:  # this is a fake year from our default_datetime object
+                return True
+        except ValueError:
+            pass
+        return False
+
+    default_datetime = datetime(1, 1, 1)
+
+    @staticmethod
+    def parse_timestamp(val):
+        return dateutil.parser.parse(val, fuzzy=True, default=Checker.default_datetime)
+
+    @staticmethod
+    def isotimestamp(val):
+        o = Checker.parse_timestamp(val)
+        s = o.isoformat()
+        if o.year == 1:  # this is a fake year from our default_datetime object
+            s = "0000-00-00" + s[10:]
+        return s
+
+    @staticmethod
+    def date(val):
+        o = Checker.parse_timestamp(val)
+        if o.year == 1:  # this is a fake year from our default_datetime object
+            return ""
+        return o.date()
 
     @staticmethod
     @PickMethod
@@ -189,6 +253,14 @@ class Checker:
             x = cls.all(x)
             return x if len(x) != 2 else ""
 
+    @staticmethod
+    def prefix_cidr(val):
+        return IPRange(*val.split("-")).cidrs()
+
+    @staticmethod
+    def cidr_ips(val):
+        return [ip for ip in IPNetwork(val)]
+
 
 def wrong_url_2_url(s, make=True):
     s = s.replace("hxxp", "http", 1).replace("[.]", ".").replace("(.)", ".").replace("[:]", ":")
@@ -207,13 +279,6 @@ def port_ip_2_ip(s):
     m = reIpWithPort.match(s)
     if m:
         return m.group(1).rstrip(".")
-
-
-def base64decode(x):
-    try:
-        return b64decode(x).decode("UTF-8").replace("\n", "\\n")
-    except (UnicodeDecodeError, ValueError):
-        return None
 
 
 class Web:
@@ -473,7 +538,8 @@ class Types:
     """
 
     @staticmethod
-    def init():
+    def refresh():
+        methods.clear()
         methods.update(Types._get_methods())
         [graph.add_edge(to, from_) for to, from_ in methods if methods[to, from_] is not True]
         [t.init() for t in types]
@@ -505,7 +571,7 @@ class Types:
     netname = Type("netname", TypeGroup.whois)
     country = Type("country", TypeGroup.whois)
     abusemail = Type("abusemail", TypeGroup.whois)
-    prefix = Type("prefix", TypeGroup.whois)
+    prefix = Type("prefix", TypeGroup.whois)  # XX rename to 'inetnum'? to 'range'?
     csirt_contact = Type("csirt_contact", TypeGroup.whois)
     incident_contact = Type("incident_contact", TypeGroup.whois)
     text = Type("text", TypeGroup.web)
@@ -522,7 +588,13 @@ class Types:
     dmarc = Type("dmarc", TypeGroup.dns)
     tld = Type("tld", TypeGroup.general)
     formatted_time = Type("formatted_time", TypeGroup.general)
+    isotimestamp = Type("isotime", TypeGroup.general)
+    time = Type("time", TypeGroup.general)
+    date = Type("date", TypeGroup.general)
+    bytes = Type("bytes", TypeGroup.general, is_private=True)
+    charset = Type("charset", TypeGroup.general)
 
+    timestamp = Type("timestamp", TypeGroup.general, "time or date", ["time"], Checker.check_time)
     ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "ipaddress"], check_ip)
     source_ip = Type("source_ip", TypeGroup.general, "valid source IP address",
                      ["sourceipaddress", "source", "src"], check_ip, usual_must_match=True)
@@ -539,6 +611,7 @@ class Types:
     asn = Type("asn", TypeGroup.whois, "AS Number", ["as", "asn", "asnumber"],
                lambda x: re.search('AS\d+', x) is not None)
     base64 = Type("base64", TypeGroup.general, "Text encoded with Base64", ["base64"], Checker.is_base64)
+    urlencode = Type("urlencode", TypeGroup.general, "Text encoded with urlencode", ["urlencode"], Checker.is_urlencode)
     wrong_url = Type("wrong_url", TypeGroup.general, "Deactivated URL", [], Checker.check_wrong_url)
     plaintext = Type("plaintext", TypeGroup.general, "Plain text", ["plaintext", "text"], lambda x: False)
 
@@ -567,27 +640,38 @@ class Types:
         """ Return DOT UML source code of types and methods"""
         l = ['digraph { ', 'label="Convey field types (dashed = identifiable automatically, circled = IO actions)"']
         used = set()
+        formatting_disabled = "[color=lightgray fontcolor=lightgray]"
+        loop = []
+        existing_edges = set()
 
         def add(start, target, disable_s):
             if (start, target) not in used:
                 used.add((start, target))
+                used.add((target, start))
                 if not disable_s:
                     used.update([start, target])
                 l.append(f"{start} -> {target}{disable_s}")
+                if (target, start) in existing_edges:
+                    l[-1] += "[dir=both]"
+                return True
+            return False
 
-        formatting_disabled = "[color=lightgray fontcolor=lightgray]"
         for enabled, ((start, target), m) in [(True, f) for f in methods.items()] + [(False, f) for f in methods_deleted.items()]:
+            loop.append((enabled, start, target, m))
+            existing_edges.add((start,target))
+        # for enabled, ((start, target), m) in [(True, f) for f in methods.items()] + [(False, f) for f in methods_deleted.items()]:
+        for enabled, start, target, m in loop:
             disable_s = "" if enabled else formatting_disabled
             if start.group != target.group and target.group.name != target and target.group is not TypeGroup.general:
                 add(start, target.group.name, disable_s)
                 start = target.group.name
-            add(start, target, disable_s)
-            if m is True:
-                l[-1] += "[style=dashed]"
-            if isinstance(m, PickMethod):
-                l[-1] += '[label="choose ' + ",".join([name for name, _ in m.get_options()]) + '" fontsize=10]'
-            elif isinstance(m, PickInput):
-                l[-1] += f'[label="{m.description}" fontsize=10]'
+            if add(start, target, disable_s):
+                if m is True:
+                    l[-1] += "[style=dashed]"
+                if isinstance(m, PickMethod):
+                    l[-1] += '[label="choose ' + ",".join([name for name, _ in m.get_options()]) + '" fontsize=10]'
+                elif isinstance(m, PickInput):
+                    l[-1] += f'[label="{m.parameter_name}" fontsize=10]'
         for tg in TypeGroup:
             if tg is not TypeGroup.general:
                 if tg.name in used:
@@ -627,33 +711,38 @@ class Types:
                     in other words we do not offer to compute a hostname from a hostname, however when selecting
                     an existing abusemail column, we offer conversion abusemail → (invisible email) → hostname
         """
+
         t = Types
         return {
             (t.source_ip, t.ip): True,
             (t.destination_ip, t.ip): True,
-            (t.any_ip, t.ip): any_ip_2_ip,
-            # any IP: "91.222.204.175 93.171.205.34" -> "91.222.204.175" OR '"1.2.3.4"' -> 1.2.3.4
-            (t.port_ip, t.ip): port_ip_2_ip,
-            # portIP: IP written with a port 91.222.204.175.23 -> 91.222.204.175
+            (t.any_ip, t.ip): any_ip_2_ip,  # "91.222.204.175 93.171.205.34" -> "91.222.204.175" OR '"1.2.3.4"' -> 1.2.3.4
+            (t.port_ip, t.ip): port_ip_2_ip,  # IP written with a port 91.222.204.175.23 -> 91.222.204.175
             (t.url, t.hostname): Whois.url2hostname,
             (t.hostname, t.ip): Checker.hostname2ips if Config.get("multiple_hostname_ip", "FIELDS") else Checker.hostname2ip,
             # (t.url, t.ip): Whois.url2ip,
             (t.ip, t.whois): Whois,
-            (t.cidr, t.ip): lambda x: x if Config.get("multiple_cidr_ip", "FIELDS") else lambda x: str(
-                ipaddress.ip_interface(x).ip),  # XXX
+            (t.cidr, t.ip): Checker.cidr_ips if Config.get("multiple_cidr_ip", "FIELDS") else
+            lambda x: str(ipaddress.ip_interface(x).ip),
             (t.whois, t.prefix): lambda x: str(x.get[0]),
             (t.whois, t.asn): lambda x: x.get[3],
             (t.whois, t.abusemail): lambda x: x.get[6],
             (t.whois, t.country): lambda x: x.get[5],
             (t.whois, t.netname): lambda x: x.get[4],
             (t.whois, t.csirt_contact): lambda x: Contacts.csirtmails[x.get[5]] if x.get[5] in Contacts.csirtmails else "-",
-            # returns tuple (local|country_code, whois-mail|abuse-contact)
             (t.whois, t.incident_contact): lambda x: x.get[2],
-            (t.base64, t.plaintext): base64decode,
-            (t.plaintext, t.base64): lambda x: b64encode(x.encode("UTF-8")).decode("UTF-8"),
+            # (t.base64, t.plaintext): base64decode,
+            # (t.plaintext, t.base64): lambda x: b64encode(x.encode("UTF-8")).decode("UTF-8"),
+            (t.plaintext, t.bytes): lambda x: x.encode("UTF-8"),
+            (t.bytes, t.plaintext): Checker.bytes_plaintext,
+            (t.bytes, t.base64): lambda x: b64encode(x).decode("UTF-8"),
+            (t.base64, t.bytes): b64decode,
+            (t.urlencode, t.plaintext): lambda x: unquote(x),
+            (t.plaintext, t.urlencode): lambda x: quote(x),
             (t.plaintext, t.external): None,
             (t.plaintext, t.code): None,
             (t.plaintext, t.reg): None,
+            (t.bytes, t.charset): Checker.decode,
             (t.reg, t.reg_s): None,
             (t.reg, t.reg_m): None,
             (t.wrong_url, t.url): wrong_url_2_url,
@@ -680,14 +769,15 @@ class Types:
             # (t.phone, t.country): True
             # (t.country, t.country_name):
             (t.hostname, t.tld): Checker.HostnameTld,
-            (t.prefix, t.cidr): lambda x: x,
-            # XXX asi nahraď whois ať vrací radši cidr, jestli jsou stejný, a ten lze případně expandovat na prefix
+            (t.prefix, t.cidr): Checker.prefix_cidr,
             (t.redirects, t.url): True,
             # (t.cc_tld, t.country): True
             # (t.prefix, t.cidr)
-            (t.plaintext, t.formatted_time): Checker.time_format
+            (t.timestamp, t.formatted_time): Checker.time_format,
+            (t.timestamp, t.isotimestamp): Checker.isotimestamp,
+            (t.timestamp, t.date): Checker.date,
+            (t.timestamp, t.time): lambda val: Checker.parse_timestamp(val).time(),
             # XX url decode, url encode urllib.parse.quote
-            # XX time Type
         }
 
 

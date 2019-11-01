@@ -71,6 +71,9 @@
     - tld
     - web: text, http_status, html, redirects
     - ports
+    - urlencode
+    - charset, bytes    
+    - timestamp, isotimestamp, time, date, formatted_time
 
 ## 1.1 (2019-05-13)
 - fix: do not reprocess file if moved to another location

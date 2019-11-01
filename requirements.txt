@@ -1,3 +1,4 @@
+chardet
 python-dateutil
 requests
 netaddr

@@ -217,18 +217,17 @@ class Processor:
                     chosen_fields = line  # reset to the original line (will be reprocessed)
             else:
                 location = settings["target_file"]
+        except BdbQuit:  # BdbQuit and KeyboardInterrupt caught higher
+            raise
         except Exception as e:
-            if isinstance(e, BdbQuit):
-                raise  # BdbQuit and KeyboardInterrupt caught higher
+            if Config.is_debug():
+                traceback.print_exc()
+                Config.get_debugger().set_trace()
             else:
-                if Config.is_debug():
-                    traceback.print_exc()
-                    Config.get_debugger().set_trace()
-                else:
-                    logger.warning(e, exc_info=True)
-                csv.invalid_lines_count += 1
-                location = Config.INVALID_NAME
-                chosen_fields = line  # reset the original line (will be reprocessed)
+                logger.warning(e, exc_info=True)
+            csv.invalid_lines_count += 1
+            location = Config.INVALID_NAME
+            chosen_fields = line  # reset the original line (will be reprocessed)
 
         if not location:
             return

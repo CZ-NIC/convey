@@ -449,13 +449,14 @@ class Whois:
         sp = s.split(" - ")
         try:
             if len(sp) > 1:
-                return IPRange(sp[0], sp[1])
+                return IPRange(*sp)
             else:
                 return IPNetwork(s)
         except Exception as e:
             logger.warning("Prefix {} cannot be parsed.".format(s))
             Config.error_caught()
 
+    @staticmethod
     def url2ip(url):
         """ Shorten URL to domain, find out related IPs list. """
         url = urlparse(url.strip())  # "foo.cz/bar" -> "foo.cz", "http://foo.cz/bar" -> "foo.cz"
@@ -475,7 +476,7 @@ class Whois:
 
     def _match_response(self, patterns, last_word=False):
         """
-        :param pattern: pattern string or list of strings Xcompiled regular expression
+        :param patterns: pattern string or list of strings
         :param last_word: returns only the last word of whole matched expression else last group (ex: the one in parentheses)
 
         # , take_nth=None, group=None

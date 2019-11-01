@@ -173,11 +173,12 @@ class TypeValidator(Validator):
 
 class Preview:
 
-    def __init__(self, source_field, source_type: "Type"):
+    def __init__(self, source_field, source_type: "Type", target_type: "Type" = None):
         self.source_field = source_field
         self.source_type = source_type
+        self.target_type = target_type
         # common part of every preview
-        self.samples = source_field.get_samples(supposed_type=source_type)
+        self.samples = source_field.get_samples(supposed_type=source_type, target_type=target_type)
 
         # define key self.bindings
         self.session = self.reset_session()
@@ -197,7 +198,7 @@ class Preview:
         self.style = merge_styles([reg_style, bottom_plain_style])
 
         # Init variables that may be used in methods
-        self.get_toolbar_row = self.search = self.replace = self.phase = self.chosen_type = self.reg_type = None
+        self.get_toolbar_row = self.search = self.replace = self.phase = self.chosen_type =  None
 
     def standard_toolbar(self):
         """ define bottom preview toolbar """
@@ -228,6 +229,8 @@ class Preview:
     def pick_input(self, o: PickInput):
         """ code preview specific part """
 
+        print(o)
+
         def get_toolbar_row_pick_input(text, line):
             try:
                 val = o.get_lambda(text)(line)
@@ -245,13 +248,13 @@ class Preview:
                                            lexer=PygmentsLexer(Python3Lexer), key_bindings=self.bindings)
         return text
 
-    def reg(self, reg_type: "Type"):
+    def reg(self):
         """ regex preview specific part """
         # self.ask_search = True
         self.phase = None
         self.search = ""
         self.replace = ""
-        self.reg_type = [reg_type] if reg_type != Types.reg else [Types.reg_m, Types.reg_s]
+        self.target_type = [self.target_type] if self.target_type != Types.reg else [Types.reg_m, Types.reg_s]
         self.chosen_type = None
 
         # @self.bindings.add('escape', 'left')  # alt-left
@@ -262,7 +265,7 @@ class Preview:
                 self.phase = "continue"
             self.session.app.exit(self.session.layout.current_buffer.text)
 
-        if len(self.reg_type) > 1:
+        if len(self.target_type) > 1:
             def toggle_type(default):
                 if self.chosen_type is None:
                     self.chosen_type = default
@@ -295,7 +298,7 @@ class Preview:
             if self.phase == "continue":
                 continue
             self.phase = 3
-            if len(self.reg_type) > 1:  # we have to choose the column
+            if len(self.target_type) > 1:  # we have to choose the column
                 if self.chosen_type is None:
                     # we are not using groups, match has no sense
                     self.chosen_type = Types.reg_s if "{" not in self.replace and self.replace else Types.reg_m
@@ -305,11 +308,11 @@ class Preview:
                 if self.phase == "continue":
                     continue
                 if type_:
-                    self.reg_type = Types.reg_s if type_ == "reg_s" else Types.reg_m
+                    self.target_type = Types.reg_s if type_ == "reg_s" else Types.reg_m
             else:
-                self.reg_type = self.reg_type[0]
+                self.target_type = self.target_type[0]
             break
-        return self.search, self.replace, self.reg_type
+        return self.search, self.replace, self.target_type
 
     def reset_session(self):
         """ Calling
@@ -361,9 +364,9 @@ class Preview:
                     reg_m_preview = yellow(self.highlight(reg_m_preview, Types.reg_m), error)
                     reg_s_preview = yellow(self.highlight(reg_s_preview, Types.reg_s), error)
                     helper = "Access matched parts with {0}, ex: string {1} string."
-                if Types.reg_m in self.reg_type:
+                if Types.reg_m in self.target_type:
                     row.append(reg_m_preview)
-                if Types.reg_s in self.reg_type:
+                if Types.reg_s in self.target_type:
                     if contents:
                         row.append(reg_s_preview)
                     else:
@@ -372,9 +375,9 @@ class Preview:
                 rows.append(row)
                 break
         headers = ["original", "groups" if len(match) > 1 else "group {0}"]
-        if Types.reg_m in self.reg_type:
+        if Types.reg_m in self.target_type:
             headers.append(self.highlight("match", Types.reg_m))
-        if Types.reg_s in self.reg_type:
+        if Types.reg_s in self.target_type:
             headers.append(self.highlight("substitution", Types.reg_s))
             # 'grid' handles multiline rows well, 'github' handles them bad, despite the documentation
         return ANSI('\n\nPreview\n' + tabulate(rows, headers=headers, tablefmt="grid") + "\n\n" + helper)

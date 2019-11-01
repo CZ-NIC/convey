@@ -55,7 +55,7 @@ def application(env, start_response):
         from convey.config import Config
         from convey.parser import Parser
         from convey.identifier import Types
-        Types.init()
+        Types.refresh()
         Config.integrity_check()
         Config.init_verbosity()
         WebServer.source_parser = Parser(prepare=False)

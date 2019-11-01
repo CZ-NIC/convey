@@ -45,6 +45,19 @@ class BlankTrue(argparse.Action):
         setattr(namespace, self.dest, values)
 
 
+new_fields = []
+
+
+class FieldExcludedAppend(argparse.Action):
+    def __call__(self, _, namespace, values, option_string=None):
+        new_fields.append((False, values))
+
+
+class FieldVisibleAppend(argparse.Action):
+    def __call__(self, _, namespace, values, option_string=None):
+        new_fields.append((True, values))
+
+
 class SmartFormatter(argparse.HelpFormatter):
 
     def _split_lines(self, text, width):
@@ -56,7 +69,7 @@ class SmartFormatter(argparse.HelpFormatter):
 
 class Controller:
     def __init__(self):
-        Types.init()
+        Types.refresh()  # load types so that we can print out computable types in the help text
         epilog = "To launch a web service see README.md."
         column_help = "COLUMN is ID the column (1, 2, 3...), the exact column name, field type name or its usual name."
         parser = argparse.ArgumentParser(description="Data conversion swiss knife", formatter_class=SmartFormatter, epilog=epilog)
@@ -66,7 +79,6 @@ class Controller:
         parser.add_argument('-F', '--fresh', help="Do not attempt to load any previous settings / results", action="store_true")
         parser.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions.",
                             action="store_true")
-        # parser.add_argument('-m', '--mute', help="Do not output information text.", action="store_true")
         parser.add_argument('--file', help="Treat <file_or_input> parameter as a file, never as an input",
                             action="store_true")
         parser.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
@@ -95,9 +107,9 @@ class Controller:
                                  "\n    (Note the comma without space behind 'netname'.)"
                                  "\n\nComputable fields: " + "".join("\n* " + f.doc() for f in Types.get_computable_types()) +
                                  "\n\nThis flag May be used multiple times.",
-                            action="append", metavar=("FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]"))
+                            action=FieldVisibleAppend, metavar=("FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]"))
         parser.add_argument('-fe', '--field-excluded', help="The same as field but its column will not be added to the output.",
-                            action="append", metavar=("FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]"))
+                            action=FieldExcludedAppend, metavar=("FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]"))
         parser.add_argument('--split', help="Split by this COLUMN.",
                             metavar=("COLUMN"))
         parser.add_argument('-s', '--sort', help="List of columns.",
@@ -136,6 +148,9 @@ class Controller:
         parser.add_argument('--multiple-hostname-ip', help="Hostname can be resolved into multiple IP addresses."
                                                            " Duplicate row for each.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
+        parser.add_argument('--multiple-cidr-ip', help="CIDR can be resolved into multiple IP addresses."
+                                                       " Duplicate row for each.",
+                            action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--show-uml', help="Show UML of fields and methods and exit."
                                                " Methods that are currently disabled via flags or config file are grayed out."
                                                " You may add --verbose to generate more info.", action="store_true")
@@ -148,9 +163,10 @@ class Controller:
             quit()
 
         for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
-                     "multiple_hostname_ip"]:
+                     "multiple_hostname_ip", "multiple_cidr_ip"]:
             if getattr(args, flag) is not None:
                 Config.set(flag, getattr(args, flag))
+        Types.refresh()  # reload Types for the second time so that the methods reflect CLI flags
         for module in ["whois", "web", "nmap", "dig"]:
             if Config.get(module, "FIELDS") is False:
                 if module == "dig":
@@ -177,7 +193,7 @@ class Controller:
             Config.set("single_processing", False)
         if args.single_processing or args.single_detect:
             Config.set("single_processing", True)
-        Config.set("adding-new-fields", args.field or args.field_excluded)
+        Config.set("adding-new-fields", bool(new_fields))
 
         self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
         self.parser: Parser = self.wrapper.parser
@@ -200,7 +216,7 @@ class Controller:
             self.parser.is_processable = True
 
         # append new fields from CLI
-        for add, task in [(True, l) for l in (args.field or [])] + [(False, l) for l in (args.field_excluded or [])]:
+        for add, task in new_fields:
             # FIELD,[COLUMN],[SOURCE_TYPE], ex: `netname 3|"IP address" ip|sourceip`
             task = [x for x in csv.reader([task])][0]
             custom = []
@@ -503,7 +519,7 @@ class Controller:
                     print("What code should be executed? Change 'x'. Ex: x += \"append\";")
                     custom = Preview(source_field, source_type).code()
                 elif target_type in [Types.reg, Types.reg_m, Types.reg_s]:
-                    *custom, target_type = Preview(source_field, source_type).reg(target_type)
+                    *custom, target_type = Preview(source_field, source_type, target_type).reg()
                 elif target_type == Types.external:  # choose a file with a needed method
                     while True:
                         title = "What .py file should be used as custom source?"
@@ -541,7 +557,7 @@ class Controller:
                         if code == "cancel":
                             return
                     if type(m) is PickInput:
-                        c = Preview(source_field, source_type).pick_input(m)
+                        c = Preview(source_field, source_type, target_type).pick_input(m)
                     custom.insert(0, c)
         if add is None:
             if dialog.yesno("New field added: {}\n\nDo you want to include this field as a new column?".format(
