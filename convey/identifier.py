@@ -115,7 +115,7 @@ class PickInput(PickBase):
         self.parameter_name = par[0]
 
 
-def check_ip(ip):
+def is_ip(ip):
     """ True, if IP is well formatted IPv4 or IPv6 """
     try:
         ipaddress.ip_address(ip)
@@ -162,10 +162,11 @@ class Checker:
     @staticmethod
     def is_base64(x):
         # there must be at least single letter, port number would be mistaken for base64 fields
+        # we consider base64-endocded only such strings that could be decoded to UTF-8
+        # because otherwise any ASCII input would be considered as base64, even when well readable at first sight
         try:
-            #         return b64decode(x).decode("UTF-8").replace("\n", r"\n") except (UnicodeDecodeError, ValueError):
-            return b64decode(x) and re.search(r"[A-Za-z]", x)
-        except ValueError:
+            return b64decode(x).decode("UTF-8") and re.search(r"[A-Za-z]", x)
+        except (UnicodeDecodeError, ValueError):
             return None
 
     @staticmethod
@@ -187,8 +188,14 @@ class Checker:
 
     @staticmethod
     def check_wrong_url(wrong):
+        if (reUrl.match(wrong) and "[.]" not in wrong) or reFqdn.match(wrong) or is_ip(wrong):
+            # input "example[.]com" would be admitted as a valid URL)
+            return False
         s = wrong_url_2_url(wrong, make=False)
-        return (not reUrl.match(wrong) and not reFqdn.match(wrong)) and (reUrl.match(s) or reFqdn.match(s))
+        s2 = wrong_url_2_url(wrong, make=True)
+        if reFqdn.match(s) or (reUrl.match(s2) and reUrl.match(s2).span(0)[1] == len(s2)):  # we impose full match
+            return True
+        return False
 
     @staticmethod
     @PickInput
@@ -203,10 +210,18 @@ class Checker:
         return dateutil.parser.parse(val, fuzzy=True).strftime(fmt)
 
     @staticmethod
-    def check_time(val):
+    def is_timestamp(val):
+        try:
+            dateutil.parser.parse(val)
+            return True
+        except ValueError:
+            pass
+
         try:
             o = Checker.parse_timestamp(val)
-            if o.year != 1:  # this is a fake year from our default_datetime object
+            if 2100 > o.year > 1900 and not (o.second == o.minute == o.hour == 0 and o.day == o.month == 1):
+                # this year seems reasonable and it is not suspicious
+                # fuzzy search often return crazy things like year from port number - these records have 1 Jan midnight
                 return True
         except ValueError:
             pass
@@ -239,7 +254,9 @@ class Checker:
         @staticmethod
         def all(x):
             """ take all TLD """
-            return x[x.rindex(".") + 1:]
+            x = x[x.rindex(".") + 1:]
+            if not x.isdigit():
+                return x
 
         @classmethod
         def ccTLD(cls, x):
@@ -339,7 +356,8 @@ class Web:
                 # for res in response.history[1:]:
                 #     redirects += f"REDIRECT {res.status_code} → {res.url}\n" + text
                 #     redirects.append(res.url)
-                self.get = response.status_code, text, response.text if self.store_html else None, redirects, response.headers.get('X-Frame-Options',None), response.headers.get('Content-Security-Policy', None)
+                self.get = response.status_code, text, response.text if self.store_html else None, redirects, response.headers.get(
+                    'X-Frame-Options', None), response.headers.get('Content-Security-Policy', None)
                 break
         self.cache[url] = self.get
 
@@ -544,6 +562,42 @@ class Types:
         [graph.add_edge(to, from_) for to, from_ in methods if methods[to, from_] is not True]
         [t.init() for t in types]
 
+        """ import custom methods from files """
+        for field_name in Config.config["EXTERNAL"]:
+            if field_name == "external_fields":  # this is a genuine field, user did not make it
+                continue
+            path, method_name = Config.config["EXTERNAL"][field_name].rsplit(":")
+            module = Identifier.get_module_from_path(path)
+            Types.import_method(module, method_name, path, name=field_name)
+
+        for path in (x.strip() for x in Config.get("external_fields", "EXTERNAL", get=str).split(",")):
+            try:
+                module = Identifier.get_module_from_path(path)
+                if module:
+                    for method_name in (x for x in dir(module) if not x.startswith("_")):
+                        Types.import_method(module, method_name, path)
+            except bdb.BdbQuit:
+                raise
+            except Exception as e:
+                s = "Can't import custom file from path: {}".format(path)
+                input(s + ". Press any key...")
+                logger.warning(s)
+
+    @staticmethod
+    def import_method(module, method_name, path, name=None):
+        if not name:
+            name = method_name
+        lambda_ = getattr(module, method_name)
+        if isinstance(lambda_, ABCMeta):  # this is just an import statement of ex: PickBase
+            return
+        setattr(Types, name, Type(name, TypeGroup.general, lambda_.__doc__))  # fachá?
+        type_ = getattr(Types, name)
+        methods[(Types.plaintext, type_)] = lambda_
+        if lambda_ is not True:
+            graph.add_edge(Types.plaintext, type_)
+        type_.init()
+        logger.debug(f"Successfully added method {method_name} from module {path}")
+
     @staticmethod
     def find_type(source_type_candidate):
         source_type = None
@@ -590,23 +644,22 @@ class Types:
     dmarc = Type("dmarc", TypeGroup.dns)
     tld = Type("tld", TypeGroup.general)
     formatted_time = Type("formatted_time", TypeGroup.general)
-    isotimestamp = Type("isotime", TypeGroup.general)
+    isotimestamp = Type("isotimestamp", TypeGroup.general)
     time = Type("time", TypeGroup.general)
     date = Type("date", TypeGroup.general)
     bytes = Type("bytes", TypeGroup.general, is_private=True)
     charset = Type("charset", TypeGroup.general)
 
-
-    timestamp = Type("timestamp", TypeGroup.general, "time or date", ["time"], Checker.check_time)
-    ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "ipaddress"], check_ip)
+    timestamp = Type("timestamp", TypeGroup.general, "time or date", ["time"], Checker.is_timestamp)
+    ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "ipaddress"], is_ip)
     source_ip = Type("source_ip", TypeGroup.general, "valid source IP address",
-                     ["sourceipaddress", "source", "src"], check_ip, usual_must_match=True)
+                     ["sourceipaddress", "source", "src"], is_ip, usual_must_match=True)
     destination_ip = Type("destination_ip", TypeGroup.general, "valid destination IP address",
-                          ["destinationipaddress", "destination", "dest", "dst"], check_ip, usual_must_match=True)
+                          ["destinationipaddress", "destination", "dest", "dst"], is_ip, usual_must_match=True)
     cidr = Type("cidr", TypeGroup.general, "CIDR 127.0.0.1/32", ["cidr"], Checker.check_cidr)
     port_ip = Type("port_ip", TypeGroup.general, "IP in the form 1.2.3.4.port", [], reIpWithPort.match)
     any_ip = Type("any_ip", TypeGroup.general, "IP in the form 'any text 1.2.3.4 any text'", [],
-                  lambda x: reAnyIp.search(x) and not check_ip(x))
+                  lambda x: reAnyIp.search(x) and not is_ip(x))
     hostname = Type("hostname", TypeGroup.general, "2nd or 3rd domain name", ["fqdn", "hostname", "domain"], reFqdn.match)
     email = Type("email", TypeGroup.general, "E-mail address", ["mail"], validate_email)
     url = Type("url", TypeGroup.general, "URL starting with http/https", ["url", "uri", "location"],
@@ -640,8 +693,13 @@ class Types:
 
     @staticmethod
     def get_uml():
-        """ Return DOT UML source code of types and methods"""
-        l = ['digraph { ', 'label="Convey field types (dashed = identifiable automatically, circled = IO actions)"']
+        """ Return DOT UML source code of types and methods
+            dashed nodes = identifiable automatically
+            dashed edges = lambda-True relation (see _get_methods() help)
+            squares = category border
+            edge label = possible ways of processing (@PickBase decorated methods)
+        """
+        l = ['digraph { ', 'label="Convey field types (dashed nodes = identifiable automatically)"']
         used = set()
         formatting_disabled = "[color=lightgray fontcolor=lightgray]"
         loop = []
@@ -661,7 +719,7 @@ class Types:
 
         for enabled, ((start, target), m) in [(True, f) for f in methods.items()] + [(False, f) for f in methods_deleted.items()]:
             loop.append((enabled, start, target, m))
-            existing_edges.add((start,target))
+            existing_edges.add((start, target))
         # for enabled, ((start, target), m) in [(True, f) for f in methods.items()] + [(False, f) for f in methods_deleted.items()]:
         for enabled, start, target, m in loop:
             disable_s = "" if enabled else formatting_disabled
@@ -789,42 +847,8 @@ class Types:
 class Identifier:
 
     def __init__(self, parser):
-        """ import custom methods from files """
-        for field_name in Config.config["EXTERNAL"]:
-            if field_name == "external_fields":  # this is a genuine field, user did not make it
-                continue
-            path, method_name = Config.config["EXTERNAL"][field_name].rsplit(":")
-            module = self.get_module_from_path(path)
-            self.import_method(module, method_name, path)
-
-        for path in (x.strip() for x in Config.get("external_fields", "EXTERNAL", get=str).split(",")):
-            try:
-                module = self.get_module_from_path(path)
-                if module:
-                    for method_name in (x for x in dir(module) if not x.startswith("_")):
-                        self.import_method(module, method_name, path)
-            except bdb.BdbQuit:
-                raise
-            except Exception as e:
-                s = "Can't import custom file from path: {}".format(path)
-                input(s + ". Press any key...")
-                logger.warning(s)
-
         self.parser = parser
         self.graph = None
-
-    @staticmethod
-    def import_method(module, method_name, path):
-        lambda_ = getattr(module, method_name)
-        if isinstance(lambda_, ABCMeta):  # this is just an import statement of ex: PickBase
-            return
-        setattr(Types, method_name, Type(method_name, TypeGroup.general, lambda_.__doc__))  # fachá?
-        type_ = getattr(Types, method_name)
-        methods[(Types.plaintext, type_)] = lambda_
-        if lambda_ is not True:
-            graph.add_edge(Types.plaintext, type_)
-        type_.init()
-        logger.debug(f"Successfully added method {method_name} from module {path}")
 
     def get_methods_from(self, target, start, custom):
         """
@@ -973,16 +997,19 @@ class Identifier:
         # dialect.quoting = 3
         dialect.doublequote = True
 
+        seems_single = False
         if len(sample) == 1:
             # there is single line in sample = in the input, so this is definitely not a header
             has_header = False
             if dialect.delimiter not in [".", ",", "\t"] and "|" not in sample_text:
                 # usecase: short one-line like "convey hello" would produce stupid "l" delimiter
-                dialect.delimiter = "|"  # XX should be None, let's think a whole row is a single column
+                # XX should be None maybe, let's think a whole row is a single column – but then we could not add columns
+                dialect.delimiter = "|"
+                seems_single = True
         if dialect.delimiter == "." and "," not in sample_text:
             # let's propose common use case (bare list of IP addresses) over a strange use case with "." delimiting
             dialect.delimiter = ","
-        return dialect, has_header
+        return dialect, has_header, seems_single
 
     def identify_fields(self, quiet=False):
         """
@@ -1156,9 +1183,8 @@ class Identifier:
                           ", ".join([str(t_) for t_ in t]))
                 quit()
 
-
         if Config.is_debug():
-            print(f"Got type {target_type} of field={f}, source_type={source_type}, custom={task}")
+            print(f"Preparing type {target_type} of field={f}, source_type={source_type}, custom={task}, path={path}")
         return f, source_type, task
 
     def get_column_i(self, column):

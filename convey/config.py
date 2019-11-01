@@ -191,6 +191,7 @@ class Config:
             if not verbosity:  # if user has not say the verbosity level, make it the most verbose
                 Config.verbosity = logging.DEBUG
             logging.root.handlers[0].setLevel(logging.INFO)  # file handler to info level
+            logging.getLogger("chardet").setLevel(logging.WARNING)  # we are not interested in chardet debug logs
 
         logging.root.handlers[1].setLevel(Config.verbosity)  # stream handler to debug level
         logging.getLogger().setLevel(min(Config.verbosity, logging.INFO))  # system sensitivity at least at INFO level

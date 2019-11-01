@@ -146,7 +146,7 @@ class Parser:
         self.informer.sout_info()
         try:
             # Dialog to obtain basic information about CSV - delimiter, header
-            self.dialect, self.has_header = self.identifier.guess_dialect(self.sample)
+            self.dialect, self.has_header, seems_single = self.identifier.guess_dialect(self.sample)
             uncertain = False
 
             if not Config.get("yes"):
@@ -155,7 +155,8 @@ class Parser:
                     print(f"Delimiter character set: '{self.dialect.delimiter}'\n", end="")
                 else:
                     uncertain = True
-                    print(f"Delimiter character found: '{self.dialect.delimiter}'\n", end="")
+                    s = "proposed" if seems_single else "found"
+                    print(f"Delimiter character {s}: '{self.dialect.delimiter}'\n", end="")
 
                 if Config.get("quote_char", "CSV"):
                     self.dialect.quotechar = Config.get("quote_char", "CSV")
