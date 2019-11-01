@@ -12,7 +12,7 @@
         - new header / no-header flags
         - new output CLI flag
         - web, whois, nmap
-        - new flag single_value_ignored_fields
+        - new flag single_query_ignored_fields
         - flag --verbose, --quiet and config `verbosity`
         - flag compute_preview
         - user-agent
@@ -24,7 +24,7 @@
         - new CLI flag --show-fields to get UML overview
         - new flag --json
         - flags --field, --field-excluded, --delete, --split, --sort
-        - flags --single-processing, --csv-processing
+        - flags --single-query, --csv-processing
         - --version
     - INI only flags
         - github_crash_submit
@@ -69,11 +69,11 @@
     - reg type and its reg_m and reg_s
     - dns types (a, aaaa, mx, spf, ns, dmarc, txt)
     - tld
-    - web: text, http_status, html, redirects
+    - web: text, http_status, html, redirects, x_frame_options, csp
     - ports
     - urlencode
     - charset, bytes    
-    - timestamp, isotimestamp, time, date, formatted_time
+    - timestamp, isotimestamp, time, date, formatted_time    
 
 ## 1.1 (2019-05-13)
 - fix: do not reprocess file if moved to another location

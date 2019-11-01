@@ -64,8 +64,8 @@ def application(env, start_response):
     t = env["QUERY_STRING"].split("q=")  # XX sanitize?
     if len(t) == 2:
         res = WebServer.source_parser.set_stdin([t[1]]).prepare()
-        if res.is_single_value:
-            response = res.run_single_value(json=True)
+        if res.is_single_query:
+            response = res.run_single_query(json=True)
             headers.append(('Content-Type', 'application/json'))
             status = '200 OK'
         else:

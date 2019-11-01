@@ -139,7 +139,7 @@ class Controller:
                             help="Launch program in a headless mode which imposes --yes and --quiet. No menu is shown.",
                             action="store_true")
         parser.add_argument('--user-agent', help="Change user agent to be used when scraping a URL")
-        parser.add_argument('-S', '--single-processing', help="Consider the input as a single value, not a CSV.",
+        parser.add_argument('-S', '--single-query', help="Consider the input as a single value, not a CSV.",
                             action="store_true")
         parser.add_argument('--single-detect', help="Consider the input as a single value, not a CSV,"
                                                     " and just print out possible types of the input."
@@ -190,9 +190,9 @@ class Controller:
         if args.no_header:
             Config.set("header", False)
         if args.csv_processing:
-            Config.set("single_processing", False)
-        if args.single_processing or args.single_detect:
-            Config.set("single_processing", True)
+            Config.set("single_query", False)
+        if args.single_query or args.single_detect:
+            Config.set("single_query", True)
         Config.set("adding-new-fields", bool(new_fields))
 
         self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
@@ -248,8 +248,8 @@ class Controller:
         # run single value check if the input is not a CSV file
         if args.single_detect:
             quit()
-        if self.parser.is_single_value:
-            res = self.parser.run_single_value(json=args.json)
+        if self.parser.is_single_query:
+            res = self.parser.run_single_query(json=args.json)
             if res:
                 print(res)
             quit()

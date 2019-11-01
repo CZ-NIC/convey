@@ -61,7 +61,7 @@ class Parser:
         self.line_count = 0
         self.time_last = self.time_start = self.time_end = None
         self.stdout = None  # when called from another program we communicate through this stream rather then through a file
-        self.is_single_value = False  # CSV processing vs single_value check usage
+        self.is_single_query = False  # CSV processing vs single_query check usage
         self._reset()
         self.selected: List[int] = []  # list of selected fields col_i that may be in/excluded and moved in the menu
 
@@ -115,7 +115,7 @@ class Parser:
             elif not len_ or len_ > 1:
                 seems = False
 
-            if seems and Config.get("single_processing") is not False:
+            if seems and Config.get("single_query") is not False:
                 # identify_fields some basic parameters
                 self.add_field([Field(self.stdin[0])])  # stdin has single field
                 self.dialect = csv.unix_dialect
@@ -134,12 +134,12 @@ class Parser:
                             logger.info("Input value seems to be plaintext.")
                         else:
                             logger.info(f"Input value {detection}\n")
-                        self.is_single_value = True
+                        self.is_single_query = True
                         return self
-                if Config.get("single_processing"):
+                if Config.get("single_query"):
                     logger.info("Forced single processing")
                     self.fields[0].possible_types = {Types.plaintext: 1}
-                    self.is_single_value = True
+                    self.is_single_query = True
                     return self
 
         # we are parsing a CSV file
@@ -239,7 +239,7 @@ class Parser:
             self.first_line, self.sample = self.stdin[0], self.stdin[:7]
         return self
 
-    def run_single_value(self, json=False):
+    def run_single_query(self, json=False):
         """ Print out meaningful details about the single-value contents.
         :param json: If true, returns json.
         """
@@ -264,7 +264,7 @@ class Parser:
         if not fields:  # transform the field by all known means
             custom_fields = False
             for target_type in Types.get_computable_types(ignore_custom=True):  # loop all existing methods
-                if target_type in Config.get("single_value_ignored_fields", "FIELDS", get=list):
+                if target_type in Config.get("single_query_ignored_fields", "FIELDS", get=list):
                     # do not automatically compute ignored fields
                     continue
                 elif target_type.group == TypeGroup.custom:

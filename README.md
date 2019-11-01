@@ -20,10 +20,10 @@ Python3.6+ required.
 
 ## Usage
 
-### Usage 1 – Single value check
+### Usage 1 – Single query
 Check what happens if an IP is provided, it returns table with WHOIS-related information and scraped HTTP content.
 ```bash
-$ convey 1.1.1.1 # single value input
+$ convey 1.1.1.1 # single query input
 Input value detected: ip
 
 1.1.1.1 ...au

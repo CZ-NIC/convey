@@ -321,7 +321,7 @@ class Web:
                     s = "Oops : Something Else"
                 else:
                     s = e
-                self.get = str(s), None, None, redirects
+                self.get = str(s), None, None, redirects, None, None
                 break
             if response.headers.get("Location"):
                 current_url = response.headers.get("Location")
@@ -339,7 +339,7 @@ class Web:
                 # for res in response.history[1:]:
                 #     redirects += f"REDIRECT {res.status_code} → {res.url}\n" + text
                 #     redirects.append(res.url)
-                self.get = response.status_code, text, response.text if self.store_html else None, redirects
+                self.get = response.status_code, text, response.text if self.store_html else None, redirects, response.headers.get('X-Frame-Options',None), response.headers.get('Content-Security-Policy', None)
                 break
         self.cache[url] = self.get
 
@@ -578,6 +578,8 @@ class Types:
     http_status = Type("http_status", TypeGroup.web)
     html = Type("html", TypeGroup.web)
     redirects = Type("redirects", TypeGroup.web)
+    x_frame_options = Type("x_frame_options", TypeGroup.web)
+    csp = Type("csp", TypeGroup.web)
     ports = Type("ports", TypeGroup.nmap)
     spf = Type("spf", TypeGroup.dns)
     txt = Type("txt", TypeGroup.dns)
@@ -593,6 +595,7 @@ class Types:
     date = Type("date", TypeGroup.general)
     bytes = Type("bytes", TypeGroup.general, is_private=True)
     charset = Type("charset", TypeGroup.general)
+
 
     timestamp = Type("timestamp", TypeGroup.general, "time or date", ["time"], Checker.check_time)
     ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "ipaddress"], check_ip)
@@ -753,6 +756,8 @@ class Types:
             (t.web, t.text): lambda x: x.get[1],
             (t.web, t.html): lambda x: x.get[2],
             (t.web, t.redirects): lambda x: x.get[3],
+            (t.web, t.x_frame_options): lambda x: x.get[4],
+            (t.web, t.csp): lambda x: x.get[5],
             (t.hostname, t.ports): nmap,
             (t.ip, t.ports): nmap,
             (t.hostname, t.spf): dig("SPF"),
@@ -1135,9 +1140,22 @@ class Identifier:
         except IndexError:
             print(f"Column ID {source_col_i + 1} does not exist, only these: " + ", ".join(f.name for f in self.parser.fields))
             quit()
-        if graph.dijkstra(target_type, start=source_type) is False:
+
+        # Check there is a path between nodes and that path is resolvable
+        path = graph.dijkstra(target_type, start=source_type)
+        if path is False:
             print(f"No suitable path from '{f.name}' treated as '{source_type}' to '{target_type}'")
             quit()
+        for i in range(len(path) - 1):
+            t = (path[i], path[i + 1])
+            if t not in methods:
+                if t in methods_deleted:
+                    print(f"Disabled path at " + ", ".join([str(t_) for t_ in t]) + ". Launch --config to enable it.")
+                else:
+                    print(f"Path from '{f.name}' treated as '{source_type}' to '{target_type}' blocked at " +
+                          ", ".join([str(t_) for t_ in t]))
+                quit()
+
 
         if Config.is_debug():
             print(f"Got type {target_type} of field={f}, source_type={source_type}, custom={task}")
