@@ -249,15 +249,21 @@ class Parser:
         Web.init()
 
         def append(target_type, val):
-            rows.append([str(target_type), "×" if (val is None or val == []) else val])
             data[str(target_type)] = val
+            if type(val) is list and len(val) == 1:
+                val = val[0]
+            elif val is None or val == []:
+                val = "×"
+            else:
+                val = str(val)
+            rows.append([str(target_type), val])
 
         # get fields and their methods to be computed
-        fields = [(f.name, f.get_methods()) for f in self.fields if f.is_new]
+        fields = [(f, f.get_methods()) for f in self.fields if f.is_new]
         custom_fields = True
         if not fields:  # transform the field by all known means
             custom_fields = False
-            for target_type in Types.get_computable_types():  # loop all existing methods
+            for target_type in Types.get_computable_types(ignore_custom=True):  # loop all existing methods
                 if target_type in Config.get("single_value_ignored_fields", "FIELDS", get=list):
                     # do not automatically compute ignored fields
                     continue
@@ -266,15 +272,22 @@ class Parser:
                 fitting_type = self.identifier.get_fitting_type(0, target_type)
                 if fitting_type:
                     methods = self.identifier.get_methods_from(target_type, fitting_type, None)
-                    fields.append((str(target_type), methods))
+                    if methods:
+                        fields.append((target_type, methods))
 
-        for field_name, methods in fields:
-            val = self.first_line
+        for field, methods in fields:
+            if type(field) is Type:
+                val = self.first_line
+            else:
+                val = self.sample_parsed[0][field.source_field.col_i]
             for l in methods:
-                val = l(val)
-            if type(val) is tuple:  # currently Whois only returns tuple, see _get_methods.__doc__
-                val = val[1]
-            append(field_name, val)
+                if isinstance(val, list):
+                    # resolve all items, while flattening any list encountered
+                    val = [y for x in (l(v) for v in val) for y in (x if type(x) is list else [x])]
+                else:
+                    val = l(val)
+            self.sample_parsed[0].append(val)
+            append(field.name, val)
 
         # prepare json to return (useful in a web service)
         if "csirt-contact" in data and data["csirt-contact"] == "-":
@@ -314,7 +327,7 @@ class Parser:
             if hard:
                 self.ranges = {}
                 self.whoisip_seen = {}
-        Whois.init(self.whois_stats, self.ranges, self.whoisip_seen)
+        Whois.init(self.whois_stats, self.ranges, self.whoisip_seen, self.stats)
 
     def reset_settings(self):
         self.settings = defaultdict(list)
@@ -342,7 +355,7 @@ class Parser:
             cw.writerow([f for f in self.fields if f.is_chosen])
             self.header = wr.written
         self._reset_output()
-        #self.get_sample_values()  # assure sout_info would consume a result from duplicate_row
+        # self.get_sample_values()  # assure sout_info would consume a result from duplicate_row
 
         self.time_start = None
         self.time_end = None
@@ -563,7 +576,7 @@ class Parser:
     def get_sample_values(self):
         rows = []  # nice table formatting
         full_rows = []  # formatting that optically matches the Sample above
-        for l in self.sample_parsed[:5]:
+        for l in self.sample_parsed:
             row = []
             full_row = []
             for f, c in zip_longest(self.fields, l):
@@ -616,6 +629,9 @@ class Field:
         else:
             self.source_field = self.source_type = self.new_custom = None
 
+    def __repr__(self):
+        return f"<Field {self.name}({self.type})>"
+
     def move(self, direction=0):
         """ direction = +1 right, -1 left """
         p = self.parser
@@ -659,7 +675,7 @@ class Field:
         if not self.is_chosen:
             l.append("9")  # strike
         if self.is_selected:
-            l.append("1")  # bold
+            l.append("7")  # bold
         if self.is_new:
             l.append("33")  # yellow
         elif self.type is None or self.type == Types.plaintext:
@@ -723,12 +739,6 @@ class Field:
                 return "..."
             for m in self.get_methods():
                 c = m(c)
-            if isinstance(c, tuple):
-                if len(c) == 1:  # this must be "duplicate_row" decorator,
-                    # however, we do not duplicate row to get another value here
-                    c = c[0]
-                else:  # this must be whois info-tuple
-                    c = c[1] or "unknown"
         else:
             c = "..."
         # add a newly computed value to source_parsed

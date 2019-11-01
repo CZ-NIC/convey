@@ -158,7 +158,7 @@ def any_method(value):
     return "modified :)"
 ```
 
-You may as well hard code custom fields in the [`config.ini`](convey/config.ini.default) by providing paths to the entrypoint Python files delimited by a comma: `custom_fields_modules = /tmp/myfile.py, /tmp/anotherfile.py`. All the public methods in the defined files will become custom fields!
+You may as well hard code custom fields in the [`config.ini`](convey/config.ini.default) by providing paths to the entrypoint Python files delimited by a comma: `external_fields = /tmp/myfile.py, /tmp/anotherfile.py`. All the public methods in the defined files will become custom fields! – If this is not needed, you may register one by one by adding items in the `EXTERNAL` section.
 
 If you need a single call to generate multiple rows, return list, the row accepting a list will be duplicated.
 
@@ -170,12 +170,11 @@ def any_method(value):
 
 Ex: If a method returns 2 items and another 3 items, you will receive 6 similar rows.
 
-
-Should there be multiple ways of using your generator, you may inherit `Subtype` and let the user decide at the runtime.
+Should there be multiple ways of using your generator, you may decorate with `PickMethod` and let the user decide at the runtime.
 
 ```python3
-from convey import Subtype
- class any_method(Subtype):
+from convey import PickMethod
+ class any_method(PickMethod):
     def all(x):
         ''' All of them.  '''
         return x
@@ -191,8 +190,15 @@ $ convey file.csv --field any_method  # user will be asked whether to use `all` 
 $ convey file.csv --field any_method[filtered]  # filtered sub-method will be used
 ```
 
+If you need a direct user entry before each processing, import `PickInput` and make your method accept *two* parameters. The first will be given by the user.
 
-Handsome feature if you're willing to use the Shodan API as our partner or to do anything else.
+```python3
+from convey import PickInput
+@PickInput
+def time_format(format, val):
+    ''' this text will be displayed to the user '''
+    return dateutil.parser.parse(val).strftime(format)
+```
 
 ## Examples
 

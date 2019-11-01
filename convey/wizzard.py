@@ -15,7 +15,11 @@ from pygments.styles import get_style_by_name
 from pygments.token import Token
 from tabulate import tabulate
 
-from .identifier import Type, Types
+from .identifier import Type, Types, PickInput
+
+
+def yellow_no_end(s):
+    return f"\033[0;41m{s}"
 
 
 def yellow(s, error=False):
@@ -114,13 +118,13 @@ def _code_method(e, x):
     return x
 
 
-def _reg_method(s, search, replace=None):
+def _reg_method(line, search, replace=None):
     """ simulate real reg ex matching in the Identifier """
-    match = search.search(s)
+    match = search.search(line)
     reg_s = ""
 
     if not match:
-        return "", "", ""
+        return "", "", "", blue(line)
     groups = match.groups()
     if not groups:
         groups_preview = [match.group(0)]
@@ -132,16 +136,17 @@ def _reg_method(s, search, replace=None):
             reg_m = match.group(0)
         else:
             reg_m = match.group(1)
-        reg_s = search.sub("", s)
+        reg_s = search.sub("", line)
     else:
         try:
             reg_m = replace.format(match.group(0), *[g for g in groups])
             # we convert "str{0}" → "\g<0>" (works better than conversion to a mere "\0" that may result to ambiguity
-            replace_pattern = re.sub("{(\d+)}", r"\\g<\1>", replace)
-            reg_s = search.sub(replace_pattern, s)
+            replace_pattern = re.sub(r"{(\d+)}", r"\\g<\1>", replace)
+            reg_s = search.sub(replace_pattern, line)
         except IndexError:
             reg_m = ""
-    return groups_preview, reg_m, reg_s
+    span = match.span(0)
+    return groups_preview, reg_m, reg_s, blue(line[0:span[0]]) + red(line[slice(*span)]) + blue(line[span[1]:])
 
 
 class ReValidator(Validator):
@@ -183,33 +188,61 @@ class Preview:
         def _(_):
             get_app().exit("")
 
-        # define styling
-        self.style = merge_styles([reg_style, bottom_plain_style])
-
-    def code(self):
-        """ code preview specific part """
-
         # exit on control+d (because the default exit command alt-enter seems unintuitive) (control+enter unacessible)
         @self.bindings.add('c-d')
         def _(_):
             get_app().exit(self.session.layout.current_buffer.text)
 
-        # define bottom preview toolbar
-        def get_toolbar():
-            rows = []
-            for line in self.samples:
-                val = _code_method(self.session.layout.current_buffer.text, line)
-                rows.append((f"\033[0;36m{line}\033[0m", f"\033[0;33m{val}\033[0m"))  # blue and yellow
+        # define styling
+        self.style = merge_styles([reg_style, bottom_plain_style])
 
-            return ANSI('\nPreview\n' + tabulate(rows, headers=("original", "result"), tablefmt="github"))
+        # Init variables that may be used in methods
+        self.get_toolbar_row = self.search = self.replace = self.phase = self.chosen_type = self.reg_type = None
+
+    def standard_toolbar(self):
+        """ define bottom preview toolbar """
+        rows = []
+        for line in self.samples:
+            val = self.get_toolbar_row(self.session.layout.current_buffer.text, line)
+            rows.append((f"\033[0;36m{line}\033[0m", f"\033[0;33m{val}\033[0m"))  # blue and yellow
+
+        return ANSI('\nPreview\n' + tabulate(rows, headers=("original", "result"), tablefmt="github"))
+
+    def code(self):
+        """ code preview specific part """
+
+        def get_toolbar_row_code(text, line):
+            return _code_method(text, line)
+
+        self.get_toolbar_row = get_toolbar_row_code
 
         def get_prompt():
             s = '<b>Ctrl+D</b>' if "\n" in self.session.layout.current_buffer.text else 'Ctrl+D'
             return HTML(f'Code <i>({s} to confirm)</i>: ')
 
         # prints the application
-        text = self.reset_session().prompt(get_prompt, bottom_toolbar=get_toolbar, style=self.style,
+        text = self.reset_session().prompt(get_prompt, bottom_toolbar=self.standard_toolbar, style=self.style,
                                            lexer=PygmentsLexer(Python3Lexer), multiline=True, key_bindings=self.bindings)
+        return text
+
+    def pick_input(self, o: PickInput):
+        """ code preview specific part """
+
+        def get_toolbar_row_pick_input(text, line):
+            try:
+                val = o.get_lambda(text)(line)
+            except Exception as e:
+                val = str(e)
+            return val
+
+        self.get_toolbar_row = get_toolbar_row_pick_input
+
+        def get_prompt():
+            return HTML(o.description + ": ")
+
+        # prints the application
+        text = self.reset_session().prompt(get_prompt, bottom_toolbar=self.standard_toolbar, style=self.style,
+                                           lexer=PygmentsLexer(Python3Lexer), key_bindings=self.bindings)
         return text
 
     def reg(self, reg_type: "Type"):
@@ -247,7 +280,7 @@ class Preview:
                 toggle_type(Types.reg_m)
 
         # prints the application
-        options = {"bottom_toolbar": self.get_toolbar_search, "style": self.style,
+        options = {"bottom_toolbar": self.reg_toolbar, "style": self.style,
                    "lexer": PygmentsLexer(RegularLexer), "multiline": False, "key_bindings": self.bindings}
         while True:
             # self.ask_search = False
@@ -289,14 +322,15 @@ class Preview:
         return self.session
 
     # define bottom preview toolbar
-    def get_toolbar_search(self):
+    def reg_toolbar(self):
         helper = ""
         rows = []
+        match = []
         for line in self.samples:
             text = self.session.layout.current_buffer.text
             error = False  # prompt text is erroneous, probably not completed yet
             while True:
-                row = [blue(line)]
+                row = []
                 if self.phase == 1:  # first phase - searching for match string
                     contents = text
                     try:
@@ -305,18 +339,19 @@ class Preview:
                         text = text[:-1]
                         error = True
                         continue
-                    match, reg_m_preview, reg_s_preview = _reg_method(line, search_re, self.replace)
+                    match, reg_m_preview, reg_s_preview, line = _reg_method(line, search_re, self.replace)
                     row.append("\n".join([yellow(m) for m in match]))  # colorize lines separately
                     if error:
                         row[-1] += red("!")
                     reg_m_preview = blue(self.highlight(reg_m_preview, Types.reg_m))
                     reg_s_preview = blue(self.highlight(reg_s_preview, Types.reg_s))
-                    helper = ". - any char, \w - word, \d - digit, () - matching group"
+                    helper = r". - any char, \w - word, \d - digit, () - matching group"
                 else:  # second phase - searching for replace string (and third phase just diplaying)
                     contents = self.search
                     search_re = re.compile(contents)
                     try:
-                        match, reg_m_preview, reg_s_preview = _reg_method(line, search_re, text if self.phase == 2 else self.replace)
+                        match, reg_m_preview, reg_s_preview, line = _reg_method(line, search_re,
+                                                                                text if self.phase == 2 else self.replace)
                     except ValueError:
                         text = text[:-1]
                         error = True
@@ -333,6 +368,7 @@ class Preview:
                         row.append(reg_s_preview)
                     else:
                         row.append("")
+                row.insert(0, line)
                 rows.append(row)
                 break
         headers = ["original", "groups" if len(match) > 1 else "group {0}"]

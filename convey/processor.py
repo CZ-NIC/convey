@@ -13,7 +13,7 @@ from typing import Dict
 
 from convey.identifier import Web
 from .config import Config
-from .contacts import Attachment, Contacts
+from .contacts import Attachment
 from .dialogue import ask, is_no
 
 logger = logging.getLogger(__name__)
@@ -159,7 +159,6 @@ class Processor:
         Parses line – compute fields while adding, perform filters, pick or delete cols, split and write to a file.
         """
         try:
-            whoises = []
             if not fields:
                 fields = line.copy()
 
@@ -172,24 +171,14 @@ class Processor:
                     val = fields[col[1]]
                     for l in col[2]:
                         if isinstance(val, list):
-                            r = []
-                            for v in val:
-                                r.extend(l(v))
-                            val = r
+                            # resolve all items, while flattening any list encountered
+                            val = [y for x in (l(v) for v in val) for y in (x if type(x) is list else [x])]
                         else:
                             val = l(val)
-                    if isinstance(val, tuple):
-                        # this must be whois info-tuple
-                        # we are sure that whois will be the last-in-row computed val because there is no path from whois further
-                        # if we implement a direct path (ex: whois → abusemail → hostname) we should put this statement below
-                        # val = l(val)
-                        whoises.append(val[0])
-                        fields.append(val[1])
-                    else:
-                        fields.append(val)
-                        if isinstance(val, list):
-                            list_lengths.append(len(val))
-                if list_lengths:
+                    fields.append(val)
+                    if isinstance(val, list):
+                        list_lengths.append(len(val))
+                if list_lengths:  # duplicate rows because we received lists amongst scalars
                     row_count = prod(list_lengths)
                     for i, f in enumerate(fields):  # 1st col returns 3 values, 2nd 2 values → both should have 3*2 = 6 values
                         if type(f) is not list:
@@ -220,30 +209,14 @@ class Processor:
             else:
                 chosen_fields = fields
 
-            for whois in whoises:
-                csv.stats["ipsUnique"].add(whois.ip)
-                mail = whois.get[2]
-                if whois.get[1] == "local":
-                    if not mail:
-                        chosen_fields = line  # reset to the original line (will be reprocessed)
-                        csv.stats["ipsCzMissing"].add(whois.ip)
-                        csv.stats["czUnknownPrefixes"].add(whois.get[0])
-                    else:
-                        csv.stats["ipsCzFound"].add(whois.ip)
-                        csv.stats["ispCzFound"].add(mail)
-                else:
-                    country = whois.get[5]
-                    if country not in Contacts.csirtmails:
-                        csv.stats["ipsWorldMissing"].add(whois.ip)
-                        csv.stats["countriesMissing"].add(country)
-                    else:
-                        csv.stats["countriesFound"].add(country)
-                        csv.stats["ipsWorldFound"].add(whois.ip)
-                # XX invalidLines if raised an exception
-
-            # split ('/' is a forbidden char in linux file names)
-            location = (fields[settings["split"]].replace("/", "-") or Config.UNKNOWN_NAME if type(settings["split"]) == int
-                        else settings["target_file"])
+            # determine location
+            if type(settings["split"]) == int:
+                location = fields[settings["split"]].replace("/", "-")  # split ('/' is a forbidden char in linux file names)
+                if not location:
+                    location = Config.UNKNOWN_NAME
+                    chosen_fields = line  # reset to the original line (will be reprocessed)
+            else:
+                location = settings["target_file"]
         except Exception as e:
             if isinstance(e, BdbQuit):
                 raise  # BdbQuit and KeyboardInterrupt caught higher

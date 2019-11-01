@@ -1,10 +1,13 @@
+import bdb
 import csv
 import importlib.util
+import inspect
 import ipaddress
 import logging
 import re
 import socket
 import subprocess
+from abc import ABC, abstractmethod, ABCMeta
 from base64 import b64decode, b64encode
 from builtins import ZeroDivisionError
 from copy import copy
@@ -13,6 +16,7 @@ from enum import IntEnum
 from pathlib import Path
 from typing import List
 
+import dateutil.parser
 import requests
 from bs4 import BeautifulSoup
 from validate_email import validate_email
@@ -38,40 +42,72 @@ methods = {}
 graph = Graph()
 
 
-class Subtype:
-    """ Inherit if you need to ask a sub-question while computing a column.
-     Put options as methods, user will be asked what sub-method they tend to use,
-     with the description taken directly from the __doc__ string.
+class PickBase(ABC):
+    @abstractmethod
+    def get_lambda(self): pass
 
-     Ex: Hostname to TLD computation may be unfiltered, or take ccTLD records only.
 
-     class get_tld(Subtype):
+class PickMethod(PickBase):
+    """ If you need to ask a question before computing values,
+    make a class with methods that will be considered as options.
+    User will be asked what computing option they tend to use,
+    whilst the description is taken directly from the methods' __doc__ string.
+
+     Ex: A user should be asked if a generator should return every value or perform a filtering.
+
+     @PickMethod
+     class MyValues():
         def all(x):
-            ''' this text will be displayed to the user '''
+            ''' return every value (this very text will be displayed to the user) '''
             return x
 
-        def ccTLD(cls, x):
-            ''' we return only TLD of specific countries '''
-            if x in country_code_set:
+        def filtered(cls, x):
+            ''' return only specific values '''
+            if x in my_set:
                 return x
     """
 
-    @classmethod
-    def get_lambda(cls, custom):
-        for name in cls._get_options():
+    def get_lambda(self, custom):
+        for name in self._get_options():
             if name == custom:
-                return getattr(cls, name)
+                return getattr(self.subtype, name)
         else:
-            raise NotImplementedError(f"Option {custom} has not been implemented for {cls}, only {cls._get_options()}.")
+            raise NotImplementedError(f"Option {custom} has not been implemented for {self.subtype}, only {self._get_options()}.")
 
-    @classmethod
-    def get_options(cls):
+    def get_options(self):
         """ Return generator of options name and description tuples """
-        return ((name, getattr(cls, name).__doc__.strip()) for name in cls._get_options())
+        return ((name, getattr(self.subtype, name).__doc__.strip()) for name in self._get_options())
 
-    @classmethod
-    def _get_options(cls):
-        return (name for name in cls.__dict__ if not name.startswith("_"))
+    def _get_options(self):
+        return (name for name in self.subtype.__dict__ if not name.startswith("_"))
+
+    def __init__(self, subtype):
+        self.subtype = subtype
+
+
+class PickInput(PickBase):
+    """ If your external function need to be setup with a variable first,
+     decorate with @PickInput and register a function having two parameters.
+
+    In this example, we let the user decide what should be the value of `format` before processing.
+    All values will be formatted with the same pattern.
+
+    @PickInput
+    def time_format(format, val):
+        ''' this text will be displayed to the user '''
+        return dateutil.parser.parse(val).strftime(format)
+
+    """
+
+    def get_lambda(self, custom):
+        return lambda x: self.subtype(custom, x)
+
+    def __init__(self, subtype):
+        self.subtype = subtype
+        par = list(inspect.signature(subtype).parameters)
+        if len(par) != 2:
+            raise RuntimeError(f"Cannot import {subtype.__name__}, it has not got two parameters.")
+        self.description = subtype.__doc__ or (f"Input {subtype.__name__} variable " + par[0])
 
 
 def check_ip(ip):
@@ -129,7 +165,13 @@ class Checker:
         return (not reUrl.match(wrong) and not reFqdn.match(wrong)) and (reUrl.match(s) or reFqdn.match(s))
 
     @staticmethod
-    class HostnameTld(Subtype):
+    @PickInput
+    def time_format(fmt, val):
+        return dateutil.parser.parse(val).strftime(fmt)
+
+    @staticmethod
+    @PickMethod
+    class HostnameTld:
         @staticmethod
         def all(x):
             """ take all TLD """
@@ -269,7 +311,9 @@ def nmap(val):
     text = text[:text.find("\n\n")]
     return text
 
+
 methods_deleted = {}
+
 
 class TypeGroup(IntEnum):
     general = 1
@@ -294,7 +338,7 @@ class Type:
     A field type Convey is able to identify or compute
     """
 
-    def __init__(self, name, group=TypeGroup.general, description=None, usual_names=[], identify_method=None, is_private=False,
+    def __init__(self, name, group=TypeGroup.general, description="", usual_names=[], identify_method=None, is_private=False,
                  from_message=None, usual_must_match=False):
         """
         :param name: Key name
@@ -431,7 +475,6 @@ class Types:
     @staticmethod
     def init():
         methods.update(Types._get_methods())
-        graph.set_private_nodes([t for t in types if t.is_private])  # methods converting a field type to another
         [graph.add_edge(to, from_) for to, from_ in methods if methods[to, from_] is not True]
         [t.init() for t in types]
 
@@ -478,6 +521,7 @@ class Types:
     mx = Type("mx", TypeGroup.dns)
     dmarc = Type("dmarc", TypeGroup.dns)
     tld = Type("tld", TypeGroup.general)
+    formatted_time = Type("formatted_time", TypeGroup.general)
 
     ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "ipaddress"], check_ip)
     source_ip = Type("source_ip", TypeGroup.general, "valid source IP address",
@@ -485,8 +529,8 @@ class Types:
     destination_ip = Type("destination_ip", TypeGroup.general, "valid destination IP address",
                           ["destinationipaddress", "destination", "dest", "dst"], check_ip, usual_must_match=True)
     cidr = Type("cidr", TypeGroup.general, "CIDR 127.0.0.1/32", ["cidr"], Checker.check_cidr)
-    port_ip = Type("portIP", TypeGroup.general, "IP in the form 1.2.3.4.port", [], reIpWithPort.match)
-    any_ip = Type("anyIP", TypeGroup.general, "IP in the form 'any text 1.2.3.4 any text'", [],
+    port_ip = Type("port_ip", TypeGroup.general, "IP in the form 1.2.3.4.port", [], reIpWithPort.match)
+    any_ip = Type("any_ip", TypeGroup.general, "IP in the form 'any text 1.2.3.4 any text'", [],
                   lambda x: reAnyIp.search(x) and not check_ip(x))
     hostname = Type("hostname", TypeGroup.general, "2nd or 3rd domain name", ["fqdn", "hostname", "domain"], reFqdn.match)
     email = Type("email", TypeGroup.general, "E-mail address", ["mail"], validate_email)
@@ -499,9 +543,19 @@ class Types:
     plaintext = Type("plaintext", TypeGroup.general, "Plain text", ["plaintext", "text"], lambda x: False)
 
     @staticmethod
-    def get_computable_types():
-        """ List of all suitable fields that we may compute from a suitable output """
-        return sorted({target_type for _, target_type in methods.keys() if not (target_type.is_private or target_type.is_disabled)})
+    def get_computable_types(ignore_custom=False):
+        """ List of all suitable fields that we may compute from a suitable output
+        :type ignore_custom: bool Ignore types that may not be reachable because user input would be needed.
+            These are TypeGroup.custom and instances of PickBase.
+        """
+        s = set()
+        for (_, target_type), m in methods.items():
+            if ignore_custom and (target_type.group == TypeGroup.custom or isinstance(m, PickBase)):
+                continue
+            if target_type.is_private or target_type.is_disabled:
+                continue
+            s.add(target_type)
+        return sorted(s)
 
     @staticmethod
     def get_guessable_types() -> List[Type]:
@@ -514,37 +568,34 @@ class Types:
         l = ['digraph { ', 'label="Convey field types (dashed = identifiable automatically, circled = IO actions)"']
         used = set()
 
-        def add(start, target, s_enabled):
+        def add(start, target, disable_s):
             if (start, target) not in used:
                 used.add((start, target))
-                if not s_enabled:
+                if not disable_s:
                     used.update([start, target])
-                l.append(f"{start} -> {target}{s_enabled}")
+                l.append(f"{start} -> {target}{disable_s}")
 
-        s_disabled = "[color=lightgray fontcolor=lightgray]"
+        formatting_disabled = "[color=lightgray fontcolor=lightgray]"
         for enabled, ((start, target), m) in [(True, f) for f in methods.items()] + [(False, f) for f in methods_deleted.items()]:
-            s_enabled = "" if enabled else s_disabled
+            disable_s = "" if enabled else formatting_disabled
             if start.group != target.group and target.group.name != target and target.group is not TypeGroup.general:
-                add(start, target.group.name, s_enabled)
+                add(start, target.group.name, disable_s)
                 start = target.group.name
-            add(start, target, s_enabled)
+            add(start, target, disable_s)
             if m is True:
                 l[-1] += "[style=dashed]"
-            if type(m) is type and issubclass(m, Subtype):
-                s = "[style=dashed][arrowhead=diamond arrowtail=diamond dir=both]" + s_enabled
-                [l.append(f"{target} -> {name} {s}") for name, _ in m.get_options()]
+            if isinstance(m, PickMethod):
+                l[-1] += '[label="choose ' + ",".join([name for name, _ in m.get_options()]) + '" fontsize=10]'
+            elif isinstance(m, PickInput):
+                l[-1] += f'[label="{m.description}" fontsize=10]'
         for tg in TypeGroup:
             if tg is not TypeGroup.general:
                 if tg.name in used:
                     l.append(f"{tg.name} [shape=box]")
                 else:
-                    l.append(f"{tg.name} [shape=box]{s_disabled}")
+                    l.append(f"{tg.name} [shape=box]{formatting_disabled}")
         for f in types:
-            s_enabled = "" if f in used else s_disabled
-                # if f.is_private:
-                #     continue
-                #add(f, "disabled")
-                #l[-1] += "[dir=none]"
+            disable_s = "" if f in used else formatting_disabled
             label = [f.name]
             s = ""
             if f.description:
@@ -553,20 +604,19 @@ class Types:
                 if f.usual_names:
                     label.append("usual names: " + ", ".join(f.usual_names))
                 s = ' [label="' + r"\n".join(label) + '"]'
-            l.append(f'{f.name}{s}{s_enabled}')
+            l.append(f'{f.name}{s}{disable_s}')
             if f in Types.get_guessable_types():
                 l.append(f'{f.name} [style=dashed]')
             # if f.is_private:
             #    l.append(f'{f.name} [shape=box]')
-
 
         l.append("}")
         return "\n".join(l)
 
     @staticmethod
     def _get_methods():
-        """  these are known methods to make a field from another field
-            Note that Whois only produces tuple to be fetchable to stats in Processor, the others are rather strings.
+        """  These are known methods to compute a field from another field.
+            They should return scalar or list.
 
             Method ~ lambda: Will be processed when converting one type to another
             Method ~ None: Will be skipped. (TypeGroup.custom fields usually have None.)
@@ -591,15 +641,14 @@ class Types:
             (t.ip, t.whois): Whois,
             (t.cidr, t.ip): lambda x: x if Config.get("multiple_cidr_ip", "FIELDS") else lambda x: str(
                 ipaddress.ip_interface(x).ip),  # XXX
-            (t.whois, t.prefix): lambda x: (x, str(x.get[0])),
-            (t.whois, t.asn): lambda x: (x, x.get[3]),
-            (t.whois, t.abusemail): lambda x: (x, x.get[6]),
-            (t.whois, t.country): lambda x: (x, x.get[5]),
-            (t.whois, t.netname): lambda x: (x, x.get[4]),
-            (t.whois, t.csirt_contact): lambda x: (
-                x, Contacts.csirtmails[x.get[5]] if x.get[5] in Contacts.csirtmails else "-"),
+            (t.whois, t.prefix): lambda x: str(x.get[0]),
+            (t.whois, t.asn): lambda x: x.get[3],
+            (t.whois, t.abusemail): lambda x: x.get[6],
+            (t.whois, t.country): lambda x: x.get[5],
+            (t.whois, t.netname): lambda x: x.get[4],
+            (t.whois, t.csirt_contact): lambda x: Contacts.csirtmails[x.get[5]] if x.get[5] in Contacts.csirtmails else "-",
             # returns tuple (local|country_code, whois-mail|abuse-contact)
-            (t.whois, t.incident_contact): lambda x: (x, x.get[2]),
+            (t.whois, t.incident_contact): lambda x: x.get[2],
             (t.base64, t.plaintext): base64decode,
             (t.plaintext, t.base64): lambda x: b64encode(x.encode("UTF-8")).decode("UTF-8"),
             (t.plaintext, t.external): None,
@@ -636,8 +685,9 @@ class Types:
             (t.redirects, t.url): True,
             # (t.cc_tld, t.country): True
             # (t.prefix, t.cidr)
+            (t.plaintext, t.formatted_time): Checker.time_format
             # XX url decode, url encode urllib.parse.quote
-            # XX timestamp  dateutil.parser.parse except ValueError
+            # XX time Type
         }
 
 
@@ -645,13 +695,21 @@ class Identifier:
 
     def __init__(self, parser):
         """ import custom methods from files """
-        for path in (x.strip() for x in Config.get("custom_fields_modules", "FIELDS", get=str).split(",")):
+        for field_name in Config.config["EXTERNAL"]:
+            if field_name == "external_fields":  # this is a genuine field, user did not make it
+                continue
+            path, method_name = Config.config["EXTERNAL"][field_name].rsplit(":")
+            module = self.get_module_from_path(path)
+            self.import_method(module, method_name, path)
+
+        for path in (x.strip() for x in Config.get("external_fields", "EXTERNAL", get=str).split(",")):
             try:
                 module = self.get_module_from_path(path)
                 if module:
-                    for method in (x for x in dir(module) if not x.startswith("_")):
-                        methods[(Types.plaintext, method)] = getattr(module, method)
-                        logger.info(f"Successfully added method {method} from module {path}")
+                    for method_name in (x for x in dir(module) if not x.startswith("_")):
+                        self.import_method(module, method_name, path)
+            except bdb.BdbQuit:
+                raise
             except Exception as e:
                 s = "Can't import custom file from path: {}".format(path)
                 input(s + ". Press any key...")
@@ -659,6 +717,19 @@ class Identifier:
 
         self.parser = parser
         self.graph = None
+
+    @staticmethod
+    def import_method(module, method_name, path):
+        lambda_ = getattr(module, method_name)
+        if isinstance(lambda_, ABCMeta):  # this is just an import statement of ex: PickBase
+            return
+        setattr(Types, method_name, Type(method_name, TypeGroup.general, lambda_.__doc__))  # fachá?
+        type_ = getattr(Types, method_name)
+        methods[(Types.plaintext, type_)] = lambda_
+        if lambda_ is not True:
+            graph.add_edge(Types.plaintext, type_)
+        type_.init()
+        logger.debug(f"Successfully added method {method_name} from module {path}")
 
     def get_methods_from(self, target, start, custom):
         """
@@ -727,7 +798,7 @@ class Identifier:
         lambdas = []  # list of lambdas to calculate new field
         for i in range(len(path) - 1):
             lambda_ = methods[path[i], path[i + 1]]
-            if type(lambda_) is type and issubclass(lambda_, Subtype):
+            if isinstance(lambda_, PickBase):
                 lambda_ = lambda_.get_lambda(custom.pop(0))
             elif not hasattr(lambda_, "__call__"):  # the field is invisible, see help text for Types; may be False, None or True
                 continue
@@ -942,7 +1013,12 @@ class Identifier:
 
         # determining missing info
         if source_col_i is not None and not source_type:
-            source_type = self.get_fitting_type(source_col_i, target_type, try_plaintext=True)
+            try:
+                source_type = self.get_fitting_type(source_col_i, target_type, try_plaintext=True)
+            except IndexError:
+                print(f"Column ID {source_col_i + 1} does not exist. We have these so far: " +
+                      ", ".join([f.name for f in self.parser.fields]))
+                quit()
             if not source_type:
                 print(f"We could not identify a method how to make '{target_type}' from '{self.parser.fields[source_col_i]}'")
                 quit()

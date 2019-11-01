@@ -9,10 +9,7 @@ class Graph:
         self.nodes = set()
         self.edges = defaultdict(list)
         self.distances = {}
-        self.private_nodes = set()
 
-    def set_private_nodes(self, nodes):
-        self.private_nodes = nodes
 
     def add_node(self, value):
         self.nodes.add(value)
@@ -85,8 +82,8 @@ class Graph:
             return path
 
         if ignore_private:
-            for node in self.private_nodes:
-                if node in visited:
+            for node in list(visited):
+                if node.is_private:
                     del visited[node]
         distance_from_type = {}
         for (k, v) in visited.items():

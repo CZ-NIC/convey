@@ -16,7 +16,7 @@ from prompt_toolkit.shortcuts import clear
 from .config import Config, get_terminal_size
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
-from .identifier import Types, TypeGroup, types, Type, graph, Subtype, methods
+from .identifier import Types, TypeGroup, types, Type, graph, PickMethod, methods, PickBase, PickInput
 from .mailSender import MailSenderOtrs, MailSenderSmtp
 from .parser import Parser, Field
 from .sourceWrapper import SourceWrapper
@@ -156,6 +156,11 @@ class Controller:
                 if module == "dig":
                     module = "dns"
                 getattr(TypeGroup, module).disable()
+        if args.debug:
+            Config.set("debug", True)
+        if args.headless:
+            args.yes = True
+            args.quiet = True
         Config.init_verbosity(args.yes, 30 if args.quiet else (10 if args.verbose else None))
         if args.show_uml:
             print(Types.get_uml())
@@ -163,11 +168,6 @@ class Controller:
         if args.version:
             print(__version__)
             quit()
-        if args.debug:
-            Config.set("debug", True)
-        if args.headless:
-            args.yes = True
-            args.quiet = True
         Config.integrity_check()
         if args.header:
             Config.set("header", True)
@@ -203,10 +203,9 @@ class Controller:
         for add, task in [(True, l) for l in (args.field or [])] + [(False, l) for l in (args.field_excluded or [])]:
             # FIELD,[COLUMN],[SOURCE_TYPE], ex: `netname 3|"IP address" ip|sourceip`
             task = [x for x in csv.reader([task])][0]
-            #add = task.pop(0)
             custom = []
             target_type = task[0]
-            m = re.search(r"(\w*)\[(\w*)\]", target_type)
+            m = re.search(r"(\w*)\[([^]]*)\]", target_type)
             if m:
                 target_type = m.group(1)
                 custom = [m.group(2)]
@@ -219,7 +218,6 @@ class Controller:
                 quit()
             source_field, source_type, c = self.parser.identifier.get_fitting_source(target_type, *task[1:])
             custom = c + custom
-
             self.source_new_column(target_type, add, source_field, source_type, custom)
             self.parser.is_processable = True
 
@@ -490,11 +488,13 @@ class Controller:
                         s = f"\n\nWhat type of value '{self.parser.sample_parsed[0][source_col_i]}' is?"
                     title = f"Choose the right method\n\nNo known method for making {target_type} from column {source_field} because the column type wasn't identified. How should I treat the column?{s}"
                     code, source_type = dialog.menu(title, choices=choices)
+                    source_type = getattr(Types, source_type)
                     if code == "cancel":
                         return
                 else:
                     dialog.msgbox("No known method for making {}. Raise your usecase as an issue at {}.".format(target_type,
                                                                                                                 Config.PROJECT_SITE))
+                    return
             clear()
 
         if not custom:
@@ -532,15 +532,16 @@ class Controller:
                             dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
                 if not custom:
                     return
-            path = graph.dijkstra(target_type, start=source_field.type, ignore_private=True)
-            # import ipdb; ipdb.set_trace()
+            path = graph.dijkstra(target_type, start=source_type, ignore_private=True)
             for i in range(len(path) - 1):
                 m = methods[path[i], path[i + 1]]
-                if type(m) is type and issubclass(m, Subtype):
-                    code, c = dialog.menu(f"Choose subtype", choices=m.get_options())
-                    if code == "cancel":
-                        return
-                    # import ipdb; ipdb.set_trace()
+                if isinstance(m, PickBase):
+                    if type(m) is PickMethod:
+                        code, c = dialog.menu(f"Choose subtype", choices=m.get_options())
+                        if code == "cancel":
+                            return
+                    if type(m) is PickInput:
+                        c = Preview(source_field, source_type).pick_input(m)
                     custom.insert(0, c)
         if add is None:
             if dialog.yesno("New field added: {}\n\nDo you want to include this field as a new column?".format(

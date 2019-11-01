@@ -9,6 +9,7 @@ from urllib.parse import urlparse, urlsplit
 from netaddr import IPRange, IPNetwork
 
 from .config import Config
+from .contacts import Contacts
 
 logger = logging.getLogger(__name__)
 
@@ -342,16 +343,17 @@ class Whois:
     unknown_mode = False
     see = Config.verbosity <= logging.INFO
 
-    @staticmethod
-    def init(stats, ranges, ip_seen):
-        Whois.stats = stats
-        Whois.ranges = ranges
-        Whois.ip_seen = ip_seen  # ip_seen[ip] = prefix
-        Whois.servers = OrderedDict()
-        Whois.unknown_mode = False  # if True, we use b flag in abusemails
+    @classmethod
+    def init(cls, stats, ranges, ip_seen, csvstats):
+        cls.csvstats = csvstats
+        cls.stats = stats
+        cls.ranges = ranges
+        cls.ip_seen = ip_seen  # ip_seen[ip] = prefix
+        cls.servers = OrderedDict()
+        cls.unknown_mode = False  # if True, we use b flag in abusemails
         if Config.get("whois_mirror", "FIELDS"):  # try a fast local whois-mirror first
-            Whois.servers["mirror"] = Config.get("whois_mirror", "FIELDS")
-        Whois.servers["general"] = None
+            cls.servers["mirror"] = Config.get("whois_mirror", "FIELDS")
+        cls.servers["general"] = None
         # Algorithm for querying custom servers:
         # for name, val in zip(["ripe", "arin", "lacnic", "apnic", "afrinic"],
         #                      ["whois.ripe.net -r", "whois.arin.net", "whois.lacnic.net", "whois.apnic.net", "whois.afrinic.net"]):
@@ -367,6 +369,7 @@ class Whois:
             if self.ip in self.ip_seen:  # ip has been seen in the past
                 prefix = self.ip_seen[self.ip]
                 self.get = self.ranges[prefix]
+                self.count_stats()
                 return
 
             for prefix in self.ranges:
@@ -375,6 +378,7 @@ class Whois:
                 if prefix and self.ip in prefix:
                     self.ip_seen[self.ip] = prefix
                     self.get = self.ranges[prefix]
+                    self.count_stats()
                     return
 
         if self.see:
@@ -392,6 +396,27 @@ class Whois:
         #    X not valid for unknown_mode # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
         #    raise AssertionError("The prefix " + prefix + " shouldn't be already present. Tell the programmer")
         self.get = self.ranges[prefix] = get
+        self.count_stats()
+        
+    def count_stats(self):
+        self.csvstats["ipsUnique"].add(self.ip)
+        mail = self.get[2]
+        if self.get[1] == "local":
+            if not mail:
+                # chosen_fields = line  # reset to the original line (will be reprocessed)
+                self.csvstats["ipsCzMissing"].add(self.ip)
+                self.csvstats["czUnknownPrefixes"].add(self.get[0])
+            else:
+                self.csvstats["ipsCzFound"].add(self.ip)
+                self.csvstats["ispCzFound"].add(mail)
+        else:
+            country = self.get[5]
+            if country not in Contacts.csirtmails:
+                self.csvstats["ipsWorldMissing"].add(self.ip)
+                self.csvstats["countriesMissing"].add(country)
+            else:
+                self.csvstats["countriesFound"].add(country)
+                self.csvstats["ipsWorldFound"].add(self.ip)
 
     @staticmethod
     def url2hostname(url):

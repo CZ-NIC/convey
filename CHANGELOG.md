@@ -3,7 +3,9 @@
 ## 1.2 (unreleased)
 - web service
 - flags:
-    - CHANGED: flag --file does not have anymore shortcut '-f'
+    - CHANGED:
+        - flag `--file` does not have anymore shortcut '-f'.
+        - `custom_field_modules` renamed to `external_fields`    
     - both INI and CLI flags
         - delimiter flag
         - quote_char flag
@@ -45,13 +47,14 @@
     - multiline base64 strings (seen in e-mails) may be input → automatically decoded
     - methods may return a list (the row will be duplicated)
     - implicitly convert to plaintext if possible when adding new column (ex: base64 will be implicitly decoded before its value being passed to a new reg column)
-    - class Subtype may be inherited to allow the user choose the way generating will work
+    - class PickMethod may be inherited to allow the user choose the way generating will work
 - internal
     - os replaced by pathlib
     - Config.getboolean merged to Config.get
     - Identifier (former CSVGuesses) is now object oriented, no more spaghetti
     - huge refactoring
     - fix: log files
+    - Processor handles Whois statistics no more, so Whois methods do not return tuple anymore
 - dialogs
     - able to automatically add/remove config file flags at program upgrade if allowed by user
     - when no known method is known to process a field, an example is given
