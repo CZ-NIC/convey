@@ -4,11 +4,12 @@
 import re
 import sys
 from bdb import BdbQuit
+from os import linesep
 from pathlib import Path
 
 import jsonpickle
 
-from .config import Config
+from .config import Config, config_dir
 from .dialogue import is_yes
 from .identifier import Identifier
 # from .informer import mute_info
@@ -46,6 +47,7 @@ class SourceWrapper:
         self.parser: Parser
         self.file = file = None
         self.stdin = stdin = None
+        self.fresh = fresh
         try:
             case = int(Config.get("file_or_input"))
         except (ValueError, TypeError):
@@ -96,16 +98,12 @@ class SourceWrapper:
             print(f"File '{file}' not found.")
             quit()
 
-        self.file = Path(file).resolve()
-        info = Path(self.file).stat()
-        self.hash = str(hash(info.st_size + round(info.st_mtime)))
-        # cache-file with source file metadata
-        Config.set_cache_dir(Path(Path(self.file).parent, Path(self.file).name + "_convey" + self.hash))
-        self.cache_file = Path(Config.get_cache_dir(), Path(self.file).name + ".cache")
+        self.assure_cache_file(file)
         if Path(self.cache_file).is_file() and not fresh:
             print("File {} has already been processed.".format(self.file))
             try:  # try to depickle
                 self.parser = jsonpickle.decode(open(self.cache_file, "r").read(), keys=True)
+                self.parser.ip_seen, self.parser.ranges = self.load_whois_cache()
                 self.parser.refresh()
                 self.parser.reset_whois(assure_init=True)
                 # correction of a wrongly pickling: instead of {IPNetwork('...'): (IPNetwork('...'),
@@ -118,9 +116,10 @@ class SourceWrapper:
             except:
                 import traceback
                 print(traceback.format_exc())
-                print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
                 if not Config.error_caught():
                     input()
+                else:
+                    print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
                 self.parser = None
             if self.parser:
                 if self.parser.source_file != self.file:  # file might have been moved to another location
@@ -141,16 +140,67 @@ class SourceWrapper:
                           "Let's process it all again. If you continue, cache gets deleted.")
                     if not Config.error_caught():
                         input()
-        else:
-            if not Path(Config.get_cache_dir()).exists():
-                Path(Config.get_cache_dir()).mkdir()
         self.clear()
+
+    def assure_cache_file(self, file):
+        self.file = Path(file).resolve()
+        info = Path(self.file).stat()
+        hash_ = str(hash(info.st_size + round(info.st_mtime)))
+        # cache-file with source file metadata
+        Config.set_cache_dir(Path(Path(self.file).parent, Path(self.file).name + "_convey" + hash_))
+        self.cache_file = Path(Config.get_cache_dir(), Path(self.file).name + ".cache")
+
+    @staticmethod
+    def load_whois_cache():
+        p = Path(config_dir, ".convey-whois-cache.tmp")  # restore whois cache
+        if p.exists():
+            return jsonpickle.decode(p.read_text(), keys=True)
+        return {}, {}
 
     ##
     # Store
-    def save(self):
+    def save(self, last_chance=False):
+        # chance to save the original file to the disk if reading from STDIN
+        if not self.cache_file and (self.parser.stdout or self.parser.is_formatted):
+            # * cache_file does not exist = we have not written anything on the disk
+            # * target_file exist = there is a destination to write (when splitting, no target_file specified)
+            #       XX which may be changed because it is usual to preserve file
+            # * stdout or is_formatted - there is something valuable to eb saved
+            target_file = self.parser.target_file or self.parser.source_file
+            if not target_file:  # we were splitting so no target file exist
+                target_file = self.parser.invent_file_str()
+            if Config.get("output") is None:
+                i = Config.get("save_stdin_output", get=int)
+                save = False
+                if i == 4 or (i == 3 and self.parser.is_analyzed):
+                    save = True
+                elif i == 2 or (i == 1 and self.parser.is_analyzed) and last_chance:
+                    save = is_yes(f"Save to an output file {target_file}?")
+            else:
+                save = bool(Config.get("output"))
+            if save:
+                if not self.parser.target_file:
+                    # if a split files were generated, we lost the connection because cache dir will change right now
+                    # so we forget we've already split and make the file processable again (because split settings remained)
+                    self.parser.is_split = False
+                    self.parser.is_analyzed = False
+                self.parser.source_file = target_file
+                target_file.write_text(self.parser.stdout or linesep.join(self.parser.stdin))
+                self.parser.stdin = None
+                self.assure_cache_file(target_file)
+            if self.parser.target_file:
+                self.parser.saved_to_disk = bool(save)
+
+        # serialize
         string = jsonpickle.encode(self.parser, keys=True)
         try:
+            # Sometimes jsonpickling fails. But even if it does not fail, we are not sure everything is alright.
+            # Once jsonpickle shuffled keys and values of self.parser.ip_seen dict (when this dict was yet part of self.parser).
+            # There must be problem with a bad reference.
+            # – once I encountered "get[7] datetime" instead of "get[0] prefix" as the value.
+            # I narrowed the case to a CSV of 3 lines: any IPs to whom I added a netname col. When decoded, values were shuffled.
+            # Unfortunately, I have not been able to simulate this behaviour with another simpler object than self.parser
+            # so that I could raise an official issue.
             jsonpickle.decode(string, keys=True)
         except Exception:
             print("The program state is not picklable by 'jsonpickle' module. "
@@ -158,7 +208,19 @@ class SourceWrapper:
                   "You may post this as a bug to the project issue tracker.")
             Config.error_caught()
             input("Continue...")
-        if self.cache_file:
+
+        # save cache file
+        if self.cache_file:  # cache_file does not exist typically if reading from STDIN
+            if self.parser.ranges:
+                # we extract whois info from self.parser and save it apart for every convey instance
+                if self.fresh:  # if we wanted a fresh result, global whois cache was not used and we have to merge it
+                    ip_seen, ranges = self.load_whois_cache()
+                    ip_seen = {**ip_seen, **self.parser.ip_seen}
+                    ranges = {**ranges, **self.parser.ranges}
+                else:
+                    ip_seen, ranges = self.parser.ip_seen, self.parser.ranges
+                encoded = jsonpickle.encode([ip_seen, ranges], keys=True)
+                Path(config_dir, ".convey-whois-cache.tmp").write_text(encoded)
             with open(self.cache_file, "w") as output:  # save cache
                 output.write(string)
 

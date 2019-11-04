@@ -18,7 +18,7 @@ from tabulate import tabulate
 from .config import Config, get_terminal_size
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, is_yes, ask
-from .identifier import Identifier, b64decode, Types, Type, Web, TypeGroup
+from .identifier import Identifier, Types, Type, Web, TypeGroup, Checker
 from .informer import Informer
 from .processor import Processor
 from .whois import Whois
@@ -57,33 +57,36 @@ class Parser:
         self.ip_count_guess = None
         self.ip_count = None
         self.attachments = []  # files created if splitting
-        self.invalid_lines_count = 0
+        self.queued_lines_count = self.invalid_lines_count = 0
         self.line_count = 0
         self.time_last = self.time_start = self.time_end = None
         self.stdout = None  # when called from another program we communicate through this stream rather then through a file
         self.is_single_query = False  # CSV processing vs single_query check usage
+        self.ranges = {}  # XX should be refactored as part of Whois
+        self.ip_seen = {}  # XX should be refactored as part of Whois
         self._reset()
         self.selected: List[int] = []  # list of selected fields col_i that may be in/excluded and moved in the menu
 
         # load CSV
-        self.source_file = source_file
+        self.source_file = source_file or self.invent_file_str()
         self.stdin = []
         self.stdout = None  # when accepting input from stdin and not saving the output into a file, we will have it here
         self.target_file = None
+        self.saved_to_disk = None  # has been saved to self.target_file
         self.processor = Processor(self)
         self.informer = Informer(self)
         self.identifier = Identifier(self)
 
-        if self.source_file:  # we're analysing a file on disk
-            self.size = Path(self.source_file).stat().st_size
-            self.first_line, self.sample = self.identifier.get_sample(self.source_file)
-            self.lines_total = self.informer.source_file_len()
-        elif stdin:  # we're analysing an input text
+        if stdin:  # we're analysing an input text
             self.set_stdin(stdin)
+        else:  # we're analysing a file on disk
+            self.lines_total, self.size = self.informer.source_file_len(self.source_file)
+            self.first_line, self.sample = self.identifier.get_sample(self.source_file)
+
 
         self.refresh()
         if prepare:
-            self.prepare()
+            self.prepare
 
     def refresh(self):
         """
@@ -92,6 +95,7 @@ class Parser:
         Contacts.init()
         Attachment.refresh_attachment_stats(self)
 
+    @property
     def prepare(self):
         if self.size == 0:
             print("Empty contents.")
@@ -105,20 +109,34 @@ class Parser:
             def join_base(s):
                 return "".join(s).replace("\n", "").replace("\r", "")
 
+            def join_quo(s):
+                return "".join(s).replace("=\n", "").replace("=\r", "").replace("\n", r"\n").replace("\r", r"\r")
+
             len_ = len(self.sample)
             if len_ > 1 and re.search("[^A-Za-z0-9+/=]", join_base(self.sample)) is None:
                 # in the sample, there is just base64-chars
                 s = join_base(self.stdin)
-                if not b64decode(s):  # all the input is base64 decodable
-                    seems = False
-                self.set_stdin([s])
+                seems = False
+                try:
+                    if Checker.is_base64(s):  # all the input is base64 decodable
+                        seems = True
+                        self.set_stdin([s])
+                except ValueError:
+                    pass
+            elif len_ > 1 and re.search("=[A-Z0-9]{2}", join_quo(self.sample)):
+                s = join_quo(self.stdin)
+
+                seems = False
+                if Checker.is_quopri(s):
+                    seems = True
+                    self.set_stdin([s])
             elif not len_ or len_ > 1:
                 seems = False
 
             if seems and Config.get("single_query") is not False:
                 # identify_fields some basic parameters
                 self.add_field([Field(self.stdin[0])])  # stdin has single field
-                self.dialect = csv.unix_dialect
+                self.dialect = False
                 self.has_header = False
                 self.sample_parsed = [x for x in csv.reader(self.sample)]
                 if self.identifier.identify_fields(quiet=True):
@@ -250,21 +268,34 @@ class Parser:
         Web.init()
 
         def append(target_type, val):
-            data[str(target_type)] = val
+            """
+            :type target_type: Field|Type If if is Field, it is added on purpose. If Type, convey just tries to add all.
+            """
+            data[str(target_type.name)] = val
             if type(val) is list and len(val) == 1:
                 val = val[0]
-            elif val is None or val == []:
-                val = "×"
+            elif val is None or val == [] or (type(val) is str and val.strip() == ""):
+                if Config.is_verbose() or not hasattr(target_type, "group" or target_type.group == TypeGroup.general):
+                    # if not verbose and target_type is Type and no result, show just TypeGroup.general basic types
+                    val = "×"
+                else:
+                    return
             else:
                 val = str(val)
-            rows.append([str(target_type), val])
+            rows.append([str(target_type.name), val])
 
         # get fields and their methods to be computed
-        fields = [(f, f.get_methods()) for f in self.fields if f.is_new]
+        fields = [(f, f.get_methods()) for f in self.fields if f.is_new]  # get new fields only
         custom_fields = True
         if not fields:  # transform the field by all known means
             custom_fields = False
-            for target_type in Types.get_computable_types(ignore_custom=True):  # loop all existing methods
+            if self.fields[0].type.is_plaintext_derivable:
+                # Ex: when input is quoted_printable, we want plaintext only,
+                # not plaintext re-encoded in base64 by default. (It's easy to specify that we want base64 by `--field base64`)
+                types = [Types.plaintext]
+            else:  # loop all existing methods
+                types = Types.get_computable_types(ignore_custom=True)
+            for target_type in types:
                 if target_type in Config.get("single_query_ignored_fields", "FIELDS", get=list):
                     # do not automatically compute ignored fields
                     continue
@@ -291,7 +322,7 @@ class Parser:
             except Exception as e:
                 val = str(e)
             self.sample_parsed[0].append(val)
-            append(field.name, val)
+            append(field, val)
 
         # prepare json to return (useful in a web service)
         if "csirt-contact" in data and data["csirt-contact"] == "-":
@@ -321,17 +352,17 @@ class Parser:
             else:
                 print(tabulate(rows, headers=("field", "value")))
 
-    def reset_whois(self, hard=True, assure_init=False):
+    def reset_whois(self, hard=True, assure_init=False, slow_mode=False, unknown_mode=False):
         """
 
         :type assure_init: Just assure the connection between picklable Parser and current Whois class.
         """
         if not assure_init:
-            self.whois_stats = defaultdict(int)
             if hard:
+                self.whois_stats = defaultdict(int)
                 self.ranges = {}
-                self.whoisip_seen = {}
-        Whois.init(self.whois_stats, self.ranges, self.whoisip_seen, self.stats)
+                self.ip_seen = {}
+        Whois.init(self.whois_stats, self.ranges, self.ip_seen, self.stats, slow_mode=slow_mode, unknown_mode=unknown_mode)
 
     def reset_settings(self):
         self.settings = defaultdict(list)
@@ -347,7 +378,7 @@ class Parser:
     def _reset(self, hard=True):
         """ Reset variables before new analysis. """
         self.stats = defaultdict(set)
-        self.invalid_lines_count = 0
+        self.queued_lines_count = self.invalid_lines_count = 0
 
         if self.dialect:
             class Wr:  # very ugly way to correctly get the output from csv.writer
@@ -372,28 +403,31 @@ class Parser:
 
     def prepare_target_file(self):
         if not self.settings["split"] and self.settings["split"] is not 0:  # 0 is a valid column
-            l = []
-            if self.settings["filter"]:
-                l.append("filter")
-            if self.settings["unique"]:
-                l.append("uniqued")
-            if self.settings["dialect"]:
-                l.append("dialect")
-            if [f for f in self.fields if not f.is_chosen]:
-                l.append("shuffled")
-            for f in self.settings["add"]:
-                l.append(str(f))
-            if self.source_file:
-                l.insert(0, Path(self.source_file).name)
-                target_file = f"{'_'.join(l)}.csv"
-            else:
-                target_file = f"output_{time.strftime('%Y-%m-%d %H:%M:%S')}.csv"
-            output = Config.get("output")
-            self.target_file = Path(str(output)) if output else Path(Config.get_cache_dir(), target_file)
+            self.target_file = self.invent_file_str()
             self.is_split = False
         else:
             self.target_file = None
             self.is_split = True
+
+    def invent_file_str(self):
+        l = []
+        if self.settings["filter"]:
+            l.append("filter")
+        if self.settings["unique"]:
+            l.append("uniqued")
+        if self.settings["dialect"]:
+            l.append("dialect")
+        if [f for f in self.fields if not f.is_chosen]:
+            l.append("shuffled")
+        for f in self.settings["add"]:
+            l.append(str(f))
+        if hasattr(self, "source_file"):
+            l.insert(0, Path(self.source_file).name)
+            target_file = f"{'_'.join(l)}.csv"
+        else:
+            target_file = f"output_{time.strftime('%Y-%m-%d %H:%M:%S')}.csv"
+        output = Config.get("output")
+        return Path(str(output)) if output else Path(Config.get_cache_dir(), target_file)
 
     def run_analysis(self, autoopen_editor=None):
         """ Run main analysis of the file.
@@ -420,6 +454,9 @@ class Parser:
 
         if self.stats["czUnknownPrefixes"]:
             self.resolve_unknown()
+
+        if self.queued_lines_count and Config.get("lacnic_quota_resolve_immediately", "FIELDS") is not False:
+            self.resolve_queued(Config.get("lacnic_quota_resolve_immediately", "FIELDS"))
 
         self.line_count = 0
 
@@ -456,8 +493,8 @@ class Parser:
             except Exception:
                 print("Can't guess IP count.")
 
-    def _resolve_again(self, path, basename):
-        self.reset_whois(assure_init=True)
+    def _resolve_again(self, path, basename, slow_mode=False, unknown_mode=False):
+        self.reset_whois(assure_init=True, slow_mode=slow_mode, unknown_mode=unknown_mode)
         temp = str(path) + ".running.tmp"
         try:
             move(path, temp)
@@ -466,10 +503,13 @@ class Parser:
             return False
 
         self._reset_output()
+        lines_total, size = self.lines_total, self.size
+        self.lines_total, self.size = self.informer.source_file_len(temp)
         if basename in self.processor.files_created:
             self.processor.files_created.remove(basename)  # this file exists no more, if recreated, include header
         self.processor.process_file(temp)
         Path(temp).unlink()
+        self.lines_total, self.size = lines_total, size
         self._reset_output()
         self.informer.sout_info()
         return True
@@ -489,14 +529,49 @@ class Parser:
         path = Path(Config.get_cache_dir(), Config.UNKNOWN_NAME)
         self.stats["ipsCzMissing"] = set()
         self.stats["czUnknownPrefixes"] = set()
-        Whois.unknown_mode = True
-        if self._resolve_again(path, Config.UNKNOWN_NAME) is False:
-            return False
+        res = self._resolve_again(path, Config.UNKNOWN_NAME, unknown_mode=True)
         Whois.unknown_mode = False
+        if res is False:
+            return False
+
+    def resolve_queued(self, force=False):
+        count = self.queued_lines_count
+        if not count:
+            return True
+        print(f"There are {self.queued_lines_count} queued rows")
+        if Whois.quota.remains():
+            print(f"We will have to wait {Whois.quota.remains()} s before LACNIC quota is over.")
+        if not (force or is_yes(f"Reanalyse them?")):
+            return False
+        if Whois.quota.remains():
+            print(f"Waiting till {Whois.quota.time()} or Ctrl-C to return", end="")
+            try:
+                while True:
+                    time.sleep(1)
+                    print(".", end="", flush=True)
+                    if not Whois.quota.remains():
+                        break
+            except KeyboardInterrupt:
+                return
+            print(" over!")
+
+        self.queued_lines_count = 0
+        Whois.queued_ips = set()
+        path = Path(Config.get_cache_dir(), Config.QUEUED_NAME)
+        res = self._resolve_again(path, Config.QUEUED_NAME, slow_mode=True)
+        if res is False:
+            return False
+        if self.queued_lines_count:
+            solved = count - self.queued_lines_count
+            if solved == 0:
+                s = "No queued row resolved."
+            else:
+                s = f"Only {solved}/{count} queued rows were resolved."
+            print("\n" + s)
+            self.resolve_queued()
 
     def resolve_invalid(self):
         """ Process all invalid rows. """
-        invalids = self.invalid_lines_count
         if not self.invalid_lines_count:
             print("No invalid rows.")
             return
@@ -513,7 +588,8 @@ class Parser:
             except FileNotFoundError:
                 input("File {} not found, maybe resolving was run in the past and failed. Please rerun again.".format(path))
                 return False
-            s = "Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them, or hit n for ignoring them. [o]/y/n "
+            s = "Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them," \
+                " or hit n for ignoring them. [o]/y/n "
             res = ask(s)
             if res == "n":
                 return False
@@ -523,6 +599,7 @@ class Parser:
                 print("Opening the editor...")
                 subprocess.Popen(['xdg-open', path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+        invalids = self.invalid_lines_count
         self.invalid_lines_count = 0
         if self._resolve_again(path, Config.INVALID_NAME) is False:
             return False
@@ -531,7 +608,7 @@ class Parser:
             if solved == 0:
                 s = "No invalid row resolved."
             else:
-                s = ("Only {}/{} invalid rows were resolved.".format(solved, invalids))
+                s = f"Only {solved}/{invalids} invalid rows were resolved."
             print("\n" + s)
             self.resolve_invalid()
 
@@ -597,6 +674,8 @@ class Parser:
         del state['informer']
         del state['processor']
         del state['identifier']
+        del state['ip_seen']  # delete whois dicts
+        del state['ranges']
         state['dialect'] = self.dialect.__dict__.copy()
         return state
 
@@ -742,7 +821,6 @@ class Field:
                 # (note this will not a problem when processing)
                 return "..."
             for l in self.get_methods():
-                #c = l(c)
                 if isinstance(c, list):
                     # resolve all items, while flattening any list encountered
                     c = [y for x in (l(v) for v in c) for y in (x if type(x) is list else [x])]

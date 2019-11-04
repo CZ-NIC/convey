@@ -5,12 +5,12 @@ from setuptools import setup
 # using the same libraries in requirements.txt because after many articles I didn't understand any good reason why I shouldn't
 requirements = ""
 p = Path("requirements.txt")
-if p.exists():  # stand-alone install
+if p.exists():  # Xstand-alone install
     requirements = p.read_text()
-else:  # PyPi install
-    p = Path("envelope.egg-info/requires.txt")
-    if p.exists():
-        requirements = p.read_text()
+# else:  # PyPi install
+#     p = Path("envelope.egg-info/requires.txt")
+#     if p.exists():
+#         requirements = p.read_text()
 
 # load long description
 p = Path("README.md")
@@ -19,7 +19,7 @@ if p.exists():
 
 setup(
     name='convey',
-    version="1.2rc2",
+    version="1.2rc5",
     packages=['convey'],
     author='Edvard Rejthar',
     author_email='edvard.rejthar@nic.cz',
@@ -34,6 +34,5 @@ setup(
             'convey = convey.__main__:main',
         ],
     },
-    package_data={'convey': ['defaults/*']},
     include_package_data=True
 )

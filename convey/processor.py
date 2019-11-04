@@ -1,4 +1,3 @@
-import datetime
 import io
 import logging
 import operator
@@ -6,6 +5,7 @@ import traceback
 from bdb import BdbQuit
 from collections import defaultdict
 from csv import reader as csvreader, writer as csvwriter
+from datetime import datetime
 from functools import reduce
 from math import ceil
 from pathlib import Path
@@ -14,7 +14,8 @@ from typing import Dict
 from convey.identifier import Web
 from .config import Config
 from .contacts import Attachment
-from .dialogue import ask, is_no
+from .dialogue import ask
+from .whois import Quota, Whois
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +68,12 @@ class Processor:
 
         # start file processing
         try:
-            if file:
-                source_stream = open(file, "r")
-                settings["target_file"] = str(csv.target_file)
-            else:
+            if stdin:
                 source_stream = stdin
                 settings["target_file"] = 1
+            else:
+                source_stream = open(file, "r")
+                settings["target_file"] = str(csv.target_file)
             if csv.stdout:
                 settings["target_file"] = 2
             # with open(file, "r") as sourceF:
@@ -84,7 +85,7 @@ class Processor:
                     continue
                 csv.line_count += 1
                 if csv.line_count == csv.line_sout:
-                    now = datetime.datetime.now()
+                    now = datetime.now()
                     delta = (now - csv.time_last).total_seconds()
                     csv.time_last = now
                     if delta < 1 or delta > 2:
@@ -96,6 +97,7 @@ class Processor:
                             csv.velocity = new_vel
                     csv.line_sout = csv.line_count + 1 + csv.velocity
                     csv.informer.sout_info()
+                    Whois.quota.check_over()
                 try:
                     self.process_line(csv, row, settings)
                 except BdbQuit:  # not sure if working, may be deleted
@@ -103,39 +105,38 @@ class Processor:
                     raise
                 except KeyboardInterrupt:
                     print(f"Keyboard interrupting on line number: {csv.line_count}")
+                    s = "[a]utoskip LACNIC encounters" \
+                        if self.csv.queued_lines_count and not Config.get("lacnic_quota_skip_lines", "FIELDS") else ""
                     o = ask("Keyboard interrupt caught. Options: continue (default, do the line again), "
-                            "[s]kip the line, [d]ebug, [q]uit: ")
+                            "[s]kip the line, [d]ebug, [e]nd processing earlier, [q]uit: ")
+                    if o == "a":
+                        Config.set("lacnic_quota_skip_lines", True, "FIELDS")
                     if o == "d":
                         print("Maybe you should hit n multiple times because pdb takes you to the wrong scope.")  # I dont know why.
                         Config.get_debugger().set_trace()
                     elif o == "s":
                         continue  # skip to the next line
+                    elif o == "e":
+                        return
                     elif o == "q":
-                        quit()
                         self._close_descriptors()
+                        quit()
                     else:  # continue from last row
                         csv.line_count -= 1  # let's pretend we didn't just do this row before and give it a second chance
                         self.process_line(csv, row, settings)
         finally:
-            if file:
+            if not stdin:
                 source_stream.close()
+                if not self.csv.is_split:
+                    self.csv.saved_to_disk = True
             elif not self.csv.is_split and 1 in self.descriptors:  # we have all data in a io.TextBuffer, not in a regular file
                 if Config.verbosity <= logging.INFO:
                     print("\n\n** Completed! **\n")
                 result = self.descriptors[1][0].getvalue()
                 print(result.strip())
+                csv.stdout = result
+                self.csv.saved_to_disk = False
 
-                if Config.get("output") is None:
-                    ignore = is_no("Save to an output file?") if Config.get("save_stdin_output") is None \
-                        else Config.get("save_stdin_output") is False
-                else:
-                    ignore = not Config.get("output")
-                if ignore:
-                    # we didn't have a preference and replied "no" or we had a preference to not save the output
-                    csv.target_file = False
-                    csv.stdout = result
-                else:
-                    csv.target_file.write_text(result)
 
             self._close_descriptors()
 
@@ -214,11 +215,15 @@ class Processor:
                 location = fields[settings["split"]].replace("/", "-")  # split ('/' is a forbidden char in linux file names)
                 if not location:
                     location = Config.UNKNOWN_NAME
-                    chosen_fields = line  # reset to the original line (will be reprocessed)
+                    chosen_fields = line  # reset to the original line (location will be reprocessed)
             else:
                 location = settings["target_file"]
         except BdbQuit:  # BdbQuit and KeyboardInterrupt caught higher
             raise
+        except Quota.QuotaExceeded:
+            csv.queued_lines_count += 1
+            location = Config.QUEUED_NAME
+            chosen_fields = line  # reset the original line (location will be reprocessed)
         except Exception as e:
             if Config.is_debug():
                 traceback.print_exc()
@@ -227,7 +232,7 @@ class Processor:
                 logger.warning(e, exc_info=True)
             csv.invalid_lines_count += 1
             location = Config.INVALID_NAME
-            chosen_fields = line  # reset the original line (will be reprocessed)
+            chosen_fields = line  # reset the original line (location will be reprocessed)
 
         if not location:
             return

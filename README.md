@@ -111,7 +111,7 @@ pip3 install -r requirements.txt  --user
 
 ### Dependencies and troubleshooting
 * You'll be asked to install `dialog` library at the first run if not already present in the system.
-* If something is missing on your system, maybe you may find help in this command: `sudo apt install python3-pip git python3-tk dialog && pip3 install setuptools`
+* If something is missing on your system, maybe you may find help in this command: `sudo apt install python3-pip git python3-tk dialog && pip3 install setuptools && pip3 install --upgrade ipython`
 
 ### Customisation
 * A file `config.ini` is automatically created in user config folder. This file may be edited for further customisation.
@@ -170,15 +170,16 @@ def any_method(value):
 
 Ex: If a method returns 2 items and another 3 items, you will receive 6 similar rows.
 
-Should there be multiple ways of using your generator, you may decorate with `PickMethod` and let the user decide at the runtime.
+Should there be multiple ways of using your generator, you may decorate with `PickMethod` and let the user decide at the runtime. `PickMethod` has optional `default:str` that specifies default method.
 
 ```python3
 from convey import PickMethod
- class any_method(PickMethod):
+PickMethod("all")
+class any_method(PickMethod):
     def all(x):
         ''' All of them.  '''
         return x
-
+    
     def filtered(cls, x):
         ''' Filter some of them '''
         if x in country_code_set:
@@ -190,13 +191,14 @@ $ convey file.csv --field any_method  # user will be asked whether to use `all` 
 $ convey file.csv --field any_method[filtered]  # filtered sub-method will be used
 ```
 
-If you need a direct user entry before each processing, import `PickInput` and make your method accept *two* parameters. The first will be given by the user.
+If you need a direct user entry before each processing, import `PickInput` and make your method accept *two* parameters. The second will be given by the user and may have default value.
 
 ```python3
 from convey import PickInput
 @PickInput
-def time_format(format, val):
-    ''' this text will be displayed to the user '''
+def time_format(val, format="%H:%M"):
+    ''' This text will be displayed to the user.
+        If running in headless mode, the default format will be "%H:%M" (hours:minutes).   '''
     return dateutil.parser.parse(val).strftime(format)
 ```
 

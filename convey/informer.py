@@ -1,7 +1,7 @@
 import csv
-import datetime
 import subprocess
 import sys
+from _datetime import datetime
 from math import ceil
 from pathlib import Path
 
@@ -9,6 +9,7 @@ import humanize
 from tabulate import tabulate
 
 from .config import Config, get_terminal_size
+from .whois import Whois
 
 
 class Informer:
@@ -29,7 +30,7 @@ class Informer:
         # sys.stderr.write("\x1b[2J\x1b[H") # clears gnome-terminal
         # print(chr(27) + "[2J")
         l = []
-        l.append("Source file: " + str(self.csv.source_file) if self.csv.source_file else "Reading STDIN")
+        l.append("Reading STDIN" if self.csv.stdin else "Source file: " + str(self.csv.source_file))
         if self.csv.dialect:
             l.append("delimiter: '" + self.csv.dialect.delimiter + "'")
             l.append("quoting: '" + self.csv.dialect.quotechar + "'")
@@ -59,22 +60,40 @@ class Informer:
                 l2.append(f.color(f"{f} (from {str(f.source_field)})"))
             sys.stdout.write("\nComputed columns: " + ", ".join(l2))
         l = []
+        progress = 0
         if self.csv.line_count:
             if self.csv.ip_count:
                 sys.stdout.write(", {} IPs".format(self.csv.ip_count))
             elif self.csv.ip_count_guess:
                 sys.stdout.write(", around {} IPs".format(self.csv.ip_count_guess))
-            l.append("\nLog lines processed: {}/{}, {} %".format(self.csv.line_count, self.csv.lines_total,
+            l.append("Log lines processed: {}/{}, {} %".format(self.csv.line_count, self.csv.lines_total,
                                                                  ceil(100 * self.csv.line_count / self.csv.lines_total)))
+            progress = self.csv.line_count / self.csv.lines_total
         else:
-            l.append("\nLog lines: {}".format(self.csv.lines_total))
+            l.append("Log lines: {}".format(self.csv.lines_total))
         if self.csv.time_end:
             l.append("{}".format(self.csv.time_end - self.csv.time_start))
         elif self.csv.time_start:
-            l.append(f"{datetime.datetime.now().replace(microsecond=0) - self.csv.time_start}")
+            l.append(f"{datetime.now().replace(microsecond=0) - self.csv.time_start}")
             l.append(f"{self.csv.velocity} lines / s")
             l.append(f"{self.csv.processor.descriptors_count} file descriptors open")
-        sys.stdout.write(", ".join(l) + "\n")
+        if self.csv.queued_lines_count:
+            if len(Whois.queued_ips) != self.csv.queued_lines_count:
+                v = f" lines ({len(Whois.queued_ips)} unique IPs)"
+            else:
+                v = " lines"
+            s = f"skipped {self.csv.queued_lines_count}{v} due to LACNIC quota"
+            if Whois.quota.is_running():
+                s += f" till {Whois.quota.time()}"
+            l.append(s)
+        r = ", ".join(l)
+        if progress:
+            _, width = get_terminal_size()
+            progress = round(progress * width) if width else 0
+            if len(r) < progress:
+                r += " " * (progress - len(r))
+            r = f"\033[7m{r[:progress]}\033[0m" + r[progress:]
+        sys.stdout.write("\n"+r+"\n")
         if self.csv.whois_stats:
             print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whois_stats.items())
                   + f"; {len(self.csv.ranges)} prefixes discovered")
@@ -87,12 +106,12 @@ class Informer:
             first_line_length = tabulate(rows, headers=[f.get(True, color=False) for f in self.csv.fields]).split("\n")[0]
             if rows and not self.csv.settings["dialect"] and len(first_line_length) <= get_terminal_size()[1]:
                 # print big and nice table because we do not care about the dialect and terminal is wide enough
-                print("\033[0;36mTable preview:\033[0m")
+                print("\033[0;36mPreview:\033[0m")
                 header = [f.get(True) for f in self.csv.fields]
                 print(tabulate(rows, headers=header))
             else:
                 # print the rows in the same way so that they optically match the Sample above
-                print("\033[0;36mPreview:\033[0m")
+                print("\033[0;36mCompact preview:\033[0m")
                 cw = csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect)
                 cw.writerow([f.get() for f in self.csv.fields])
                 for r in full_rows:
@@ -103,10 +122,10 @@ class Informer:
             print(f"Output file specified: {output}")
 
         if self.csv.is_analyzed:
-            if self.csv.target_file is False:
-                print("\n** Processing completed, results were not saved to a file.")
+            if self.csv.saved_to_disk is False:
+                print("\n** Processing completed, results were not saved to a file yet.")
                 print(self.csv.stdout)
-            elif self.csv.target_file:
+            elif self.csv.saved_to_disk:
                 print(f"\n** Processing completed: Result file in {self.csv.target_file}")
             else:
                 partner_count, abuse_count, non_deliverable, totals = map(self.csv.stats.get, (
@@ -140,7 +159,7 @@ class Informer:
 
             stat = self.get_stats_phrase()
             print("\n Statistics overview:\n" + stat)
-            if Config.get("write_statistics") and self.csv.source_file:
+            if Config.get("write_statistics") and not self.csv.stdin:
                 # we write statistics.txt only if we're sourcing from a file, not from stdin
                 with open(Path(Path(self.csv.source_file).parent, "statistics.txt"), "w") as f:
                     f.write(stat)
@@ -156,7 +175,7 @@ class Informer:
             if len(self.csv.ranges.items()):
                 rows = []
                 for prefix, o in self.csv.ranges.items():
-                    prefix, location, incident, asn, netname, country, abusemail = o
+                    prefix, location, incident, asn, netname, country, abusemail, timestamp = o
                     rows.append((prefix, location, incident or "-", asn or "-", netname or "-"))
                 print("\n\n** Whois information overview **\n",
                       tabulate(rows, headers=("prefix", "location", "contact", "asn", "netname")))
@@ -216,17 +235,18 @@ class Informer:
 
         return res
 
-    def source_file_len(self):
+    def source_file_len(self, source_file):
         """ When a source file is reasonably small (100 MB), count the lines by `wc -l`. Otherwise, guess a value.
             XIf we are using stdin instead of a file, determine the value by enlist all the lines.
         """
-        if self.csv.size < 100 * 10 ** 6:
-            p = subprocess.Popen(['wc', '-l', self.csv.source_file], stdout=subprocess.PIPE,
+        size = Path(source_file).stat().st_size
+        if size < 100 * 10 ** 6:
+            p = subprocess.Popen(['wc', '-l', source_file], stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
             result, err = p.communicate()
             if p.returncode != 0:
                 raise IOError(err)
-            return int(result.strip().split()[0])
+            return int(result.strip().split()[0]), size
         else:
             # bytes / average number of characters on line in sample
-            return ceil(self.csv.size / (len("".join(self.csv.sample)) / len(self.csv.sample)) / 1000000) * 1000000
+            return ceil(size / (len("".join(self.csv.sample)) / len(self.csv.sample)) / 1000000) * 1000000, size

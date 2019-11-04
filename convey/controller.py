@@ -7,7 +7,7 @@ from pathlib import Path
 from sys import exit
 
 import pkg_resources
-from Levenshtein import distance  # ignore this unresolved reference
+from Levenshtein import distance
 from dialog import Dialog, DialogError
 from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.key_binding import KeyBindings
@@ -107,13 +107,13 @@ class Controller:
                                  "\n    (Note the comma without space behind 'netname'.)"
                                  "\n\nComputable fields: " + "".join("\n* " + f.doc() for f in Types.get_computable_types()) +
                                  "\n\nThis flag May be used multiple times.",
-                            action=FieldVisibleAppend, metavar=("FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]"))
+                            action=FieldVisibleAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
         parser.add_argument('-fe', '--field-excluded', help="The same as field but its column will not be added to the output.",
-                            action=FieldExcludedAppend, metavar=("FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]"))
+                            action=FieldExcludedAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
         parser.add_argument('--split', help="Split by this COLUMN.",
-                            metavar=("COLUMN"))
+                            metavar="COLUMN")
         parser.add_argument('-s', '--sort', help="List of columns.",
-                            metavar=("[COLUMN],..."))
+                            metavar="[COLUMN],...")
         csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
                      ("otrs_token", "OTRS token")]
         for flag in csv_flags:
@@ -121,7 +121,8 @@ class Controller:
         parser.add_argument('--csirt-incident', action="store_true",
                             help=f"Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country"
                                  f" or csirt contact for foreign countries) and send everything by OTRS."
-                                 f" You set local countries in config.ini, currently set to: {Config.get('local_country', 'FIELDS')}")
+                                 f" You set local countries in config.ini, currently set to:"
+                                 f" {Config.get('local_country', 'FIELDS')}")
         parser.add_argument('--whois', help="R|Allowing Whois module: Leave blank for True or put true/on/1 or false/off/0.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--nmap', help="R|Allowing NMAP module: Leave blank for True or put true/on/1 or false/off/0.",
@@ -134,7 +135,8 @@ class Controller:
                                           " script, or head. ",
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
-        parser.add_argument('--config', help="Open config file and exit.", action="store_true")
+        parser.add_argument('--config', help="Open config file and exit."
+                                             " (GUI over terminal editor preferred and tried first.)", action="store_true")
         parser.add_argument('-H', '--headless',
                             help="Launch program in a headless mode which imposes --yes and --quiet. No menu is shown.",
                             action="store_true")
@@ -151,6 +153,8 @@ class Controller:
         parser.add_argument('--multiple-cidr-ip', help="CIDR can be resolved into multiple IP addresses."
                                                        " Duplicate row for each.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
+        parser.add_argument('--whois-ttl', help="How many seconds will a WHOIS answer cache will be considered fresh.",
+                            type=int, metavar="SECONDS")
         parser.add_argument('--show-uml', help="Show UML of fields and methods and exit."
                                                " Methods that are currently disabled via flags or config file are grayed out."
                                                " You may add --verbose to generate more info.", action="store_true")
@@ -163,7 +167,7 @@ class Controller:
             quit()
 
         for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
-                     "multiple_hostname_ip", "multiple_cidr_ip"]:
+                     "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl"]:
             if getattr(args, flag) is not None:
                 Config.set(flag, getattr(args, flag))
         Types.refresh()  # reload Types for the second time so that the methods reflect CLI flags
@@ -268,7 +272,7 @@ class Controller:
             self.process()
 
         if args.headless:
-            quit()
+            self.close()
 
         # main menu
         while True:
@@ -293,7 +297,10 @@ class Controller:
             else:
                 menu.add("process  (choose some actions)")
             if self.parser.is_analyzed and self.parser.is_split:
-                menu.add("send", self.send_menu, key="s", default=True)
+                if self.parser.is_processable:
+                    menu.add("send (process first)")
+                else:
+                    menu.add("send", self.send_menu, key="s", default=True)
             else:
                 menu.add("send (split first)")
             if self.parser.is_analyzed:
@@ -443,7 +450,6 @@ class Controller:
     def edit_configuration():
         print("Opening {}... restart Convey when done.".format(Config.path))
         Config.edit_configuration()
-        input()
 
     def debug_ip(self):
         ip = input("Debugging whois – get IP: ")
@@ -452,7 +458,7 @@ class Controller:
             self.parser.reset_whois(assure_init=True)
             whois = Whois(ip.strip())
             print(whois.analyze())
-            print(whois.whoisResponse)
+            print(whois.whois_response)
         input()
 
     def refresh_menu(self):
@@ -462,6 +468,7 @@ class Controller:
         menu.add("Delete whois cache", self.parser.reset_whois)
         menu.add("Resolve unknown abuse-mails", self.parser.resolve_unknown)
         menu.add("Resolve invalid lines", self.parser.resolve_invalid)
+        menu.add("Resolve queued lines", self.parser.resolve_queued)
         menu.add("Edit mail texts",
                  lambda: Contacts.mailDraft["local"].gui_edit() and Contacts.mailDraft["foreign"].gui_edit())
         menu.sout()
@@ -473,6 +480,7 @@ class Controller:
                 :type source_type: Type
                 :type target_type: Type
                 :type add: bool if the column should be added to the table; None ask
+                :type custom: List
                 :return Field
         """
         if custom is None:
@@ -504,9 +512,9 @@ class Controller:
                         s = f"\n\nWhat type of value '{self.parser.sample_parsed[0][source_col_i]}' is?"
                     title = f"Choose the right method\n\nNo known method for making {target_type} from column {source_field} because the column type wasn't identified. How should I treat the column?{s}"
                     code, source_type = dialog.menu(title, choices=choices)
-                    source_type = getattr(Types, source_type)
                     if code == "cancel":
                         return
+                    source_type = getattr(Types, source_type)
                 else:
                     dialog.msgbox("No known method for making {}. Raise your usecase as an issue at {}.".format(target_type,
                                                                                                                 Config.PROJECT_SITE))
@@ -531,6 +539,7 @@ class Controller:
                                                             height=max(get_terminal_size()[0] - 20, 10))
                             except DialogError as e:
                                 input("Unable launch file dialog. Please post an issue to the Github! Hit any key...")
+                                return
 
                         if code != "ok" or not path:
                             return
@@ -552,11 +561,16 @@ class Controller:
             for i in range(len(path) - 1):
                 m = methods[path[i], path[i + 1]]
                 if isinstance(m, PickBase):
-                    if type(m) is PickMethod:
+                    c = None
+                    if Config.get("yes"):
+                        pass
+                    elif type(m) is PickMethod:
+                        m: PickMethod
                         code, c = dialog.menu(f"Choose subtype", choices=m.get_options())
                         if code == "cancel":
                             return
-                    if type(m) is PickInput:
+                    elif type(m) is PickInput:
+                        m: PickInput
                         c = Preview(source_field, source_type, target_type).pick_input(m)
                     custom.insert(0, c)
         if add is None:
@@ -643,6 +657,6 @@ class Controller:
         self.parser.is_processable = True
 
     def close(self):
-        self.wrapper.save()  # re-save cache file
+        self.wrapper.save(last_chance=True)  # re-save cache file
         print("Finished.")
         exit(0)

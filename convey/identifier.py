@@ -3,6 +3,7 @@ import csv
 import importlib.util
 import inspect
 import ipaddress
+import itertools
 import logging
 import re
 import socket
@@ -13,10 +14,13 @@ from builtins import ZeroDivisionError
 from copy import copy
 from csv import Error, Sniffer, reader
 from datetime import datetime
+from difflib import SequenceMatcher
 from enum import IntEnum
 from pathlib import Path
+from quopri import decodestring, encodestring
+from statistics import mean
 from typing import List
-from urllib.parse import unquote, quote
+from urllib.parse import unquote, quote, urlparse
 
 import dateutil.parser
 import requests
@@ -28,6 +32,7 @@ from validate_email import validate_email
 from .config import Config
 from .contacts import Contacts
 from .graph import Graph
+from .infodicts import is_phone, phone_country, address_country, country_codes
 from .whois import Whois
 
 logger = logging.getLogger(__name__)
@@ -47,6 +52,8 @@ graph = Graph()
 
 
 class PickBase(ABC):
+    default = None
+
     @abstractmethod
     def get_lambda(self): pass
 
@@ -56,10 +63,11 @@ class PickMethod(PickBase):
     make a class with methods that will be considered as options.
     User will be asked what computing option they tend to use,
     whilst the description is taken directly from the methods' __doc__ string.
+    Than decorate with @PickMethod with optional default:str parameter that points to the default method.
 
      Ex: A user should be asked if a generator should return every value or perform a filtering.
 
-     @PickMethod
+     @PickMethod("all")
      class MyValues():
         def all(x):
             ''' return every value (this very text will be displayed to the user) '''
@@ -71,7 +79,9 @@ class PickMethod(PickBase):
                 return x
     """
 
-    def get_lambda(self, custom):
+    def get_lambda(self, custom=None):
+        if custom is None:
+            custom = self.default
         for name in self._get_options():
             if name == custom:
                 return getattr(self.subtype, name)
@@ -85,33 +95,42 @@ class PickMethod(PickBase):
     def _get_options(self):
         return (name for name in self.subtype.__dict__ if not name.startswith("_"))
 
-    def __init__(self, subtype):
+    def __init__(self, default: str = None):
+        self.default = default
+
+    def __call__(self, subtype):
         self.subtype = subtype
+        return self
 
 
 class PickInput(PickBase):
     """ If your external function need to be setup with a variable first,
-     decorate with @PickInput and register a function having two parameters.
+     decorate with @PickInput and register a function having two parameters. The second may have a default value.
 
     In this example, we let the user decide what should be the value of `format` before processing.
     All values will be formatted with the same pattern.
 
     @PickInput
-    def time_format(format, val):
+    def time_format(val, format="%H:%i"):
         ''' this text will be displayed to the user '''
         return dateutil.parser.parse(val).strftime(format)
 
     """
 
-    def get_lambda(self, custom):
-        return lambda x: self.subtype(custom, x)
+    def get_lambda(self, custom=None):
+        if custom:
+            return lambda x: self.subtype(x, custom)
+        else:
+            return lambda x: self.subtype(x)
 
     def __init__(self, subtype):
         self.subtype = subtype
         par = list(inspect.signature(subtype).parameters)
         if len(par) != 2:
             raise RuntimeError(f"Cannot import {subtype.__name__}, it has not got two parameters.")
-        self.description = subtype.__doc__ or (f"Input {subtype.__name__} variable " + par[0])
+        p = inspect.signature(subtype).parameters[par[1]]
+        self.default = None if p.default is p.empty else p.default
+        self.description = subtype.__doc__ or (f"Input {subtype.__name__} variable " + par[1])
         self.parameter_name = par[0]
 
 
@@ -161,13 +180,20 @@ class Checker:
 
     @staticmethod
     def is_base64(x):
-        # there must be at least single letter, port number would be mistaken for base64 fields
-        # we consider base64-endocded only such strings that could be decoded to UTF-8
-        # because otherwise any ASCII input would be considered as base64, even when well readable at first sight
+        """ 1. We consider base64-endocded only such strings that could be decoded to UTF-8
+                because otherwise any ASCII input would be considered as base64, even when well readable at first sight
+            2. There must be at least single letter, port number would be mistaken for base64 fields """
         try:
-            return b64decode(x).decode("UTF-8") and re.search(r"[A-Za-z]", x)
+            return b64decode(x).decode("UTF-8") and re.search(r"[A-Za-z]+", x)
         except (UnicodeDecodeError, ValueError):
             return None
+
+    @staticmethod
+    def is_quopri(x):
+        try:
+            return decodestring(x).decode("UTF-8") != x
+        except (UnicodeDecodeError, ValueError):
+            return False
 
     @staticmethod
     def bytes_plaintext(x):
@@ -193,29 +219,39 @@ class Checker:
             return False
         s = wrong_url_2_url(wrong, make=False)
         s2 = wrong_url_2_url(wrong, make=True)
-        if reFqdn.match(s) or (reUrl.match(s2) and reUrl.match(s2).span(0)[1] == len(s2)):  # we impose full match
+        #Xm = reUrl.match(s2)
+        if reFqdn.match(s) or reFqdn.match(urlparse(s2).netloc):  #X(m and m.span(0)[1] == len(s2) and "." in s2):
+            #Xwe impose full match
+            #Xstring created from "x"*100 would be submitted for a valid URL
             return True
         return False
 
     @staticmethod
     @PickInput
-    def decode(encoding, val):
+    def decode(val, encoding="utf-8"):
         if type(val) is str:
             val = val.encode("utf-8")
         return val.decode(encoding).replace("\n", r"\n")
 
     @staticmethod
     @PickInput
-    def time_format(fmt, val):
+    def time_format(val, fmt):
         return dateutil.parser.parse(val, fuzzy=True).strftime(fmt)
 
     @staticmethod
     def is_timestamp(val):
         try:
-            dateutil.parser.parse(val)
-            return True
+            o = dateutil.parser.parse(val)
+            reference = datetime.now()
+            if not (o.second == o.minute == o.hour == 0 and o.day == reference.day and o.month == reference.month):
+                # if parser accepts a plain number, ex: 1920,
+                # it thinks this is a year without time (assigns midnight) and without date (assigns current date)
+                # We try to skip such result.
+                return True
         except ValueError:
             pass
+        except OverflowError:
+            return False
 
         try:
             o = Checker.parse_timestamp(val)
@@ -231,7 +267,10 @@ class Checker:
 
     @staticmethod
     def parse_timestamp(val):
-        return dateutil.parser.parse(val, fuzzy=True, default=Checker.default_datetime)
+        try:
+            return dateutil.parser.parse(val, fuzzy=True, default=Checker.default_datetime)
+        except OverflowError:
+            return Checker.default_datetime
 
     @staticmethod
     def isotimestamp(val):
@@ -249,7 +288,7 @@ class Checker:
         return o.date()
 
     @staticmethod
-    @PickMethod
+    @PickMethod("all")
     class HostnameTld:
         @staticmethod
         def all(x):
@@ -300,7 +339,7 @@ def port_ip_2_ip(s):
 
 class Web:
     """
-    :return: self.get = [http status | error, shortened text, original html, redirects]
+    :return: self.get = [http status | error, shortened text, original html, redirects, x-frame-options, csp]
     """
     cache = {}
     store_html = True
@@ -308,7 +347,7 @@ class Web:
     headers = {}
 
     @classmethod
-    def init(cls, fields=[]):
+    def init(cls, fields: List = None):
         if fields:
             cls.store_html = Types.html in [f.type for f in fields]
             cls.store_text = Types.text in [f.type for f in fields]
@@ -326,6 +365,7 @@ class Web:
         current_url = url
         while True:
             try:
+                logger.debug(f"Scrapping connection to {current_url}")
                 response = requests.get(current_url, timeout=3, headers=self.headers, allow_redirects=False)
             except IOError as e:
                 if isinstance(e, requests.exceptions.HTTPError):
@@ -338,7 +378,7 @@ class Web:
                     s = "Oops : Something Else"
                 else:
                     s = e
-                self.get = str(s), None, None, redirects, None, None
+                self.cache[url] = self.get = str(s), None, None, redirects, None, None
                 break
             if response.headers.get("Location"):
                 current_url = response.headers.get("Location")
@@ -348,6 +388,16 @@ class Web:
                 response.encoding = response.apparent_encoding  # https://stackoverflow.com/a/52615216/2036148
                 if self.store_text:
                     soup = BeautifulSoup(response.text, features="html.parser")
+                    # check redirect
+                    res = soup.select("meta[http-equiv=refresh i]")
+                    if res:
+                        wait, txt = res[0].attrs["content"].split(";")
+                        m = re.search(r"http[^\"'\s]*", txt)
+                        if m:
+                            current_url = m.group(0)
+                            redirects.append(current_url)
+                            continue
+                    # prepare content to be shortened
                     [s.extract() for s in soup(["style", "script", "head"])]  # remove tags with low probability of content
                     text = re.sub(r'\n\s*\n', '\n', soup.text)  # reduce multiple new lines to singles
                     text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ', text)  # reduce multiple spaces (not new lines) to singles
@@ -356,10 +406,13 @@ class Web:
                 # for res in response.history[1:]:
                 #     redirects += f"REDIRECT {res.status_code} → {res.url}\n" + text
                 #     redirects.append(res.url)
-                self.get = response.status_code, text, response.text if self.store_html else None, redirects, response.headers.get(
-                    'X-Frame-Options', None), response.headers.get('Content-Security-Policy', None)
-                break
-        self.cache[url] = self.get
+                self.cache[url] = self.get = response.status_code, text, response.text if self.store_html else None, \
+                                             redirects, \
+                                             response.headers.get('X-Frame-Options', None), \
+                                             response.headers.get('Content-Security-Policy', None)
+                if current_url == url:
+                    break
+                url = current_url
 
 
 def dig(rr):
@@ -563,14 +616,18 @@ class Types:
         [t.init() for t in types]
 
         """ import custom methods from files """
-        for field_name in Config.config["EXTERNAL"]:
+        try:
+            externals = Config.config["EXTERNAL"]
+        except KeyError:
+            externals = []
+        for field_name in externals:
             if field_name == "external_fields":  # this is a genuine field, user did not make it
                 continue
             path, method_name = Config.config["EXTERNAL"][field_name].rsplit(":")
             module = Identifier.get_module_from_path(path)
             Types.import_method(module, method_name, path, name=field_name)
 
-        for path in (x.strip() for x in Config.get("external_fields", "EXTERNAL", get=str).split(",")):
+        for path in (x.strip() for x in Config.get("external_fields", "EXTERNAL", get=str).split(",") if x.strip()):
             try:
                 module = Identifier.get_module_from_path(path)
                 if module:
@@ -649,6 +706,8 @@ class Types:
     date = Type("date", TypeGroup.general)
     bytes = Type("bytes", TypeGroup.general, is_private=True)
     charset = Type("charset", TypeGroup.general)
+    country_name = Type("country_name", TypeGroup.general)  # XX not identifiable, user has to be told somehow there is such method
+    phone = Type("phone", TypeGroup.general, "telephone number", ["telephone", "tel"], is_phone)
 
     timestamp = Type("timestamp", TypeGroup.general, "time or date", ["time"], Checker.is_timestamp)
     ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "ipaddress"], is_ip)
@@ -667,6 +726,7 @@ class Types:
     asn = Type("asn", TypeGroup.whois, "AS Number", ["as", "asn", "asnumber"],
                lambda x: re.search('AS\d+', x) is not None)
     base64 = Type("base64", TypeGroup.general, "Text encoded with Base64", ["base64"], Checker.is_base64)
+    quoted_printable = Type("quoted_printable", TypeGroup.general, "Text encoded as quotedprintable", [], Checker.is_quopri)
     urlencode = Type("urlencode", TypeGroup.general, "Text encoded with urlencode", ["urlencode"], Checker.is_urlencode)
     wrong_url = Type("wrong_url", TypeGroup.general, "Deactivated URL", [], Checker.check_wrong_url)
     plaintext = Type("plaintext", TypeGroup.general, "Plain text", ["plaintext", "text"], lambda x: False)
@@ -679,7 +739,7 @@ class Types:
         """
         s = set()
         for (_, target_type), m in methods.items():
-            if ignore_custom and (target_type.group == TypeGroup.custom or isinstance(m, PickBase)):
+            if ignore_custom and (target_type.group == TypeGroup.custom or (isinstance(m, PickBase) and not m.default)):
                 continue
             if target_type.is_private or target_type.is_disabled:
                 continue
@@ -792,12 +852,12 @@ class Types:
             (t.whois, t.netname): lambda x: x.get[4],
             (t.whois, t.csirt_contact): lambda x: Contacts.csirtmails[x.get[5]] if x.get[5] in Contacts.csirtmails else "-",
             (t.whois, t.incident_contact): lambda x: x.get[2],
-            # (t.base64, t.plaintext): base64decode,
-            # (t.plaintext, t.base64): lambda x: b64encode(x.encode("UTF-8")).decode("UTF-8"),
             (t.plaintext, t.bytes): lambda x: x.encode("UTF-8"),
             (t.bytes, t.plaintext): Checker.bytes_plaintext,
             (t.bytes, t.base64): lambda x: b64encode(x).decode("UTF-8"),
             (t.base64, t.bytes): b64decode,
+            (t.bytes, t.quoted_printable): lambda x: encodestring(x).decode("UTF-8"),
+            (t.quoted_printable, t.bytes): decodestring,
             (t.urlencode, t.plaintext): lambda x: unquote(x),
             (t.plaintext, t.urlencode): lambda x: quote(x),
             (t.plaintext, t.external): None,
@@ -828,19 +888,17 @@ class Types:
             (t.abusemail, t.email): True,
             (t.email, t.hostname): lambda x: x[x.index("@") + 1:],
             # (t.email, check legit mailbox)
-            # (t.source_ip, t.ip): True
-            # (t.phone, t.country): True
-            # (t.country, t.country_name):
+            (t.country_name, t.country): address_country,
+            (t.country, t.country_name): lambda x: country_codes[x],
+            (t.phone, t.country): phone_country,
             (t.hostname, t.tld): Checker.HostnameTld,
             (t.prefix, t.cidr): Checker.prefix_cidr,
             (t.redirects, t.url): True,
-            # (t.cc_tld, t.country): True
-            # (t.prefix, t.cidr)
+            (t.tld, t.country): True,
             (t.timestamp, t.formatted_time): Checker.time_format,
             (t.timestamp, t.isotimestamp): Checker.isotimestamp,
             (t.timestamp, t.date): Checker.date,
             (t.timestamp, t.time): lambda val: Checker.parse_timestamp(val).time(),
-            # XX url decode, url encode urllib.parse.quote
         }
 
 
@@ -855,7 +913,7 @@ class Identifier:
         Returns the nested lambda list that'll receive a value from start field and should produce value in target field.
         :param target: field type name
         :param start: field type name
-        :param custom: If target is a 'custom' field type, we'll receive a tuple (module path, method name).
+        :param custom: List of strings that are being used by TypeGroup.custom and PickBase
         :return: lambda[]
         """
         custom = copy(custom)
@@ -918,14 +976,16 @@ class Identifier:
         for i in range(len(path) - 1):
             lambda_ = methods[path[i], path[i + 1]]
             if isinstance(lambda_, PickBase):
-                lambda_ = lambda_.get_lambda(custom.pop(0))
+                # either the fields was added (has custom:List)
+                # or is being computed in run_single_query() through get_computable_fields that makes us sure PickBase has a default
+                lambda_ = lambda_.get_lambda(custom.pop(0) if custom is not None else None)
             elif not hasattr(lambda_, "__call__"):  # the field is invisible, see help text for Types; may be False, None or True
                 continue
             lambdas.append(lambda_)
 
         if target.group == TypeGroup.custom:
             if target == Types.external:
-                lambdas += [getattr(self.get_module_from_path(custom[0]), custom[1])]
+                lambdas += [getattr(self.get_module_from_path(custom[0]), custom[1])]  # (module path, method name).
             elif target == Types.code:
                 if type(custom) is list and len(custom) == 1:
                     custom = custom[0]  # code accepts a string
@@ -974,7 +1034,13 @@ class Identifier:
             if sample_text.strip() == "":
                 print("The file seems empty")
                 quit()
-            has_header = False  # lets just guess the value
+
+            # header detection
+            l = [line.strip() for line in sample]
+            rows_similarity = mean([SequenceMatcher(None, *comb).ratio() for comb in itertools.combinations(l[1:], 2)])
+            header_to_rows_similarity = mean([SequenceMatcher(None, l[0], it).ratio() for it in l[1:]])
+            has_header = rows_similarity > header_to_rows_similarity + 0.1  # it seems that first line differs -> header
+
             try:
                 s = sample[1]  # we dont take header (there is no empty column for sure)
             except IndexError:  # there is a single line in the file
@@ -1024,7 +1090,7 @@ class Identifier:
         else:  # we have many values and the first one could be header, let's omit it
             s = self.parser.sample[1:]
 
-        for row in reader(s, dialect=self.parser.dialect):
+        for row in reader(s, dialect=self.parser.dialect) if self.parser.dialect else [s]:
             for i, val in enumerate(row):
                 try:
                     samples[i].append(val)

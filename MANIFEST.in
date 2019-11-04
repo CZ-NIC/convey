@@ -1,0 +1,3 @@
+include requirements.txt
+graft convey/defaults
+global-exclude *.py[cod] __pycache__ *.so

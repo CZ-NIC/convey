@@ -8,39 +8,54 @@ import sys
 import webbrowser
 from pathlib import Path
 from shutil import copy
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, call
+from time import sleep
 
 from appdirs import user_config_dir
 
 # setup logging
-fileHandler = logging.FileHandler("convey.log")
-fileHandler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-fileHandler.setLevel(logging.WARNING)
+handlers=[]
+try:
+    fileHandler = logging.FileHandler("convey.log")
+    fileHandler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    fileHandler.setLevel(logging.WARNING)
+    handlers.append(fileHandler)
+except PermissionError:
+    fileHandler = None
+    print("Cannot create convey.log here at "+str(Path(".").absolute()))
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logging.Formatter('%(message)s'))
 consoleHandler.setLevel(logging.INFO)
-logging.basicConfig(level=logging.INFO, handlers=[fileHandler, consoleHandler])
+handlers.append(consoleHandler)
+logging.basicConfig(level=logging.INFO, handlers=handlers)
 
 logger = logging.getLogger(__name__)
 Path.lexists = lambda self: self.is_symlink() or self.exists()  # not yet exist https://bugs.python.org/issue34137
 default_path = Path(Path(__file__).resolve().parent, "defaults")  # path to the 'defaults' folder with templates
 
+config_dir = user_config_dir("convey")
+BOOLEAN_STATES = configparser.RawConfigParser.BOOLEAN_STATES
 
 def get_path(file):
     """ Assures the file is ready, or creates a new one from a default. """
-    config_dir = user_config_dir("convey")
+    global config_dir
     exists = True
-    if Path(file).lexists():
-        # check the .ini file is at current location
-        file = Path(Path.cwd(), file)
-    elif Path(Path(sys.argv[0]).parent, file).lexists():
-        # file at program folder (I.E. at downloaded github folder)
-        file = Path(Path(sys.argv[0]).parent, file)
-    elif Path(config_dir, file).lexists():
-        # INIT file at user config folder
-        file = Path(config_dir, file)
-    else:
-        exists = False
+    try:
+        b = Path(file).lexists()
+    except PermissionError as e:
+        b = False  # ex we run program from /root under another user
+    finally:
+        if b:
+            # check the .ini file is at current location
+            file = Path(Path.cwd(), file)
+        elif Path(Path(sys.argv[0]).parent, file).lexists():
+            # file at program folder (I.E. at downloaded github folder)
+            file = Path(Path(sys.argv[0]).parent, file)
+        elif Path(config_dir, file).lexists():
+            # INIT file at user config folder
+            file = Path(config_dir, file)
+        else:
+            exists = False    
 
     if exists:
         while not Path(file).exists():
@@ -86,6 +101,7 @@ class Config:
 
     # muted = False  # silence info text
 
+    QUEUED_NAME = ".queues_lines.tmp"
     INVALID_NAME = ".invalidlines.tmp"
     UNKNOWN_NAME = "unknown"
     PROJECT_SITE = "https://github.com/CZ-NIC/convey/"
@@ -139,13 +155,13 @@ class Config:
 
             # analyze the default config file
             default_lines = default_ini.read_text().splitlines(keepends=True)
-            anchors = tuple(key_missing.keys())
 
             def get_key(iterable, match):
                 """
                 :rtype: yields tuple of (key name, slice start-stop line of the iterable)
                 """
                 comment = None
+                anchors = tuple(iterable)
                 for i, line in enumerate(iterable):  # add missing keys and sections
                     if line.startswith("#"):
                         if not comment:
@@ -190,10 +206,11 @@ class Config:
         if Config.is_debug():
             if not verbosity:  # if user has not say the verbosity level, make it the most verbose
                 Config.verbosity = logging.DEBUG
-            logging.root.handlers[0].setLevel(logging.INFO)  # file handler to info level
+            if fileHandler:
+                fileHandler.setLevel(logging.INFO)  # file handler to info level
             logging.getLogger("chardet").setLevel(logging.WARNING)  # we are not interested in chardet debug logs
 
-        logging.root.handlers[1].setLevel(Config.verbosity)  # stream handler to debug level
+        consoleHandler.setLevel(Config.verbosity)  # stream handler to debug level
         logging.getLogger().setLevel(min(Config.verbosity, logging.INFO))  # system sensitivity at least at INFO level
 
         logger.debug("Config file loaded from: {}".format(Config.path))
@@ -249,32 +266,39 @@ class Config:
 
         :type get: type
                 * if str, return value will always be str (ex: no conversion '1/true/on' to boolean happens)
-                * if list, value tries to be splitted by l
-        :rtype: * boolean for text 0/off/false 1/on/true
-                * None for text = '' or non-inserted value
-                * or any inserted value if non-conforming to previous possibilities
+                * if list, value tries to be split by a comma
+                * if bool, it tries to convert to True/False from values 0/off/false 1/on/true
+                * if int, you get integer or 0 on error (which means 0 for on/true)
+                * if None
+                    * bool for text 0/off/false 1/on/true
+                    * None for text = '' or non-inserted value
+                    * or any inserted value if non-conforming to previous possibilities
         """
         if key not in Config.cache:
             try:
-                val = Config.config.getboolean(section, key)
-            except ValueError:
                 val = Config.config[section][key]
-                if val == '':
+                if (get is None or get is bool) and val.lower() in BOOLEAN_STATES:
+                    val = BOOLEAN_STATES[val.lower()]
+                elif val == '':
                     val = None
-            except (configparser.NoOptionError, KeyError):
-                val = None
-            finally:
-                Config.cache[key] = val
+            except (configparser.Error, KeyError):
+                return None
+            Config.cache[key] = val
         val = Config.cache[key]
         if get is str and type(val) is not str:
             try:
                 return str(Config.config[section][key])
             except KeyError:
                 return ''
-        if get is list:
+        elif get is list:
             if val:
                 return [x.strip() for x in val.split(",")]
             return []
+        elif get is int:
+            try:
+                return int(val)
+            except ValueError:
+                return 0
         return val
 
     @staticmethod
@@ -297,8 +321,10 @@ class Config:
     output = None  # True, False, None or str (path)
 
     @staticmethod
-    def set_cache_dir(dir_):
-        Config.cache_dir = dir_
+    def set_cache_dir(path):
+        Config.cache_dir = path
+        if not path.exists():
+            path.mkdir()
 
     @staticmethod
     def get_cache_dir():
@@ -307,7 +333,15 @@ class Config:
 
     @staticmethod
     def edit_configuration():
-        Popen(['xdg-open', Config.path], stdout=PIPE, stderr=PIPE)
+        app = Popen(['xdg-open', Config.path], stdout=PIPE, stderr=PIPE)
+        for i in enumerate(range(10)):  # lets wait a second to be sure GUI app started
+            sleep(0.1)
+            p = app.poll()
+            if p is not None:
+                if p != 0:
+                    # a GUI app have not started, let's launch a CLI terminal
+                    call(["editor", Config.path])
+                break
 
 
 def get_terminal_size():

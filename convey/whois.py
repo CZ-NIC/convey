@@ -3,6 +3,7 @@ import re
 import socket
 import time
 from collections import OrderedDict
+from datetime import datetime, timedelta
 from subprocess import PIPE, Popen
 from urllib.parse import urlparse, urlsplit
 
@@ -10,347 +11,59 @@ from netaddr import IPRange, IPNetwork
 
 from .config import Config
 from .contacts import Contacts
+from .infodicts import address_country_lowered
 
 logger = logging.getLogger(__name__)
 
-countries = {"andorra": "ad",
-             "united arab emirates": "ae",
-             "afghanistan": "af",
-             "barbuda": "ag",
-             "antigua": "ag",
-             "anguilla": "ai",
-             "albania": "al",
-             "armenia": "am",
-             "angola": "ao",
-             "antarctica ": "aq",
-             "argentine": "ar",
-             "argentina": "ar",
-             "american samoa": "as",
-             "austria": "at",
-             "australia": "au",
-             "australia ": "au",
-             "aruba": "aw",
-             "aland": "ax",
-             "azerbaijan": "az",
-             "herzegovina": "ba",
-             "bosnia": "ba",
-             "barbados": "bb",
-             "bangladesh": "bd",
-             "belgium": "be",
-             "burkina faso": "bf",
-             "bulgaria": "bg",
-             "bahrain": "bh",
-             "burundi": "bi",
-             "benin": "bj",
-             "barthelemy": "bl",
-             "bermuda": "bm",
-             "brunei": "bn",
-             "bolivia": "bo",
-             "bonaire": "bq",
-             "eustatius": "bq",
-             "saba": "bq",
-             "brazil": "br",
-             "bahamas": "bs",
-             "bahamas": "bs",
-             "bhutan": "bt",
-             "bouvet": "bv",
-             "botswana": "bw",
-             "belarus": "by",
-             "belize": "bz",
-             "canada": "ca",
-             "keeling": "cc",
-             "cocos": "cc",
-             "democratic republic of the congo": "cd",
-             "central african": "cf",
-             "central african": "cf",
-             "congo": "cg",
-             "swiss": "ch",
-             "switzerland": "ch",
-             "côte d'ivoire": "ci",
-             "ivory coast": "ci",
-             "cook": "ck",
-             "chile": "cl",
-             "cameroon": "cm",
-             "china": "cn",
-             "colombia": "co",
-             "costa rica": "cr",
-             "cuba": "cu",
-             "cabo verde": "cv",
-             "cabo verde ": "cv",
-             "cape verde": "cv",
-             "curacao": "cw",
-             "curaçao": "cw",
-             "christmas island": "cx",
-             "cyprus": "cy",
-             "czech": "cz",
-             "czech": "cz",
-             "germany": "de",
-             "djibouti": "dj",
-             "denmark": "dk",
-             "dominica": "dm",
-             "dominican": "do",
-             "dominican": "do",
-             "algeria": "dz",
-             "ecuador": "ec",
-             "estonia": "ee",
-             "egypt": "eg",
-             "sahrawi": "eh",
-             "western sahara": "eh",
-             "eritrea": "er",
-             "spain": "es",
-             "ethiopia": "et",
-             "finland": "fi",
-             "fiji": "fj",
-             "falkland": "fk",
-             "falkland islands": "fk",
-             "micronesia": "fm",
-             "faroe": "fo",
-             "french": "fr",
-             "france ": "fr",
-             "gabonese": "ga",
-             "gabon": "ga",
-             "northern ireland": "gb",
-             "great britain": "gb",
-             "united kingdom": "gb",
-             "england": "gb",
-             "grenada": "gd",
-             "georgia": "ge",
-             "guyane": "gf",
-             "french guiana": "gf",
-             "bailiwick of guernsey": "gg",
-             "guernsey": "gg",
-             "ghana": "gh",
-             "gibraltar": "gi",
-             "kalaallit nunaat": "gl",
-             "greenland": "gl",
-             "gambia": "gm",
-             "gambia": "gm",
-             "guinea": "gn",
-             "guadeloupe": "gp",
-             "equatorial guinea": "gq",
-             "hellenic": "gr",
-             "greece": "gr",
-             "south sandwich": "gs",
-             "south georgia": "gs",
-             "guatemala": "gt",
-             "guam": "gu",
-             "guinea-bissau": "gw",
-             "guyana": "gy",
-             "hong kong": "hk",
-             "mcdonald": "hm",
-             "heard": "hm",
-             "honduras": "hn",
-             "croatia": "hr",
-             "haiti": "ht",
-             "hungary": "hu",
-             "indonesia": "id",
-             "ireland": "ie",
-             "israel": "il",
-             "isle of man": "im",
-             "india": "in",
-             "british indian ocean": "io",
-             "iraq": "iq",
-             "iran": "ir",
-             "iceland": "is",
-             "italian": "it",
-             "italy": "it",
-             "jersey": "je",
-             "jamaica": "jm",
-             "hashemite": "jo",
-             "jordan": "jo",
-             "japan": "jp",
-             "kenya": "ke",
-             "kyrgyz": "kg",
-             "cambodia": "kh",
-             "kiribati": "ki",
-             "comoros": "km",
-             "comoros": "km",
-             "nevis": "kn",
-             "saint kitts": "kn",
-             "democratic people": "kp",
-             "north korea": "kp",
-             "korea": "kr",
-             "kuwait": "kw",
-             "cayman": "ky",
-             "kazakhstan": "kz",
-             "lao": "la",
-             "lebanese": "lb",
-             "lebanon": "lb",
-             "lucia": "lc",
-             "saint lucia": "lc",
-             "liechtenstein": "li",
-             "sri lanka": "lk",
-             "liberia": "lr",
-             "lesotho": "ls",
-             "lithuania": "lt",
-             "luxembourg": "lu",
-             "latvia": "lv",
-             "libya": "ly",
-             "morocco": "ma",
-             "monaco": "mc",
-             "moldova": "md",
-             "montenegro": "me",
-             "saint-martin": "mf",
-             "saint martin": "mf",
-             "madagascar": "mg",
-             "marshall islands": "mh",
-             "north macedonia": "mk",
-             "mali": "ml",
-             "myanmar ": "mm",
-             "mongolia": "mn",
-             "macao": "mo",
-             "macau": "mo",
-             "norrn mariana islands": "mp",
-             "martinique": "mq",
-             "mauritania": "mr",
-             "montserrat": "ms",
-             "malta": "mt",
-             "mauritius": "mu",
-             "maldives": "mv",
-             "malawi": "mw",
-             "mexican": "mx",
-             "mexico": "mx",
-             "malaysia": "my",
-             "mozambique": "mz",
-             "namibia": "na",
-             "new caledonia": "nc",
-             "niger": "ne",
-             "norfolk island": "nf",
-             "federal nigeria": "ng",
-             "nigeria": "ng",
-             "nicaragua": "ni",
-             "netherlands": "nl",
-             "norway": "no",
-             "nepal": "np",
-             "nauru": "nr",
-             "niue": "nu",
-             "new zealand": "nz",
-             "oman": "om",
-             "panama": "pa",
-             "peru": "pe",
-             "french polynesia": "pf",
-             "new guinea": "pg",
-             "papua": "pg",
-             "philippines": "ph",
-             "philippines": "ph",
-             "pakistan": "pk",
-             "poland": "pl",
-             "miquelon": "pm",
-             "saint-pierre": "pm",
-             "pitcairn": "pn",
-             "henderson": "pn",
-             "ducie": "pn",
-             "oeno": "pn",
-             "puerto rico": "pr",
-             "palestine": "ps",
-             "portuguese": "pt",
-             "portugal": "pt",
-             "palau": "pw",
-             "paraguay": "py",
-             "qatar": "qa",
-             "reunion": "re",
-             "réunion": "re",
-             "romania": "ro",
-             "serbia": "rs",
-             "russia": "ru",
-             "rwanda": "rw",
-             "saudi arabia": "sa",
-             "solomon islands": "sb",
-             "seychelles": "sc",
-             "sudan": "sd",
-             "sweden": "se",
-             "singapore": "sg",
-             "helena": "sh",
-             "ascension": "sh",
-             "tristan": "sh",
-             "cunha": "sh",
-             "slovenia": "si",
-             "jan mayen": "sj",
-             "svalbard": "sj",
-             "slovak": "sk",
-             "slovakia": "sk",
-             "sierra leone": "sl",
-             "san marino": "sm",
-             "senegal": "sn",
-             "federal somalia": "so",
-             "somalia": "so",
-             "suriname": "sr",
-             "south sudan": "ss",
-             "príncipe": "st",
-             "sao tome": "st",
-             "principe": "st",
-             "el salvador": "sv",
-             "sint maarten": "sx",
-             "syria": "sy",
-             "eswatini": "sz",
-             "eswatini ": "sz",
-             "caicos islands": "tc",
-             "turks": "tc",
-             "chad": "td",
-             "antarctic lands": "tf",
-             "french southern": "tf",
-             "togolese": "tg",
-             "togo": "tg",
-             "thailand": "th",
-             "tajikistan": "tj",
-             "tokelau": "tk",
-             "timor-leste": "tl",
-             "turkmenistan": "tm",
-             "tunisia": "tn",
-             "tonga": "to",
-             "turkey": "tr",
-             "tobago": "tt",
-             "trinidad": "tt",
-             "tuvalu": "tv",
-             "taiwan": "tw",
-             "tanzania": "tz",
-             "ukraine": "ua",
-             "uganda": "ug",
-             "baker": "um",
-             "howland": "um",
-             "jarvis": "um",
-             "johnston": "um",
-             "kingman": "um",
-             "midway": "um",
-             "navassa": "um",
-             "palmyra": "um",
-             "wake": "um",
-             "minor outlying islands  ": "um",
-             "united states": "us",
-             "uruguay": "uy",
-             "uzbekistan": "uz",
-             "holy see": "va",
-             "grenadines": "vc",
-             "saint vincent": "vc",
-             "venezuela": "ve",
-             "british virgin islands": "vg",
-             "virgin islands of united states": "vi",
-             "viet nam ": "vn",
-             "vietnam": "vn",
-             "vanuatu": "vu",
-             "futuna": "wf",
-             "wallis": "wf",
-             "samoa": "ws",
-             "yemen": "ye",
-             "mayotte": "yt",
-             "south africa": "za",
-             "zambia": "zm",
-             "zimbabwe": "zw"}
 rirs = ["whois.ripe.netf", "whois.arin.net", "whois.lacnic.net", "whois.apnic.net", "whois.afrinic.net"]
 
 
+class Quota:
+    def __init__(self):
+        self._time = None
+
+    def try_start(self):
+        if not self._time:
+            self._time = datetime.now() + timedelta(seconds=300)
+
+    def time(self):
+        return self._time.strftime('%H:%M')
+
+    def is_running(self):
+        return self._time and self._time > datetime.now()
+
+    def check_over(self):
+        if self._time and self._time < datetime.now():
+            self._time = None
+            Whois.queued_ips = set()
+
+    def remains(self):
+        if self.is_running():
+            return (self._time - datetime.now()).seconds
+
+    class QuotaExceeded(IOError):
+        pass
+
+
 class Whois:
-    unknown_mode = False
+    slow_mode: bool
+    unknown_mode: bool
+    quota: Quota
+    queued_ips: set
     see = Config.verbosity <= logging.INFO
 
     @classmethod
-    def init(cls, stats, ranges, ip_seen, csvstats):
+    def init(cls, stats, ranges, ip_seen, csvstats, slow_mode=False, unknown_mode=False):
+        cls.quota = Quota()
         cls.csvstats = csvstats
         cls.stats = stats
         cls.ranges = ranges
         cls.ip_seen = ip_seen  # ip_seen[ip] = prefix
         cls.servers = OrderedDict()
-        cls.unknown_mode = False  # if True, we use b flag in abusemails
+        cls.unknown_mode = unknown_mode  # if True, we use b flag in abusemails
+        cls.slow_mode = slow_mode  # due to LACNIC quota
+        cls.queued_ips = set()
+        cls.ttl = timedelta(seconds=Config.get("whois_ttl", "FIELDS", int))
         if Config.get("whois_mirror", "FIELDS"):  # try a fast local whois-mirror first
             cls.servers["mirror"] = Config.get("whois_mirror", "FIELDS")
         cls.servers["general"] = None
@@ -361,28 +74,28 @@ class Whois:
 
     def __init__(self, ip):
         """
-         self.get stores tuple: prefix, location, mail, asn, netname, country
+         self.get stores tuple: prefix, location, mail, asn, netname, country, ttl
         """
         self.ip = ip
-        self.whoisResponse = []
+        self.whois_response = []
         if not Whois.unknown_mode:
-            if self.ip in self.ip_seen:  # ip has been seen in the past
-                prefix = self.ip_seen[self.ip]
-                self.get = self.ranges[prefix]
-                self.count_stats()
-                return
-
-            for prefix in self.ranges:
-                # search for prefix the slow way. I dont know how to make this shorter because IP can be in shortened form so that
-                # in every case I had to put it in full form and then slowly compare strings with prefixes.
-                if prefix and self.ip in prefix:
-                    self.ip_seen[self.ip] = prefix
-                    self.get = self.ranges[prefix]
+            prefix = self.cache_load()  # try load prefix from earlier WHOIS responses
+            if prefix:
+                if self.ttl != -1 and self.get[7] + self.ttl < datetime.now():
+                    # the TTL is too old, we cannot guarantee IP stayed in the same prefix, let's get rid of the old results
+                    del self.ip_seen[self.ip]
+                    del self.ranges[prefix]
+                    self.get = None
+                else:
                     self.count_stats()
                     return
 
         if self.see:
-            print(f"Whois {self.ip}...", end="", flush=True)
+            print(f"Whois {self.ip}... ", end="", flush=True)
+        if Whois.slow_mode:
+            if self.see:
+                print("waiting 7 seconds... ", end="", flush=True)
+            time.sleep(7)
         get = self.analyze()  # prefix, location, mail, asn, netname, country
         if self.see:
             print(get[2])
@@ -397,7 +110,22 @@ class Whois:
         #    raise AssertionError("The prefix " + prefix + " shouldn't be already present. Tell the programmer")
         self.get = self.ranges[prefix] = get
         self.count_stats()
-        
+
+    def cache_load(self):
+        if self.ip in self.ip_seen:  # ip has been seen in the past
+            prefix = self.ip_seen[self.ip]
+            self.get = self.ranges[prefix]
+            return prefix
+        elif self.ip in self.queued_ips:
+            raise self.quota.QuotaExceeded
+        for prefix in self.ranges:
+            # search for prefix the slow way. I dont know how to make this shorter because IP can be in shortened form so that
+            # in every case I had to put it in full form and then slowly compare strings with prefixes.
+            if prefix and self.ip in prefix:
+                self.get = self.ranges[prefix]
+                self.ip_seen[self.ip] = prefix
+                return prefix
+
     def count_stats(self):
         self.csvstats["ipsUnique"].add(self.ip)
         mail = self.get[2]
@@ -424,7 +152,6 @@ class Whois:
         s = urlsplit(url)
         return s.netloc or s.path.split("/")[:1][0]
 
-
     def resolve_unknown_mail(self):
         """ Forces to load abusemail for an IP.
         We try first omit -r flag and then add -B flag.
@@ -442,7 +169,8 @@ class Whois:
             self._exec(server="ripe (-B flag)", server_url="whois.ripe.net -B")  # with -B flag
             self.get_abusemail(True)
 
-    def _str2prefix(self, s):
+    @staticmethod
+    def _str2prefix(s):
         """ Accepts formats:
             88.174.0.0 - 88.187.255.255, 216.245.0.0/18, 2000::/7 ...
         """
@@ -490,8 +218,7 @@ class Whois:
         if type(patterns) is str:
             patterns = [patterns]
 
-        match = None
-        for chunk in self.whoisResponse:
+        for chunk in self.whois_response:
             for pattern in patterns:
                 # it = re.finditer(pattern, self.whoisResponse) if type(pattern) is str else pattern(self.whoisResponse)
                 match = re.search(pattern, chunk)
@@ -517,7 +244,7 @@ class Whois:
 
     def analyze(self):
         """
-        :return: prefix, "local"|"foreign", incident-contact ( = abuse-mail|country), asn, netname, country, abuse-mail
+        :return: prefix, "local"|"foreign", incident-contact ( = abuse-mail|country), asn, netname, country, abuse-mail, TTL
         """
         prefix = country = ""
 
@@ -551,11 +278,24 @@ class Whois:
                         self._exec(server="apnic", server_url="whois.apnic.net")
                         continue
                     if self._match_response("query rate limit exceeded"):  # LACNIC gave me this - seems 300 s needed
-                        logger.warning(
-                            f"Whois server {self.last_server} query rate limit exceeded for: {self.ip}. Sleeping for 300 s...")
-                        time.sleep(300)
-                        self._exec(server=server)
-                        continue
+                        self.quota.try_start()
+                        if Config.get("lacnic_quota_skip_lines", "FIELDS") and not self.slow_mode:
+                            # XX if quota not started
+                            # XX quota_start_time = timestamp
+                            # XX option to put the line to the .quota-queue
+                            # XX encountered calls to lacnic directly skip
+                            # XX possibility to interrupt sleeping
+                            # XX raise Quota
+                            if self.see:
+                                print("LACNIC quota exceeded.")
+                            self.queued_ips.add(self.ip)
+                            raise self.quota.QuotaExceeded
+                        else:
+                            logger.warning(f"Whois server {self.last_server} query rate limit exceeded for: {self.ip}."
+                                           f" Sleeping for 300 s till {self.quota.time()}... (you may howevec Ctrl-C to skip)")
+                            time.sleep(300)
+                            self._exec(server=server)
+                            continue
                     if self.last_server == "rwhois.gin.ntt.net":  # 204.2.250.0
                         self._exec(server="arin", server_url="whois.arin.net")
                         continue
@@ -569,7 +309,7 @@ class Whois:
                         continue
 
                 if not country:
-                    country = self._load_country_from_addresses(country)
+                    country = self._load_country_from_addresses()
                 break
             if not country:
                 fail = None
@@ -606,23 +346,22 @@ class Whois:
             prefix = self._str2prefix(match)
 
         if country not in Config.get("local_country", "FIELDS"):
-            return prefix, "foreign", country, asn, netname, country, self.get_abusemail()
+            return prefix, "foreign", country, asn, netname, country, self.get_abusemail(), datetime.now()
         else:
             # print("Abusemail: ")
             # print("abusemail loaded {}".format(self.abusemail))
             if Whois.unknown_mode:
                 self.resolve_unknown_mail()
             ab = self.get_abusemail()
-            return prefix, "local", ab, asn, netname, country, ab
+            return prefix, "local", ab, asn, netname, country, ab, datetime.now()
 
-    def _load_country_from_addresses(self, country):
+    def _load_country_from_addresses(self):
         # let's try to find country in the non-standardised address field
-        for address in re.findall(r"address:\s+(.*)", "\n".join(self.whoisResponse)):
-            for s in countries:
-                if s in address:
-                    logger.info(f"Found country in {address}")
-                    country = countries[s]
-                    return country
+        for address in re.findall(r"address:\s+(.*)", "\n".join(self.whois_response)):
+            c = address_country_lowered(address)
+            if c:
+                logger.info(f"Found country in {address}")
+                return c
         return ""
 
     reAbuse = re.compile('[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}')
@@ -659,11 +398,12 @@ class Whois:
             p = Popen(cmd, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE)
             response = p.stdout.read().decode("unicode_escape").strip().lower()  # .replace("\n", " ")
             response += p.stderr.read().decode("unicode_escape").strip().lower()
-        except UnicodeDecodeError:  # ip address 94.230.155.109 had this string 'Jan Krivsky Hl\xc3\x83\x83\xc3\x82\xc2\xa1dkov' and everything failed
-            self.whoisResponse = []
+        except UnicodeDecodeError:
+            # ip address 94.230.155.109 had this string 'Jan Krivsky Hl\xc3\x83\x83\xc3\x82\xc2\xa1dkov' and everything failed
+            self.whois_response = []
             logger.warning("Whois response for IP {} on server {} cannot be parsed.".format(self.ip, server))
         except TypeError:  # could not resolve host
-            self.whoisResponse = []
+            self.whois_response = []
         else:
             try:
                 self.last_server = Whois.regRe.search(response).groups()[0]
@@ -685,10 +425,9 @@ class Whois:
             #   network:IP-Network:154.48.224.0/19
             #   network:Country:DE
             ref_s = "found a referral to "
-            self.whoisResponse = response.split(ref_s)[::-1]
+            self.whois_response = response.split(ref_s)[::-1]
 
             # i = self.whoisResponse.find(ref_s)
-            # # import ipdb; ipdb.set_trace()
             # if i > -1:
             #     self.whoisResponse = self.whoisResponse[i + len(ref_s):]
         finally:

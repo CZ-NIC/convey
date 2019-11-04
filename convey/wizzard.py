@@ -1,4 +1,5 @@
 import re
+from sre_constants import error
 
 from prompt_toolkit import PromptSession, ANSI, HTML
 from prompt_toolkit.application import get_app
@@ -129,7 +130,7 @@ def _reg_method(line, search, replace=None):
     if not groups:
         groups_preview = [match.group(0)]
     else:
-        groups_preview = ["{0}: " + match.group(0)] + ["{" + str(i + 1) + "}: " + g for i, g in enumerate(groups)]
+        groups_preview = ["{0}: " + str(match.group(0))] + ["{" + str(i + 1) + "}: " + g for i, g in enumerate(groups)]
 
     if not replace:
         if not groups:
@@ -141,8 +142,11 @@ def _reg_method(line, search, replace=None):
         try:
             reg_m = replace.format(match.group(0), *[g for g in groups])
             # we convert "str{0}" → "\g<0>" (works better than conversion to a mere "\0" that may result to ambiguity
-            replace_pattern = re.sub(r"{(\d+)}", r"\\g<\1>", replace)
-            reg_s = search.sub(replace_pattern, line)
+            try:
+                replace_pattern = re.sub(r"{(\d+)}", r"\\g<\1>", replace)
+                reg_s = search.sub(replace_pattern, line)
+            except error:
+                reg_s = "!"
         except IndexError:
             reg_m = ""
     span = match.span(0)
@@ -229,8 +233,6 @@ class Preview:
     def pick_input(self, o: PickInput):
         """ code preview specific part """
 
-        print(o)
-
         def get_toolbar_row_pick_input(text, line):
             try:
                 val = o.get_lambda(text)(line)
@@ -245,7 +247,7 @@ class Preview:
 
         # prints the application
         text = self.reset_session().prompt(get_prompt, bottom_toolbar=self.standard_toolbar, style=self.style,
-                                           lexer=PygmentsLexer(Python3Lexer), key_bindings=self.bindings)
+                                           default=o.default or "", lexer=PygmentsLexer(Python3Lexer), key_bindings=self.bindings)
         return text
 
     def reg(self):
