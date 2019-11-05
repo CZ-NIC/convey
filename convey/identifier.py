@@ -808,8 +808,9 @@ class Types:
              * +2 to include usual field names
         """
         l = ['digraph { ',
-             'rankdir=TB',  # XX rather LR?
-             'label="Convey field types (dashed nodes = identifiable automatically)"']
+             # 'layout=twopi',
+             #'rankdir=LR',  # XX I really wish to have TB, with rows: IP, plaintext, timestamp
+             'label="Convey field types (dashed nodes = identifiable automatically, dashed edges = field identity)"']
         used = set()
         formatting_disabled = "[color=lightgray fontcolor=lightgray]" if flags & 1 else ""
         loop = []
@@ -833,7 +834,8 @@ class Types:
         # for enabled, ((start, target), m) in [(True, f) for f in methods.items()] + [(False, f) for f in methods_deleted.items()]:
         for enabled, start, target, m in loop:
             disable_s = "" if enabled else formatting_disabled
-            if start.group != target.group and target.group.name != target and target.group in [TypeGroup.dns, TypeGroup.nmap, TypeGroup.custom]:
+            if start.group != target.group and target.group.name != target and target.group in [TypeGroup.dns, TypeGroup.nmap,
+                                                                                                TypeGroup.custom]:
                 # Every type that goes to ex: `dns`, continues to all `dns` subtypes. We want `hostname -> spf` to go through `dns`.
                 # This is not the case of the group `whois` - this group has explicitly stated the path in methods,
                 #   ex: `ip → whois → country` but also `phone → country`.
@@ -868,7 +870,9 @@ class Types:
             # if f.is_private:
             #    l.append(f'{f.name} [shape=box]')
 
-        l.append("}")
+        l.extend(["spf -> timestamp[style=invis]",  # formatting mark to put one cluster below another, not aside
+                   "formatted_time -> plaintext[style=invis]",
+                   "}"])
         return "\n".join(l)
 
     @staticmethod

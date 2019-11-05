@@ -134,7 +134,7 @@ We are able to compute these value types:
 * **netname** – got from whois
 * **prefix** – got from whois
 
-Overview of all methods:
+### Overview of all methods:
 
 ![Methods overview](./docs/convey-methods.svg?sanitize=True)
 
