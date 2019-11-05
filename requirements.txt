@@ -1,3 +1,4 @@
+pint
 chardet
 python-dateutil
 requests

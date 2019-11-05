@@ -20,13 +20,14 @@
         - multiple-hostname-ip #32
         - whois_ttl #34
     - CLI only flags
-        - flag --yes for skipping dialogues
-        - new CLI flag --config to open configuration
-        - new CLI flag --show-fields to get UML overview
-        - new flag --json
-        - flags --field, --field-excluded, --delete, --split, --sort
-        - flags --single-query, --csv-processing
+        - --yes for skipping dialogues
+        - --config to open configuration
+        - --show-uml to get UML overview
+        - --json
+        - --field, --field-excluded, --delete, --split, --sort
+        - --single-query, --csv-processing
         - --version
+        - --disable-external
     - INI only flags
         - github_crash_submit
 * fixes:
@@ -80,7 +81,7 @@
     - urlencode, quoted_printable
     - charset, bytes    
     - timestamp, isotimestamp, time, date, formatted_time
-    - phone
+    - phone, unit
 
 ## 1.1 (2019-05-13)
 * fix: do not reprocess file if moved to another location

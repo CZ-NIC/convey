@@ -105,7 +105,7 @@ class Controller:
                                  "\nEx: --field tld[gTLD]  # would add TLD from probably a hostname, filtered by CUSTOM=gTLD"
                                  "\nEx: --field netname,ip  # would add netname column from any IP column"
                                  "\n    (Note the comma without space behind 'netname'.)"
-                                 "\n\nComputable fields: " + "".join("\n* " + f.doc() for f in Types.get_computable_types()) +
+                                 "\n\nComputable fields: " + "".join("\n* " + t.doc() for t in Types.get_computable_types()) +
                                  "\n\nThis flag May be used multiple times.",
                             action=FieldVisibleAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
         parser.add_argument('-fe', '--field-excluded', help="The same as field but its column will not be added to the output.",
@@ -119,9 +119,9 @@ class Controller:
         for flag in csv_flags:
             parser.add_argument('--' + flag[0], help=flag[1])
         parser.add_argument('--csirt-incident', action="store_true",
-                            help=f"Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country"
-                                 f" or csirt contact for foreign countries) and send everything by OTRS."
-                                 f" You set local countries in config.ini, currently set to:"
+                            help="Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country"
+                                 " or csirt contact for foreign countries) and send everything by OTRS."
+                                 " You set local countries in config.ini, currently set to:"
                                  f" {Config.get('local_country', 'FIELDS')}")
         parser.add_argument('--whois', help="R|Allowing Whois module: Leave blank for True or put true/on/1 or false/off/0.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
@@ -134,6 +134,8 @@ class Controller:
                                           " status (HTTP code) and text fields. Text is just mere text, no tags, style,"
                                           " script, or head. ",
                             action=BlankTrue, nargs="?", metavar="blank/false")
+        parser.add_argument('--disable-external', help="R|Disable external function registered in config.ini to be imported.",
+                            action="store_true", default=False)
         parser.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
         parser.add_argument('--config', help="Open config file and exit."
                                              " (GUI over terminal editor preferred and tried first.)", action="store_true")
@@ -155,9 +157,12 @@ class Controller:
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--whois-ttl', help="How many seconds will a WHOIS answer cache will be considered fresh.",
                             type=int, metavar="SECONDS")
-        parser.add_argument('--show-uml', help="Show UML of fields and methods and exit."
+        parser.add_argument('--show-uml', help="R|Show UML of fields and methods and exit."
                                                " Methods that are currently disabled via flags or config file are grayed out."
-                                               " You may add --verbose to generate more info.", action="store_true")
+                                               " * FLAGs:"
+                                               "    * +1 to gray out disabled fields/methods" 
+                                               "    * +2 to include usual field names",
+                            type=int, const=1, nargs='?')
         parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--version', help=f"Show the version number (which is currently {__version__}).", action="store_true")
@@ -165,9 +170,8 @@ class Controller:
         if args.config:
             self.edit_configuration()
             quit()
-
         for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
-                     "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl"]:
+                     "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl", "disable_external"]:
             if getattr(args, flag) is not None:
                 Config.set(flag, getattr(args, flag))
         Types.refresh()  # reload Types for the second time so that the methods reflect CLI flags
@@ -182,8 +186,8 @@ class Controller:
             args.yes = True
             args.quiet = True
         Config.init_verbosity(args.yes, 30 if args.quiet else (10 if args.verbose else None))
-        if args.show_uml:
-            print(Types.get_uml())
+        if args.show_uml is not None:
+            print(Types.get_uml(args.show_uml))
             quit()
         if args.version:
             print(__version__)
@@ -658,5 +662,6 @@ class Controller:
 
     def close(self):
         self.wrapper.save(last_chance=True)  # re-save cache file
-        print("Finished.")
+        if not Config.get("yes"):
+            print("Finished.")
         exit(0)

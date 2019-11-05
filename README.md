@@ -4,8 +4,8 @@ Swiss knife for mutual conversion of the web related data types, like `base64` o
 Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.
 
 Any input is accepted: 
-* a **single value** input is detected and all **meaningful information** is fetched
-* multiline **base64** string gets decoded
+* if a **single value** input is detected, all **meaningful information** is fetched
+* multiline **base64**/**quoted_printable** string gets decoded
 * **log file** is converted to CSV 
 * **CSV file** (any delimiter, header or whatever) performs one or more actions
     1) **Pick or delete columns** (if only some columns are needed)
@@ -116,7 +116,7 @@ pip3 install -r requirements.txt  --user
 ### Customisation
 * A file `config.ini` is automatically created in user config folder. This file may be edited for further customisation.
 * If `config.ini` is present at working directory, that one is used over the one in the user config folder.
-* Launch convey with `--help` flag to see further options.
+* Launch convey with [`--help`](docs/convey-help-cmd-output.txt) flag to see further options.
 
 ## Computable fields
 
@@ -133,6 +133,10 @@ We are able to compute these value types:
 * **ip** – translated from url
 * **netname** – got from whois
 * **prefix** – got from whois
+
+Overview of all methods:
+
+![Methods overview](./docs/convey-methods.svg?sanitize=True)
 
 ### Detectable fields
 
@@ -235,6 +239,33 @@ $ convey file.csv --field-excluded asn --split asn
 These are equivalent. If "gTLD" is not provided, user will be asked for.
 $ convey test.csv --fresh -field tld[gTLD]
 $ convey test.csv --fresh -field tld,,,gTLD
+
+We are connected to the pint unit convertor!
+
+$ convey "3 kg" 
+Input value detected: unit
+
+field      value
+---------  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+plaintext  ['105.82188584874123 ounce', '1693.1501735798597 drachm', '1.806642538265029e+27 atomic_mass_unit', '3.2933076034236e+30 electron_mass', '0.0703602964419822 bag', '6.613867865546327 pound', '4
+           6297.07505882429 grain', '8.037686642156995 apothecary_pound', '15000.0 carat', '8.037686642156993 troy_pound', '1929.0447941176785 pennyweight', '3000.0 gram', '0.06613867865546327 short_hund
+           erdweight', '0.05905239165666364 long_hunderweight', '771.6179176470714 apothecary_dram', '0.47241913325330914 stone', '1.7935913792661326e+27 proton_mass', '0.06613867865546327 US_hundredweig
+           ht', '0.059052391656663636 UK_hundredweight', '0.003306933932773164 US_ton', '0.016872111901903894 quarter', '1.7911224616452038e+27 neutron_mass', '96.45223970588394 troy_ounce', '96.45223970
+           588393 apothecary_ounce', '0.003 metric_ton', '2314.853752941214 scruple', '0.003306933932773164 short_ton', '0.002952619582833182 UK_ton', '0.002952619582833182 long_ton']
+
+
+$ convey "3 kg" -f unit # launches wizzard that let's you decide what unit to convert to 
+$ convey "3 kg" -f unit[g] -H
+3000.0 gram
+
+$ convey "kg" -f unit --csv-processing --headless
+kg|6.022141794216764e+26 atomic_mass_unit
+kg|0.001 metric_ton
+kg|0.0009842065276110606 UK_ton
+kg|771.6179176470714 scruple
+kg|257.2059725490238 apothecary_dram
+kg|1000.0 gram
+
 
 
 ```

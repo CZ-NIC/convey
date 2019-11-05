@@ -19,7 +19,7 @@ from enum import IntEnum
 from pathlib import Path
 from quopri import decodestring, encodestring
 from statistics import mean
-from typing import List
+from typing import List, Callable
 from urllib.parse import unquote, quote, urlparse
 
 import dateutil.parser
@@ -27,6 +27,7 @@ import requests
 from bs4 import BeautifulSoup
 from chardet import detect
 from netaddr import IPRange, IPNetwork
+from pint import UnitRegistry
 from validate_email import validate_email
 
 from .config import Config
@@ -53,9 +54,13 @@ graph = Graph()
 
 class PickBase(ABC):
     default = None
+    subtype: Callable
 
     @abstractmethod
     def get_lambda(self): pass
+
+    def get_type_description(self):
+        return self.subtype.__doc__.strip()
 
 
 class PickMethod(PickBase):
@@ -69,6 +74,8 @@ class PickMethod(PickBase):
 
      @PickMethod("all")
      class MyValues():
+        ''' description shown in help '''
+     
         def all(x):
             ''' return every value (this very text will be displayed to the user) '''
             return x
@@ -131,7 +138,7 @@ class PickInput(PickBase):
         p = inspect.signature(subtype).parameters[par[1]]
         self.default = None if p.default is p.empty else p.default
         self.description = subtype.__doc__ or (f"Input {subtype.__name__} variable " + par[1])
-        self.parameter_name = par[0]
+        self.parameter_name = par[1]
 
 
 def is_ip(ip):
@@ -141,6 +148,9 @@ def is_ip(ip):
         return True
     except ValueError:
         return False
+
+
+pint = UnitRegistry()
 
 
 class Checker:
@@ -219,10 +229,10 @@ class Checker:
             return False
         s = wrong_url_2_url(wrong, make=False)
         s2 = wrong_url_2_url(wrong, make=True)
-        #Xm = reUrl.match(s2)
-        if reFqdn.match(s) or reFqdn.match(urlparse(s2).netloc):  #X(m and m.span(0)[1] == len(s2) and "." in s2):
-            #Xwe impose full match
-            #Xstring created from "x"*100 would be submitted for a valid URL
+        # Xm = reUrl.match(s2)
+        if reFqdn.match(s) or reFqdn.match(urlparse(s2).netloc):  # X(m and m.span(0)[1] == len(s2) and "." in s2):
+            # Xwe impose full match
+            # Xstring created from "x"*100 would be submitted for a valid URL
             return True
         return False
 
@@ -237,6 +247,28 @@ class Checker:
     @PickInput
     def time_format(val, fmt):
         return dateutil.parser.parse(val, fuzzy=True).strftime(fmt)
+
+    @staticmethod
+    def is_unit(val):
+        try:
+            return bool(pint.parse_expression(val))
+        except (ValueError, AttributeError):
+            return False
+
+    @staticmethod
+    @PickInput
+    def unit_expand(val, unit=None):
+        try:
+            e = pint.parse_expression(val)
+            if unit:
+                return str(e.to(unit))
+            else:
+                l = []
+                for unit in pint.get_compatible_units(e):
+                    l.append(str(e.to(unit)))
+                return l
+        except (ValueError, AttributeError):
+            return ""
 
     @staticmethod
     def is_timestamp(val):
@@ -610,12 +642,12 @@ class Types:
 
     @staticmethod
     def refresh():
+        """ refreshes methods and import custom methods from files """
         methods.clear()
         methods.update(Types._get_methods())
         [graph.add_edge(to, from_) for to, from_ in methods if methods[to, from_] is not True]
         [t.init() for t in types]
 
-        """ import custom methods from files """
         try:
             externals = Config.config["EXTERNAL"]
         except KeyError:
@@ -628,6 +660,7 @@ class Types:
             Types.import_method(module, method_name, path, name=field_name)
 
         for path in (x.strip() for x in Config.get("external_fields", "EXTERNAL", get=str).split(",") if x.strip()):
+            # noinspection PyBroadException
             try:
                 module = Identifier.get_module_from_path(path)
                 if module:
@@ -647,13 +680,23 @@ class Types:
         lambda_ = getattr(module, method_name)
         if isinstance(lambda_, ABCMeta):  # this is just an import statement of ex: PickBase
             return
-        setattr(Types, name, Type(name, TypeGroup.general, lambda_.__doc__))  # fachá?
-        type_ = getattr(Types, name)
-        methods[(Types.plaintext, type_)] = lambda_
-        if lambda_ is not True:
-            graph.add_edge(Types.plaintext, type_)
-        type_.init()
-        logger.debug(f"Successfully added method {method_name} from module {path}")
+        doc = lambda_.__doc__ if not isinstance(lambda_, PickBase) else lambda_.get_type_description()
+        if Config.get("disable_external", get=bool) is True:
+            # user do not want to allow externals to be added but we have added them before argparse was parsed
+            # so that we could inform the user in the help text of the computable fields
+            types.pop(types.index(getattr(Types, name)))
+            delattr(Types, name)
+        else:
+            setattr(Types, name, Type(name, TypeGroup.general, doc))
+            type_ = getattr(Types, name)
+            methods[(Types.plaintext, type_)] = lambda_
+            if lambda_ is not True:
+                graph.add_edge(Types.plaintext, type_)
+            type_.init()
+            if Config.get("disable_external", get=bool) is False:
+                # when "disable_external" is None it means this method is called before argparse flags are parsed,
+                # we do not know yet if "disable_external" will be set to True or False
+                logger.debug(f"Successfully added method {method_name} from module {path}")
 
     @staticmethod
     def find_type(source_type_candidate):
@@ -709,6 +752,7 @@ class Types:
     country_name = Type("country_name", TypeGroup.general)  # XX not identifiable, user has to be told somehow there is such method
     phone = Type("phone", TypeGroup.general, "telephone number", ["telephone", "tel"], is_phone)
 
+    unit = Type("unit", TypeGroup.general, "any physical quantity", [], Checker.is_unit)
     timestamp = Type("timestamp", TypeGroup.general, "time or date", ["time"], Checker.is_timestamp)
     ip = Type("ip", TypeGroup.general, "valid IP address", ["ip", "ipaddress"], is_ip)
     source_ip = Type("source_ip", TypeGroup.general, "valid source IP address",
@@ -752,16 +796,22 @@ class Types:
         return sorted([t for t in types if not t.is_disabled and (t.identify_method or t.usual_names)])
 
     @staticmethod
-    def get_uml():
+    def get_uml(flags):
         """ Return DOT UML source code of types and methods
             dashed nodes = identifiable automatically
             dashed edges = lambda-True relation (see _get_methods() help)
             squares = category border
             edge label = possible ways of processing (@PickBase decorated methods)
+
+          FLAGS:
+             * +1 to gray out disabled fields/methods
+             * +2 to include usual field names
         """
-        l = ['digraph { ', 'label="Convey field types (dashed nodes = identifiable automatically)"']
+        l = ['digraph { ',
+             'rankdir=TB',  # XX rather LR?
+             'label="Convey field types (dashed nodes = identifiable automatically)"']
         used = set()
-        formatting_disabled = "[color=lightgray fontcolor=lightgray]"
+        formatting_disabled = "[color=lightgray fontcolor=lightgray]" if flags & 1 else ""
         loop = []
         existing_edges = set()
 
@@ -783,7 +833,10 @@ class Types:
         # for enabled, ((start, target), m) in [(True, f) for f in methods.items()] + [(False, f) for f in methods_deleted.items()]:
         for enabled, start, target, m in loop:
             disable_s = "" if enabled else formatting_disabled
-            if start.group != target.group and target.group.name != target and target.group is not TypeGroup.general:
+            if start.group != target.group and target.group.name != target and target.group in [TypeGroup.dns, TypeGroup.nmap, TypeGroup.custom]:
+                # Every type that goes to ex: `dns`, continues to all `dns` subtypes. We want `hostname -> spf` to go through `dns`.
+                # This is not the case of the group `whois` - this group has explicitly stated the path in methods,
+                #   ex: `ip → whois → country` but also `phone → country`.
                 add(start, target.group.name, disable_s)
                 start = target.group.name
             if add(start, target, disable_s):
@@ -805,7 +858,7 @@ class Types:
             s = ""
             if f.description:
                 label.append(f.description)
-            if Config.is_verbose():
+            if flags & 2:
                 if f.usual_names:
                     label.append("usual names: " + ", ".join(f.usual_names))
                 s = ' [label="' + r"\n".join(label) + '"]'
@@ -899,6 +952,8 @@ class Types:
             (t.timestamp, t.isotimestamp): Checker.isotimestamp,
             (t.timestamp, t.date): Checker.date,
             (t.timestamp, t.time): lambda val: Checker.parse_timestamp(val).time(),
+            (t.unit, t.plaintext): Checker.unit_expand,
+            (t.plaintext, t.unit): Checker.unit_expand
         }
 
 
