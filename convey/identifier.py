@@ -1043,6 +1043,8 @@ class Identifier:
 
         path = graph.dijkstra(target, start=start)  # list of method-names to calculate new fields
         lambdas = []  # list of lambdas to calculate new field
+        if not path:
+            return []
         for i in range(len(path) - 1):
             lambda_ = methods[path[i], path[i + 1]]
             if isinstance(lambda_, PickBase):

@@ -136,7 +136,8 @@ class Processor:
                 print(result.strip())
                 csv.stdout = result
                 self.csv.saved_to_disk = False
-
+            if 2 in self.descriptors:
+                del self.descriptors[2]
 
             self._close_descriptors()
 

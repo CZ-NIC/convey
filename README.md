@@ -211,7 +211,7 @@ def time_format(val, format="%H:%M"):
 ## Examples
 
 ### Base64 and Regular expressions
-```python3
+```bash
 # -f, --field adding field syntax: FIELD[[CUSTOM]],[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]
 # -H, --headless: just quietly print out single value, no dialog
 
@@ -269,6 +269,39 @@ kg|257.2059725490238 apothecary_dram
 kg|1000.0 gram
 
 
+# You may try to specify the units with no space and quotation. In the following example, convey expand all time-units it is able to compute – time units will be printed out and each is base64 encoded. 
+$ convey 3hours
+Input value detected: timestamp, unit
+
+field                value
+-------------------  ------------------------------------------------------------------
+(...)
+base64               ['MC4wMDQxMDY4NjM4OTc0NTAwNzcgbW9udGg=', 'MTA4MDAuMCBzZWNvbmQ=', 'MC4wMTc4NTcxNDI4NTcxNDI4NSB3ZWVr'] 
+plaintext            ['0.004106863897450077 month', '10800.0 second', '0.01785714285714285 week', (...)]
+time                 03:00:00
+(...)
+
+# What if
+$ convey 3hours -f urlencode
+Input value detected: timestamp, unit
+
+Input unit_expand variable unit: *you type here sec or seconds to see the wizzard*                                                                                                                                                                                                                                           
+Preview                                                                                                                                                                                                            
+| original   | result         |                                                                                                                                                                                    
+|------------|----------------|                                                                                                                                                                                    
+| 3hours     | 10800.0 second |                                                                                                                                                                                    
+
+field      value
+---------  ----------------
+urlencode  10800.0%20second
+
+# What if we wanted to urlencode text "3hours" without converting it to unit first? Just specify the SOURCE_TYPE to be plaintext:
+$ convey "3hours" -f urlencode,plaintext
+Input value detected: timestamp, unit
+
+field      value
+---------  -------
+urlencode  3hours
 
 ```
 
