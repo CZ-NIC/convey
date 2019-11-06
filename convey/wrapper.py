@@ -12,7 +12,6 @@ import jsonpickle
 from .config import Config, config_dir
 from .dialogue import is_yes
 from .identifier import Identifier
-# from .informer import mute_info
 from .parser import Parser
 
 __author__ = "Edvard Rejthar"
@@ -42,7 +41,7 @@ def read_stdin():
     return sys.stdin.readlines()
 
 
-class SourceWrapper:
+class Wrapper:
     def __init__(self, file_or_input, force_file=False, force_input=False, fresh=False):
         self.parser: Parser
         self.file = file = None
@@ -219,6 +218,8 @@ class SourceWrapper:
                     ranges = {**ranges, **self.parser.ranges}
                 else:
                     ip_seen, ranges = self.parser.ip_seen, self.parser.ranges
+                # note that ip_seen MUST be placed before ranges due to https://github.com/jsonpickle/jsonpickle/issues/280
+                # That way, a netaddr object (IPNetwork, IPRange) are defined as value in ip_seen and not as key in range.
                 encoded = jsonpickle.encode([ip_seen, ranges], keys=True)
                 Path(config_dir, ".convey-whois-cache.tmp").write_text(encoded)
             with open(self.cache_file, "w") as output:  # save cache

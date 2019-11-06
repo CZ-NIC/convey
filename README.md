@@ -111,12 +111,14 @@ pip3 install -r requirements.txt  --user
 
 ### Dependencies and troubleshooting
 * You'll be asked to install `dialog` library at the first run if not already present in the system.
-* If something is missing on your system, maybe you may find help in this command: `sudo apt install python3-pip git python3-tk dialog && pip3 install setuptools && pip3 install --upgrade ipython`
+* If something is missing on your system, maybe you may find help in this command: `sudo apt install python3-pip git python3-tk dialog whois dig nmap curl && pip3 install setuptools && pip3 install --upgrade ipython`
 
 ### Customisation
-* A file `config.ini` is automatically created in user config folder. This file may be edited for further customisation.
-* If `config.ini` is present at working directory, that one is used over the one in the user config folder.
-* Launch convey with [`--help`](docs/convey-help-cmd-output.txt) flag to see further options.
+* Launch convey with [`--help`](docs/convey-help-cmd-output.md) flag to see [`further options`](docs/convey-help-cmd-output.md).
+* A file `config.ini` is automatically created in user config folder. This file may be edited for further customisation. Access it with `convey --config`.
+> * Convey tries to open the file in the default GUI editor or in the terminal editor if GUI is not an option.
+> * If `config.ini` is present at working directory, that one is used over the one in the user config folder.
+> * Configuration updates automatically on upgrade. 
 
 ## Computable fields
 

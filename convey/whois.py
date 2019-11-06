@@ -1,10 +1,10 @@
 import logging
 import re
 import socket
-import time
 from collections import OrderedDict
 from datetime import datetime, timedelta
 from subprocess import PIPE, Popen
+from time import time, sleep
 from urllib.parse import urlparse, urlsplit
 
 from netaddr import IPRange, IPNetwork
@@ -63,7 +63,7 @@ class Whois:
         cls.unknown_mode = unknown_mode  # if True, we use b flag in abusemails
         cls.slow_mode = slow_mode  # due to LACNIC quota
         cls.queued_ips = set()
-        cls.ttl = timedelta(seconds=Config.get("whois_ttl", "FIELDS", int))
+        cls.ttl = Config.get("whois_ttl", "FIELDS", int)
         if Config.get("whois_mirror", "FIELDS"):  # try a fast local whois-mirror first
             cls.servers["mirror"] = Config.get("whois_mirror", "FIELDS")
         cls.servers["general"] = None
@@ -81,7 +81,7 @@ class Whois:
         if not Whois.unknown_mode:
             prefix = self.cache_load()  # try load prefix from earlier WHOIS responses
             if prefix:
-                if self.ttl != -1 and self.get[7] + self.ttl < datetime.now():
+                if self.ttl != -1 and self.get[7] + self.ttl < time():
                     # the TTL is too old, we cannot guarantee IP stayed in the same prefix, let's get rid of the old results
                     del self.ip_seen[self.ip]
                     del self.ranges[prefix]
@@ -95,7 +95,7 @@ class Whois:
         if Whois.slow_mode:
             if self.see:
                 print("waiting 7 seconds... ", end="", flush=True)
-            time.sleep(7)
+            sleep(7)
         get = self.analyze()  # prefix, location, mail, asn, netname, country
         if self.see:
             print(get[2])
@@ -293,7 +293,7 @@ class Whois:
                         else:
                             logger.warning(f"Whois server {self.last_server} query rate limit exceeded for: {self.ip}."
                                            f" Sleeping for 300 s till {self.quota.time()}... (you may howevec Ctrl-C to skip)")
-                            time.sleep(300)
+                            sleep(300)
                             self._exec(server=server)
                             continue
                     if self.last_server == "rwhois.gin.ntt.net":  # 204.2.250.0
@@ -346,14 +346,12 @@ class Whois:
             prefix = self._str2prefix(match)
 
         if country not in Config.get("local_country", "FIELDS"):
-            return prefix, "foreign", country, asn, netname, country, self.get_abusemail(), datetime.now()
+            return prefix, "foreign", country, asn, netname, country, self.get_abusemail(), int(time())
         else:
-            # print("Abusemail: ")
-            # print("abusemail loaded {}".format(self.abusemail))
             if Whois.unknown_mode:
                 self.resolve_unknown_mail()
             ab = self.get_abusemail()
-            return prefix, "local", ab, asn, netname, country, ab, datetime.now()
+            return prefix, "local", ab, asn, netname, country, ab, int(time())
 
     def _load_country_from_addresses(self):
         # let's try to find country in the non-standardised address field

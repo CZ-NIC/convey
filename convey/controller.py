@@ -19,8 +19,8 @@ from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
 from .identifier import Types, TypeGroup, types, Type, graph, PickMethod, methods, PickBase, PickInput
 from .mailSender import MailSenderOtrs, MailSenderSmtp
 from .parser import Parser, Field
-from .sourceWrapper import SourceWrapper
 from .wizzard import Preview, bottom_plain_style
+from .wrapper import Wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -203,7 +203,7 @@ class Controller:
             Config.set("single_query", True)
         Config.set("adding-new-fields", bool(new_fields))
 
-        self.wrapper = SourceWrapper(args.file_or_input, args.file, args.input, args.fresh)
+        self.wrapper = Wrapper(args.file_or_input, args.file, args.input, args.fresh)
         self.parser: Parser = self.wrapper.parser
 
         # load flags

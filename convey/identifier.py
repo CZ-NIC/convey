@@ -806,10 +806,10 @@ class Types:
           FLAGS:
              * +1 to gray out disabled fields/methods
              * +2 to include usual field names
+             * +16 wide-screen suitable (presenting) else tall graph
         """
         l = ['digraph { ',
-             # 'layout=twopi',
-             #'rankdir=LR',  # XX I really wish to have TB, with rows: IP, plaintext, timestamp
+             # 'rankdir=LR',  # XX I really wish to have TB, with rows: IP, plaintext, timestamp
              'label="Convey field types (dashed nodes = identifiable automatically, dashed edges = field identity)"']
         used = set()
         formatting_disabled = "[color=lightgray fontcolor=lightgray]" if flags & 1 else ""
@@ -870,9 +870,20 @@ class Types:
             # if f.is_private:
             #    l.append(f'{f.name} [shape=box]')
 
-        l.extend(["spf -> timestamp[style=invis]",  # formatting mark to put one cluster below another, not aside
-                   "formatted_time -> plaintext[style=invis]",
-                   "}"])
+        # formatting mark to put one cluster below another, not aside
+        if flags & 16:  # looks nicer in a presentation
+            l.extend([
+                "spf -> timestamp[style=invis]",
+                "formatted_time -> plaintext[style=invis]",
+                ])
+        else:  # looks nicer in README.md
+            l.extend([
+                "a -> web[style=invis]",
+                "text -> timestamp[style=invis]",
+                "dmarc -> urlencode[style=invis]",
+                "base64 -> custom[style=invis]",
+            ])
+        l.append("}")
         return "\n".join(l)
 
     @staticmethod
