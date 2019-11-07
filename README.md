@@ -114,7 +114,7 @@ pip3 install -r requirements.txt  --user
 * If something is missing on your system, maybe you may find help in this command: `sudo apt install python3-pip git python3-tk dialog whois dig nmap curl && pip3 install setuptools && pip3 install --upgrade ipython`
 
 ### Customisation
-* Launch convey with [`--help`](docs/convey-help-cmd-output.md) flag to see [`further options`](docs/convey-help-cmd-output.md).
+* Launch convey with [`--help`](docs/convey-help-cmd-output.md) flag to see [further options](docs/convey-help-cmd-output.md).
 * A file `config.ini` is automatically created in user config folder. This file may be edited for further customisation. Access it with `convey --config`.
 > * Convey tries to open the file in the default GUI editor or in the terminal editor if GUI is not an option.
 > * If `config.ini` is present at working directory, that one is used over the one in the user config folder.
@@ -125,7 +125,7 @@ pip3 install -r requirements.txt  --user
 We are able to compute these value types:
 
 * **abusemail** – got abuse e-mail contact from whois
-* **ans** – got from whois
+* **asn** – got from whois
 * **base64** – encode/decode
 * **country** – country code from whois
 * **csirt-contact** – e-mail address corresponding with country code, taken from your personal contacts_foreign CSV in the format `country,abusemail`. Path to this file has to be specified in `config.ini » contacts_foreign`
@@ -156,7 +156,8 @@ We are able to auto-detect these columns:
            
 
 ### Custom field example
-If you wish to compute an **external** field, you'll be dialogued for a path of a python file and desired method that should be used. The contents of the file can be as simple as this:
+#### Simple external method
+If you wish to compute an **external** field, prepare a file whose contents can be as simple as this:
 
 ```python3
 def any_method(value):
@@ -164,8 +165,34 @@ def any_method(value):
     return "modified :)"
 ```
 
-You may as well hard code custom fields in the [`config.ini`](convey/config.ini.default) by providing paths to the entrypoint Python files delimited by a comma: `external_fields = /tmp/myfile.py, /tmp/anotherfile.py`. All the public methods in the defined files will become custom fields! – If this is not needed, you may register one by one by adding items in the `EXTERNAL` section.
+##### Launch an external method
+* When CSV processing, hit *'Add column'* and choose *'new external... from a method in your. py file'*
+* Or in the terminal append `--field external` to your `convey` command. A dialog for a path of the Python file and desired method will appear.
+```bash
+$ convey [string_or_filepath] --field external 
+```
+* You may as well directly specify the path and the callable. Since the `--field` has following syntax: *FIELD[[CUSTOM]],[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]*, you may omit both *COLUMN* and *SOURCE_TYPE* writing it this way: *FIELD,~~COLUMN,SOURCE_TYPE~~,CUSTOM,CUSTOM*
+```bash
+$ convey [string_or_filepath] --field external,/tmp/mefile.py,any_method
+Input value seems to be plaintext.
+field     value
+--------  -----------------------
+external  modified :)
+```
 
+##### Register an external method
+* You may as well hard code custom fields in the [`config.ini`](convey/config.ini.default) by providing paths to the entry point Python files delimited by a comma: `external_fields = /tmp/myfile.py, /tmp/anotherfile.py`. All the public methods in the defined files will become custom fields!
+```editorconfig
+[EXTERNAL]
+external_fields = /tmp/myfile.py
+```
+* If this is not needed, you may register one by one by adding new items to the `EXTERNAL` section. Delimit the method names by a colon.
+```editorconfig
+[EXTERNAL]
+any_method = /tmp/myfile.py:any_method
+```
+
+#### List of results possible
 If you need a single call to generate multiple rows, return list, the row accepting a list will be duplicated.
 
 ```python3
@@ -174,9 +201,10 @@ def any_method(value):
     return ["foo", "bar"]
 ```
 
-Ex: If a method returns 2 items and another 3 items, you will receive 6 similar rows.
+When convey receives multiple lists, it generates a row for each combination. Ex: If a method returns 2 items and another 3 items, you will receive 6 similar rows.
 
-Should there be multiple ways of using your generator, you may decorate with `PickMethod` and let the user decide at the runtime. `PickMethod` has optional `default:str` that specifies default method.
+#### PickMethod decorator
+Should there be multiple ways of using your generator, you may decorate with `PickMethod` and let the user decide at the runtime. `PickMethod` has optional `default:str` parameter that specifies default method.
 
 ```python3
 from convey import PickMethod
@@ -197,7 +225,8 @@ $ convey file.csv --field any_method  # user will be asked whether to use `all` 
 $ convey file.csv --field any_method[filtered]  # filtered sub-method will be used
 ```
 
-If you need a direct user entry before each processing, import `PickInput` and make your method accept *two* parameters. The second will be given by the user and may have default value.
+#### PickInput decorator
+If you need a direct user entry before each processing, import `PickInput` and make your method accept *two* parameters. The latter will be set by the user and may have a default value.
 
 ```python3
 from convey import PickInput

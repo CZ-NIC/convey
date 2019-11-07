@@ -17,6 +17,7 @@ from .parser import Parser
 __author__ = "Edvard Rejthar"
 __date__ = "$Mar 23, 2015 8:33:24 PM$"
 
+WHOIS_CACHE = ".convey-whois-cache.json"
 
 def choose_file():
     print("Set path to the source log file.")
@@ -42,7 +43,10 @@ def read_stdin():
 
 
 class Wrapper:
-    def __init__(self, file_or_input, force_file=False, force_input=False, fresh=False):
+    def __init__(self, file_or_input, force_file=False, force_input=False, fresh=False, delete_cache=False):
+        if delete_cache:
+            Path(config_dir, WHOIS_CACHE).unlink()
+
         self.parser: Parser
         self.file = file = None
         self.stdin = stdin = None
@@ -151,7 +155,7 @@ class Wrapper:
 
     @staticmethod
     def load_whois_cache():
-        p = Path(config_dir, ".convey-whois-cache.tmp")  # restore whois cache
+        p = Path(config_dir, WHOIS_CACHE)  # restore whois cache
         if p.exists():
             return jsonpickle.decode(p.read_text(), keys=True)
         return {}, {}
@@ -221,7 +225,7 @@ class Wrapper:
                 # note that ip_seen MUST be placed before ranges due to https://github.com/jsonpickle/jsonpickle/issues/280
                 # That way, a netaddr object (IPNetwork, IPRange) are defined as value in ip_seen and not as key in range.
                 encoded = jsonpickle.encode([ip_seen, ranges], keys=True)
-                Path(config_dir, ".convey-whois-cache.tmp").write_text(encoded)
+                Path(config_dir, WHOIS_CACHE).write_text(encoded)
             with open(self.cache_file, "w") as output:  # save cache
                 output.write(string)
 

@@ -83,7 +83,7 @@ class Whois:
             if prefix:
                 if self.ttl != -1 and self.get[7] + self.ttl < time():
                     # the TTL is too old, we cannot guarantee IP stayed in the same prefix, let's get rid of the old results
-                    del self.ip_seen[self.ip]
+                    del self.ip_seen[ip]
                     del self.ranges[prefix]
                     self.get = None
                 else:
@@ -91,23 +91,18 @@ class Whois:
                     return
 
         if self.see:
-            print(f"Whois {self.ip}... ", end="", flush=True)
+            print(f"Whois {ip}... ", end="", flush=True)
         if Whois.slow_mode:
             if self.see:
                 print("waiting 7 seconds... ", end="", flush=True)
             sleep(7)
-        get = self.analyze()  # prefix, location, mail, asn, netname, country
+        get = self.analyze()  # prefix, location, mail, asn, netname, country...
         if self.see:
             print(get[2])
-
         prefix = get[0]
-        self.ip_seen[self.ip] = prefix
         if not prefix:
-            logger.info("No prefix found for IP {}".format(self.ip))
-            # get = None, "foreign", "unknown", None, None, None, None
-        # elif prefix in self.ranges:
-        #    X not valid for unknown_mode # IP in ranges wasnt found and so that its prefix shouldnt be in ranges.
-        #    raise AssertionError("The prefix " + prefix + " shouldn't be already present. Tell the programmer")
+            logger.info("No prefix found for IP {}".format(ip))
+        self.ip_seen[ip] = prefix
         self.get = self.ranges[prefix] = get
         self.count_stats()
 
@@ -402,6 +397,10 @@ class Whois:
             logger.warning("Whois response for IP {} on server {} cannot be parsed.".format(self.ip, server))
         except TypeError:  # could not resolve host
             self.whois_response = []
+        except FileNotFoundError:
+            logger.warning("Install whois by `sudo apt install whois` first")
+            input("Press any key...")
+            raise KeyboardInterrupt
         else:
             try:
                 self.last_server = Whois.regRe.search(response).groups()[0]

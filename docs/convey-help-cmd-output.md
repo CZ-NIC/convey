@@ -1,3 +1,4 @@
+This is the output of the `--help` command.
 ```
 usage: convey [-h] [--debug] [-F] [-y] [--file] [-i] [-o FILENAME]
               [--delimiter DELIMITER] [--quote-char QUOTE_CHAR] [--header]
@@ -13,7 +14,7 @@ usage: convey [-h] [--debug] [-F] [-y] [--file] [-i] [-o FILENAME]
               [--single-detect] [-C] [--multiple-hostname-ip [blank/false]]
               [--multiple-cidr-ip [blank/false]] [--whois-ttl SECONDS]
               [--show-uml [SHOW_UML]] [--compute-preview [blank/false]]
-              [--version]
+              [--delete-whois-cache] [--version]
               [file_or_input]
 
 Data conversion swiss knife
@@ -25,7 +26,9 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   --debug               On error, enter an ipdb session
-  -F, --fresh           Do not attempt to load any previous settings / results
+  -F, --fresh           Do not attempt to load any previous settings /
+                        results. Do not load convey's global WHOIS cache. (But
+                        merge WHOIS results in there afterwards.)
   -y, --yes             Assume non-interactive mode and the default answer to
                         questions.
   --file                Treat <file_or_input> parameter as a file, never as an
@@ -71,6 +74,7 @@ optional arguments:
                         * ip (valid IP address) usual names: ip, ipaddress
                         * isotimestamp
                         * plaintext (Plain text) usual names: plaintext, text
+                        * port (port) usual names: port, prt
                         * quoted_printable (Text encoded as quotedprintable)
                         * second_method (Hello boys!)
                         * time
@@ -83,10 +87,10 @@ optional arguments:
                         * reg
                         * reg_m
                         * reg_s
-                        * abusemail
-                        * asn (AS Number) usual names: as, asn, asnumber
+                        * abusemail (Abuse e-mail contact from whois)
+                        * asn (Autonomous system number) usual names: as, asn, asnumber
                         * country
-                        * csirt_contact
+                        * csirt_contact (E-mail address corresponding with country code, taken from your personal contacts_foreign CSV in the format `country,abusemail`. See config.ini/contacts_foreign)
                         * incident_contact
                         * netname
                         * prefix
@@ -155,6 +159,7 @@ optional arguments:
   --compute-preview [blank/false]
                         When adding new columns, show few first computed
                         values.
+  --delete-whois-cache  Delete convey's global WHOIS cache.
   --version             Show the version number (which is currently 1.2).
 
 To launch a web service see README.md.

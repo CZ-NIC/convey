@@ -76,7 +76,9 @@ class Controller:
         parser.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
                                                              "In nothing is given, user will input data through stdin.")
         parser.add_argument('--debug', help="On error, enter an ipdb session", action="store_true")
-        parser.add_argument('-F', '--fresh', help="Do not attempt to load any previous settings / results", action="store_true")
+        parser.add_argument('-F', '--fresh', help="Do not attempt to load any previous settings / results."
+                                                  " Do not load convey's global WHOIS cache."
+                                                  " (But merge WHOIS results in there afterwards.)", action="store_true")
         parser.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions.",
                             action="store_true")
         parser.add_argument('--file', help="Treat <file_or_input> parameter as a file, never as an input",
@@ -165,6 +167,7 @@ class Controller:
                             type=int, const=1, nargs='?')
         parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
+        parser.add_argument('--delete-whois-cache', help="Delete convey's global WHOIS cache.", action="store_true")
         parser.add_argument('--version', help=f"Show the version number (which is currently {__version__}).", action="store_true")
         self.args = args = parser.parse_args()
         if args.config:
@@ -203,7 +206,7 @@ class Controller:
             Config.set("single_query", True)
         Config.set("adding-new-fields", bool(new_fields))
 
-        self.wrapper = Wrapper(args.file_or_input, args.file, args.input, args.fresh)
+        self.wrapper = Wrapper(args.file_or_input, args.file, args.input, args.fresh, args.delete_whois_cache)
         self.parser: Parser = self.wrapper.parser
 
         # load flags

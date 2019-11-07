@@ -307,18 +307,26 @@ class Parser:
                     if methods:
                         fields.append((target_type, methods))
 
+        method_cache = {}
         for field, methods in fields:
             if type(field) is Type:
                 val = self.first_line
             else:
                 val = self.sample_parsed[0][field.source_field.col_i]
             try:
-                for l in methods:
+                for i, l in enumerate(methods):
+                    val_old = val
+                    if (repr((val, methods[:i+1]))) in method_cache:
+                        val = method_cache[(repr((val, methods[:i+1])))]
+                        continue
                     if isinstance(val, list):
                         # resolve all items, while flattening any list encountered
                         val = [y for x in (l(v) for v in val) for y in (x if type(x) is list else [x])]
                     else:
                         val = l(val)
+                    # We cache this value so that it will not be recomputed when crawling the same path on the graph again.
+                    # Ex: `hostame → ip → country` and `hostname → ip → asn` will not call method `hostname → ip` twice (for each).
+                    method_cache[(repr((val, methods[:i+1])))] = val
             except Exception as e:
                 val = str(e)
             self.sample_parsed[0].append(val)

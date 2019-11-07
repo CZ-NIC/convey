@@ -19,6 +19,7 @@ from enum import IntEnum
 from pathlib import Path
 from quopri import decodestring, encodestring
 from statistics import mean
+from threading import Thread
 from typing import List, Callable
 from urllib.parse import unquote, quote, urlparse
 
@@ -153,6 +154,38 @@ def is_ip(ip):
 pint = UnitRegistry()
 
 
+def timeout(seconds: int, function: Callable, *args, **kwargs):
+    """
+    Launch the function in a new thread. If function stops before timeout, returns output or re-raise an exception received.
+    If timeout reached, raises TimeoutError and let the thread hang indefinitely, ignoring any successive output or exception.
+    However, thread can print to stdout even after TimeoutError has been reached because there is no safe option to kill a thread.
+    :param seconds: int
+    :param function:
+    :param args: Any positional arguments the function receives.
+    :param kwargs: Any keyword arguments the function receives.
+    :return:
+    """
+    result = []
+    exception = []
+
+    def wrapper(*args, **kwargs):
+        try:
+            result.append(function(*args, **kwargs))
+        except Exception as e:
+            exception.append(e)
+
+    thread = Thread(target=wrapper, args=args, kwargs=kwargs)
+    thread.daemon = True  # will not block the program exit if hung
+    thread.start()
+    thread.join(seconds)
+    if thread.is_alive():
+        raise TimeoutError(f'Timeout {seconds} of {function}')
+    else:
+        if exception:
+            raise exception[0] from None
+        return result[0]
+
+
 class Checker:
     """ To not pollute the namespace, we put the methods here """
 
@@ -160,22 +193,22 @@ class Checker:
     hostname_cache = {}
 
     @staticmethod
-    def hostname2ips(hostname):
-        if hostname not in Checker.hostname_ips_cache:
+    def hostname_ips(val):
+        if val not in Checker.hostname_ips_cache:
             try:
-                Checker.hostname_ips_cache[hostname] = list({addr[4][0] for addr in socket.getaddrinfo(hostname, None)})
-            except OSError:
-                Checker.hostname_ips_cache[hostname] = []
-        return Checker.hostname_ips_cache[hostname]
+                Checker.hostname_ips_cache[val] = list({addr[4][0] for addr in timeout(15, socket.getaddrinfo, val, None)})
+            except (TimeoutError, OSError) as e:
+                Checker.hostname_ips_cache[val] = []
+        return Checker.hostname_ips_cache[val]
 
     @classmethod
-    def hostname2ip(cls, hostname):
-        if hostname not in cls.hostname_cache:
+    def hostname_ip(cls, val):
+        if val not in cls.hostname_cache:
             try:
-                cls.hostname_cache[hostname] = socket.gethostbyname(hostname)
-            except OSError:
-                cls.hostname_cache[hostname] = False
-        return cls.hostname_cache[hostname]
+                cls.hostname_cache[val] = timeout(1, socket.gethostbyname, val)
+            except (TimeoutError, OSError) as e:
+                cls.hostname_cache[val] = []
+        return cls.hostname_cache[val]
 
     @staticmethod
     def check_cidr(cidr):
@@ -186,7 +219,7 @@ class Checker:
             except ValueError:  # "1.2.3.4" fail, "1.2.3.4/24" pass
                 return True
         except ValueError:
-            pass
+            return False
 
     @staticmethod
     def is_base64(x):
@@ -251,8 +284,9 @@ class Checker:
     @staticmethod
     def is_unit(val):
         try:
-            return bool(pint.parse_expression(val))
-        except (ValueError, AttributeError):
+            e = pint.parse_expression(val)
+            return e and pint.get_compatible_units(e)
+        except (TypeError, ValueError, AttributeError):
             return False
 
     @staticmethod
@@ -368,6 +402,14 @@ def port_ip_2_ip(s):
     if m:
         return m.group(1).rstrip(".")
 
+def port_ip_2_port(s):
+    m = reIpWithPort.match(s)
+    if m:
+        return m.group(3)
+
+def url_port(s):
+    return s.split(":")[1].split("\\")[0]
+
 
 class Web:
     """
@@ -401,13 +443,13 @@ class Web:
                 response = requests.get(current_url, timeout=3, headers=self.headers, allow_redirects=False)
             except IOError as e:
                 if isinstance(e, requests.exceptions.HTTPError):
-                    s = "Http error"
+                    s = -1
                 elif isinstance(e, requests.exceptions.ConnectionError):
-                    s = "Error Connecting"
+                    s = -2
                 elif isinstance(e, requests.exceptions.Timeout):
-                    s = "Timeout Error:"
+                    s = -3
                 elif isinstance(e, requests.exceptions.RequestException):
-                    s = "Oops : Something Else"
+                    s = -4
                 else:
                     s = e
                 self.cache[url] = self.get = str(s), None, None, redirects, None, None
@@ -449,6 +491,7 @@ class Web:
 
 def dig(rr):
     def dig_query(query):
+        logger.debug(f"Digging {rr} of {query}")
         if rr == "SPF":
             t = "TXT"
         elif rr == "DMARC":
@@ -456,7 +499,7 @@ def dig(rr):
             t = "TXT"
         else:
             t = rr
-        text = subprocess.check_output(["dig", "+short", "-t", t, query]).decode("utf-8")
+        text = subprocess.check_output(["dig", "+short", "-t", t, query, "+timeout=1"]).decode("utf-8")
         if text.startswith(";;"):
             return None
         spl = text.split("\n")[:-1]
@@ -466,6 +509,7 @@ def dig(rr):
                 return [r for r in spl if r.startswith('v=spf')]
             elif rr == "TXT":
                 return [r for r in spl if not r.startswith('v=spf')]
+        logger.debug(f"Dug {spl}")
         return spl
 
     return dig_query
@@ -724,12 +768,14 @@ class Types:
     reg_m = Type("reg_m", TypeGroup.custom, from_message="match from a regular expression")
     netname = Type("netname", TypeGroup.whois)
     country = Type("country", TypeGroup.whois)
-    abusemail = Type("abusemail", TypeGroup.whois)
+    abusemail = Type("abusemail", TypeGroup.whois, "Abuse e-mail contact from whois")
     prefix = Type("prefix", TypeGroup.whois)  # XX rename to 'inetnum'? to 'range'?
-    csirt_contact = Type("csirt_contact", TypeGroup.whois)
+    csirt_contact = Type("csirt_contact", TypeGroup.whois,
+                         "E-mail address corresponding with country code, taken from your personal contacts_foreign CSV"
+                         " in the format `country,abusemail`. See config.ini/contacts_foreign")
     incident_contact = Type("incident_contact", TypeGroup.whois)
     text = Type("text", TypeGroup.web)
-    http_status = Type("http_status", TypeGroup.web)
+    http_status = Type("http_status", TypeGroup.web, "HTTP response status. If below 0, request failed.")
     html = Type("html", TypeGroup.web)
     redirects = Type("redirects", TypeGroup.web)
     x_frame_options = Type("x_frame_options", TypeGroup.web)
@@ -759,6 +805,7 @@ class Types:
                      ["sourceipaddress", "source", "src"], is_ip, usual_must_match=True)
     destination_ip = Type("destination_ip", TypeGroup.general, "valid destination IP address",
                           ["destinationipaddress", "destination", "dest", "dst"], is_ip, usual_must_match=True)
+    port = Type("port", TypeGroup.general, "port", ["port","prt"], lambda x: re.match("\d{1,5}", x), usual_must_match=True)
     cidr = Type("cidr", TypeGroup.general, "CIDR 127.0.0.1/32", ["cidr"], Checker.check_cidr)
     port_ip = Type("port_ip", TypeGroup.general, "IP in the form 1.2.3.4.port", [], reIpWithPort.match)
     any_ip = Type("any_ip", TypeGroup.general, "IP in the form 'any text 1.2.3.4 any text'", [],
@@ -767,7 +814,7 @@ class Types:
     email = Type("email", TypeGroup.general, "E-mail address", ["mail"], validate_email)
     url = Type("url", TypeGroup.general, "URL starting with http/https", ["url", "uri", "location"],
                lambda s: reUrl.match(s) and "[.]" not in s)  # input "example[.]com" would be admitted as a valid URL)
-    asn = Type("asn", TypeGroup.whois, "AS Number", ["as", "asn", "asnumber"],
+    asn = Type("asn", TypeGroup.whois, "Autonomous system number", ["as", "asn", "asnumber"],
                lambda x: re.search('AS\d+', x) is not None)
     base64 = Type("base64", TypeGroup.general, "Text encoded with Base64", ["base64"], Checker.is_base64)
     quoted_printable = Type("quoted_printable", TypeGroup.general, "Text encoded as quotedprintable", [], Checker.is_quopri)
@@ -875,7 +922,7 @@ class Types:
             l.extend([
                 "spf -> timestamp[style=invis]",
                 "formatted_time -> plaintext[style=invis]",
-                ])
+            ])
         else:  # looks nicer in README.md
             l.extend([
                 "a -> web[style=invis]",
@@ -907,8 +954,10 @@ class Types:
             (t.destination_ip, t.ip): True,
             (t.any_ip, t.ip): any_ip_2_ip,  # "91.222.204.175 93.171.205.34" -> "91.222.204.175" OR '"1.2.3.4"' -> 1.2.3.4
             (t.port_ip, t.ip): port_ip_2_ip,  # IP written with a port 91.222.204.175.23 -> 91.222.204.175
+            (t.port_ip, t.port): port_ip_2_port,
             (t.url, t.hostname): Whois.url2hostname,
-            (t.hostname, t.ip): Checker.hostname2ips if Config.get("multiple_hostname_ip", "FIELDS") else Checker.hostname2ip,
+            (t.url, t.port): url_port,
+            (t.hostname, t.ip): Checker.hostname_ips if Config.get("multiple_hostname_ip", "FIELDS") else Checker.hostname_ip,
             # (t.url, t.ip): Whois.url2ip,
             (t.ip, t.whois): Whois,
             (t.cidr, t.ip): Checker.cidr_ips if Config.get("multiple_cidr_ip", "FIELDS") else

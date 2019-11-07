@@ -5,6 +5,7 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"  # this file dirname
 convey --disable-external --show-uml 0 | dot -Tsvg -o $DIR/../docs/convey-methods.svg
 HELPFILE=$DIR/../docs/convey-help-cmd-output.md
-echo "\`\`\`" > $HELPFILE
+echo "This is the output of the \`--help\` command." > $HELPFILE
+echo "\`\`\`" >> $HELPFILE
 convey --help >> $HELPFILE
 echo "\`\`\`" >> $HELPFILE

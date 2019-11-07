@@ -23,6 +23,9 @@ try:
 except PermissionError:
     fileHandler = None
     print("Cannot create convey.log here at "+str(Path(".").absolute()))
+except FileNotFoundError:  # FileNotFoundError emitted when we are in a directory whose inode exists no more
+    print("Current working directory doesn't exist.")
+    quit()
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logging.Formatter('%(message)s'))
 consoleHandler.setLevel(logging.INFO)

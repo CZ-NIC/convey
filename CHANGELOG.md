@@ -27,7 +27,7 @@
         - --field, --field-excluded, --delete, --split, --sort
         - --single-query, --csv-processing
         - --version
-        - --disable-external
+        - --disable-external, --delete-whois-cache
     - INI only flags
         - github_crash_submit
 * fixes:
@@ -77,7 +77,7 @@
     - dns types (a, aaaa, mx, spf, ns, dmarc, txt)
     - tld
     - web: text, http_status, html, redirects, x_frame_options, csp
-    - ports
+    - port, ports
     - urlencode, quoted_printable
     - charset, bytes    
     - timestamp, isotimestamp, time, date, formatted_time
