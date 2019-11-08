@@ -331,7 +331,7 @@ class Parser:
             except Exception as e:
                 val = str(e)
             self.sample_parsed[0].append(val)
-            if field.is_chosen:
+            if type(field) is Type or field.is_chosen:
                 append(field, val)
 
         # prepare json to return (useful in a web service)

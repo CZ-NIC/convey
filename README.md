@@ -17,6 +17,40 @@ Any input is accepted:
 
 Python3.6+ required.
 
+# Table of contents
+* [Usage](#usage)
+  + [Usage 1 – Single query](#usage-1--single-query)
+  + [Usage 2 – CSV processor program](#usage-2--csv-processor-program)
+  + [Usage 3 – Web service](#usage-3--web-service)
+* [Installation and first run](#installation-and-first-run)
+  + [Launch as a package:](#launch-as-a-package-)
+  + [OR launch from a directory](#or-launch-from-a-directory)
+  + [Dependencies and troubleshooting](#dependencies-and-troubleshooting)
+  + [Customisation](#customisation)
+* [Computing fields](#computing-fields)
+  + [Computable fields](#computable-fields)
+  + [Detectable fields](#detectable-fields)
+  + [Overview of all methods:](#overview-of-all-methods)
+  + [External field how-to](#external-field-how-to)
+    - [Simple custom method](#simple-custom-method)
+      * [Launch an external method](#launch-an-external-method)
+      * [Register an external method](#register-an-external-method)
+    - [List of results possible](#list-of-results-possible)
+    - [PickMethod decorator](#pickmethod-decorator)
+    - [PickInput decorator](#pickinput-decorator)
+* [Examples](#examples)
+  + [URL parsing](#url-parsing)
+    - [Output formats](#output-formats)
+    - [Computing TLD from another column](#computing-tld-from-another-column)
+    - [CSV processing](#csv-processing)
+    - [File splitting](#file-splitting)
+    - [CSIRT Usecase](#csirt-usecase)
+  + [Custom code field](#custom-code-field)
+  + [Base64 and Regular expressions](#base64-and-regular-expressions)
+  + [Converting units](#converting-units)
+* [Credits](#credits)
+
+
 ## Usage
 
 ### Usage 1 – Single query
@@ -117,7 +151,7 @@ pip3 install -r requirements.txt  --user
 * A file [`config.ini`](convey/defaults/config.ini) is automatically created in [user config folder](convey/defaults/config.ini). This file may be edited for further customisation. Access it with `convey --config`.
 > * Convey tries to open the file in the default GUI editor or in the terminal editor if GUI is not an option.
 > * If `config.ini` is present at working directory, that one is used over the one in the user config folder.
-> * Configuration updates automatically on upgrade. 
+> * Configuration is updated automatically on upgrade. 
 
 ## Computing fields
 
@@ -153,16 +187,18 @@ Some of the field types we are able to auto-detect:
 
 ### Overview of all methods:
 
-Current field computing capacity can be get from `--show-uml` flag.
+Current field computing capacity can be get from `--show-uml` flag. Generate yours by ex: `convey --show-uml | dot -Tsvg -o /tmp/convey-methods.svg`
+
 * Dashed node: field type is auto-detectable
 * Dashed edge: field type are identical
+* Edge label: generating options
 * Rectangle: field category border 
 
 ![Methods overview](./docs/convey-methods.svg?sanitize=True)
 
            
 
-### External field example
+### External field how-to
 #### Simple custom method
 If you wish to compute an **external** field, prepare a file whose contents can be as simple as this:
 
@@ -178,7 +214,13 @@ def any_method(value):
 ```bash
 $ convey [string_or_filepath] --field external 
 ```
-* You may as well directly specify the path and the callable. Since the `--field` has following syntax: *FIELD[[CUSTOM]],[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]*, you may omit both *COLUMN* and *SOURCE_TYPE* writing it this way: *FIELD,~~COLUMN,SOURCE_TYPE~~,CUSTOM,CUSTOM*
+* You may as well directly specify the path and the callable. Since the `--field` has following syntax:  
+> *FIELD[[CUSTOM]],[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]*
+  
+You may omit both *COLUMN* and *SOURCE_TYPE* writing it this way:
+    
+> *FIELD,~~COLUMN,SOURCE_TYPE~~,CUSTOM,CUSTOM*  
+> external,/tmp/myfile.py,any_method
 ```bash
 $ convey [string_or_filepath] --field external,/tmp/myfile.py,any_method
 Input value seems to be plaintext.
@@ -451,7 +493,7 @@ A most of the work is done by this command.
 convey --field-excluded incident_contact,source_ip --split incident_contact --yes [FILENAME]
 ```
 
-### Custom code
+### Custom code field
 
 Adding a column from custom Python code:
 ```bash
@@ -470,14 +512,16 @@ hello
 
 Use a `reg` column for regular expressions.
 ```bash
-$ convey aGVsbG8= -f reg  # start adding a new reg column wizzard that will take decoded "hello" as input 
+# start adding a new reg column wizzard that will take decoded "hello" as input 
+$ convey aGVsbG8= -f reg
 $ convey aGVsbG8= -f reg_s,"ll","LL" -H   # substitute 'll' with 'LL'
 heLLo
 ```
 
 Specify source
 ```bash
-$ convey aGVsbG8= -f reg,plaintext # start adding a new reg column wizzard that will take plaintext "aGVsbG8=" as input 
+# start adding a new reg column wizzard that will take plaintext "aGVsbG8=" as input 
+$ convey aGVsbG8= -f reg,plaintext
 # specifying plaintext as a source type will prevent implicit convertion from base64
 $ convey aGVsbG8= -f reg_s,plaintext,"[A-Z]","!" -H  # substitute uppercase letters with '!'
 a!!sb!8=
@@ -491,12 +535,12 @@ $ convey "3 kg"
 Input value detected: unit
 
 field      value
----------  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-plaintext  ['105.82188584874123 ounce', '1693.1501735798597 drachm', '1.806642538265029e+27 atomic_mass_unit', '3.2933076034236e+30 electron_mass', '0.0703602964419822 bag', '6.613867865546327 pound', '4
-           6297.07505882429 grain', '8.037686642156995 apothecary_pound', '15000.0 carat', '8.037686642156993 troy_pound', '1929.0447941176785 pennyweight', '3000.0 gram', '0.06613867865546327 short_hund
-           erdweight', '0.05905239165666364 long_hunderweight', '771.6179176470714 apothecary_dram', '0.47241913325330914 stone', '1.7935913792661326e+27 proton_mass', '0.06613867865546327 US_hundredweig
-           ht', '0.059052391656663636 UK_hundredweight', '0.003306933932773164 US_ton', '0.016872111901903894 quarter', '1.7911224616452038e+27 neutron_mass', '96.45223970588394 troy_ounce', '96.45223970
-           588393 apothecary_ounce', '0.003 metric_ton', '2314.853752941214 scruple', '0.003306933932773164 short_ton', '0.002952619582833182 UK_ton', '0.002952619582833182 long_ton']
+---------  --------------------------------------------------------------------------------------------
+plaintext  ['1.806642538265029e+27 atomic_mass_unit', '105.82188584874123 ounce', '96.45223970588393 ap
+           othecary_ounce', '0.0703602964419822 bag', '0.05905239165666364 long_hunderweight', '0.06613
+           867865546327 US_hundredweight', '0.002952619582833182 UK_ton', '0.002952619582833182 long_to
+           n', '1929.0447941176785 pennyweight', '46297.07505882429 grain', '1.7935913792661326e+27 pro
+           ton_mass', '771.6179176470714 apothecary_dram', '3000.0 gram', ...]
 
 
 $ convey "3 kg" -f unit # launches wizzard that let's you decide what unit to convert to 
@@ -512,7 +556,9 @@ kg|257.2059725490238 apothecary_dram
 kg|1000.0 gram
 
 
-# You may try to specify the units with no space and quotation. In the following example, convey expand all time-units it is able to compute – time units will be printed out and each is base64 encoded. 
+# You may try to specify the units with no space and quotation.
+# In the following example, convey expand all time-units it is able to compute
+# – time units will be printed out and each is base64 encoded. 
 $ convey 3hours
 Input value detected: timestamp, unit
 
@@ -538,7 +584,8 @@ field      value
 ---------  ----------------
 urlencode  10800.0%20second
 
-# What if we wanted to urlencode text "3hours" without converting it to unit first? Just specify the SOURCE_TYPE to be plaintext:
+# What if we wanted to urlencode text "3hours" without converting it to unit first? 
+# Just specify the SOURCE_TYPE to be plaintext:
 $ convey "3hours" -f urlencode,plaintext
 Input value detected: timestamp, unit
 
