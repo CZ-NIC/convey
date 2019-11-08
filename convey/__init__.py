@@ -1,5 +1,5 @@
 # import Config file as the very first one (setup logging)
 from .config import Config
-from .identifier import PickMethod, PickInput
+from .types import PickMethod, PickInput
 
 __all__ = [PickMethod, PickInput]

@@ -14,7 +14,7 @@ from time import sleep
 from appdirs import user_config_dir
 
 # setup logging
-handlers=[]
+handlers = []
 try:
     fileHandler = logging.FileHandler("convey.log")
     fileHandler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
@@ -22,7 +22,7 @@ try:
     handlers.append(fileHandler)
 except PermissionError:
     fileHandler = None
-    print("Cannot create convey.log here at "+str(Path(".").absolute()))
+    print("Cannot create convey.log here at " + str(Path(".").absolute()))
 except FileNotFoundError:  # FileNotFoundError emitted when we are in a directory whose inode exists no more
     print("Current working directory doesn't exist.")
     quit()
@@ -38,6 +38,7 @@ default_path = Path(Path(__file__).resolve().parent, "defaults")  # path to the 
 
 config_dir = user_config_dir("convey")
 BOOLEAN_STATES = configparser.RawConfigParser.BOOLEAN_STATES
+
 
 def get_path(file):
     """ Assures the file is ready, or creates a new one from a default. """
@@ -58,7 +59,7 @@ def get_path(file):
             # INIT file at user config folder
             file = Path(config_dir, file)
         else:
-            exists = False    
+            exists = False
 
     if exists:
         while not Path(file).exists():
@@ -289,9 +290,9 @@ class Config:
                 if (get is None or get is bool) and val.lower() in BOOLEAN_STATES:
                     val = BOOLEAN_STATES[val.lower()]
                 elif val == '':
-                    val = None
+                    val = get() if get else None
             except (configparser.Error, KeyError):
-                return None
+                return get() if get else None
             Config.cache[key] = val
         val = Config.cache[key]
         if get is str and type(val) is not str:
@@ -341,16 +342,21 @@ class Config:
         return Config.cache_dir
 
     @staticmethod
-    def edit_configuration():
-        app = Popen(['xdg-open', Config.path], stdout=PIPE, stderr=PIPE)
-        for i in enumerate(range(10)):  # lets wait a second to be sure GUI app started
-            sleep(0.1)
-            p = app.poll()
-            if p is not None:
-                if p != 0:
-                    # a GUI app have not started, let's launch a CLI terminal
-                    call(["editor", Config.path])
-                break
+    def edit_configuration(flags = 3):
+        if flags & 2:
+            app = Popen(['xdg-open', Config.path], stdout=PIPE, stderr=PIPE)
+        elif flags & 1:
+            call(["editor", Config.path])
+
+        if flags & 3:
+            for i in enumerate(range(10)):  # lets wait a second to be sure GUI app started
+                sleep(0.1)
+                p = app.poll()
+                if p is not None:
+                    if p != 0:
+                        # a GUI app have not started, let's launch a CLI terminal
+                        call(["editor", Config.path])
+                    break
 
 
 def get_terminal_size():
@@ -359,3 +365,8 @@ def get_terminal_size():
         return height, width
     except (OSError, ValueError):
         return 0, 0
+
+
+# we are awaiting english replies in the subprocess application
+subprocess_env = dict(os.environ)
+subprocess_env["LANG"] = "en_US.UTF-8"

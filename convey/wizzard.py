@@ -18,7 +18,7 @@ from pygments.token import Token
 from tabulate import tabulate
 
 from .config import Config, consoleHandler
-from .identifier import Type, Types, PickInput
+from .types import Type, Types, PickInput
 
 
 def yellow_no_end(s):

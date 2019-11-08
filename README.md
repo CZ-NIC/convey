@@ -8,13 +8,12 @@ Any input is accepted:
 * multiline **base64**/**quoted_printable** string gets decoded
 * **log file** is converted to CSV 
 * **CSV file** (any delimiter, header or whatever) performs one or more actions
-    1) **Pick or delete columns** (if only some columns are needed)
+    1) **Pick, delete or sort columns** (if only some columns are needed)
     2) **Add a column** (computes one field from another – see below)
     3) **Unique filter** (no value duplicates)
     4) **Value filter** (only rows with a specific values are preserved)
     5) **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
     6) **Change CSV dialect** (change delimiter or quoting character)
-
 
 Python3.6+ required.
 
@@ -63,8 +62,8 @@ Could you confirm this? [y]/n
 ### Usage 3 – Web service
 Again, let's provide an IP to the web service, it returns JSON with WHOIS-related information and scraped HTTP content.
 ```bash
-check
-$ pip3 check_if_typeconvey
+# install convey and check where it is installed
+$ pip3 show convey
 Location: /home/$USER/.local/lib/python3.7/site-packages
 # launch __main__.py with uwsgi (note that LACNIC may freeze for 300 s, hence the timeout recommendation)
 $ uwsgi --http :26683 --http-timeout 310 --wsgi-file /home/$USER/.local/lib/python3.7/site-packages/convey/__main__.py
@@ -111,18 +110,20 @@ pip3 install -r requirements.txt  --user
 
 ### Dependencies and troubleshooting
 * You'll be asked to install `dialog` library at the first run if not already present in the system.
-* If something is missing on your system, maybe you may find help in this command: `sudo apt install python3-pip git python3-tk dialog whois dig nmap curl && pip3 install setuptools && pip3 install --upgrade ipython`
+* If something is missing on your system, you may find help yourself with this command: `sudo apt install python3-pip git python3-tk dialog whois dig nmap curl && pip3 install setuptools && pip3 install --upgrade ipython`
 
 ### Customisation
 * Launch convey with [`--help`](docs/convey-help-cmd-output.md) flag to see [further options](docs/convey-help-cmd-output.md).
-* A file `config.ini` is automatically created in user config folder. This file may be edited for further customisation. Access it with `convey --config`.
+* A file [`config.ini`](convey/defaults/config.ini) is automatically created in [user config folder](convey/defaults/config.ini). This file may be edited for further customisation. Access it with `convey --config`.
 > * Convey tries to open the file in the default GUI editor or in the terminal editor if GUI is not an option.
 > * If `config.ini` is present at working directory, that one is used over the one in the user config folder.
 > * Configuration updates automatically on upgrade. 
 
-## Computable fields
+## Computing fields
 
-We are able to compute these value types:
+### Computable fields
+
+Some of the field types we are able to compute:
 
 * **abusemail** – got abuse e-mail contact from whois
 * **asn** – got from whois
@@ -136,13 +137,9 @@ We are able to compute these value types:
 * **netname** – got from whois
 * **prefix** – got from whois
 
-### Overview of all methods:
-
-![Methods overview](./docs/convey-methods.svg?sanitize=True)
-
 ### Detectable fields
 
-We are able to auto-detect these columns: 
+Some of the field types we are able to auto-detect: 
 
 * **ip** – standard IPv4 / IPv6 addresses
 * **cidr** – CIDR notation, ex: 127.0.0.1/32
@@ -153,6 +150,16 @@ We are able to auto-detect these columns:
 * **asn** – AS Number
 * **base64** – text encoded with base64
 * **wrongURL** – URL that has been deactivated by replacing certain chars, ex: "hxxp://example[.]com"
+
+### Overview of all methods:
+
+Current field computing capacity can be get from `--show-uml` flag.
+* Dashed node: field type is auto-detectable
+* Dashed edge: field type are identical
+* Rectangle: field category border 
+
+![Methods overview](./docs/convey-methods.svg?sanitize=True)
+
            
 
 ### External field example
@@ -239,40 +246,247 @@ def time_format(val, format="%H:%M"):
 
 ## Examples
 
-### Base64 and Regular expressions
+In the examples, we will use these parameters to add a field and to shorten the result. 
 ```bash
 # -f, --field adding field syntax: FIELD[[CUSTOM]],[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]
 # -H, --headless: just quietly print out single value, no dialog
+```
 
+### URL parsing
+
+#### Output formats
+Put any IP or URL as the argument.
+
+```bash
+$ convey example.com
+Input value detected: hostname
+
+Whois 93.184.216.34... abuse@verizondigitalmedia.com
+Scrapping http://example.com...
+field             value
+----------------  ------------------------------------------------------------------------------
+cidr              93.184.216.0/24
+ip                93.184.216.34
+tld               com
+url               http://example.com
+abusemail         abuse@verizondigitalmedia.com
+csirt_contact     -
+incident_contact  abuse@verizondigitalmedia.com
+netname           edgecast-netblk-03
+prefix            93.184.216.0-93.184.216.255
+a                 93.184.216.34
+aaaa              2606:2800:220:1:248:1893:25c8:1946
+mx                0 .
+ns                ['a.iana-servers.net.', 'b.iana-servers.net.']
+spf               v=spf1 -all
+http_status       200
+text              Example Domain
+                  This domain is for use in illustrative examples in documents. You may use this
+                   domain in literature without prior coordination or asking for permission.
+                  More informatio
+                  n...
+```
+
+Should you need just the country the domain/IP is hosted in, use `--field, -f` argument
+
+```bash
+$ convey wikipedia.com -f country
+Input value detected: hostname
+
+Whois 208.80.154.232... us
+field    value
+-------  -------
+country  us
+``` 
+
+Use `--headless, -H` or `--quiet, -q` flag to shorten the output (and cut down all dialogues). 
+```bash
+$ convey wikipedia.com -f country -H
+us
+```
+
+Flag `--json` modifies the output.
+
+```bash
+$ convey wikipedia.com -f country -H --json
+{"country": "us"}
+```
+
+#### Computing TLD from another column
+To compute a TLD from the abusemail that is being used for the IP domain is hosted in, add a field `abusemail` and then another field `tld`. Specifically say that the latter should source from the second column (which is `abusemail`) – either type '2' or 'abusemail'.
+
+```bash
+$ convey example.com -f abusemail -f tld,2
+$ convey example.com -f abusemail -f tld,abusemail
+Input value detected: hostname
+
+Whois 93.184.216.34... abuse@verizondigitalmedia.com
+field      value
+---------  -----------------------------
+abusemail  abuse@verizondigitalmedia.com
+tld        com
+
+```
+
+To prevent `abusemail` from being output, use `--field-excluded, -fe` instead of `--field, -f`:
+```bash
+$ convey example.com -fe abusemail -f tld,2 -H
+Input value detected: hostname
+
+Whois 93.184.216.34... abuse@verizondigitalmedia.com
+field    value
+-------  -------
+tld      com
+```
+
+We did not say earlier, user is asked each time whether they wish to get any `tld`, `gTLD` (ex: *com*) or `ccTLD` (ex: *cz*). You may specify it from CLI by one of those equivalent commands.
+```bash
+$ convey test.csv --fresh -field tld[gTLD]
+$ convey test.csv --fresh -field tld,,,gTLD
+
+# flag --yes or --headless will choose the default option which is *all*
+$ convey test.csv --fresh -field tld --yes
+```
+
+#### CSV processing
+Should you have a list of the object that you want to enrich of a CIDR they are hosted at, load the file `test.csv` they are located in.
+
+```csv
+# file text.csv
+domain list
+wikipedia.com
+example.com
+```
+
+And see the menu just by adding `--field cidr` argument.
+
+```bash
+$ convey test.csv -f cidr
+Source file: /tmp/ram/test.csv
+Identified columns: 
+Log lines: 3
+
+Sample:
+domain list
+wikipedia.com
+example.com
+
+Delimiter character found: ','
+Quoting character: '"'
+Header is present: yes
+
+Could you confirm this? [y]/n: (HIT ENTER)
+
+Source file: /tmp/ram/test.csv, delimiter: ',', quoting: '"', header: used
+Identified columns: domain list (hostname)
+Computed columns: cidr (from domain list)
+Log lines: 3
+
+Sample:
+domain list
+wikipedia.com
+example.com
+
+Whois 208.80.154.232... us
+Whois 93.184.216.34... abuse@verizondigitalmedia.com
+Preview:
+domain list      cidr from:
+   (hostname)    domain list
+---------------  ---------------
+wikipedia.com    208.80.152.0/22
+example.com      93.184.216.0/24
+
+Main menu - how the file should be processed?
+1) Pick or delete columns
+2) Add a column
+3) Unique filter
+4) Value filter
+5) Split by a column
+6) Change CSV dialect
+p) process ←←←←←
+~) send (split first)
+~) show all details (process first)
+r) Refresh...
+c) Config...
+x) exit
+?  
+```
+
+#### File splitting
+We will create an ASN field and split the file.csv by this field, without adding it into the output.
+
+```csv
+# file.csv
+wikipedia.com,443,2016-02-09T01:12:26-05:00,16019,US
+seznam.cz,25,2016-02-27T22:20:21-05:00,16019,CZ
+google.com,25,2016-02-28T02:27:21-05:00,16019,US
+```
+
+```bash
+$ convey file.csv --field-excluded asn --split asn
+(...)
+** Processing completed: 3 result files in /tmp/ram/file.csv_convey1573236314
+(...)
+```
+
+```csv
+# file as14907
+wikipedia.com,443,2016-02-09T01:12:26-05:00,16019,US
+```
+
+```csv
+# file as43037
+seznam.cz,25,2016-02-27T22:20:21-05:00,16019,CZ
+```
+
+```csv
+# file as15169
+google.com,25,2016-02-28T02:27:21-05:00,16019,US
+```
+
+#### CSIRT Usecase
+A CSIRT may use the tool to automate incident handling tasks. The input is any CSV we receive from partners; there is at least one column with IP addresses or URLs. We fetch whois information and produce a set of CSV grouped by country AND/OR abusemail related to IPs. These CSVs are then sent by through OTRS from within the tool.  
+A most of the work is done by this command.
+```bash
+convey --field-excluded incident_contact,source_ip --split incident_contact --yes [FILENAME]
+```
+
+### Custom code
+
+Adding a column from custom Python code:
+```bash
+$ convey example.com -f code,"x=x[1:5]"
+xamp
+```
+
+### Base64 and Regular expressions
+Code there and back:
+```bash
 $ convey hello -f base64  -H  # --headless conversion to base64
 aGVsbG8=
 $ convey aGVsbG8= -H  # automatically identifies input as base64 and produces plaintext
 hello
+```
 
+Use a `reg` column for regular expressions.
+```bash
 $ convey aGVsbG8= -f reg  # start adding a new reg column wizzard that will take decoded "hello" as input 
 $ convey aGVsbG8= -f reg_s,"ll","LL" -H   # substitute 'll' with 'LL'
 heLLo
+```
 
+Specify source
+```bash
 $ convey aGVsbG8= -f reg,plaintext # start adding a new reg column wizzard that will take plaintext "aGVsbG8=" as input 
 # specifying plaintext as a source type will prevent implicit convertion from base64
 $ convey aGVsbG8= -f reg_s,plaintext,"[A-Z]","!" -H  # substitute uppercase letters with '!'
 a!!sb!8=
+```
 
+### Converting units
 
-# We will create an ASN field and split the file.csv by this field, without adding it into the output.
-#
-# file.csv
-# 1.2.3.4,25,2016-02-28T02:27:21-05:00,16019,CZ
-# 5.6.7.8,443,2016-02-09T01:12:26-05:00,16019,CZ
-# 9.10.11.12,25,2016-02-27T22:20:21-05:00,16019,CZ
-$ convey file.csv --field-excluded asn --split asn
-
-These are equivalent. If "gTLD" is not provided, user will be asked for.
-$ convey test.csv --fresh -field tld[gTLD]
-$ convey test.csv --fresh -field tld,,,gTLD
-
-We are connected to the pint unit convertor!
-
+We are connected to the pint unit converter!
+```bash
 $ convey "3 kg" 
 Input value detected: unit
 
@@ -334,8 +548,6 @@ urlencode  3hours
 
 ```
 
-## CSIRT Usecase
-We are using the tool to automate incident handling tasks. The input is any CSV we receive from partners; there is at least one column with IP addresses or URLs. We fetch whois information and produce a set of CSV grouped by country AND/OR abusemail related to IPs. These CSVs are then sent by through OTRS from within the tool.
 
 ## Credits
 

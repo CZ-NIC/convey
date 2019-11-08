@@ -11,10 +11,10 @@ from math import ceil
 from pathlib import Path
 from typing import Dict
 
-from convey.identifier import Web
 from .config import Config
 from .contacts import Attachment
 from .dialogue import ask
+from .types import Web
 from .whois import Quota, Whois
 
 logger = logging.getLogger(__name__)

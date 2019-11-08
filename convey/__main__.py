@@ -38,6 +38,8 @@ def main():
             mod = Config.get_debugger() if Config else pdb
             mod.post_mortem(tb)
         elif Config:
+            # XX we should check the -3 line has something to do with the convey directory, otherwise print out other lines
+            #   (we are not interested of the errors in other libraries)
             print(f"Convey crashed at {value} on {traceback.format_exc().splitlines()[-3].strip()}")
             if Config.get("github_crash_submit"):
                 body = f"```bash\n{traceback.format_exc()}```\n\n```json5\n{tb.tb_next.tb_frame.f_locals}\n```"
@@ -56,7 +58,7 @@ def application(env, start_response):
     if not WebServer.source_parser:
         from convey.config import Config
         from convey.parser import Parser
-        from convey.identifier import Types
+        from convey.types import Types
         Types.refresh()
         Config.integrity_check()
         Config.init_verbosity()

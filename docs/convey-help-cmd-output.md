@@ -10,8 +10,9 @@ usage: convey [-h] [--debug] [-F] [-y] [--file] [-i] [-o FILENAME]
               [--otrs_token OTRS_TOKEN] [--csirt-incident]
               [--whois [blank/false]] [--nmap [blank/false]]
               [--dig [blank/false]] [--web [blank/false]] [--disable-external]
-              [--json] [--config] [-H] [--user-agent USER_AGENT] [-S]
-              [--single-detect] [-C] [--multiple-hostname-ip [blank/false]]
+              [--json] [--config [1 terminal|2 GUI|3 both by default]] [-H]
+              [--user-agent USER_AGENT] [-S] [--single-detect] [-C]
+              [--multiple-hostname-ip [blank/false]]
               [--multiple-cidr-ip [blank/false]] [--whois-ttl SECONDS]
               [--show-uml [SHOW_UML]] [--compute-preview [blank/false]]
               [--delete-whois-cache] [--version]
@@ -104,7 +105,7 @@ optional arguments:
                         * ports (Open ports given by nmap)
                         * csp
                         * html
-                        * http_status (HTTP response status. If below 0, request failed.)
+                        * http_status (HTTP response status. If 0 or negative, request failed.)
                         * redirects
                         * text
                         * x_frame_options
@@ -136,7 +137,8 @@ optional arguments:
   --disable-external    Disable external function registered in config.ini to be imported.
   --json                When checking single value, prefer JSON output rather
                         than text.
-  --config              Open config file and exit. (GUI over terminal editor
+  --config [1 terminal|2 GUI|3 both by default]
+                        Open config file and exit. (GUI over terminal editor
                         preferred and tried first.)
   -H, --headless        Launch program in a headless mode which imposes --yes
                         and --quiet. No menu is shown.

@@ -47,6 +47,7 @@
     - Whois cache common for all convey files
     - every cache record has TTL
     - LACNIC quota exceeded marks the rows to be re-queued
+    - sets internal process locale to en_US so that we can grep the same result at environments using different language
 * processing:
     - logs in format "time IP src port > IP dst port" can be automatically transformed to CSV before processing
     - multiline base64 strings (seen in e-mails) may be input → automatically decoded

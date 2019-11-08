@@ -18,9 +18,10 @@ from tabulate import tabulate
 from .config import Config, get_terminal_size
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, is_yes, ask
-from .identifier import Identifier, Types, Type, Web, TypeGroup, Checker
+from .identifier import Identifier
 from .informer import Informer
 from .processor import Processor
+from .types import Types, Type, Web, TypeGroup, Checker
 from .whois import Whois
 
 logger = logging.getLogger(__name__)
@@ -330,7 +331,8 @@ class Parser:
             except Exception as e:
                 val = str(e)
             self.sample_parsed[0].append(val)
-            append(field, val)
+            if field.is_chosen:
+                append(field, val)
 
         # prepare json to return (useful in a web service)
         if "csirt-contact" in data and data["csirt-contact"] == "-":
@@ -443,7 +445,7 @@ class Parser:
         """
         self._reset(hard=False)
 
-        if (autoopen_editor or autoopen_editor is None) and Config.get("autoopen_editor") and self.csv.is_split:
+        if (autoopen_editor or autoopen_editor is None) and Config.get("autoopen_editor") and self.is_split:
             Contacts.mailDraft["local"].gui_edit()
             Contacts.mailDraft["foreign"].gui_edit()
 

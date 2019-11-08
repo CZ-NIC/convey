@@ -1,15 +1,13 @@
 import logging
 import re
-import socket
 from collections import OrderedDict
 from datetime import datetime, timedelta
 from subprocess import PIPE, Popen
 from time import time, sleep
-from urllib.parse import urlparse, urlsplit
 
 from netaddr import IPRange, IPNetwork
 
-from .config import Config
+from .config import Config, subprocess_env
 from .contacts import Contacts
 from .infodicts import address_country_lowered
 
@@ -50,7 +48,7 @@ class Whois:
     unknown_mode: bool
     quota: Quota
     queued_ips: set
-    see = Config.verbosity <= logging.INFO
+    see:int
 
     @classmethod
     def init(cls, stats, ranges, ip_seen, csvstats, slow_mode=False, unknown_mode=False):
@@ -64,6 +62,7 @@ class Whois:
         cls.slow_mode = slow_mode  # due to LACNIC quota
         cls.queued_ips = set()
         cls.ttl = Config.get("whois_ttl", "FIELDS", int)
+        cls.see = Config.verbosity <= logging.INFO
         if Config.get("whois_mirror", "FIELDS"):  # try a fast local whois-mirror first
             cls.servers["mirror"] = Config.get("whois_mirror", "FIELDS")
         cls.servers["general"] = None
@@ -141,12 +140,6 @@ class Whois:
                 self.csvstats["countriesFound"].add(country)
                 self.csvstats["ipsWorldFound"].add(self.ip)
 
-    @staticmethod
-    def url2hostname(url):
-        """ Covers both use cases "http://example.com..." and "example.com..." """
-        s = urlsplit(url)
-        return s.netloc or s.path.split("/")[:1][0]
-
     def resolve_unknown_mail(self):
         """ Forces to load abusemail for an IP.
         We try first omit -r flag and then add -B flag.
@@ -178,24 +171,6 @@ class Whois:
         except Exception as e:
             logger.warning("Prefix {} cannot be parsed.".format(s))
             Config.error_caught()
-
-    @staticmethod
-    def url2ip(url):
-        """ Shorten URL to domain, find out related IPs list. """
-        url = urlparse(url.strip())  # "foo.cz/bar" -> "foo.cz", "http://foo.cz/bar" -> "foo.cz"
-        uri = url.hostname if url.scheme else url.path
-        try:
-            return socket.gethostbyname(uri)  # returns 1 address only, we do not want all of them
-        except socket.gaierror as e:
-            # logger.warning("Socket gethostbyname error for URI {} .".format(uri))
-            # Config.error_caught()
-            return None
-        # if we wanted all of the IPs:
-        # recs = socket.getaddrinfo(uri, 0, 0, 0, socket.IPPROTO_TCP)
-        # result = []
-        # for ip in recs:
-        #    result.append(ip[4][0])
-        # return result
 
     def _match_response(self, patterns, last_word=False):
         """
@@ -388,7 +363,9 @@ class Whois:
             cmd = ["whois", "--verbose", "-h", server_url, "--", self.ip]
         self.last_server = None  # check what registry whois asks - may use a strange LIR that returns non-senses
         try:
-            p = Popen(cmd, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+            # in case wrong env is set to whois, we get `147.32.106.205` country NL and not CZ
+            # because we will not find string "found a referral to " in the WHOIS response
+            p = Popen(cmd, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE, env=subprocess_env)
             response = p.stdout.read().decode("unicode_escape").strip().lower()  # .replace("\n", " ")
             response += p.stderr.read().decode("unicode_escape").strip().lower()
         except UnicodeDecodeError:

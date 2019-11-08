@@ -16,9 +16,9 @@ from prompt_toolkit.shortcuts import clear
 from .config import Config, get_terminal_size
 from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
-from .identifier import Types, TypeGroup, types, Type, graph, PickMethod, methods, PickBase, PickInput
 from .mailSender import MailSenderOtrs, MailSenderSmtp
 from .parser import Parser, Field
+from .types import Types, TypeGroup, types, Type, graph, PickMethod, methods, PickBase, PickInput
 from .wizzard import Preview, bottom_plain_style
 from .wrapper import Wrapper
 
@@ -140,7 +140,8 @@ class Controller:
                             action="store_true", default=False)
         parser.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
         parser.add_argument('--config', help="Open config file and exit."
-                                             " (GUI over terminal editor preferred and tried first.)", action="store_true")
+                                             " (GUI over terminal editor preferred and tried first.)",
+                            type=int, const=3, nargs='?', metavar="1 terminal|2 GUI|3 both by default")
         parser.add_argument('-H', '--headless',
                             help="Launch program in a headless mode which imposes --yes and --quiet. No menu is shown.",
                             action="store_true")
@@ -170,8 +171,8 @@ class Controller:
         parser.add_argument('--delete-whois-cache', help="Delete convey's global WHOIS cache.", action="store_true")
         parser.add_argument('--version', help=f"Show the version number (which is currently {__version__}).", action="store_true")
         self.args = args = parser.parse_args()
-        if args.config:
-            self.edit_configuration()
+        if args.config is not None:
+            self.edit_configuration(args.config)
             quit()
         for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
                      "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl", "disable_external"]:
@@ -454,9 +455,9 @@ class Controller:
         menu.sout()
 
     @staticmethod
-    def edit_configuration():
+    def edit_configuration(flags):
         print("Opening {}... restart Convey when done.".format(Config.path))
-        Config.edit_configuration()
+        Config.edit_configuration(flags)
 
     def debug_ip(self):
         ip = input("Debugging whois – get IP: ")
@@ -550,7 +551,7 @@ class Controller:
 
                         if code != "ok" or not path:
                             return
-                        module = self.parser.identifier.get_module_from_path(path)
+                        module = get_module_from_path(path)
                         if module:
                             # inspect the .py file, extract methods and let the user choose one
                             code, method_name = dialog.menu(f"What method should be used in the file {path}?",
