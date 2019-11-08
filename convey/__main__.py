@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import bdb
+import pdb
 import sys
+from urllib.parse import quote
 
 __doc__ = """Convey – CSV swiss knife brought by CSIRT.cz"""
 __author__ = "Edvard Rejthar, CSIRT.CZ"
@@ -30,16 +32,16 @@ def main():
         except ImportError:
             Config = None
 
+        type_, value, tb = sys.exc_info()
         if debug:
-            mod = Config.get_debugger()
-            type_, value, tb = sys.exc_info()
             traceback.print_exc()
+            mod = Config.get_debugger() if Config else pdb
             mod.post_mortem(tb)
         elif Config:
-            print(f"Convey crashed at {sys.exc_info()[1]}")
+            print(f"Convey crashed at {value} on {traceback.format_exc().splitlines()[-3].strip()}")
             if Config.get("github_crash_submit"):
-                body = f"```bash\n{traceback.format_exc()}```\n\n```json\n{sys.exc_info()[2].tb_next.tb_frame.f_locals}```"
-                Config.github_issue(f"crash: {sys.exc_info()[1]}", body.replace("\n", "%0A"))
+                body = f"```bash\n{traceback.format_exc()}```\n\n```json5\n{tb.tb_next.tb_frame.f_locals}\n```"
+                Config.github_issue(f"crash: {value}", quote(body))
 
 
 class WebServer:

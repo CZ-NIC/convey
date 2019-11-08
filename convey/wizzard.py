@@ -1,3 +1,4 @@
+import logging
 import re
 from sre_constants import error
 
@@ -16,6 +17,7 @@ from pygments.styles import get_style_by_name
 from pygments.token import Token
 from tabulate import tabulate
 
+from .config import Config, consoleHandler
 from .identifier import Type, Types, PickInput
 
 
@@ -207,9 +209,12 @@ class Preview:
     def standard_toolbar(self):
         """ define bottom preview toolbar """
         rows = []
+        level = Config.verbosity  # temporarily suppress info messages like 'NMAPing...' that would break up the wizzard layout
+        consoleHandler.setLevel(logging.WARNING)
         for line in self.samples:
             val = self.get_toolbar_row(self.session.layout.current_buffer.text, line)
             rows.append((f"\033[0;36m{line}\033[0m", f"\033[0;33m{val}\033[0m"))  # blue and yellow
+        consoleHandler.setLevel(level)
 
         return ANSI('\nPreview\n' + tabulate(rows, headers=("original", "result"), tablefmt="github"))
 

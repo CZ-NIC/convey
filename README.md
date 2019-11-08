@@ -155,8 +155,8 @@ We are able to auto-detect these columns:
 * **wrongURL** – URL that has been deactivated by replacing certain chars, ex: "hxxp://example[.]com"
            
 
-### Custom field example
-#### Simple external method
+### External field example
+#### Simple custom method
 If you wish to compute an **external** field, prepare a file whose contents can be as simple as this:
 
 ```python3
@@ -173,7 +173,7 @@ $ convey [string_or_filepath] --field external
 ```
 * You may as well directly specify the path and the callable. Since the `--field` has following syntax: *FIELD[[CUSTOM]],[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]*, you may omit both *COLUMN* and *SOURCE_TYPE* writing it this way: *FIELD,~~COLUMN,SOURCE_TYPE~~,CUSTOM,CUSTOM*
 ```bash
-$ convey [string_or_filepath] --field external,/tmp/mefile.py,any_method
+$ convey [string_or_filepath] --field external,/tmp/myfile.py,any_method
 Input value seems to be plaintext.
 field     value
 --------  -----------------------
@@ -186,7 +186,7 @@ external  modified :)
 [EXTERNAL]
 external_fields = /tmp/myfile.py
 ```
-* If this is not needed, you may register one by one by adding new items to the `EXTERNAL` section. Delimit the method names by a colon.
+* If this is not needed, you may register one by one by adding new items to the `EXTERNAL` section. Delimit the method name by a colon.
 ```editorconfig
 [EXTERNAL]
 any_method = /tmp/myfile.py:any_method

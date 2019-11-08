@@ -398,9 +398,7 @@ class Whois:
         except TypeError:  # could not resolve host
             self.whois_response = []
         except FileNotFoundError:
-            logger.warning("Install whois by `sudo apt install whois` first")
-            input("Press any key...")
-            raise KeyboardInterrupt
+            Config.missing_dependency("whois")
         else:
             try:
                 self.last_server = Whois.regRe.search(response).groups()[0]

@@ -402,10 +402,12 @@ def port_ip_2_ip(s):
     if m:
         return m.group(1).rstrip(".")
 
+
 def port_ip_2_port(s):
     m = reIpWithPort.match(s)
     if m:
         return m.group(3)
+
 
 def url_port(s):
     return s.split(":")[1].split("\\")[0]
@@ -499,7 +501,10 @@ def dig(rr):
             t = "TXT"
         else:
             t = rr
-        text = subprocess.check_output(["dig", "+short", "-t", t, query, "+timeout=1"]).decode("utf-8")
+        try:
+            text = subprocess.check_output(["dig", "+short", "-t", t, query, "+timeout=1"]).decode("utf-8")
+        except FileNotFoundError:
+            Config.missing_dependency("dig")
         if text.startswith(";;"):
             return None
         spl = text.split("\n")[:-1]
@@ -515,12 +520,31 @@ def dig(rr):
     return dig_query
 
 
-def nmap(val):
+# @PickInput XX not yet possible to PickInput
+# 1. since for port '80' wizzard loads the port '8' and then '80'
+# 2. since we cannot specify `--field ports[80,443]` because comma ',' is taken for a delmiiter between FIELD and COLUMN
+#   and pair quoting char '[]' is not allowed in csv.reader that parses CLI
+def nmap(val, port=""):
+    """
+    :type port: int Port to scan, you may delimit by a comma. Ex: `80, 443`
+    """
     logger.info(f"NMAPing {val}...")
-    text = subprocess.run(["nmap", val], stdout=subprocess.PIPE).stdout.decode("utf-8")
+    try:
+        cmd = ["nmap", val]
+        if port:
+            cmd.extend(["-p", port])
+        text = subprocess.run(cmd, stdout=subprocess.PIPE).stdout.decode("utf-8")
+    except FileNotFoundError:
+        Config.missing_dependency("nmap")
     text = text[text.find("PORT"):]
     text = text[text.find("\n") + 1:]
     text = text[:text.find("\n\n")]
+    if Config.get("multiple_nmap_ports", "FIELDS"):
+        l = []
+        for row in text.split("\n"):
+            l.append(int(re.match("(\d+)", row).group(1)))
+        return l
+
     return text
 
 
@@ -780,7 +804,7 @@ class Types:
     redirects = Type("redirects", TypeGroup.web)
     x_frame_options = Type("x_frame_options", TypeGroup.web)
     csp = Type("csp", TypeGroup.web)
-    ports = Type("ports", TypeGroup.nmap)
+    ports = Type("ports", TypeGroup.nmap, "Open ports given by nmap")
     spf = Type("spf", TypeGroup.dns)
     txt = Type("txt", TypeGroup.dns)
     a = Type("a", TypeGroup.dns)
@@ -805,7 +829,7 @@ class Types:
                      ["sourceipaddress", "source", "src"], is_ip, usual_must_match=True)
     destination_ip = Type("destination_ip", TypeGroup.general, "valid destination IP address",
                           ["destinationipaddress", "destination", "dest", "dst"], is_ip, usual_must_match=True)
-    port = Type("port", TypeGroup.general, "port", ["port","prt"], lambda x: re.match("\d{1,5}", x), usual_must_match=True)
+    port = Type("port", TypeGroup.general, "port", ["port", "prt"], lambda x: re.match("\d{1,5}", x), usual_must_match=True)
     cidr = Type("cidr", TypeGroup.general, "CIDR 127.0.0.1/32", ["cidr"], Checker.check_cidr)
     port_ip = Type("port_ip", TypeGroup.general, "IP in the form 1.2.3.4.port", [], reIpWithPort.match)
     any_ip = Type("any_ip", TypeGroup.general, "IP in the form 'any text 1.2.3.4 any text'", [],
@@ -925,10 +949,18 @@ class Types:
             ])
         else:  # looks nicer in README.md
             l.extend([
-                "a -> web[style=invis]",
-                "text -> timestamp[style=invis]",
-                "dmarc -> urlencode[style=invis]",
-                "base64 -> custom[style=invis]",
+                # "a -> web[style=invis]",
+                # "text -> timestamp[style=invis]",
+                # "dmarc -> urlencode[style=invis]",
+                # "base64 -> custom[style=invis]",
+                # "a -> web[style=invis]",
+                # "http_status -> timestamp[style=invis]",
+                # "redirects -> urlencode[style=invis]",
+                # "base64 -> custom[style=invis]",
+                "port -> urlencode[style=invis]",
+                "charset -> timestamp[style=invis]",
+                #"redirects -> urlencode[style=invis]",
+                #"base64 -> custom[style=invis]",
             ])
         l.append("}")
         return "\n".join(l)
@@ -995,6 +1027,7 @@ class Types:
             (t.web, t.csp): lambda x: x.get[5],
             (t.hostname, t.ports): nmap,
             (t.ip, t.ports): nmap,
+            (t.ports, t.port): True,
             (t.hostname, t.spf): dig("SPF"),
             (t.hostname, t.txt): dig("TXT"),
             (t.hostname, t.a): dig("A"),

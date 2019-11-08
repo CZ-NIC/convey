@@ -101,10 +101,10 @@ optional arguments:
                         * ns
                         * spf
                         * txt
-                        * ports
+                        * ports (Open ports given by nmap)
                         * csp
                         * html
-                        * http_status
+                        * http_status (HTTP response status. If below 0, request failed.)
                         * redirects
                         * text
                         * x_frame_options

@@ -111,6 +111,12 @@ class Config:
     verbosity: int = logging.INFO  # standard python3 logging level int
 
     @staticmethod
+    def missing_dependency(library):
+        logger.warning(f"Install {library} by `sudo apt install {library}` first or disable `--{library}` in config")
+        input("Press any key...")
+        raise KeyboardInterrupt
+
+    @staticmethod
     def integrity_check():
         from .dialogue import is_yes  # since Config should be the very first package file to be loaded, we postpone this import
         # Config file integrity check (we may upgrade Convey from but some new parameters needs to be added manually)
