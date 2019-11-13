@@ -144,12 +144,15 @@ class Identifier:
 
             # header detection
             l = [line.strip() for line in sample]
-            header_to_rows_similarity = mean([SequenceMatcher(None, l[0], it).ratio() for it in l[1:]])
-            if len(l[1:]) > 1:
-                rows_similarity = mean([SequenceMatcher(None, *comb).ratio() for comb in itertools.combinations(l[1:], 2)])
-                has_header = rows_similarity > header_to_rows_similarity + 0.1  # it seems that first line differs -> header
+            if len(l[1:]) > 0:
+                header_to_rows_similarity = mean([SequenceMatcher(None, l[0], it).ratio() for it in l[1:]])
+                if len(l[1:]) > 1:
+                    rows_similarity = mean([SequenceMatcher(None, *comb).ratio() for comb in itertools.combinations(l[1:], 2)])
+                    has_header = rows_similarity > header_to_rows_similarity + 0.1  # it seems that first line differs -> header
+                else:
+                    has_header = header_to_rows_similarity < 0.5
             else:
-                has_header = header_to_rows_similarity < 0.5
+                has_header = False
 
             try:
                 s = sample[1]  # we dont take header (there is no empty column for sure)

@@ -940,8 +940,8 @@ class Types:
         # formatting mark to put one cluster below another, not aside
         if flags & 16:  # looks nicer in a presentation
             l.extend([
-                "spf -> timestamp[style=invis]",
-                "formatted_time -> plaintext[style=invis]",
+                #"spf -> timestamp[style=invis]",
+                #"formatted_time -> plaintext[style=invis]",
             ])
         else:  # looks nicer in README.md
             l.extend([

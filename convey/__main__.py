@@ -2,7 +2,6 @@
 import bdb
 import pdb
 import sys
-from urllib.parse import quote
 
 __doc__ = """Convey – CSV swiss knife brought by CSIRT.cz"""
 __author__ = "Edvard Rejthar, CSIRT.CZ"
@@ -43,7 +42,7 @@ def main():
             print(f"Convey crashed at {value} on {traceback.format_exc().splitlines()[-3].strip()}")
             if Config.get("github_crash_submit"):
                 body = f"```bash\n{traceback.format_exc()}```\n\n```json5\n{tb.tb_next.tb_frame.f_locals}\n```"
-                Config.github_issue(f"crash: {value}", quote(body))
+                Config.github_issue(f"crash: {value}", body)
 
 
 class WebServer:

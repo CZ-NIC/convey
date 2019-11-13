@@ -37,9 +37,9 @@ class Informer:
         if self.csv.has_header is not None:
             l.append("header: " + ("used" if self.csv.has_header else "not used"))
         if self.csv.settings["filter"]:
-            l.append("Filter: " + ", ".join([f"{self.csv.fields[f]}({val})" for f, val in self.csv.settings["filter"]]))
+            l.append("Filter: " + ", ".join([f"{self.csv.fields[f].name}({val})" for f, val in self.csv.settings["filter"]]))
         if self.csv.settings["unique"]:
-            l.append("Unique col: " + ", ".join([self.csv.fields[f] for f in self.csv.settings["unique"]]))
+            l.append("Unique col: " + ", ".join([self.csv.fields[f].name for f in self.csv.settings["unique"]]))
         if self.csv.settings["split"]:
             l.append("Split by: {}".format(self.csv.fields[self.csv.settings["split"]]))
 

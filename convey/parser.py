@@ -824,7 +824,7 @@ class Field:
         return res
 
     def compute_preview(self, source_line):
-        if Config.get("compute_preview"):
+        if Config.get("compute_preview") and self.source_field:
             c = source_line[self.source_field.col_i]
             if c is None:
                 # source column has not yet been resolved because of column resorting

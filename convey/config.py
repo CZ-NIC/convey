@@ -10,6 +10,7 @@ from pathlib import Path
 from shutil import copy
 from subprocess import Popen, PIPE, call
 from time import sleep
+from urllib.parse import quote
 
 from appdirs import user_config_dir
 
@@ -22,7 +23,8 @@ try:
     handlers.append(fileHandler)
 except PermissionError:
     fileHandler = None
-    print("Cannot create convey.log here at " + str(Path(".").absolute()))
+    print("Cannot create convey.log here at " + str(Path(".").absolute()) + " – change directory please.")
+    quit()
 except FileNotFoundError:  # FileNotFoundError emitted when we are in a directory whose inode exists no more
     print("Current working directory doesn't exist.")
     quit()
@@ -313,10 +315,9 @@ class Config:
 
     @staticmethod
     def github_issue(title, body):
-        url = f"https://github.com/CZ-NIC/convey/issues/new?" \
-              f"title={title}&body={body}"
+        url = f"https://github.com/CZ-NIC/convey/issues/new?title={quote(title)}&body={quote(body)}"
         webbrowser.open(url)
-        input("\nPlease submit a Github issue at https://github.com/CZ-NIC/convey/issues/new"
+        input(f"\nPlease submit a Github issue at {url}"
               "\nTrying to open issue tracker in a browser...")
 
     @staticmethod
@@ -342,7 +343,7 @@ class Config:
         return Config.cache_dir
 
     @staticmethod
-    def edit_configuration(flags = 3):
+    def edit_configuration(flags=3):
         if flags & 2:
             app = Popen(['xdg-open', Config.path], stdout=PIPE, stderr=PIPE)
         elif flags & 1:

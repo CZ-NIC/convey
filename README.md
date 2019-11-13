@@ -177,13 +177,13 @@ Some of the field types we are able to auto-detect:
 
 * **ip** – standard IPv4 / IPv6 addresses
 * **cidr** – CIDR notation, ex: 127.0.0.1/32
-* **portIP** – IPv4 in the form 1.2.3.4.port
-* **anyIP** – IPv4 garbled in the form `any text 1.2.3.4 any text`
+* **port_ip** – IPv4 in the form 1.2.3.4.port
+* **any_ip** – IPv4 garbled in the form `any text 1.2.3.4 any text`
 * **hostname** – or FQDN; 2nd or 3rd domain name
 * **url** – URL starting with http/https
 * **asn** – AS Number
 * **base64** – text encoded with base64
-* **wrongURL** – URL that has been deactivated by replacing certain chars, ex: "hxxp://example[.]com"
+* **wrong_url** – URL that has been deactivated by replacing certain chars, ex: "hxxp://example[.]com"
 
 ### Overview of all methods:
 
@@ -257,7 +257,8 @@ Should there be multiple ways of using your generator, you may decorate with `Pi
 
 ```python3
 from convey import PickMethod
-PickMethod("all")
+
+@PickMethod("all")
 class any_method(PickMethod):
     def all(x):
         ''' All of them.  '''
@@ -279,6 +280,7 @@ If you need a direct user entry before each processing, import `PickInput` and m
 
 ```python3
 from convey import PickInput
+
 @PickInput
 def time_format(val, format="%H:%M"):
     ''' This text will be displayed to the user.
