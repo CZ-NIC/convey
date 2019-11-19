@@ -10,7 +10,7 @@ validate_email
 tabulate
 appdirs
 humanize
-bs4
+beautifulsoup4
 python-Levenshtein
 prompt_toolkit>=2
 pygments
