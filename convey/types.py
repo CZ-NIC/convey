@@ -137,6 +137,62 @@ class PickInput(PickBase):
         self.parameter_name = par[1]
 
 
+class Aggregate:
+    @staticmethod
+    def avg():
+        count = 0
+        res = float((yield))
+        while True:
+            count += 1
+            res += float((yield res / count))
+
+    @staticmethod
+    def sum():
+        res = 0
+        while True:
+            res += float((yield res))
+
+    @staticmethod
+    def count():
+        res = 0
+        while True:
+            yield res
+            res += 1
+
+    @staticmethod
+    def min():
+        v = yield
+        while True:
+            v = min((yield v), v)
+
+    @staticmethod
+    def max():
+        v = yield
+        while True:
+            v = max((yield v), v)
+
+    @staticmethod
+    def list():
+        l = []
+        while True:
+            l.append((yield l))
+
+    # XX If we would like to serialize a function and this is not possible, we can serialize it ourselves that way:
+    # @staticmethod
+    # def avg():
+    #     count = 0
+    #     try:
+    #         res = float((yield))
+    #     except LoadFromSerialization:
+    #         count, res = yield
+    #     try:
+    #         while True:
+    #             count += 1
+    #             res += float((yield res / count))
+    #     except StopIteration: -> serialization request
+    #         yield count, res
+
+
 def is_ip(ip):
     """ True, if IP is well formatted IPv4 or IPv6 """
     try:
@@ -940,8 +996,8 @@ class Types:
         # formatting mark to put one cluster below another, not aside
         if flags & 16:  # looks nicer in a presentation
             l.extend([
-                #"spf -> timestamp[style=invis]",
-                #"formatted_time -> plaintext[style=invis]",
+                # "spf -> timestamp[style=invis]",
+                # "formatted_time -> plaintext[style=invis]",
             ])
         else:  # looks nicer in README.md
             l.extend([

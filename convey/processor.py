@@ -124,6 +124,20 @@ class Processor:
                     else:  # continue from last row
                         csv.line_count -= 1  # let's pretend we didn't just do this row before and give it a second chance
                         self.process_line(csv, row, settings)
+
+            if settings["aggregate"]:  # write aggregation results
+                for location, data in self.csv.aggregation.items():
+                    if location is 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
+                        t = csv.stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
+                    elif location is 1:  # this is a sign we output csv data to stdout
+                        t = io.StringIO()
+                    else:
+                        t = open(Path(Config.get_cache_dir(), location), "w")
+                        if len(self.csv.aggregation) > 1:
+                            print("\nSplit location: " + location)
+                    v = self.csv.informer.get_aggregation(data)
+                    print(v)
+                    t.write(v)
         finally:
             if not stdin:
                 source_stream.close()
@@ -235,6 +249,39 @@ class Processor:
             location = Config.INVALID_NAME
             chosen_fields = line  # reset the original line (location will be reprocessed)
 
+        # aggregation: count column        
+        if settings["aggregate"]:
+            # settings["aggregate"] = column to be grouped, [(sum, column to be summed)]
+            # Ex: settings["aggregate"] = 1, [(Aggregate.sum, 2), (Aggregate.avg, 3)]
+            # Ex: settings["aggregate"] = 0, [(Aggregate.count, 0)]
+            # Ex: settings["aggregate"] = None, [(Aggregate.sum, 1)]
+            # Ex: settings["aggregate"] = None, [(Aggregate.sum, 1), (Aggregate.avg, 1)]
+
+            col_group_i = settings["aggregate"][0]
+            grp = fields[col_group_i] if col_group_i is not None else None
+            for i, (fn, col_data_i) in enumerate(settings["aggregate"][1]):
+                # counters[location file][grouped row][order in aggregation settings] = [sum generator, count]
+                loc = self.csv.aggregation[location]
+
+                if grp:  # it makes sense to compute total row because we are grouping
+                    if None not in loc:
+                        loc[None] = []
+                    if len(loc[None]) <= i:
+                        loc[None].append([fn(), 0])
+                        next(loc[None][i][0])
+                    if fn.__name__ == "list":
+                        loc[None][i][1] = "(all)"  # we do not want to enlist whole table
+                    else:
+                        loc[None][i][1] = loc[None][i][0].send(fields[col_data_i])
+
+                if grp not in loc:
+                    loc[grp] = []
+                if len(loc[grp]) <= i:
+                    loc[grp].append([fn(), 0])
+                    next(loc[grp][i][0])
+                loc[grp][i][1] = loc[grp][i][0].send(fields[col_data_i])
+            return  # we will not write anything right know, aggregation results are not ready yet
+
         if not location:
             return
         elif location in self.files_created:
@@ -265,7 +312,6 @@ class Processor:
                 w = csvwriter(t, dialect=settings["dialect"])
             self.descriptors[location] = t, w
             self.descriptors_count += 1
-        # print("Printing", location)
         self.descriptorsStatsAll[location] += 1
         self.descriptorsStatsOpen[location] = self.descriptorsStatsAll[location]
         f = self.descriptors[location]

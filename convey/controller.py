@@ -18,11 +18,13 @@ from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
 from .mailSender import MailSenderOtrs, MailSenderSmtp
 from .parser import Parser, Field
-from .types import Types, TypeGroup, types, Type, graph, PickMethod, methods, PickBase, PickInput
+from .types import Types, TypeGroup, types, Type, graph, PickMethod, methods, PickBase, PickInput, Aggregate
 from .wizzard import Preview, bottom_plain_style
 from .wrapper import Wrapper
 
 logger = logging.getLogger(__name__)
+aggregate_functions = [f for f in Aggregate.__dict__ if not f.startswith("_")]
+aggregate_functions_str = "".join("\n* " + f for f in aggregate_functions)
 
 try:
     __version__ = pkg_resources.require("convey")[0].version
@@ -116,6 +118,14 @@ class Controller:
                             metavar="COLUMN")
         parser.add_argument('-s', '--sort', help="List of columns.",
                             metavar="[COLUMN],...")
+        parser.add_argument('-a', '--aggregate', help="R|Aggregate"
+                                                      "\nEx: --aggregate sum,2 # will sum the second column"
+                                                      "\nEx: --aggregate sum,2,avg,3 # will sum the second column and average the third"
+                                                      "\nEx: --aggregate sum,2,1 # will sum the second column grouped by the first"
+                                                      "\nEx: --aggregate count,1 # will count the grouped items in the 1st column"
+                                                      " (count will automatically set grouping column to the same)"
+                                                      f"\n\nAvailable functions: {aggregate_functions_str}",
+                            metavar="[FUNCTION, COLUMN], ..., [group-by-COLUMN]")
         csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
                      ("otrs_token", "OTRS token")]
         for flag in csv_flags:
@@ -163,7 +173,7 @@ class Controller:
         parser.add_argument('--show-uml', help="R|Show UML of fields and methods and exit."
                                                " Methods that are currently disabled via flags or config file are grayed out."
                                                " * FLAGs:"
-                                               "    * +1 to gray out disabled fields/methods" 
+                                               "    * +1 to gray out disabled fields/methods"
                                                "    * +2 to include usual field names",
                             type=int, const=1, nargs='?')
         parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
@@ -219,12 +229,7 @@ class Controller:
         # prepare some columns to be removed
         if args.delete:
             for c in args.delete.split(","):
-                try:
-                    self.parser.fields[self.parser.identifier.get_column_i(c)].is_chosen = False
-                except TypeError:
-                    logger.error(f"Cannot identify COLUMN {c} to be deleted, "
-                                 f"put there an exact column name or the numerical order starting with 1.")
-                    quit()
+                self.parser.fields[self.parser.identifier.get_column_i(c, check="to be deleted")].is_chosen = False
             self.parser.is_processable = True
 
         # append new fields from CLI
@@ -249,12 +254,34 @@ class Controller:
             self.source_new_column(target_type, add, source_field, source_type, custom)
             self.parser.is_processable = True
 
+        if args.aggregate:
+            params = [x for x in csv.reader([args.aggregate])][0]
+            group = self.parser.identifier.get_column_i(params.pop(), check="to be grouped by") if len(params) % 2 else None
+            l = []
+            for i in range(0, len(params), 2):
+                fn, column = params[i:i + 2]
+                fn = getattr(Aggregate, fn, None)
+                if not fn:
+                    logger.error(f"Unknown aggregate function {fn}. Possible functions are: {aggregate_functions_str}")
+                column = self.parser.identifier.get_column_i(column, check="to be aggregated with")
+                l.append([fn, column])
+
+                if fn == Aggregate.count:
+                    if group is None:
+                        group = column
+                    elif column != group:
+                        logger.error(f"Count column {self.parser.fields[column].name} must be the same"
+                                     f" as the grouping column {self.parser.fields[group].name}")
+                        quit()
+            self.parser.settings["aggregate"] = group, l
+            self.parser.is_processable = True
+
         if args.sort:
             self.parser.resort(list(csv.reader([args.sort]))[0])
-            self.is_processable = True
+            self.parser.is_processable = True
 
         if args.split:
-            self.parser.settings["split"] = self.parser.identifier.get_column_i(args.split)
+            self.parser.settings["split"] = self.parser.identifier.get_column_i(args.split, check="to be split with")
             self.parser.is_processable = True
 
         # run single value check if the input is not a CSV file
@@ -266,7 +293,7 @@ class Controller:
                 print(res)
             quit()
 
-        # start csirt-incident macro
+        # start csirt-incident macro XX deprecated
         if args.csirt_incident and not self.parser.is_analyzed:
             self.parser.settings["split"] = len(self.parser.fields)
             self.source_new_column(Types.incident_contact, add=False)
@@ -300,6 +327,7 @@ class Controller:
             menu.add("Value filter", self.add_filtering)
             menu.add("Split by a column", self.add_splitting)
             menu.add("Change CSV dialect", self.add_dialect)
+            menu.add("Aggregate", self.add_aggregation)
             if self.parser.is_processable:
                 menu.add("process", self.process, key="p", default=True)
             else:
@@ -351,8 +379,19 @@ class Controller:
                     [f.toggle_chosen() for f in self.parser.fields if f.is_selected]
                     refresh()
 
+                @bindings.add('escape', 'a')  # alt-a to aggregate
+                def _(_):
+                    for f in self.parser.fields:
+                        if f.is_selected:
+                            self.parser.settings["aggregate"] = f.col_i, [[Aggregate.count, f.col_i]]
+                            self.process()
+                            break
+                    refresh()
+
                 options = {'key_bindings': bindings,
-                           "bottom_toolbar": HTML("Ctrl+<b>←/→</b> arrows for column manipulation, <b>Delete</b> for exclusion"),
+                           "bottom_toolbar": HTML("Ctrl+<b>←/→</b> arrows for column manipulation,"
+                                                  " <b>Delete</b> for exclusion,"
+                                                  " <b>Alt+a</b> to aggregate count"),
                            "style": bottom_plain_style
                            }
                 menu.sout(session, options)
@@ -474,6 +513,8 @@ class Controller:
         menu.add("Rework whole file again", self.wrapper.clear)
         menu.add("Delete processing settings", self.parser.reset_settings)
         menu.add("Delete whois cache", self.parser.reset_whois)
+        # XX note that aggregation generators were deleted (jsonpickling) → aggregation count will reset when re-resolving
+        # See comment in the Aggregation class, concerning generator serialization.
         menu.add("Resolve unknown abuse-mails", self.parser.resolve_unknown)
         menu.add("Resolve invalid lines", self.parser.resolve_invalid)
         menu.add("Resolve queued lines", self.parser.resolve_queued)
@@ -606,8 +647,16 @@ class Controller:
                 self.parser.fields[int(v) - 1].is_chosen = True
             self.parser.is_processable = True
 
-    def select_col(self, col_name="", only_computables=False, add=None):
+    def select_col(self, dialog_title="", only_computables=False, add=None, prepended_field=None):
+        """ Starts dialog where user has to choose a column.
+            If cancelled, we return to main menu automatically.
+            :type prepended_field: tuple (field_name, description) If present, this field is prepended. If chosen, you receive -1.
+            :rtype: int Column
+        """
+        # add existing fields
         fields = [] if only_computables else self.parser.get_fields_autodetection()
+
+        # add computable field types
         for field in Types.get_computable_types():
             if field.from_message:
                 s = field.from_message
@@ -618,7 +667,19 @@ class Controller:
                 if len(node_distance) > 3:
                     s += "..."
             fields.append((f"new {field}...", s))
-        col_i = pick_option(fields, col_name)
+
+        # add special prepended field
+        if prepended_field:
+            fields.insert(0, prepended_field)
+
+        # launch dialog
+        col_i = pick_option(fields, dialog_title)
+
+        # convert returned int col_i to match an existing or new column
+        if prepended_field:
+            col_i -= 1
+            if col_i == -1:
+                return col_i
         if only_computables or col_i >= len(self.parser.fields):
             target_type_i = col_i if only_computables else col_i - len(self.parser.fields)
             col_i = len(self.parser.fields)
@@ -633,6 +694,34 @@ class Controller:
 
     def add_splitting(self):
         self.parser.settings["split"] = self.select_col("splitting")
+        self.parser.is_processable = True
+
+    def add_aggregation(self):
+        # choose what column we want
+
+        menu = Menu("Choose aggregate function", callbacks=False, fullscreen=True)
+        for f in aggregate_functions:
+            menu.add(f)
+        option = menu.sout()
+        if not option:
+            return
+        fn = getattr(Aggregate, aggregate_functions[int(option) - 1])
+        col_i = self.select_col("aggregation")
+
+        if self.parser.settings["aggregate"]:
+            group, fns = self.parser.settings["aggregate"]
+        else:
+            group, fns = None, []
+
+        if group is None:
+            if fn == Aggregate.count:
+                group = col_i
+            else:
+                group = self.select_col("group by", prepended_field=("no grouping", "aggregate whole column"))
+                if group == -1:
+                    group = None
+        fns.append([fn, col_i])
+        self.parser.settings["aggregate"] = group, fns
         self.parser.is_processable = True
 
     def add_dialect(self):

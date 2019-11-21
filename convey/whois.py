@@ -250,12 +250,6 @@ class Whois:
                     if self._match_response("query rate limit exceeded"):  # LACNIC gave me this - seems 300 s needed
                         self.quota.try_start()
                         if Config.get("lacnic_quota_skip_lines", "FIELDS") and not self.slow_mode:
-                            # XX if quota not started
-                            # XX quota_start_time = timestamp
-                            # XX option to put the line to the .quota-queue
-                            # XX encountered calls to lacnic directly skip
-                            # XX possibility to interrupt sleeping
-                            # XX raise Quota
                             if self.see:
                                 print("LACNIC quota exceeded.")
                             self.queued_ips.add(self.ip)

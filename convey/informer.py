@@ -2,6 +2,7 @@ import csv
 import subprocess
 import sys
 from _datetime import datetime
+from itertools import cycle
 from math import ceil
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import humanize
 from tabulate import tabulate
 
 from .config import Config, get_terminal_size
+from .types import Aggregate
 from .whois import Whois
 
 
@@ -42,6 +44,14 @@ class Informer:
             l.append("Unique col: " + ", ".join([self.csv.fields[f].name for f in self.csv.settings["unique"]]))
         if self.csv.settings["split"]:
             l.append("Split by: {}".format(self.csv.fields[self.csv.settings["split"]]))
+        if self.csv.settings["aggregate"]:
+            # settings["aggregate"] = column to be grouped, [(sum, column to be summed)]
+            # Ex: settings["aggregate"] = 1, [(Aggregate.sum, 2), (Aggregate.avg, 3)]
+            v = ", ".join(f"{fn.__name__}({self.csv.fields[col].name})" for fn, col in self.csv.settings["aggregate"][1])
+            if self.csv.settings["aggregate"][0] is not None:
+                l.append(f"Group by {self.csv.fields[self.csv.settings['aggregate'][0]]}: " + v)
+            else:
+                l.append("Aggregate: " + v)
 
         # XX
         # if self.csv.redo_invalids is not None:
@@ -67,7 +77,7 @@ class Informer:
             elif self.csv.ip_count_guess:
                 sys.stdout.write(", around {} IPs".format(self.csv.ip_count_guess))
             l.append("Log lines processed: {}/{}, {} %".format(self.csv.line_count, self.csv.lines_total,
-                                                                 ceil(100 * self.csv.line_count / self.csv.lines_total)))
+                                                               ceil(100 * self.csv.line_count / self.csv.lines_total)))
             progress = self.csv.line_count / self.csv.lines_total
         else:
             l.append("Log lines: {}".format(self.csv.lines_total))
@@ -93,7 +103,7 @@ class Informer:
             if len(r) < progress:
                 r += " " * (progress - len(r))
             r = f"\033[7m{r[:progress]}\033[0m" + r[progress:]
-        sys.stdout.write("\n"+r+"\n")
+        sys.stdout.write("\n" + r + "\n")
         if self.csv.whois_stats:
             print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whois_stats.items())
                   + f"; {len(self.csv.ranges)} prefixes discovered")
@@ -120,6 +130,13 @@ class Informer:
         output = Config.get("output")
         if output:
             print(f"Output file specified: {output}")
+
+        if self.csv.aggregation:  # an aggregation has finished
+            print("\n")
+            if len(self.csv.aggregation) == 1:
+                print(self.get_aggregation(next(iter(self.csv.aggregation.values())), color=True, limit=8))
+            else:
+                print("Aggregating in split files...")
 
         if self.csv.is_analyzed:
             if self.csv.saved_to_disk is False:
@@ -161,6 +178,7 @@ class Informer:
             print("\n Statistics overview:\n" + stat)
             if Config.get("write_statistics") and not self.csv.stdin:
                 # we write statistics.txt only if we're sourcing from a file, not from stdin
+                # XX move this to parser.run_analysis and _resolve_again or to Processor – do not rewrite it every time here!
                 with open(Path(Path(self.csv.source_file).parent, "statistics.txt"), "w") as f:
                     f.write(stat)
             """
@@ -172,6 +190,8 @@ class Informer:
             """
 
         if full:
+            # XX subprocess.run("less", input=v, encoding="utf-8")
+            # XX show aggregation too
             if len(self.csv.ranges.items()):
                 rows = []
                 for prefix, o in self.csv.ranges.items():
@@ -195,6 +215,35 @@ class Informer:
             #     print("Files overview not needed – everything have been processed into a single file.")
 
             print("\n\nPress enter to continue...")
+
+    def get_aggregation(self, data, color=False, limit=None):
+        form = lambda v, fmt: f"\033[{fmt}m{v}\033[0m" if color else v
+        header = []
+        grouping = self.csv.settings["aggregate"][0] is not None
+        if grouping:
+            header.append(form(self.csv.fields[self.csv.settings["aggregate"][0]].name, 36))
+        header.extend([form(f"{fn.__name__}({self.csv.fields[col]})", 33) for fn, col in self.csv.settings["aggregate"][1]])
+
+        rows = []
+        generators = cycle(g[0] for g in self.csv.settings["aggregate"][1])
+
+        for i, (row, d) in enumerate(data.items()):
+            if limit and i == limit:
+                rows.append(["..." for fn, count in d])
+                break
+            if row is None and len(self.csv.settings["aggregate"][1]) == 1\
+                    and next(generators) == Aggregate.list:
+                # This is the total row
+                # We are aggregating only single thing which is list.
+                # That list would comprehend all of the values in the column. We omit it.
+                continue
+
+            #import ipdb; ipdb.set_trace()
+            # rows.append([form(count if fn.__name__ in ("count", "list") else round(count * 100) / 100, 33) for fn, count in d])
+            rows.append([form(count if next(generators) not in (Aggregate.sum, Aggregate.avg) else round(count * 100) / 100, 33) for fn, count in d])
+            if grouping:
+                rows[-1].insert(0, form("total" if row is None else row, 36))
+        return tabulate(rows, header)
 
     def get_stats_phrase(self, generate=False):
         """ Prints phrase "Totally {} of unique IPs in {} countries...": """

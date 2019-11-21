@@ -20,7 +20,8 @@ class Identifier:
         self.parser = parser
         self.graph = None
 
-    def get_methods_from(self, target, start, custom):
+    @staticmethod
+    def get_methods_from(target, start, custom):
         """
         Returns the nested lambda list that'll receive a value from start field and should produce value in target field.
         :param target: field type name
@@ -366,10 +367,11 @@ class Identifier:
             print(f"Preparing type {target_type} of field={f}, source_type={source_type}, custom={task}, path={path}")
         return f, source_type, task
 
-    def get_column_i(self, column):
+    def get_column_i(self, column, check=False):
         """
         Useful for parsing user input COLUMN from the CLI args.
         :type column: object Either column ID (ex "1" points to column index 0) or an exact column name or the field
+        :type check: If not False and not found, error is raised and quit. If str, this string will be included in the error text.
         :rtype: int Either column_i or None if not found.
         """
         source_col_i = None
@@ -390,4 +392,8 @@ class Identifier:
                         reserve = f.col_i
                 if not source_col_i:
                     source_col_i = reserve
+        if check and (source_col_i is None or len(self.parser.first_line_fields) <= source_col_i):
+            logger.error(f"Cannot identify COLUMN {column}" + (" " + check if type(check) is str else "") +
+                         ", put there an exact column name or the numerical order starting with 1.")
+            quit()
         return source_col_i

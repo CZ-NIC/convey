@@ -65,6 +65,7 @@ class Parser:
         self.is_single_query = False  # CSV processing vs single_query check usage
         self.ranges = {}  # XX should be refactored as part of Whois
         self.ip_seen = {}  # XX should be refactored as part of Whois
+        self.aggregation = defaultdict(dict)  # [location file][grouped row][order in aggregation settings] = [sum generator, count]
         self._reset()
         self.selected: List[int] = []  # list of selected fields col_i that may be in/excluded and moved in the menu
 
@@ -389,6 +390,7 @@ class Parser:
         """ Reset variables before new analysis. """
         self.stats = defaultdict(set)
         self.queued_lines_count = self.invalid_lines_count = 0
+        self.aggregation = defaultdict(dict)  # self.aggregation[location file][grouped row][order in aggregation settings] = [sum generator, count]
 
         if self.dialect:
             class Wr:  # very ugly way to correctly get the output from csv.writer
@@ -431,6 +433,12 @@ class Parser:
             l.append("shuffled")
         for f in self.settings["add"]:
             l.append(str(f))
+        agg = self.settings["aggregate"]
+        if agg:
+            if agg[0] is not None:
+                l.append(f"{self.fields[agg[0]]}-grouped")
+            for fn, col in agg[1]:
+                l.append(f"{fn.__name__}-{self.fields[col]}")
         if hasattr(self, "source_file"):
             l.insert(0, Path(self.source_file).name)
             target_file = f"{'_'.join(l)}.csv"
@@ -451,14 +459,12 @@ class Parser:
 
         self.time_start = self.time_last = datetime.datetime.now().replace(microsecond=0)
         self.refresh()
-        # Config.update()
         self.prepare_target_file()
         self.processor.process_file(self.source_file, rewrite=True, stdin=self.stdin)
         self.time_end = datetime.datetime.now().replace(microsecond=0)
         self.lines_total = self.line_count  # if we guessed the total of lines, fix the guess now
         self.is_analyzed = True
         self.informer.sout_info()
-        # print("Whois analysis COMPLETED.\n")
         if self.invalid_lines_count:
             self.resolve_invalid()
 
@@ -633,7 +639,7 @@ class Parser:
         transposed = list(zip(*self.sample_parsed))
         sp = []
         for i, (col, is_chosen) in enumerate([(col, True) for col in chosens] + [(col, False) for col in excluded]):
-            col_i = self.identifier.get_column_i(col)
+            col_i = self.identifier.get_column_i(col, check="to be re-sorted")
             self.fields[col_i].col_i = i
             if self.fields[col_i].is_new:
                 sp.append([None] * len(self.sample_parsed))
@@ -686,6 +692,14 @@ class Parser:
         del state['identifier']
         del state['ip_seen']  # delete whois dicts
         del state['ranges']
+        # counters generators may be removed (their state is not jsonpicklable)
+        # however that means that when re-resolving after main processing, generators counts will reset
+        # See comment in the Aggregation class, concerning generator serialization.
+        # counters[location file][grouped row][order in aggregation settings] = [sum generator, count]
+        for l in state['aggregation'].values():
+            for g in l.values():
+                for o in g:
+                    o[0] = None
         state['dialect'] = self.dialect.__dict__.copy()
         return state
 

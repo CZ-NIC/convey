@@ -14,6 +14,7 @@ Any input is accepted:
     4) **Value filter** (only rows with a specific values are preserved)
     5) **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
     6) **Change CSV dialect** (change delimiter or quoting character)
+    7) **Aggregate** (count grouped by a column, sum...)
 
 Python3.6+ required.
 
@@ -48,6 +49,7 @@ Python3.6+ required.
   + [Custom code field](#custom-code-field)
   + [Base64 and Regular expressions](#base64-and-regular-expressions)
   + [Converting units](#converting-units)
+  + [Aggregate](#aggregate)
 * [Credits](#credits)
 
 
@@ -190,8 +192,8 @@ Some of the field types we are able to auto-detect:
 Current field computing capacity can be get from `--show-uml` flag. Generate yours by ex: `convey --show-uml | dot -Tsvg -o /tmp/convey-methods.svg`
 
 * Dashed node: field type is auto-detectable
-* Dashed edge: field type are identical
-* Edge label: generating options
+* Dashed edge: field types are identical
+* Edge label: generating options asked at runtime
 * Rectangle: field category border 
 
 ![Methods overview](./docs/convey-methods.svg?sanitize=True)
@@ -253,7 +255,7 @@ def any_method(value):
 When convey receives multiple lists, it generates a row for each combination. Ex: If a method returns 2 items and another 3 items, you will receive 6 similar rows.
 
 #### PickMethod decorator
-Should there be multiple ways of using your generator, you may decorate with `PickMethod` and let the user decide at the runtime. `PickMethod` has optional `default:str` parameter that specifies default method.
+Should there be multiple ways of using your generator, place them as methods of a class decorated with `PickMethod` and let the user decide at the runtime. `PickMethod` has optional `default:str` parameter that specifies the default method.
 
 ```python3
 from convey import PickMethod
@@ -272,7 +274,8 @@ class any_method(PickMethod):
 
 ```bash
 $ convey file.csv --field any_method  # user will be asked whether to use `all` or `filtered`
-$ convey file.csv --field any_method[filtered]  # filtered sub-method will be used
+$ convey file.csv --field any_method[filtered]  # `filtered` sub-method will be used
+$ convey file.csv --field any_method --yes  # the default `all` sub-method will be used
 ```
 
 #### PickInput decorator
@@ -287,6 +290,13 @@ def time_format(val, format="%H:%M"):
         If running in headless mode, the default format will be "%H:%M" (hours:minutes).   '''
     return dateutil.parser.parse(val).strftime(format)
 ```
+
+```bash
+$ convey file.csv --field time_format  # user will be asked for a format parameter
+$ convey file.csv --field time_format[%M]  # `format` will have the value `M%`
+$ convey file.csv --field time_time --yes  # the default `format` `%H:%M` will be used
+```
+
 
 ## Examples
 
@@ -385,11 +395,11 @@ tld      com
 
 We did not say earlier, user is asked each time whether they wish to get any `tld`, `gTLD` (ex: *com*) or `ccTLD` (ex: *cz*). You may specify it from CLI by one of those equivalent commands.
 ```bash
-$ convey test.csv --fresh -field tld[gTLD]
-$ convey test.csv --fresh -field tld,,,gTLD
+$ convey test.csv --fresh --field tld[gTLD]
+$ convey test.csv --fresh --field tld,,,gTLD
 
 # flag --yes or --headless will choose the default option which is *all*
-$ convey test.csv --fresh -field tld --yes
+$ convey test.csv --fresh --field tld --yes
 ```
 
 #### CSV processing
@@ -531,7 +541,7 @@ a!!sb!8=
 
 ### Converting units
 
-We are connected to the pint unit converter!
+We are connected to the [pint](https://pint.readthedocs.io/en/0.9/) unit converter!
 ```bash
 $ convey "3 kg" 
 Input value detected: unit
@@ -597,6 +607,74 @@ urlencode  3hours
 
 ```
 
+### Aggregate
+
+Let's have a file.
+```csv
+# file.csv
+category,price,consumption
+bulb,100,30
+bulb,150,10
+kettle,250,70
+kettle,352,80
+bulb,120,15
+```
+
+Sum the `price` column.
+```bash
+$ convey file.csv --aggregate sum,price
+  sum(price)
+------------
+         972
+```
+
+Group the `price` sum by `category`. 
+```bash
+$ convey file.csv --aggregate sum,price,category
+category     sum(price)
+---------  ------------
+total               972
+bulb                370
+kettle              602
+```
+
+Group the `price` sum and the `consumption` average value by `category`.
+
+```bash
+$ convey file.csv --aggregate sum,price,avg,consumption,category
+category      sum(price)    avg(consumption)
+----------  ------------  ------------------
+total                972               41
+bulb                 370               18.33
+kettle               602               75
+```
+
+Group the `price` sum by `category` and list its values.
+
+```bash
+$ convey file.csv --aggregate sum,price,list,price,category
+category      sum(price)  list(price)
+----------  ------------  ---------------------
+total                972  (all)
+bulb                 370  ['100', '150', '120']
+kettle               602  ['250', '352']
+```
+
+You can even split while aggregating. Each file will count its own results.
+
+```bash
+$ convey file.csv --agg sum,price --split category
+
+Split location: bulb
+  sum(price)
+------------
+         370
+
+Split location: kettle
+  sum(price)
+------------
+         602
+```
 
 ## Credits
 

@@ -1,6 +1,10 @@
 # CHANGELOG
 
-## 1.2 (unreleased)
+## 1.3 (unreleased)
+* aggregation
+* LICENSE included
+
+## 1.2 (2019-11-13)
 * web service
 * flags:
     - CHANGED:
@@ -50,7 +54,7 @@
     - sets internal process locale to en_US so that we can grep the same result at environments using different language
 * processing:
     - logs in format "time IP src port > IP dst port" can be automatically transformed to CSV before processing
-    - multiline base64 strings (seen in e-mails) may be input → automatically decoded
+    - multiline base64 and quoted_printable strings (seen in e-mails) may be input → automatically decoded
     - methods may return a list (the row will be duplicated)
     - implicitly convert to plaintext if possible when adding new column (ex: base64 will be implicitly decoded before its value being passed to a new reg column)
     - decorator PickMethod, PickInput to allow the user choose the way generating will work
