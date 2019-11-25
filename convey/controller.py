@@ -400,7 +400,9 @@ class Controller:
                         quit()
                     source_field, source_type, c = self.parser.identifier.get_fitting_source(target_type, *task[1:])
                     custom = c + custom
-                    self.source_new_column(target_type, add, source_field, source_type, custom)
+                    if not self.source_new_column(target_type, add, source_field, source_type, custom):
+                        print("Cancelled")
+                        quit()
                     self.parser.is_processable = True
 
                 # run single value check if the input is not a CSV file
@@ -741,41 +743,44 @@ class Controller:
             clear()
 
         if not custom:
-            if target_type.group == TypeGroup.custom:
-                if target_type == Types.code:
-                    print("What code should be executed? Change 'x'. Ex: x += \"append\";")
-                    custom = Preview(source_field, source_type).code()
-                elif target_type in [Types.reg, Types.reg_m, Types.reg_s]:
-                    *custom, target_type = Preview(source_field, source_type, target_type).reg()
-                elif target_type == Types.external:  # choose a file with a needed method
-                    while True:
-                        title = "What .py file should be used as custom source?"
-                        try:
-                            code, path = dialog.fselect(str(Path.cwd()), title=title)
-                        except DialogError as e:
-                            try:  # I do not know why, fselect stopped working and this helped
-                                code, path = dialog.fselect(str(Path.cwd()), title=title,
-                                                            height=max(get_terminal_size()[0] - 20, 10))
+            try:
+                if target_type.group == TypeGroup.custom:
+                    if target_type == Types.code:
+                        print("What code should be executed? Change 'x'. Ex: x += \"append\";")
+                        custom = Preview(source_field, source_type).code()
+                    elif target_type in [Types.reg, Types.reg_m, Types.reg_s]:
+                        *custom, target_type = Preview(source_field, source_type, target_type).reg()
+                    elif target_type == Types.external:  # choose a file with a needed method
+                        while True:
+                            title = "What .py file should be used as custom source?"
+                            try:
+                                code, path = dialog.fselect(str(Path.cwd()), title=title)
                             except DialogError as e:
-                                input("Unable launch file dialog. Please post an issue to the Github! Hit any key...")
-                                return
+                                try:  # I do not know why, fselect stopped working and this helped
+                                    code, path = dialog.fselect(str(Path.cwd()), title=title,
+                                                                height=max(get_terminal_size()[0] - 20, 10))
+                                except DialogError as e:
+                                    input("Unable launch file dialog. Please post an issue to the Github! Hit any key...")
+                                    return
 
-                        if code != "ok" or not path:
-                            return
-                        module = get_module_from_path(path)
-                        if module:
-                            # inspect the .py file, extract methods and let the user choose one
-                            code, method_name = dialog.menu(f"What method should be used in the file {path}?",
-                                                            choices=[(x, "") for x in dir(module) if not x.startswith("_")])
-                            if code == "cancel":
+                            if code != "ok" or not path:
                                 return
+                            module = get_module_from_path(path)
+                            if module:
+                                # inspect the .py file, extract methods and let the user choose one
+                                code, method_name = dialog.menu(f"What method should be used in the file {path}?",
+                                                                choices=[(x, "") for x in dir(module) if not x.startswith("_")])
+                                if code == "cancel":
+                                    return
 
-                            custom = path, method_name
-                            break
-                        else:
-                            dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
-                if not custom:
-                    return
+                                custom = path, method_name
+                                break
+                            else:
+                                dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
+                    if not custom:
+                        return
+            except Cancelled:
+                return
             path = graph.dijkstra(target_type, start=source_type, ignore_private=True)
             for i in range(len(path) - 1):
                 m = methods[path[i], path[i + 1]]

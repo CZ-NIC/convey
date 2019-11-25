@@ -19,6 +19,7 @@ from tabulate import tabulate
 
 from convey import PickInput
 from .config import Config, console_handler
+from .dialogue import Cancelled
 from .types import Type, Types
 
 
@@ -194,7 +195,7 @@ class Preview:
         # cancel on control-c (escape inaccessible, waits for another keystroke)
         @self.bindings.add('c-c')
         def _(_):
-            get_app().exit("")
+            get_app().exit(False)
 
         # exit on control+d (because the default exit command alt-enter seems unintuitive) (control+enter unacessible)
         @self.bindings.add('c-d')
@@ -254,6 +255,8 @@ class Preview:
         # prints the application
         text = self.reset_session().prompt(get_prompt, bottom_toolbar=self.standard_toolbar, style=self.style,
                                            default=o.default or "", lexer=PygmentsLexer(Python3Lexer), key_bindings=self.bindings)
+        if text is False:
+            raise Cancelled
         return text
 
     def reg(self):
@@ -298,11 +301,15 @@ class Preview:
             self.phase = 1
             self.search = self.reset_session().prompt('Regular match: ', **options, default=self.search,
                                                       validator=ReValidator())
+            if self.search is False:
+                raise Cancelled
             if self.phase == "continue":
                 continue
             self.phase = 2
             self.replace = self.reset_session().prompt('Regular replace: ', **options, default=self.replace,
                                                        rprompt=HTML('hit <b>tab</b> to jump back'))
+            if self.replace is False:
+                raise Cancelled
             if self.phase == "continue":
                 continue
             self.phase = 3
@@ -317,6 +324,8 @@ class Preview:
                     continue
                 if type_:
                     self.target_type = Types.reg_s if type_ == "reg_s" else Types.reg_m
+                elif type_ is False:
+                    raise Cancelled
                 else:
                     self.target_type = self.chosen_type
             else:

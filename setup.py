@@ -5,12 +5,8 @@ from setuptools import setup
 # using the same libraries in requirements.txt because after many articles I didn't understand any good reason why I shouldn't
 requirements = ""
 p = Path("requirements.txt")
-if p.exists():  # Xstand-alone install
+if p.exists():
     requirements = p.read_text()
-# else:  # PyPi install
-#     p = Path("envelope.egg-info/requires.txt")
-#     if p.exists():
-#         requirements = p.read_text()
 
 # load long description
 p = Path("README.md")
@@ -25,7 +21,7 @@ setup(
     author_email='edvard.rejthar@nic.cz',
     url='https://github.com/CZ-NIC/convey',
     license='GNU GPLv3',
-    description='CSV swiss knife brought by CSIRT.cz. Convenable way to process large files that might freeze your spreadsheet processor.',
+    description='CSV processing and mutual conversion of web related data types',
     long_description=long_description,
     long_description_content_type="text/markdown",
     install_requires=[requirements.split("\n")],
