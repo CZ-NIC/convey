@@ -61,7 +61,10 @@ class Parser:
         self.queued_lines_count = self.invalid_lines_count = 0
         self.line_count = 0
         self.time_last = self.time_start = self.time_end = None
-        self.stdout = None  # when called from another program we communicate through this stream rather then through a file
+        # when called from another program we communicate through this stream rather than through a file
+        # XX this is not used right now, convey is not at the moment connectable to other programs
+        # see __init__.py at revision d2cf88f48409ca8cc5e229954df34836de884445
+        self.stdout = None
         self.is_single_query = False  # CSV processing vs single_query check usage
         self.ranges = {}  # XX should be refactored as part of Whois
         self.ip_seen = {}  # XX should be refactored as part of Whois

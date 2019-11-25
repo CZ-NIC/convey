@@ -125,18 +125,19 @@ class Processor:
                         csv.line_count -= 1  # let's pretend we didn't just do this row before and give it a second chance
                         self.process_line(csv, row, settings)
 
-            if settings["aggregate"]:  # write aggregation results
+            if settings["aggregate"]:  # write aggregation results now because we skipped it in process_line when aggregating
                 for location, data in self.csv.aggregation.items():
                     if location is 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
                         t = csv.stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
                     elif location is 1:  # this is a sign we output csv data to stdout
                         t = io.StringIO()
+                        self.descriptors[1] = t, None  # put the aggregated data to the place we would attend them
                     else:
                         t = open(Path(Config.get_cache_dir(), location), "w")
                         if len(self.csv.aggregation) > 1:
                             print("\nSplit location: " + location)
                     v = self.csv.informer.get_aggregation(data)
-                    print(v)
+                    #print(v)
                     t.write(v)
         finally:
             if not stdin:
@@ -144,6 +145,7 @@ class Processor:
                 if not self.csv.is_split:
                     self.csv.saved_to_disk = True
             elif not self.csv.is_split and 1 in self.descriptors:  # we have all data in a io.TextBuffer, not in a regular file
+                # the data are in the self.descriptors[1]
                 if Config.verbosity <= logging.INFO:
                     print("\n\n** Completed! **\n")
                 result = self.descriptors[1][0].getvalue()
@@ -151,6 +153,7 @@ class Processor:
                 csv.stdout = result
                 self.csv.saved_to_disk = False
             if 2 in self.descriptors:
+                # the data were in parser.stdout and were taken by the remote application
                 del self.descriptors[2]
 
             self._close_descriptors()
@@ -233,6 +236,39 @@ class Processor:
                     chosen_fields = line  # reset to the original line (location will be reprocessed)
             else:
                 location = settings["target_file"]
+
+            # aggregation: count column
+            if settings["aggregate"]:
+                # settings["aggregate"] = column to be grouped, [(sum, column to be summed)]
+                # Ex: settings["aggregate"] = 1, [(Aggregate.sum, 2), (Aggregate.avg, 3)]
+                # Ex: settings["aggregate"] = 0, [(Aggregate.count, 0)]
+                # Ex: settings["aggregate"] = None, [(Aggregate.sum, 1)]
+                # Ex: settings["aggregate"] = None, [(Aggregate.sum, 1), (Aggregate.avg, 1)]
+
+                col_group_i = settings["aggregate"][0]
+                grp = fields[col_group_i] if col_group_i is not None else None
+                for i, (fn, col_data_i) in enumerate(settings["aggregate"][1]):
+                    # counters[location file][grouped row][order in aggregation settings] = [sum generator, count]
+                    loc = self.csv.aggregation[location]
+
+                    if grp:  # it makes sense to compute total row because we are grouping
+                        if None not in loc:
+                            loc[None] = []
+                        if len(loc[None]) <= i:
+                            loc[None].append([fn(), 0])
+                            next(loc[None][i][0])
+                        if fn.__name__ == "list":
+                            loc[None][i][1] = "(all)"  # we do not want to enlist whole table
+                        else:
+                            loc[None][i][1] = loc[None][i][0].send(fields[col_data_i])
+
+                    if grp not in loc:
+                        loc[grp] = []
+                    if len(loc[grp]) <= i:
+                        loc[grp].append([fn(), 0])
+                        next(loc[grp][i][0])
+                    loc[grp][i][1] = loc[grp][i][0].send(fields[col_data_i])
+                return  # we will not write anything right know, aggregation results are not ready yet
         except BdbQuit:  # BdbQuit and KeyboardInterrupt caught higher
             raise
         except Quota.QuotaExceeded:
@@ -248,39 +284,6 @@ class Processor:
             csv.invalid_lines_count += 1
             location = Config.INVALID_NAME
             chosen_fields = line  # reset the original line (location will be reprocessed)
-
-        # aggregation: count column        
-        if settings["aggregate"]:
-            # settings["aggregate"] = column to be grouped, [(sum, column to be summed)]
-            # Ex: settings["aggregate"] = 1, [(Aggregate.sum, 2), (Aggregate.avg, 3)]
-            # Ex: settings["aggregate"] = 0, [(Aggregate.count, 0)]
-            # Ex: settings["aggregate"] = None, [(Aggregate.sum, 1)]
-            # Ex: settings["aggregate"] = None, [(Aggregate.sum, 1), (Aggregate.avg, 1)]
-
-            col_group_i = settings["aggregate"][0]
-            grp = fields[col_group_i] if col_group_i is not None else None
-            for i, (fn, col_data_i) in enumerate(settings["aggregate"][1]):
-                # counters[location file][grouped row][order in aggregation settings] = [sum generator, count]
-                loc = self.csv.aggregation[location]
-
-                if grp:  # it makes sense to compute total row because we are grouping
-                    if None not in loc:
-                        loc[None] = []
-                    if len(loc[None]) <= i:
-                        loc[None].append([fn(), 0])
-                        next(loc[None][i][0])
-                    if fn.__name__ == "list":
-                        loc[None][i][1] = "(all)"  # we do not want to enlist whole table
-                    else:
-                        loc[None][i][1] = loc[None][i][0].send(fields[col_data_i])
-
-                if grp not in loc:
-                    loc[grp] = []
-                if len(loc[grp]) <= i:
-                    loc[grp].append([fn(), 0])
-                    next(loc[grp][i][0])
-                loc[grp][i][1] = loc[grp][i][0].send(fields[col_data_i])
-            return  # we will not write anything right know, aggregation results are not ready yet
 
         if not location:
             return

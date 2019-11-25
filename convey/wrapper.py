@@ -41,6 +41,8 @@ def choose_file():
 
 
 def read_stdin():
+    if Config.get("daemon", get=bool):
+        raise RuntimeWarning("STDIN missing")
     print("Write something to stdin. (End of transmission 3× <Ctrl>+d or <Enter>+<Ctrl>+d.)")
     return sys.stdin.read().rstrip().split("\n")  # rstrip \n at the end of the input
 
@@ -169,7 +171,7 @@ class Wrapper:
             # * cache_file does not exist = we have not written anything on the disk
             # * target_file exist = there is a destination to write (when splitting, no target_file specified)
             #       XX which may be changed because it is usual to preserve file
-            # * stdout or is_formatted - there is something valuable to eb saved
+            # * stdout or is_formatted - there is something valuable to be saved
             target_file = self.parser.target_file or self.parser.source_file
             if not target_file:  # we were splitting so no target file exist
                 target_file = self.parser.invent_file_str()

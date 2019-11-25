@@ -322,8 +322,10 @@ class Controller:
                     new_fields.clear()  # reset new fields so that they will not be remembered in another query
                     try:
                         self.args = args = parser.parse_args(argv[2:])  # the daemon has receives a new command
-                    except SystemExit:
-                        raise RuntimeWarning("This might be just a help text request")
+                    except Exception as e:  # argparse has a various palette of exceptions to be raised, catch them all
+                        print(e)
+                        quit()
+                        #raise RuntimeWarning("This might be just a help text request")
                     see_menu = True
                     control_daemon(args.daemon, True)
 

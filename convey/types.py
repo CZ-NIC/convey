@@ -88,6 +88,12 @@ class Aggregate:
         while True:
             l.append((yield l))
 
+    @staticmethod
+    def set():
+        s = set()
+        while True:
+            s.add((yield s))
+
     # XX If we would like to serialize a function and this is not possible, we can serialize it ourselves that way:
     # @staticmethod
     # def avg():
