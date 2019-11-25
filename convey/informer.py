@@ -1,7 +1,7 @@
-import csv
 import subprocess
 import sys
-from _datetime import datetime
+from csv import writer
+from datetime import datetime
 from itertools import cycle
 from math import ceil
 from pathlib import Path
@@ -17,8 +17,8 @@ from .whois import Whois
 class Informer:
     """ Prints analysis data in nice manner. """
 
-    def __init__(self, csv):
-        self.csv = csv
+    def __init__(self, parser):
+        self.parser = parser
 
     def sout_info(self, clear=True, full=False):
         if Config.is_quiet():
@@ -32,67 +32,67 @@ class Informer:
         # sys.stderr.write("\x1b[2J\x1b[H") # clears gnome-terminal
         # print(chr(27) + "[2J")
         l = []
-        l.append("Reading STDIN" if self.csv.stdin else "Source file: " + str(self.csv.source_file))
-        if self.csv.dialect:
-            l.append("delimiter: '" + self.csv.dialect.delimiter + "'")
-            l.append("quoting: '" + self.csv.dialect.quotechar + "'")
-        if self.csv.has_header is not None:
-            l.append("header: " + ("used" if self.csv.has_header else "not used"))
-        if self.csv.settings["filter"]:
-            l.append("Filter: " + ", ".join([f"{self.csv.fields[f].name}({val})" for f, val in self.csv.settings["filter"]]))
-        if self.csv.settings["unique"]:
-            l.append("Unique col: " + ", ".join([self.csv.fields[f].name for f in self.csv.settings["unique"]]))
-        if self.csv.settings["split"]:
-            l.append("Split by: {}".format(self.csv.fields[self.csv.settings["split"]]))
-        if self.csv.settings["aggregate"]:
+        l.append("Reading STDIN" if self.parser.stdin else "Source file: " + str(self.parser.source_file))
+        if self.parser.dialect:
+            l.append("delimiter: '" + self.parser.dialect.delimiter + "'")
+            l.append("quoting: '" + self.parser.dialect.quotechar + "'")
+        if self.parser.has_header is not None:
+            l.append("header: " + ("used" if self.parser.has_header else "not used"))
+        if self.parser.settings["filter"]:
+            l.append("Filter: " + ", ".join([f"{self.parser.fields[f].name}({val})" for f, val in self.parser.settings["filter"]]))
+        if self.parser.settings["unique"]:
+            l.append("Unique col: " + ", ".join([self.parser.fields[f].name for f in self.parser.settings["unique"]]))
+        if self.parser.settings["split"]:
+            l.append("Split by: {}".format(self.parser.fields[self.parser.settings["split"]]))
+        if self.parser.settings["aggregate"]:
             # settings["aggregate"] = column to be grouped, [(sum, column to be summed)]
             # Ex: settings["aggregate"] = 1, [(Aggregate.sum, 2), (Aggregate.avg, 3)]
-            v = ", ".join(f"{fn.__name__}({self.csv.fields[col].name})" for fn, col in self.csv.settings["aggregate"][1])
-            if self.csv.settings["aggregate"][0] is not None:
-                l.append(f"Group by {self.csv.fields[self.csv.settings['aggregate'][0]]}: " + v)
+            v = ", ".join(f"{fn.__name__}({self.parser.fields[col].name})" for fn, col in self.parser.settings["aggregate"][1])
+            if self.parser.settings["aggregate"][0] is not None:
+                l.append(f"Group by {self.parser.fields[self.parser.settings['aggregate'][0]]}: " + v)
             else:
                 l.append("Aggregate: " + v)
 
         # XX
-        # if self.csv.redo_invalids is not None:
-        #    l.append("Redo invalids: " + str(self.csv.redo_invalids))
+        # if self.parser.redo_invalids is not None:
+        #    l.append("Redo invalids: " + str(self.parser.redo_invalids))
         sys.stdout.write(", ".join(l))
 
         l3 = []
-        for f in self.csv.fields:
+        for f in self.parser.fields:
             if not f.is_new and f.has_clear_type():
                 t = ", ".join([str(t) for t in f.possible_types])
                 l3.append(f.color(f"{f} ({t})"))
         sys.stdout.write("\nIdentified columns: " + ", ".join(l3))
-        if self.csv.settings["add"]:
+        if self.parser.settings["add"]:
             l2 = []
-            for f in self.csv.settings["add"]:
+            for f in self.parser.settings["add"]:
                 l2.append(f.color(f"{f} (from {str(f.source_field)})"))
             sys.stdout.write("\nComputed columns: " + ", ".join(l2))
         l = []
         progress = 0
-        if self.csv.line_count:
-            if self.csv.ip_count:
-                sys.stdout.write(", {} IPs".format(self.csv.ip_count))
-            elif self.csv.ip_count_guess:
-                sys.stdout.write(", around {} IPs".format(self.csv.ip_count_guess))
-            l.append("Log lines processed: {}/{}, {} %".format(self.csv.line_count, self.csv.lines_total,
-                                                               ceil(100 * self.csv.line_count / self.csv.lines_total)))
-            progress = self.csv.line_count / self.csv.lines_total
+        if self.parser.line_count:
+            if self.parser.ip_count:
+                sys.stdout.write(", {} IPs".format(self.parser.ip_count))
+            elif self.parser.ip_count_guess:
+                sys.stdout.write(", around {} IPs".format(self.parser.ip_count_guess))
+            l.append("Log lines processed: {}/{}, {} %".format(self.parser.line_count, self.parser.lines_total,
+                                                               ceil(100 * self.parser.line_count / self.parser.lines_total)))
+            progress = self.parser.line_count / self.parser.lines_total
         else:
-            l.append("Log lines: {}".format(self.csv.lines_total))
-        if self.csv.time_end:
-            l.append("{}".format(self.csv.time_end - self.csv.time_start))
-        elif self.csv.time_start:
-            l.append(f"{datetime.now().replace(microsecond=0) - self.csv.time_start}")
-            l.append(f"{self.csv.velocity} lines / s")
-            l.append(f"{self.csv.processor.descriptors_count} file descriptors open")
-        if self.csv.queued_lines_count:
-            if len(Whois.queued_ips) != self.csv.queued_lines_count:
+            l.append("Log lines: {}".format(self.parser.lines_total))
+        if self.parser.time_end:
+            l.append("{}".format(self.parser.time_end - self.parser.time_start))
+        elif self.parser.time_start:
+            l.append(f"{datetime.now().replace(microsecond=0) - self.parser.time_start}")
+            l.append(f"{self.parser.velocity} lines / s")
+            l.append(f"{self.parser.processor.descriptors_count} file descriptors open")
+        if self.parser.queued_lines_count:
+            if len(Whois.queued_ips) != self.parser.queued_lines_count:
                 v = f" lines ({len(Whois.queued_ips)} unique IPs)"
             else:
                 v = " lines"
-            s = f"skipped {self.csv.queued_lines_count}{v} due to LACNIC quota"
+            s = f"skipped {self.parser.queued_lines_count}{v} due to LACNIC quota"
             if Whois.quota.is_running():
                 s += f" till {Whois.quota.time()}"
             l.append(s)
@@ -104,26 +104,26 @@ class Informer:
                 r += " " * (progress - len(r))
             r = f"\033[7m{r[:progress]}\033[0m" + r[progress:]
         sys.stdout.write("\n" + r + "\n")
-        if self.csv.whois_stats:
-            print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.csv.whois_stats.items())
-                  + f"; {len(self.csv.ranges)} prefixes discovered")
+        if self.parser.whois_stats:
+            print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.parser.whois_stats.items())
+                  + f"; {len(self.parser.ranges)} prefixes discovered")
 
-        print("\nSample:\n" + "".join(self.csv.sample[:4]))  # show first 3rd lines
+        print("\nSample:\n" + "".join(self.parser.sample[:4]))  # show first 3rd lines
 
-        if self.csv.is_formatted:  # show how would the result be alike
-            full_rows, rows = self.csv.get_sample_values()
+        if self.parser.is_formatted:  # show how would the result be alike
+            full_rows, rows = self.parser.get_sample_values()
 
-            first_line_length = tabulate(rows, headers=[f.get(True, color=False) for f in self.csv.fields]).split("\n")[0]
-            if rows and not self.csv.settings["dialect"] and len(first_line_length) <= get_terminal_size()[1]:
+            first_line_length = tabulate(rows, headers=[f.get(True, color=False) for f in self.parser.fields]).split("\n")[0]
+            if rows and not self.parser.settings["dialect"] and len(first_line_length) <= get_terminal_size()[1]:
                 # print big and nice table because we do not care about the dialect and terminal is wide enough
                 print("\033[0;36mPreview:\033[0m")
-                header = [f.get(True) for f in self.csv.fields]
+                header = [f.get(True) for f in self.parser.fields]
                 print(tabulate(rows, headers=header))
             else:
                 # print the rows in the same way so that they optically match the Sample above
                 print("\033[0;36mCompact preview:\033[0m")
-                cw = csv.writer(sys.stdout, dialect=self.csv.settings["dialect"] or self.csv.dialect)
-                cw.writerow([f.get() for f in self.csv.fields])
+                cw = writer(sys.stdout, dialect=self.parser.settings["dialect"] or self.parser.dialect)
+                cw.writerow([f.get() for f in self.parser.fields])
                 for r in full_rows:
                     cw.writerow(r)
 
@@ -131,21 +131,21 @@ class Informer:
         if output:
             print(f"Output file specified: {output}")
 
-        if self.csv.aggregation:  # an aggregation has finished
+        if self.parser.aggregation:  # an aggregation has finished
             print("\n")
-            if len(self.csv.aggregation) == 1:
-                print(self.get_aggregation(next(iter(self.csv.aggregation.values())), color=True, limit=8))
+            if len(self.parser.aggregation) == 1:
+                print(self.get_aggregation(next(iter(self.parser.aggregation.values())), color=True, limit=8))
             else:
                 print("Aggregating in split files...")
 
-        if self.csv.is_analyzed:
-            if self.csv.saved_to_disk is False:
+        if self.parser.is_analyzed:
+            if self.parser.saved_to_disk is False:
                 print("\n** Processing completed, results were not saved to a file yet.")
-                print(self.csv.stdout)
-            elif self.csv.saved_to_disk:
-                print(f"\n** Processing completed: Result file in {self.csv.target_file}")
+                print(self.parser.stdout)
+            elif self.parser.saved_to_disk:
+                print(f"\n** Processing completed: Result file in {self.parser.target_file}")
             else:
-                partner_count, abuse_count, non_deliverable, totals = map(self.csv.stats.get, (
+                partner_count, abuse_count, non_deliverable, totals = map(self.parser.stats.get, (
                     'partner_count', 'abuse_count', 'non_deliverable', 'totals'))
 
                 print(f"** Processing completed: {totals} result files in {Config.get_cache_dir()}")
@@ -176,25 +176,25 @@ class Informer:
 
             stat = self.get_stats_phrase()
             print("\n Statistics overview:\n" + stat)
-            if Config.get("write_statistics") and not self.csv.stdin:
+            if Config.get("write_statistics") and not self.parser.stdin:
                 # we write statistics.txt only if we're sourcing from a file, not from stdin
                 # XX move this to parser.run_analysis and _resolve_again or to Processor – do not rewrite it every time here!
-                with open(Path(Path(self.csv.source_file).parent, "statistics.txt"), "w") as f:
+                with open(Path(Path(self.parser.source_file).parent, "statistics.txt"), "w") as f:
                     f.write(stat)
             """
             XX
-            if csv.abuseReg.stat("records", False):
-                print("Couldn't find {} abusemails for {}× IP.".format(csv.reg["local"].stat("records", False), csv.reg["local"].stat("ips", False)))
-            if csv.countryReg.stat("records", False):
-                print("Couldn't find {} csirtmails for {}× IP.".format(csv.reg["foreign"].stat("records", False), csv.reg["foreign"].stat("ips", False)))
+            if parser.abuseReg.stat("records", False):
+                print("Couldn't find {} abusemails for {}× IP.".format(parser.reg["local"].stat("records", False), parser.reg["local"].stat("ips", False)))
+            if parser.countryReg.stat("records", False):
+                print("Couldn't find {} csirtmails for {}× IP.".format(parser.reg["foreign"].stat("records", False), parser.reg["foreign"].stat("ips", False)))
             """
 
         if full:
             # XX subprocess.run("less", input=v, encoding="utf-8")
             # XX show aggregation too
-            if len(self.csv.ranges.items()):
+            if len(self.parser.ranges.items()):
                 rows = []
-                for prefix, o in self.csv.ranges.items():
+                for prefix, o in self.parser.ranges.items():
                     prefix, location, incident, asn, netname, country, abusemail, timestamp = o
                     rows.append((prefix, location, incident or "-", asn or "-", netname or "-"))
                 print("\n\n** Whois information overview **\n",
@@ -202,9 +202,9 @@ class Informer:
             else:
                 print("No whois information available.")
 
-            if self.csv.is_split:
+            if self.parser.is_split:
                 rows = []
-                for o in self.csv.attachments:
+                for o in self.parser.attachments:
                     rows.append((o.path,
                                  {True: "partner", False: "✓", None: "×"}[o.partner],
                                  {True: "✓", False: "error", None: "no"}[o.sent],
@@ -219,35 +219,36 @@ class Informer:
     def get_aggregation(self, data, color=False, limit=None):
         form = lambda v, fmt: f"\033[{fmt}m{v}\033[0m" if color else v
         header = []
-        grouping = self.csv.settings["aggregate"][0] is not None
+        grouping = self.parser.settings["aggregate"][0] is not None
         if grouping:
-            header.append(form(self.csv.fields[self.csv.settings["aggregate"][0]].name, 36))
-        header.extend([form(f"{fn.__name__}({self.csv.fields[col]})", 33) for fn, col in self.csv.settings["aggregate"][1]])
+            header.append(form(self.parser.fields[self.parser.settings["aggregate"][0]].name, 36))
+        header.extend([form(f"{fn.__name__}({self.parser.fields[col]})", 33) for fn, col in self.parser.settings["aggregate"][1]])
 
         rows = []
-        generators = cycle(g[0] for g in self.csv.settings["aggregate"][1])
+        generators = cycle(g[0] for g in self.parser.settings["aggregate"][1])
 
         for i, (row, d) in enumerate(data.items()):
             if limit and i == limit:
                 rows.append(["..." for fn, count in d])
                 break
-            if row is None and len(self.csv.settings["aggregate"][1]) == 1\
+            if row is None and len(self.parser.settings["aggregate"][1]) == 1 \
                     and next(generators) == Aggregate.list:
                 # This is the total row
                 # We are aggregating only single thing which is list.
                 # That list would comprehend all of the values in the column. We omit it.
                 continue
 
-            #import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             # rows.append([form(count if fn.__name__ in ("count", "list") else round(count * 100) / 100, 33) for fn, count in d])
-            rows.append([form(count if next(generators) not in (Aggregate.sum, Aggregate.avg) else round(count * 100) / 100, 33) for fn, count in d])
+            rows.append([form(count if next(generators) not in (Aggregate.sum, Aggregate.avg) else round(count * 100) / 100, 33) for
+                         fn, count in d])
             if grouping:
                 rows[-1].insert(0, form("total" if row is None else row, 36))
         return tabulate(rows, header)
 
     def get_stats_phrase(self, generate=False):
         """ Prints phrase "Totally {} of unique IPs in {} countries...": """
-        st = self.csv.stats
+        st = self.parser.stats
 
         ips_unique = len(st["ipsUnique"])
         isp_cz_found = len(st["ispCzFound"])
@@ -259,7 +260,7 @@ class Informer:
         countries_found = len(st["countriesFound"])
 
         """         XX
-        invalidLines = self.csv.invalidReg.stat()
+        invalidLines = self.parser.invalidReg.stat()
         """
 
         if ips_unique > 0:
@@ -280,7 +281,7 @@ class Informer:
 
         """ XX
         if invalidLines:
-            res += "\nThere were {} invalid lines in {} file.".format(invalidLines, self.csv.invalidReg.getPath())"""
+            res += "\nThere were {} invalid lines in {} file.".format(invalidLines, self.parser.invalidReg.getPath())"""
 
         return res
 
@@ -298,4 +299,4 @@ class Informer:
             return int(result.strip().split()[0]), size
         else:
             # bytes / average number of characters on line in sample
-            return ceil(size / (len("".join(self.csv.sample)) / len(self.csv.sample)) / 1000000) * 1000000, size
+            return ceil(size / (len("".join(self.parser.sample)) / len(self.parser.sample)) / 1000000) * 1000000, size

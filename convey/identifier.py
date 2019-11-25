@@ -194,7 +194,7 @@ class Identifier:
 
     def identify_fields(self, quiet=False):
         """
-        Identify self.csv.fields got in __init__
+        Identify self.parser.fields got in __init__
         Sets them possible types (sorted, higher score mean bigger probability that the field is of that type)
         :type quiet: bool If True, we do not raise exception when sample cannot be processed.
                             Ex: We attempt consider user input "1,2,3" as single field which is not, we silently return False

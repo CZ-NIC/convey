@@ -606,12 +606,12 @@ class Controller:
         info = ["In the next step, we connect to the server to send e-mails:"]
         cond1 = cond2 = False
         st = self.parser.stats
-        if st["abuse_count"][0]:  # XX should be equal if just split by computed column! = self.csv.stats["ispCzFound"]:
+        if st["abuse_count"][0]:  # XX should be equal if just split by computed column! = self.parser.stats["ispCzFound"]:
             info.append(f" Template of a basic e-mail starts: \n\n{Contacts.mailDraft['local'].get_mail_preview()}\n")
             cond1 = True
         else:
             info.append(" No non-partner e-mail in the set.")
-        if st["partner_count"][0]:  # self.csv.stats["countriesFound"]:
+        if st["partner_count"][0]:  # self.parser.stats["countriesFound"]:
             info.append(f" Template of a partner e-mail starts: \n\n{Contacts.mailDraft['foreign'].get_mail_preview()}\n")
             cond2 = True
         else:

@@ -30,12 +30,12 @@ class Processor:
     descriptors: Dict[str, object]  # location => file_descriptor, his csv-writer
     descriptorsStatsOpen: Dict[str, int]  # {location: count} XX(performance) we may use a SortedDict object
 
-    def __init__(self, csv, rewrite=True):
+    def __init__(self, parser, rewrite=True):
         """
 
         :type rewrite: bool Previously created files will get rewritten by default. Not wanted when we're resolving invalid lines or so.
         """
-        self.csv = csv
+        self.parser = parser
         if rewrite:
             self.files_created = set()
 
@@ -47,9 +47,9 @@ class Processor:
         self.descriptors = {}
 
     def process_file(self, file, rewrite=False, stdin=None):
-        csv = self.csv
-        self.__init__(csv, rewrite=rewrite)
-        settings = csv.settings.copy()
+        parser = self.parser
+        self.__init__(parser, rewrite=rewrite)
+        settings = parser.settings.copy()
 
         # apply setup
         adds = []  # convert settings["add"] to lambdas
@@ -58,13 +58,13 @@ class Processor:
         del settings["add"]
         settings["addByMethod"] = adds
 
-        if [f for f in self.csv.fields if (not f.is_chosen or f.col_i_original != f.col_i)]:
-            settings["chosen_cols"] = [f.col_i_original for f in self.csv.fields if f.is_chosen]
+        if [f for f in self.parser.fields if (not f.is_chosen or f.col_i_original != f.col_i)]:
+            settings["chosen_cols"] = [f.col_i_original for f in self.parser.fields if f.is_chosen]
 
         if not settings["dialect"]:
-            settings["dialect"] = csv.dialect
+            settings["dialect"] = parser.dialect
 
-        Web.init(self.csv.get_computed_fields())
+        Web.init(self.parser.get_computed_fields())
 
         # start file processing
         try:
@@ -73,40 +73,40 @@ class Processor:
                 settings["target_file"] = 1
             else:
                 source_stream = open(file, "r")
-                settings["target_file"] = str(csv.target_file)
-            if csv.stdout:
+                settings["target_file"] = str(parser.target_file)
+            if parser.stdout:
                 settings["target_file"] = 2
             # with open(file, "r") as sourceF:
-            reader = csvreader(source_stream, dialect=csv.dialect)
-            if csv.has_header:  # skip header
+            reader = csvreader(source_stream, dialect=parser.dialect)
+            if parser.has_header:  # skip header
                 reader.__next__()
             for row in reader:
                 if not row:  # skip blank
                     continue
-                csv.line_count += 1
-                if csv.line_count == csv.line_sout:
+                parser.line_count += 1
+                if parser.line_count == parser.line_sout:
                     now = datetime.now()
-                    delta = (now - csv.time_last).total_seconds()
-                    csv.time_last = now
+                    delta = (now - parser.time_last).total_seconds()
+                    parser.time_last = now
                     if delta < 1 or delta > 2:
-                        new_vel = ceil(csv.velocity / delta) + 1
-                        if abs(new_vel - csv.velocity) > 100 and csv.velocity < new_vel:
+                        new_vel = ceil(parser.velocity / delta) + 1
+                        if abs(new_vel - parser.velocity) > 100 and parser.velocity < new_vel:
                             # smaller accelerating of velocity (decelerating is alright)
-                            csv.velocity += 100
+                            parser.velocity += 100
                         else:
-                            csv.velocity = new_vel
-                    csv.line_sout = csv.line_count + 1 + csv.velocity
-                    csv.informer.sout_info()
+                            parser.velocity = new_vel
+                    parser.line_sout = parser.line_count + 1 + parser.velocity
+                    parser.informer.sout_info()
                     Whois.quota.check_over()
                 try:
-                    self.process_line(csv, row, settings)
+                    self.process_line(parser, row, settings)
                 except BdbQuit:  # not sure if working, may be deleted
                     print("BdbQuit called")
                     raise
                 except KeyboardInterrupt:
-                    print(f"Keyboard interrupting on line number: {csv.line_count}")
+                    print(f"Keyboard interrupting on line number: {parser.line_count}")
                     s = "[a]utoskip LACNIC encounters" \
-                        if self.csv.queued_lines_count and not Config.get("lacnic_quota_skip_lines", "FIELDS") else ""
+                        if self.parser.queued_lines_count and not Config.get("lacnic_quota_skip_lines", "FIELDS") else ""
                     o = ask("Keyboard interrupt caught. Options: continue (default, do the line again), "
                             "[s]kip the line, [d]ebug, [e]nd processing earlier, [q]uit: ")
                     if o == "a":
@@ -122,58 +122,58 @@ class Processor:
                         self._close_descriptors()
                         quit()
                     else:  # continue from last row
-                        csv.line_count -= 1  # let's pretend we didn't just do this row before and give it a second chance
-                        self.process_line(csv, row, settings)
+                        parser.line_count -= 1  # let's pretend we didn't just do this row before and give it a second chance
+                        self.process_line(parser, row, settings)
 
             if settings["aggregate"]:  # write aggregation results now because we skipped it in process_line when aggregating
-                for location, data in self.csv.aggregation.items():
+                for location, data in self.parser.aggregation.items():
                     if location is 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
-                        t = csv.stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
+                        t = parser.stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
                     elif location is 1:  # this is a sign we output csv data to stdout
                         t = io.StringIO()
                         self.descriptors[1] = t, None  # put the aggregated data to the place we would attend them
                     else:
                         t = open(Path(Config.get_cache_dir(), location), "w")
-                        if len(self.csv.aggregation) > 1:
+                        if len(self.parser.aggregation) > 1:
                             print("\nSplit location: " + location)
-                    v = self.csv.informer.get_aggregation(data)
+                    v = self.parser.informer.get_aggregation(data)
                     #print(v)
                     t.write(v)
         finally:
             if not stdin:
                 source_stream.close()
-                if not self.csv.is_split:
-                    self.csv.saved_to_disk = True
-            elif not self.csv.is_split and 1 in self.descriptors:  # we have all data in a io.TextBuffer, not in a regular file
+                if not self.parser.is_split:
+                    self.parser.saved_to_disk = True
+            elif not self.parser.is_split and 1 in self.descriptors:  # we have all data in a io.TextBuffer, not in a regular file
                 # the data are in the self.descriptors[1]
                 if Config.verbosity <= logging.INFO:
                     print("\n\n** Completed! **\n")
                 result = self.descriptors[1][0].getvalue()
                 print(result.strip())
-                csv.stdout = result
-                self.csv.saved_to_disk = False
+                parser.stdout = result
+                self.parser.saved_to_disk = False
             if 2 in self.descriptors:
                 # the data were in parser.stdout and were taken by the remote application
                 del self.descriptors[2]
 
             self._close_descriptors()
 
-        if self.csv.is_split:
+        if self.parser.is_split:
             attch = set()
-            for at in self.csv.attachments:
+            for at in self.parser.attachments:
                 attch.add(at.path)
             for f in self.files_created:
                 if f not in attch and f != Config.INVALID_NAME:
                     # set that a mail with this attachment have not yet been sent
-                    self.csv.attachments.append(Attachment(None, None, f))
-            Attachment.refresh_attachment_stats(self.csv)
+                    self.parser.attachments.append(Attachment(None, None, f))
+            Attachment.refresh_attachment_stats(self.parser)
 
     def _close_descriptors(self):
         """ Descriptors have to be closed (flushed) """
         for f in self.descriptors.values():
             f[0].close()
 
-    def process_line(self, csv, line, settings, fields=None):
+    def process_line(self, parser, line, settings, fields=None):
         """
         Parses line – compute fields while adding, perform filters, pick or delete cols, split and write to a file.
         """
@@ -181,7 +181,7 @@ class Processor:
             if not fields:
                 fields = line.copy()
 
-                if len(fields) is not len(csv.first_line_fields):
+                if len(fields) is not len(parser.first_line_fields):
                     raise ValueError("Invalid number of line fields: {}".format(len(fields)))
 
                 # add fields
@@ -206,7 +206,7 @@ class Processor:
                     it = zip(*fields)
                     fields = it.__next__()
                     for v in it:
-                        self.process_line(csv, line, settings, v)  # duplicate row because single lambda produced a list
+                        self.process_line(parser, line, settings, v)  # duplicate row because single lambda produced a list
 
             # inclusive filter
             for f in settings["filter"]:  # list of tuples (col, value): [(23, "passed-value"), (13, "another-value")]
@@ -249,7 +249,7 @@ class Processor:
                 grp = fields[col_group_i] if col_group_i is not None else None
                 for i, (fn, col_data_i) in enumerate(settings["aggregate"][1]):
                     # counters[location file][grouped row][order in aggregation settings] = [sum generator, count]
-                    loc = self.csv.aggregation[location]
+                    loc = self.parser.aggregation[location]
 
                     if grp:  # it makes sense to compute total row because we are grouping
                         if None not in loc:
@@ -272,7 +272,7 @@ class Processor:
         except BdbQuit:  # BdbQuit and KeyboardInterrupt caught higher
             raise
         except Quota.QuotaExceeded:
-            csv.queued_lines_count += 1
+            parser.queued_lines_count += 1
             location = Config.QUEUED_NAME
             chosen_fields = line  # reset the original line (location will be reprocessed)
         except Exception as e:
@@ -281,7 +281,7 @@ class Processor:
                 Config.get_debugger().set_trace()
             else:
                 logger.warning(e, exc_info=True)
-            csv.invalid_lines_count += 1
+            parser.invalid_lines_count += 1
             location = Config.INVALID_NAME
             chosen_fields = line  # reset the original line (location will be reprocessed)
 
@@ -291,7 +291,7 @@ class Processor:
             method = "a"
         else:
             method = "w"
-            # print("File created", location, csv.delimiter.join(chosen_fields))
+            # print("File created", location, parser.delimiter.join(chosen_fields))
             self.files_created.add(location)
 
         # choose the right file descriptor for saving
@@ -306,7 +306,7 @@ class Processor:
             # print("Opening", location)
 
             if location is 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
-                t = w = csv.stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
+                t = w = parser.stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
             else:
                 if location is 1:  # this is a sign we output csv data to stdout
                     t = io.StringIO()
@@ -318,6 +318,6 @@ class Processor:
         self.descriptorsStatsAll[location] += 1
         self.descriptorsStatsOpen[location] = self.descriptorsStatsAll[location]
         f = self.descriptors[location]
-        if method == "w" and csv.has_header:
-            f[0].write(csv.header)
+        if method == "w" and parser.has_header:
+            f[0].write(parser.header)
         f[1].writerow(chosen_fields)

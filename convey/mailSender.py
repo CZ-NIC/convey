@@ -19,8 +19,8 @@ re_title = re.compile('<title>([^<]*)</title>')
 logger = logging.getLogger(__name__)
 
 class MailSender(ABC):
-    def __init__(self, csv):
-        self.csv = csv
+    def __init__(self, parser):
+        self.parser = parser
 
     def start(self):
         pass
@@ -52,7 +52,7 @@ class MailSender(ABC):
         if self.start() is False:
             return False
         for attachment_object, email_to, email_cc, attachement_contents in mails:  # Xregistry.getMails():
-            text_vars = {"CONTACTS": email_to, "FILENAME": self.csv.attachment_name, "TICKETNUM": self.csv.otrs_num}
+            text_vars = {"CONTACTS": email_to, "FILENAME": self.parser.attachment_name, "TICKETNUM": self.parser.otrs_num}
             subject = mailDraft.get_subject() % text_vars
             body = mailDraft.get_body() % text_vars  # format mail template, ex: {FILENAME} in the body will be transformed by the filename
             if subject == "" or body == "":
@@ -192,18 +192,18 @@ class MailSenderOtrs(MailSender):
         force = False
         while True:
             if (
-                    force or not self.csv.otrs_id or not self.csv.otrs_num or not self.csv.otrs_cookie or not self.csv.otrs_token or not self.csv.attachment_name):
-                self.csv.otrs_id = self.ask_value(self.csv.otrs_id, "ticket url-id")
-                self.csv.otrs_num = self.ask_value(self.csv.otrs_num, "ticket long-num")
-                self.csv.otrs_cookie = self.ask_value(self.csv.otrs_cookie, "cookie")
-                self.csv.otrs_token = self.ask_value(self.csv.otrs_token, "token")
-                self.csv.attachment_name = self.ask_value(self.csv.attachment_name, "attachment name")
-                if self.csv.attachment_name[-4:] != ".txt":
-                    self.csv.attachment_name += ".txt"
+                    force or not self.parser.otrs_id or not self.parser.otrs_num or not self.parser.otrs_cookie or not self.parser.otrs_token or not self.parser.attachment_name):
+                self.parser.otrs_id = self.ask_value(self.parser.otrs_id, "ticket url-id")
+                self.parser.otrs_num = self.ask_value(self.parser.otrs_num, "ticket long-num")
+                self.parser.otrs_cookie = self.ask_value(self.parser.otrs_cookie, "cookie")
+                self.parser.otrs_token = self.ask_value(self.parser.otrs_token, "token")
+                self.parser.attachment_name = self.ask_value(self.parser.attachment_name, "attachment name")
+                if self.parser.attachment_name[-4:] != ".txt":
+                    self.parser.attachment_name += ".txt"
 
             sys.stdout.write(
                 "Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachment_name = {}.\nWas that correct? [y]/n ".format(
-                    self.csv.otrs_id, self.csv.otrs_num, self.csv.otrs_cookie, self.csv.otrs_token, self.csv.attachment_name))
+                    self.parser.otrs_id, self.parser.otrs_num, self.parser.otrs_cookie, self.parser.otrs_token, self.parser.attachment_name))
             if input().lower() in ("y", ""):
                 return True
             else:
@@ -214,7 +214,7 @@ class MailSenderOtrs(MailSender):
         fields = (
             ("Action", "AgentTicketForward"),
             ("Subaction", "SendEmail"),
-            ("TicketID", str(self.csv.otrs_id)),
+            ("TicketID", str(self.parser.otrs_id)),
             ("Email", Config.get("email_from", "SMTP")),
             ("From", Config.get("email_from_name", "SMTP")),
             ("To", mail_final),  # mails can be delimited by comma or semicolon
@@ -222,7 +222,7 @@ class MailSenderOtrs(MailSender):
             ("Body", body),
             ("ArticleTypeID", "1"),  # mail-external
             ("ComposeStateID", "4"),  # open
-            ("ChallengeToken", self.csv.otrs_token),
+            ("ChallengeToken", self.parser.otrs_token),
         )
 
         try:
@@ -237,12 +237,12 @@ class MailSenderOtrs(MailSender):
         # load souboru k zaslani
         # attachment_contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
 
-        if self.csv.attachment_name and attachment_contents != "":
-            files = (("FileUpload", self.csv.attachment_name, attachment_contents),)
+        if self.parser.attachment_name and attachment_contents != "":
+            files = (("FileUpload", self.parser.attachment_name, attachment_contents),)
         else:
             files = ()
 
-        cookies = (('Cookie', 'Session=%s' % self.csv.otrs_cookie),)
+        cookies = (('Cookie', 'Session=%s' % self.parser.otrs_cookie),)
 
         if Config.is_testing():
             print(" **** Testing info:")
@@ -292,7 +292,7 @@ class MailSenderSmtp(MailSender):
         if contents:
             attachment = MIMEApplication(contents, "text/csv")
             attachment.add_header("Content-Disposition", "attachment",
-                                  filename=self.csv.attachment_name)  # XX? 'proki_{}.zip'.format(time.strftime("%Y%m%d"))
+                                  filename=self.parser.attachment_name)  # XX? 'proki_{}.zip'.format(time.strftime("%Y%m%d"))
             base_msg.attach(attachment)
         """ may be used tested code from Proki
         if self.parameters.gpg:

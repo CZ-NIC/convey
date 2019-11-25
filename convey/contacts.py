@@ -56,9 +56,9 @@ class Attachment:
                 continue
 
     @classmethod
-    def refresh_attachment_stats(cls, csv):
-        attachments = csv.attachments
-        st = csv.stats
+    def refresh_attachment_stats(cls, parser):
+        attachments = parser.attachments
+        st = parser.stats
         st["partner_count"] = [0, 0]
         st["abuse_count"] = [0, 0]
         st["non_deliverable"] = 0
