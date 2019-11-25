@@ -14,32 +14,13 @@ from urllib.parse import quote
 
 from appdirs import user_config_dir
 
-# setup logging
-handlers = []
-try:
-    fileHandler = logging.FileHandler("convey.log")
-    fileHandler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-    fileHandler.setLevel(logging.WARNING)
-    handlers.append(fileHandler)
-except PermissionError:
-    fileHandler = None
-    print("Cannot create convey.log here at " + str(Path(".").absolute()) + " – change directory please.")
-    quit()
-except FileNotFoundError:  # FileNotFoundError emitted when we are in a directory whose inode exists no more
-    print("Current working directory doesn't exist.")
-    quit()
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logging.Formatter('%(message)s'))
-consoleHandler.setLevel(logging.INFO)
-handlers.append(consoleHandler)
-logging.basicConfig(level=logging.INFO, handlers=handlers)
-
 logger = logging.getLogger(__name__)
 Path.lexists = lambda self: self.is_symlink() or self.exists()  # not yet exist https://bugs.python.org/issue34137
 default_path = Path(Path(__file__).resolve().parent, "defaults")  # path to the 'defaults' folder with templates
 
 config_dir = user_config_dir("convey")
 BOOLEAN_STATES = configparser.RawConfigParser.BOOLEAN_STATES
+console_handler, file_handler, *_ = *logging.root.handlers, None
 
 
 def get_path(file):
@@ -207,22 +188,27 @@ class Config:
             quit()
 
     @staticmethod
-    def init_verbosity(yes=False, verbosity=None):
+    def init_verbosity(yes=False, verbosity=None, daemon=None):
         # Set up logging and verbosity
-        from .dialogue import assume_yes
+        if daemon:
+            Config.set("daemon", True)
         if yes:
-            assume_yes()
             Config.set("yes", True)
         if verbosity:
             Config.verbosity = verbosity
+        else:
+            # we reset the verbosity to the default value
+            # usecase: client could ask the daemon for logging.DEBUG.
+            # In the next request, they does not specify the verbosity. If not reset, the verbosity would still be logging.DEBUG.
+            Config.verbosity = logging.INFO
         if Config.is_debug():
             if not verbosity:  # if user has not say the verbosity level, make it the most verbose
                 Config.verbosity = logging.DEBUG
-            if fileHandler:
-                fileHandler.setLevel(logging.INFO)  # file handler to info level
+            if file_handler:
+                file_handler.setLevel(logging.INFO)  # file handler to info level
             logging.getLogger("chardet").setLevel(logging.WARNING)  # we are not interested in chardet debug logs
 
-        consoleHandler.setLevel(Config.verbosity)  # stream handler to debug level
+        console_handler.setLevel(Config.verbosity)  # stream handler to debug level
         logging.getLogger().setLevel(min(Config.verbosity, logging.INFO))  # system sensitivity at least at INFO level
 
         logger.debug("Config file loaded from: {}".format(Config.path))
@@ -362,6 +348,10 @@ class Config:
 
 def get_terminal_size():
     try:
+        # XX when piping the input IN, it writes
+        # echo "434" | convey -f base64  --debug
+        # stty: 'standard input': Inappropriate ioctl for device
+        # I do not know how to suppress this warning.
         height, width = (int(s) for s in os.popen('stty size', 'r').read().split())
         return height, width
     except (OSError, ValueError):

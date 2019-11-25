@@ -10,14 +10,6 @@ except ExecutableNotFound:
     print("\nError importing dialog library. Try installing: `sudo apt install dialog`.")
     quit()
 
-_yes = False
-
-
-def assume_yes():
-    global _yes
-    _yes = True
-
-
 # monkey patch Dialog class so that it skips the dialog in case there is a single value
 def skippable_menu(self, *args, skippable=True, **kwargs):
     """
@@ -106,13 +98,17 @@ def ask(text=None):
 
 
 def is_yes(text):
-    if _yes:
+    if Config.get("daemon", get=bool):
+        raise RuntimeWarning
+    if Config.get("yes", get=bool):
         return True
     return ask(text=text + " [y]/n: ").lower() in ("y", "yes", "")
 
 
 def is_no(text):
-    if _yes:
+    if Config.get("daemon", get=bool):
+        raise RuntimeWarning
+    if Config.get("yes", get=bool):
         return True
     return ask(text=text + " y/[n]: ").lower() in ("n", "no", "")
 

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 import bdb
-import pdb
+import os
+import socket
 import sys
+
+from .ipc import send, recv, socket_file, daemon_pid
 
 __doc__ = """Convey – CSV swiss knife brought by CSIRT.cz"""
 __author__ = "Edvard Rejthar, CSIRT.CZ"
@@ -13,13 +16,54 @@ if sys.version_info[0:2] < (3, 6):
 
 
 def main():
+    if not sys.stdin.isatty():
+        # we're already receiving something through a pipe
+        # load it immediately and not in the wrapper because daemon could suck the pipe of the instance
+        sys.argv.extend(["--input", sys.stdin.read().rstrip()])
+    daemonize_on_exit = True
+    if os.path.exists(socket_file):  # faster than importing Pathlib.path
+        try:
+            pipe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            pipe.connect(socket_file)
+            pipe.settimeout(3)
+        except ConnectionRefusedError:
+            pass
+        else:
+            send(pipe, repr([os.getcwd()] + sys.argv))
+            try:
+                response = recv(pipe)
+            except socket.timeout:
+                print("It seems daemon is stuck. You may kill it with pkill `convey`.")
+                from .config import Config
+                if Config.get("github_crash_submit"):
+                    Config.github_issue(f"daemon stuck", "Command line:\n```bash\n" + repr(sys.argv) + "\n```")
+            else:
+                # chr(4) at the end means this was not a single query check and we should load full convey libraries
+                if type(response) is str:
+                    if not response.endswith(chr(17)):  # daemon is stopping
+                        daemonize_on_exit = False
+                        if not response.endswith(chr(4)):  # daemon brings some results
+                            print(response, end='')
+                            quit()
+            finally:
+                pipe.close()
+
     try:
         from .controller import Controller
         Controller()
     except KeyboardInterrupt:
         print("Interrupted")
     except SystemExit:
-        pass
+        if daemonize_on_exit:
+            from .config import Config
+            try:
+                if Config.get("daemonize", get=bool) and not daemon_pid():
+                    # we are sure there is no running instance of the daemon
+                    import subprocess
+                    subprocess.Popen([sys.argv[0], '--daemon', 'server'], stdout=subprocess.DEVNULL)
+            except FileNotFoundError:
+                # XX we should check this code allows Win to run without daemon or rather make the daemon work on Win
+                pass
     except bdb.BdbQuit:
         pass
     except:
@@ -34,6 +78,7 @@ def main():
         type_, value, tb = sys.exc_info()
         if debug:
             traceback.print_exc()
+            import pdb
             mod = Config.get_debugger() if Config else pdb
             mod.post_mortem(tb)
         elif Config:

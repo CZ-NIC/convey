@@ -9,7 +9,8 @@ from difflib import SequenceMatcher
 from statistics import mean
 
 from .config import Config
-from .types import Types, graph, methods, PickBase, TypeGroup, Type, methods_deleted, get_module_from_path
+from .decorators import PickBase
+from .types import Types, graph, methods, TypeGroup, Type, methods_deleted, get_module_from_path
 
 logger = logging.getLogger(__name__)
 

@@ -17,8 +17,9 @@ from pygments.styles import get_style_by_name
 from pygments.token import Token
 from tabulate import tabulate
 
-from .config import Config, consoleHandler
-from .types import Type, Types, PickInput
+from convey import PickInput
+from .config import Config, console_handler
+from .types import Type, Types
 
 
 def yellow_no_end(s):
@@ -210,11 +211,11 @@ class Preview:
         """ define bottom preview toolbar """
         rows = []
         level = Config.verbosity  # temporarily suppress info messages like 'NMAPing...' that would break up the wizzard layout
-        consoleHandler.setLevel(logging.WARNING)
+        console_handler.setLevel(logging.WARNING)
         for line in self.samples:
             val = self.get_toolbar_row(self.session.layout.current_buffer.text, line)
             rows.append((f"\033[0;36m{line}\033[0m", f"\033[0;33m{val}\033[0m"))  # blue and yellow
-        consoleHandler.setLevel(level)
+        console_handler.setLevel(level)
 
         return ANSI('\nPreview\n' + tabulate(rows, headers=("original", "result"), tablefmt="github"))
 
@@ -316,6 +317,8 @@ class Preview:
                     continue
                 if type_:
                     self.target_type = Types.reg_s if type_ == "reg_s" else Types.reg_m
+                else:
+                    self.target_type = self.chosen_type
             else:
                 self.target_type = self.target_type[0]
             break

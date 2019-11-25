@@ -609,6 +609,16 @@ urlencode  3hours
 
 ### Aggregate
 
+Syntax is `[COLUMN, FUNCTION], ..., [group-by-COLUMN]`.  
+Possible functions are:
+* avg
+* sum
+* count
+* min
+* max
+* list
+
+
 Let's have a file.
 ```csv
 # file.csv
@@ -622,7 +632,7 @@ bulb,120,15
 
 Sum the `price` column.
 ```bash
-$ convey file.csv --aggregate sum,price
+$ convey file.csv --aggregate price,sum
   sum(price)
 ------------
          972
@@ -630,7 +640,7 @@ $ convey file.csv --aggregate sum,price
 
 Group the `price` sum by `category`. 
 ```bash
-$ convey file.csv --aggregate sum,price,category
+$ convey file.csv --aggregate price,sum,category
 category     sum(price)
 ---------  ------------
 total               972
@@ -641,7 +651,7 @@ kettle              602
 Group the `price` sum and the `consumption` average value by `category`.
 
 ```bash
-$ convey file.csv --aggregate sum,price,avg,consumption,category
+$ convey file.csv --aggregate price,sum,consumption,avg,category
 category      sum(price)    avg(consumption)
 ----------  ------------  ------------------
 total                972               41
@@ -652,7 +662,7 @@ kettle               602               75
 Group the `price` sum by `category` and list its values.
 
 ```bash
-$ convey file.csv --aggregate sum,price,list,price,category
+$ convey file.csv --aggregate price,sum,price,list,category
 category      sum(price)  list(price)
 ----------  ------------  ---------------------
 total                972  (all)
@@ -663,7 +673,7 @@ kettle               602  ['250', '352']
 You can even split while aggregating. Each file will count its own results.
 
 ```bash
-$ convey file.csv --agg sum,price --split category
+$ convey file.csv --agg price,sum --split category
 
 Split location: bulb
   sum(price)

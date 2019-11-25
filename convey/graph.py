@@ -10,6 +10,8 @@ class Graph:
         self.edges = defaultdict(list)
         self.distances = {}
 
+    def clear(self):
+        self.__init__()
 
     def add_node(self, value):
         self.nodes.add(value)
@@ -22,6 +24,7 @@ class Graph:
         self.distances[(from_node, to_node)] = distance
 
     # @lru_cache(maxsize=512) XX is it a good performance tip?
+    # XX what if we cache every encountered path instead?
     def dijkstra(self, target, start=None, ignore_private=False):
         """
         Performs Dijkstra's algorithm and returns

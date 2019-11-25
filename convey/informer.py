@@ -25,7 +25,7 @@ class Informer:
             return
 
         """ Prints file information on the display. """
-        if clear:
+        if clear and not Config.get("daemon", get=bool):
             sys.stderr.write("\x1b[2J\x1b[H")
             sys.stderr.flush()
             # os.system('cls' if os.name == 'nt' else 'clear')

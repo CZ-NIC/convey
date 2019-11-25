@@ -1,6 +1,7 @@
 """
     Source file caching - load, save
 """
+import logging
 import re
 import sys
 from bdb import BdbQuit
@@ -13,6 +14,8 @@ from .config import Config, config_dir
 from .dialogue import is_yes
 from .identifier import Identifier
 from .parser import Parser
+
+logger = logging.getLogger(__name__)
 
 __author__ = "Edvard Rejthar"
 __date__ = "$Mar 23, 2015 8:33:24 PM$"
@@ -39,7 +42,7 @@ def choose_file():
 
 def read_stdin():
     print("Write something to stdin. (End of transmission 3× <Ctrl>+d or <Enter>+<Ctrl>+d.)")
-    return sys.stdin.readlines()
+    return sys.stdin.read().rstrip().split("\n")  # rstrip \n at the end of the input
 
 
 class Wrapper:
@@ -69,8 +72,6 @@ class Wrapper:
             file = file_or_input
         elif file_or_input:
             stdin = file_or_input.split("\n")
-        elif not sys.stdin.isatty():  # we're already receiving something through a pipe
-            stdin = read_stdin()
         else:  # choosing the file or input text
             if case == 0:
                 case = 1 if is_yes("Do you want to input text (otherwise you'll be asked to choose a file name)?") else 2
@@ -103,7 +104,7 @@ class Wrapper:
 
         self.assure_cache_file(file)
         if Path(self.cache_file).is_file() and not fresh:
-            print("File {} has already been processed.".format(self.file))
+            logger.info("File {} has already been processed.".format(self.file))
             try:  # try to depickle
                 self.parser = jsonpickle.decode(open(self.cache_file, "r").read(), keys=True)
                 self.parser.ip_seen, self.parser.ranges = self.load_whois_cache()
@@ -132,7 +133,7 @@ class Wrapper:
                         self.parser.informer.sout_info()
                     elif self.parser.is_formatted:
                         self.parser.informer.sout_info()
-                        print("It seems the file has already been formatted.")
+                        logger.info("It seems the file has already been formatted.")
                     return
                 except BdbQuit:  # we do not want to catch quit() signal from ipdb
                     print("Stopping.")

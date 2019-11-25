@@ -1,8 +1,13 @@
 import argparse
 import csv
 import logging
+import os
 import re
+import socket
+import subprocess
 import sys
+from ast import literal_eval
+from io import StringIO
 from pathlib import Path
 from sys import exit
 
@@ -13,12 +18,14 @@ from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
 
-from .config import Config, get_terminal_size
+from .config import Config, get_terminal_size, console_handler
 from .contacts import Contacts, Attachment
+from .decorators import PickBase, PickMethod, PickInput
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
+from .ipc import socket_file, recv, send, daemon_pid
 from .mailSender import MailSenderOtrs, MailSenderSmtp
 from .parser import Parser, Field
-from .types import Types, TypeGroup, types, Type, graph, PickMethod, methods, PickBase, PickInput, Aggregate
+from .types import Types, TypeGroup, types, Type, graph, methods, Aggregate, get_module_from_path
 from .wizzard import Preview, bottom_plain_style
 from .wrapper import Wrapper
 
@@ -32,8 +39,60 @@ except pkg_resources.DistributionNotFound:
     __version__ = "unknown"
 
 
+def send_ipc(pipe, msg, refresh_stdout):
+    sys.stdout = StringIO()  # creating a new one is faster than truncating the old
+    console_handler.setStream(sys.stdout)
+    sys.stdout_real.write(refresh_stdout)
+    return send(pipe, msg)
+
+
+def control_daemon(cmd, in_daemon=False):
+    if cmd == "stop":
+        Config.set("daemonize", False)  # daemon should not be started at the end
+        print("Convey daemon stopping.")
+    if cmd in ["restart", "start"]:
+        if in_daemon:
+            raise ConnectionResetError("Convey daemon restart.")
+        else:
+            Config.set("daemonize", True)
+            control_daemon("kill")
+        if cmd == "start":
+            print("Convey daemon starting.")
+            quit()
+    if cmd in ["kill", "stop"]:
+        if in_daemon:
+            raise ConnectionResetError("Convey daemon stop.")
+        else:
+            pid = daemon_pid()
+            if pid:
+                subprocess.run(["kill", pid])
+    if cmd == "stop":
+        quit()
+    if cmd == "status":
+        if daemon_pid():
+            print(f"Convey daemon is listening at socket {socket_file}")
+        else:
+            print("Convey daemon seems not to be running.")
+        quit()
+    if cmd is False:
+        if in_daemon:
+            raise RuntimeWarning("Daemon should not be used")
+        else:
+            Config.set("daemonize", False)
+    if cmd == "server":
+        if in_daemon:
+            raise RuntimeWarning("The new process will become the new server.")
+        else:
+            control_daemon("kill")
+    return cmd
+
+
 class BlankTrue(argparse.Action):
-    """ When left blank, this flag produces True. (Normal behaviour is to produce None which I use for not being set."""
+    """ When left blank, this flag produces True. (Normal behaviour is to produce None which I use for not being set.)
+        Return boolean for 0/false/off/1/true/on.
+        Return a metavar value if metavar is a list.
+        Else raises ValueError.
+    """
 
     def __call__(self, _, namespace, values, option_string=None):
         if values in [None, []]:  # blank argument with nargs="?" produces None, with ="*" produces []
@@ -42,7 +101,7 @@ class BlankTrue(argparse.Action):
             values = False
         elif values.lower() in ["1", "true", "on"]:
             values = True
-        else:
+        elif type(self.metavar) is not list or values.lower() not in self.metavar:
             raise ValueError(f"Unrecognised value {values} of {self.dest}")
         setattr(namespace, self.dest, values)
 
@@ -119,13 +178,13 @@ class Controller:
         parser.add_argument('-s', '--sort', help="List of columns.",
                             metavar="[COLUMN],...")
         parser.add_argument('-a', '--aggregate', help="R|Aggregate"
-                                                      "\nEx: --aggregate sum,2 # will sum the second column"
-                                                      "\nEx: --aggregate sum,2,avg,3 # will sum the second column and average the third"
-                                                      "\nEx: --aggregate sum,2,1 # will sum the second column grouped by the first"
-                                                      "\nEx: --aggregate count,1 # will count the grouped items in the 1st column"
+                                                      "\nEx: --aggregate 2,sum # will sum the second column"
+                                                      "\nEx: --aggregate 2,sum,3,avg # will sum the second column and average the third"
+                                                      "\nEx: --aggregate 2,sum,1 # will sum the second column grouped by the first"
+                                                      "\nEx: --aggregate 1,count # will count the grouped items in the 1st column"
                                                       " (count will automatically set grouping column to the same)"
                                                       f"\n\nAvailable functions: {aggregate_functions_str}",
-                            metavar="[FUNCTION, COLUMN], ..., [group-by-COLUMN]")
+                            metavar="[COLUMN, FUNCTION], ..., [group-by-COLUMN]")
         csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
                      ("otrs_token", "OTRS token")]
         for flag in csv_flags:
@@ -172,144 +231,255 @@ class Controller:
                             type=int, metavar="SECONDS")
         parser.add_argument('--show-uml', help="R|Show UML of fields and methods and exit."
                                                " Methods that are currently disabled via flags or config file are grayed out."
-                                               " * FLAGs:"
-                                               "    * +1 to gray out disabled fields/methods"
-                                               "    * +2 to include usual field names",
+                                               "\n * FLAGs:"
+                                               "\n    * +1 to gray out disabled fields/methods"
+                                               "\n    * +2 to include usual field names",
                             type=int, const=1, nargs='?')
         parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--delete-whois-cache', help="Delete convey's global WHOIS cache.", action="store_true")
         parser.add_argument('--version', help=f"Show the version number (which is currently {__version__}).", action="store_true")
+        parser.add_argument('--daemon', help=f"R|Run a UNIX socket daemon to speed up single query requests."
+                                             "\n  * 1/true/on – allow using the daemon"
+                                             "\n  * 0/false/off – do not use the daemon"
+                                             "\n  * start – start the daemon and exit"
+                                             "\n  * stop – stop the daemon and exit"
+                                             "\n  * status – print out the status of the daemon"
+                                             "\n  * restart – restart the daemon and continue"
+                                             "\n  * server – run the server in current process (I.E. for debugging)",
+                            action=BlankTrue, nargs="?", metavar=["start", "restart", "stop", "status", "server"])
         self.args = args = parser.parse_args()
-        if args.config is not None:
-            self.edit_configuration(args.config)
-            quit()
-        for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
-                     "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl", "disable_external"]:
-            if getattr(args, flag) is not None:
-                Config.set(flag, getattr(args, flag))
-        Types.refresh()  # reload Types for the second time so that the methods reflect CLI flags
-        for module in ["whois", "web", "nmap", "dig"]:
-            if Config.get(module, "FIELDS") is False:
-                if module == "dig":
-                    module = "dns"
-                getattr(TypeGroup, module).disable()
-        if args.debug:
-            Config.set("debug", True)
-        if args.headless:
-            args.yes = True
-            args.quiet = True
-        Config.init_verbosity(args.yes, 30 if args.quiet else (10 if args.verbose else None))
-        if args.show_uml is not None:
-            print(Types.get_uml(args.show_uml))
-            quit()
-        if args.version:
-            print(__version__)
-            quit()
-        Config.integrity_check()
-        if args.header:
-            Config.set("header", True)
-        if args.no_header:
-            Config.set("header", False)
-        if args.csv_processing:
-            Config.set("single_query", False)
-        if args.single_query or args.single_detect:
-            Config.set("single_query", True)
-        Config.set("adding-new-fields", bool(new_fields))
+        see_menu = True
+        is_daemon = None
+        if args.daemon is not None and control_daemon(args.daemon) == "server":
+            # XXX after a thousand requests, we start to slow down. Memory leak must be somewhere
+            is_daemon = True
+            Config.set("daemonize", False)  # do not restart daemon when killed, there must be a reason this daemon was killed
+            if Path(socket_file).exists():
+                Path(socket_file).unlink()
 
-        self.wrapper = Wrapper(args.file_or_input, args.file, args.input, args.fresh, args.delete_whois_cache)
-        self.parser: Parser = self.wrapper.parser
-
-        # load flags
-        for flag in csv_flags:
-            if args.__dict__[flag[0]]:
-                self.parser.__dict__[flag[0]] = args.__dict__[flag[0]]
-                logger.debug("{}: {}".format(flag[1], flag[0]))
-
-        # prepare some columns to be removed
-        if args.delete:
-            for c in args.delete.split(","):
-                self.parser.fields[self.parser.identifier.get_column_i(c, check="to be deleted")].is_chosen = False
-            self.parser.is_processable = True
-
-        # append new fields from CLI
-        for add, task in new_fields:
-            # FIELD,[COLUMN],[SOURCE_TYPE], ex: `netname 3|"IP address" ip|sourceip`
-            task = [x for x in csv.reader([task])][0]
-            custom = []
-            target_type = task[0]
-            m = re.search(r"(\w*)\[([^]]*)\]", target_type)
-            if m:
-                target_type = m.group(1)
-                custom = [m.group(2)]
             try:
-                target_type = types[types.index(target_type)]  # determine FIELD by exact name
-            except ValueError:
-                d = {t.name: distance(task[0], t.name) for t in Types.get_computable_types()}
-                rather = min(d, key=d.get)
-                logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
+                Config.init_verbosity(args.yes, 30 if args.quiet else (10 if args.verbose else None), True)
+                Config.integrity_check()
+            except RuntimeWarning:
+                print("Config file integrity check failed. Launch convey normally to upgrade config parameters.")
                 quit()
-            source_field, source_type, c = self.parser.identifier.get_fitting_source(target_type, *task[1:])
-            custom = c + custom
-            self.source_new_column(target_type, add, source_field, source_type, custom)
-            self.parser.is_processable = True
 
-        if args.aggregate:
-            params = [x for x in csv.reader([args.aggregate])][0]
-            group = self.parser.identifier.get_column_i(params.pop(), check="to be grouped by") if len(params) % 2 else None
-            l = []
-            for i in range(0, len(params), 2):
-                fn, column = params[i:i + 2]
-                fn = getattr(Aggregate, fn, None)
-                if not fn:
-                    logger.error(f"Unknown aggregate function {fn}. Possible functions are: {aggregate_functions_str}")
-                column = self.parser.identifier.get_column_i(column, check="to be aggregated with")
-                l.append([fn, column])
+            print("Opening socket...")
+            server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            server.bind(socket_file)
+            server.listen()
+            sys.stdout_real = stdout = sys.stdout
+            sys.stdout = StringIO()
+            console_handler.setStream(sys.stdout)
+            PromptSession.__init__ = lambda _, *ar, **kw: (_ for _ in ()).throw(RuntimeWarning('Prompt raised.'))
 
-                if fn == Aggregate.count:
-                    if group is None:
-                        group = column
-                    elif column != group:
-                        logger.error(f"Count column {self.parser.fields[column].name} must be the same"
-                                     f" as the grouping column {self.parser.fields[group].name}")
+        if not is_daemon and not sys.stdin.isatty():  # piping to the process, no terminal
+            try:
+                sys.stdin = open("/dev/tty")
+            except FileNotFoundError:
+                # this might work on Windows platform
+                # Return "" for every input we got.
+                PromptSession.prompt = lambda *ar, **kw: ""
+            else:
+                # Let's make a safe_prompt that is able to read from /dev/tty.
+                # prompt_toolkit does not work with /dev/tty stdin
+                # because it is a POSIX pipe only and it needs a "pseudo terminal pipe"
+                # see https://github.com/prompt-toolkit/python-prompt-toolkit/issues/502
+                # and menu does not work good
+                def safe_prompt_2(*ar, **kw):
+                    return input(ar[1] if len(ar) > 1 else kw["message"] if "message" in kw else "?")
+
+                def safe_prompt(*ar, **kw):
+                    print("This is just an emergency input mode because convey interactivity works bad when piping into.")
+                    PromptSession.prompt = safe_prompt_2
+                    return safe_prompt_2(*ar, **kw)
+                PromptSession.prompt = safe_prompt
+
+            see_menu = False
+            args.yes = True
+
+
+        while True:
+            try:
+                if is_daemon:
+                    stdout.write("Listening...\n")
+                    stdout.flush()
+                    pipe, addr = server.accept()
+                    msg = recv(pipe)
+                    if not msg:
+                        continue
+                    stdout.write("Accepted: " + msg + "\n")
+                    stdout.flush()
+                    argv = literal_eval(msg)
+                    if not argv:
+                        raise RuntimeWarning("No arguments passed")
+                    try:
+                        os.chdir(Path(argv[0]))
+                    except OSError:
+                        stdout.write("Invalid cwd\n")
+                        continue
+                    new_fields.clear()  # reset new fields so that they will not be remembered in another query
+                    try:
+                        self.args = args = parser.parse_args(argv[2:])  # the daemon has receives a new command
+                    except SystemExit:
+                        raise RuntimeWarning("This might be just a help text request")
+                    see_menu = True
+                    control_daemon(args.daemon, True)
+
+                # this try-block may send the results to the client convey processes when a daemon is used
+                if args.config is not None:
+                    self.edit_configuration(args.config)
+                    quit()
+                for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
+                             "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl", "disable_external"]:
+                    if getattr(args, flag) is not None:
+                        Config.set(flag, getattr(args, flag))
+                Config.set("debug", args.debug)
+                if args.headless:
+                    args.yes = True
+                    args.quiet = True
+                    see_menu = False
+                Config.init_verbosity(args.yes, 30 if args.quiet else (10 if args.verbose else None), is_daemon)
+                if is_daemon:
+                    logger.debug("This result is from the daemon.")
+                Types.refresh()  # reload Types for the second time so that the methods reflect CLI flags
+                for module in ["whois", "web", "nmap", "dig"]:
+                    if Config.get(module, "FIELDS") is False:
+                        if module == "dig":
+                            module = "dns"
+                        getattr(TypeGroup, module).disable()
+                if args.show_uml is not None:
+                    print(Types.get_uml(args.show_uml))
+                    quit()
+                if args.version:
+                    print(__version__)
+                    quit()
+                if not is_daemon:  # in daemon, we checked it earlier
+                    Config.integrity_check()
+                if args.header:
+                    Config.set("header", True)
+                if args.no_header:
+                    Config.set("header", False)
+                if args.csv_processing:
+                    Config.set("single_query", False)
+                if args.single_query or args.single_detect:
+                    Config.set("single_query", True)
+                Config.set("adding-new-fields", bool(new_fields))
+                self.wrapper = Wrapper(args.file_or_input, args.file, args.input, args.fresh, args.delete_whois_cache)
+                self.parser: Parser = self.wrapper.parser
+
+                # load flags
+                for flag in csv_flags:
+                    if args.__dict__[flag[0]]:
+                        self.parser.__dict__[flag[0]] = args.__dict__[flag[0]]
+                        logger.debug("{}: {}".format(flag[1], flag[0]))
+
+                # prepare some columns to be removed
+                if args.delete:
+                    for c in args.delete.split(","):
+                        self.parser.fields[self.parser.identifier.get_column_i(c, check="to be deleted")].is_chosen = False
+                    self.parser.is_processable = True
+
+                # append new fields from CLI
+                for add, task in new_fields:
+                    # FIELD,[COLUMN],[SOURCE_TYPE], ex: `netname 3|"IP address" ip|sourceip`
+                    task = [x for x in csv.reader([task])][0]
+                    custom = []
+                    target_type = task[0]
+                    m = re.search(r"(\w*)\[([^]]*)\]", target_type)
+                    if m:
+                        target_type = m.group(1)
+                        custom = [m.group(2)]
+                    try:
+                        target_type = types[types.index(target_type)]  # determine FIELD by exact name
+                    except ValueError:
+                        d = {t.name: distance(task[0], t.name) for t in Types.get_computable_types()}
+                        rather = min(d, key=d.get)
+                        logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
                         quit()
-            self.parser.settings["aggregate"] = group, l
-            self.parser.is_processable = True
+                    source_field, source_type, c = self.parser.identifier.get_fitting_source(target_type, *task[1:])
+                    custom = c + custom
+                    self.source_new_column(target_type, add, source_field, source_type, custom)
+                    self.parser.is_processable = True
 
-        if args.sort:
-            self.parser.resort(list(csv.reader([args.sort]))[0])
-            self.parser.is_processable = True
+                # run single value check if the input is not a CSV file
+                if args.single_detect:
+                    quit()
+                if self.parser.is_single_query:
+                    res = self.parser.run_single_query(json=args.json)
+                    if res:
+                        print(res)
+                    quit()
+                if is_daemon and see_menu:
+                    # if we will need menu, daemon must stop here
+                    send_ipc(pipe, chr(4), "Could not help with.\n")
+                    continue
 
-        if args.split:
-            self.parser.settings["split"] = self.parser.identifier.get_column_i(args.split, check="to be split with")
-            self.parser.is_processable = True
+                if args.aggregate:
+                    params = [x for x in csv.reader([args.aggregate])][0]
+                    group = self.parser.identifier.get_column_i(params.pop(), check="to be grouped by") if len(params) % 2 else None
+                    l = []
+                    if not params:
+                        l.append([Aggregate.count, group])
+                    else:
+                        for i in range(0, len(params), 2):
+                            column, fn = params[i:i + 2]
+                            fn = getattr(Aggregate, fn, None)
+                            if not fn:
+                                logger.error(f"Unknown aggregate function {fn}. Possible functions are: {aggregate_functions_str}")
+                            column = self.parser.identifier.get_column_i(column, check="to be aggregated with")
+                            l.append([fn, column])
 
-        # run single value check if the input is not a CSV file
-        if args.single_detect:
-            quit()
-        if self.parser.is_single_query:
-            res = self.parser.run_single_query(json=args.json)
-            if res:
-                print(res)
-            quit()
+                            if fn == Aggregate.count:
+                                if group is None:
+                                    group = column
+                                elif column != group:
+                                    logger.error(f"Count column {self.parser.fields[column].name} must be the same"
+                                                 f" as the grouping column {self.parser.fields[group].name}")
+                                    quit()
+                    self.parser.settings["aggregate"] = group, l
+                    self.parser.is_processable = True
 
-        # start csirt-incident macro XX deprecated
-        if args.csirt_incident and not self.parser.is_analyzed:
-            self.parser.settings["split"] = len(self.parser.fields)
-            self.source_new_column(Types.incident_contact, add=False)
-            self.parser.is_processable = True
-            self.process()
-            self.parser.is_processable = False
+                if args.sort:
+                    self.parser.resort(list(csv.reader([args.sort]))[0])
+                    self.parser.is_processable = True
 
-        self.start_debugger = False
+                if args.split:
+                    self.parser.settings["split"] = self.parser.identifier.get_column_i(args.split, check="to be split with")
+                    self.parser.is_processable = True
 
-        if self.parser.is_processable and Config.get("yes"):
-            self.process()
+                # start csirt-incident macro XX deprecated
+                if args.csirt_incident and not self.parser.is_analyzed:
+                    self.parser.settings["split"] = len(self.parser.fields)
+                    self.source_new_column(Types.incident_contact, add=False)
+                    self.parser.is_processable = True
+                    self.process()
+                    self.parser.is_processable = False
 
-        if args.headless:
-            self.close()
+                if self.parser.is_processable and Config.get("yes"):
+                    self.process()
+
+                if not see_menu:
+                    self.close()
+                if is_daemon:  # if in daemon, everything important has been already sent to STDOUT
+                    quit()
+            except RuntimeWarning as e:
+                send_ipc(pipe, chr(4), "Daemon cannot help: " + (str(e) or "Probably a user dialog is needed.") + "\n")
+                continue
+            except ConnectionResetError as e:
+                send_ipc(pipe, chr(17), str(e) + "\n")
+                quit()
+            except SystemExit:
+                if is_daemon:
+                    send_ipc(pipe, sys.stdout.getvalue(), "Result sent.\n")
+                    continue  # wait for next IPC connection
+                else:
+                    raise
+            break
 
         # main menu
+        self.start_debugger = False
         while True:
             self.parser = self.wrapper.parser  # may be changed by reprocessing
             self.parser.informer.sout_info()

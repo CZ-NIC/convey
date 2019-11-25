@@ -1,8 +1,12 @@
 # CHANGELOG
 
 ## 1.3 (unreleased)
-* aggregation
+* aggregation – count grouped by a column, sum...
 * LICENSE included
+* daemon – since it takes around 0.75 s to start the program, notably because of the external libraries (pint, bs4, requests), when doing a single query or a headless processing (no menu involved) we may reduce this time at least ten times with a daemon)
+* emergency input mode – when piping into the program (instead of giving the input as an argument), convey tries to gain a reduced STDIN from the terminal process
+* fix:
+    - adding external modules at runtime via menu
 
 ## 1.2 (2019-11-13)
 * web service
