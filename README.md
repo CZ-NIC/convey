@@ -126,6 +126,11 @@ pip3 install convey  # without root use may want to use --user
 # (optional) alternatively, you may want to install current master from GitHub
 pip3 install git+https://github.com/CZ-NIC/convey.git
 
+# (optional) install bash completion script
+# 1. apt-get install bash-completion jq
+# 2. pip3 show convey # → shows location /home/$USER/.local/lib/python3.7/site-packages
+# 3. copy /home/$USER/.local/lib/python3.7/site-packages/convey/extra/convey-autocompletion.bash /etc/bash_completion.d/convey-autocompletion.bash
+
 # launch
 convey [filename or input text] # or try `python3 -m convey` if you're not having `.local/bin` in your executable path
 ```

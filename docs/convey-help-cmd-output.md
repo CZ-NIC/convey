@@ -5,17 +5,21 @@ usage: convey [-h] [--debug] [-F] [-y] [--file] [-i] [-o FILENAME]
               [--no-header] [-d COLUMN,[COLUMN]] [-v] [-q]
               [-f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
               [-fe FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
-              [--split COLUMN] [-s [COLUMN],...] [--otrs_id OTRS_ID]
-              [--otrs_num OTRS_NUM] [--otrs_cookie OTRS_COOKIE]
-              [--otrs_token OTRS_TOKEN] [--csirt-incident]
-              [--whois [blank/false]] [--nmap [blank/false]]
-              [--dig [blank/false]] [--web [blank/false]] [--disable-external]
-              [--json] [--config [1 terminal|2 GUI|3 both by default]] [-H]
+              [--split COLUMN] [-s [COLUMN],...]
+              [-a [COLUMN, FUNCTION], ..., [group-by-COLUMN]]
+              [--otrs_id OTRS_ID] [--otrs_num OTRS_NUM]
+              [--otrs_cookie OTRS_COOKIE] [--otrs_token OTRS_TOKEN]
+              [--csirt-incident] [--whois [blank/false]]
+              [--nmap [blank/false]] [--dig [blank/false]]
+              [--web [blank/false]] [--disable-external] [--json]
+              [--config [1 terminal|2 GUI|3 both by default]] [-H]
               [--user-agent USER_AGENT] [-S] [--single-detect] [-C]
               [--multiple-hostname-ip [blank/false]]
               [--multiple-cidr-ip [blank/false]] [--whois-ttl SECONDS]
-              [--show-uml [SHOW_UML]] [--compute-preview [blank/false]]
-              [--delete-whois-cache] [--version]
+              [--show-uml [SHOW_UML]] [--get-autocompletion]
+              [--compute-preview [blank/false]] [--delete-whois-cache]
+              [--version]
+              [--daemon [['start', 'restart', 'stop', 'status', 'server']]]
               [file_or_input]
 
 Data conversion swiss knife
@@ -117,6 +121,21 @@ optional arguments:
   --split COLUMN        Split by this COLUMN.
   -s [COLUMN],..., --sort [COLUMN],...
                         List of columns.
+  -a [COLUMN, FUNCTION], ..., [group-by-COLUMN], --aggregate [COLUMN, FUNCTION], ..., [group-by-COLUMN]
+                        Aggregate
+                        Ex: --aggregate 2,sum # will sum the second column
+                        Ex: --aggregate 2,sum,3,avg # will sum the second column and average the third
+                        Ex: --aggregate 2,sum,1 # will sum the second column grouped by the first
+                        Ex: --aggregate 1,count # will count the grouped items in the 1st column (count will automatically set grouping column to the same)
+                        
+                        Available functions: 
+                        * avg
+                        * sum
+                        * count
+                        * min
+                        * max
+                        * list
+                        * set
   --otrs_id OTRS_ID     Ticket id
   --otrs_num OTRS_NUM   Ticket num
   --otrs_cookie OTRS_COOKIE
@@ -157,12 +176,25 @@ optional arguments:
   --whois-ttl SECONDS   How many seconds will a WHOIS answer cache will be
                         considered fresh.
   --show-uml [SHOW_UML]
-                        Show UML of fields and methods and exit. Methods that are currently disabled via flags or config file are grayed out. * FLAGs:    * +1 to gray out disabled fields/methods    * +2 to include usual field names
+                        Show UML of fields and methods and exit. Methods that are currently disabled via flags or config file are grayed out.
+                         * FLAGs:
+                            * +1 to gray out disabled fields/methods
+                            * +2 to include usual field names
+  --get-autocompletion  Get bash autocompletion.
   --compute-preview [blank/false]
                         When adding new columns, show few first computed
                         values.
   --delete-whois-cache  Delete convey's global WHOIS cache.
   --version             Show the version number (which is currently 1.2).
+  --daemon [['start', 'restart', 'stop', 'status', 'server']]
+                        Run a UNIX socket daemon to speed up single query requests.
+                          * 1/true/on – allow using the daemon
+                          * 0/false/off – do not use the daemon
+                          * start – start the daemon and exit
+                          * stop – stop the daemon and exit
+                          * status – print out the status of the daemon
+                          * restart – restart the daemon and continue
+                          * server – run the server in current process (I.E. for debugging)
 
 To launch a web service see README.md.
 ```

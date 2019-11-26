@@ -42,7 +42,7 @@ def main():
                 if type(response) is str:
                     if response.endswith(chr(3)):  # daemon has missing input
                         pass
-                    elif not response.endswith(chr(17)):  # daemon is stopping
+                    elif not response.endswith(chr(17)):  # daemon is not stopping
                         daemonize_on_exit = False
                         if not response.endswith(chr(4)):  # daemon brings some results
                             print(response, end='')

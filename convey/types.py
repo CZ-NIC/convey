@@ -654,6 +654,9 @@ class Types:
         [graph.add_edge(to, from_) for to, from_ in methods if methods[to, from_] is not True]
         [t.init() for t in types]
 
+        if Config.get("disable_external", get=bool) is True:
+            return
+
         try:
             externals = Config.config["EXTERNAL"]
         except KeyError:
@@ -688,22 +691,22 @@ class Types:
         if isinstance(lambda_, ABCMeta):  # this is just an import statement of ex: PickBase
             return
         doc = lambda_.__doc__ if not isinstance(lambda_, PickBase) else lambda_.get_type_description()
-        if Config.get("disable_external", get=bool) is True:
-            # user do not want to allow externals to be added but we have added them before argparse was parsed
-            # so that we could inform the user in the help text of the computable fields
-            types.pop(types.index(getattr(Types, name)))
-            delattr(Types, name)
-        else:
-            setattr(Types, name, Type(name, TypeGroup.general, doc))
-            type_ = getattr(Types, name)
-            methods[(Types.plaintext, type_)] = lambda_
-            if lambda_ is not True:
-                graph.add_edge(Types.plaintext, type_)
-            type_.init()
-            if Config.get("disable_external", get=bool) is False:
-                # when "disable_external" is None it means this method is called before argparse flags are parsed,
-                # we do not know yet if "disable_external" will be set to True or False
-                logger.debug(f"Successfully added method {method_name} from module {path}")
+        # if Config.get("disable_external", get=bool) is True:
+        #     # user do not want to allow externals to be added but we have added them before argparse was parsed
+        #     # so that we could inform the user in the help text of the computable fields
+        #     types.pop(types.index(getattr(Types, name)))
+        #     delattr(Types, name)
+        # else:
+        setattr(Types, name, Type(name, TypeGroup.general, doc))
+        type_ = getattr(Types, name)
+        methods[(Types.plaintext, type_)] = lambda_
+        if lambda_ is not True:
+            graph.add_edge(Types.plaintext, type_)
+        type_.init()
+        # Xif Config.get("disable_external", get=bool) is False:
+        # Xwhen "disable_external" is None it means this method is called before argparse flags are parsed,
+        # Xwe do not know yet if "disable_external" will be set to True or False
+        logger.debug(f"Successfully added method {method_name} from module {path}")
 
     @staticmethod
     def find_type(source_type_candidate):

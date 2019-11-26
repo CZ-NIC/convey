@@ -40,7 +40,7 @@ except pkg_resources.DistributionNotFound:
 
 
 def send_ipc(pipe, msg, refresh_stdout):
-    sys.stdout = StringIO()  # creating a new one is faster than truncating the old
+    sys.stdout = sys.stderr = StringIO()  # creating a new one is faster than truncating the old
     console_handler.setStream(sys.stdout)
     sys.stdout_real.write(refresh_stdout)
     return send(pipe, msg)
@@ -130,6 +130,8 @@ class SmartFormatter(argparse.HelpFormatter):
 
 class Controller:
     def __init__(self):
+        if "--disable-external" in sys.argv:
+            Config.set("disable_external", True)
         Types.refresh()  # load types so that we can print out computable types in the help text
         epilog = "To launch a web service see README.md."
         column_help = "COLUMN is ID the column (1, 2, 3...), the exact column name, field type name or its usual name."
@@ -235,6 +237,7 @@ class Controller:
                                                "\n    * +1 to gray out disabled fields/methods"
                                                "\n    * +2 to include usual field names",
                             type=int, const=1, nargs='?')
+        parser.add_argument('--get-autocompletion', help="Get bash autocompletion.", action="store_true")
         parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--delete-whois-cache', help="Delete convey's global WHOIS cache.", action="store_true")
@@ -270,7 +273,7 @@ class Controller:
             server.bind(socket_file)
             server.listen()
             sys.stdout_real = stdout = sys.stdout
-            sys.stdout = StringIO()
+            sys.stdout = sys.stderr = StringIO()
             console_handler.setStream(sys.stdout)
             PromptSession.__init__ = lambda _, *ar, **kw: (_ for _ in ()).throw(ConnectionAbortedError('Prompt raised.'))
 
@@ -294,11 +297,11 @@ class Controller:
                     print("This is just an emergency input mode because convey interactivity works bad when piping into.")
                     PromptSession.prompt = safe_prompt_2
                     return safe_prompt_2(*ar, **kw)
+
                 PromptSession.prompt = safe_prompt
 
             see_menu = False
             args.yes = True
-
 
         while True:
             try:
@@ -314,6 +317,10 @@ class Controller:
                     argv = literal_eval(msg)
                     if not argv:
                         raise ConnectionAbortedError("No arguments passed")
+                    elif "--disable-external" in argv:
+                        # Param "disable_external" is parsed before the help text normally
+                        # but we are in daemon and the help text has already been prepared with externals.
+                        raise ConnectionAbortedError("Disable externals might change the behaviour (help text, ...)")
                     try:
                         os.chdir(Path(argv[0]))
                     except OSError:
@@ -322,10 +329,13 @@ class Controller:
                     new_fields.clear()  # reset new fields so that they will not be remembered in another query
                     try:
                         self.args = args = parser.parse_args(argv[2:])  # the daemon has receives a new command
-                    except Exception as e:  # argparse has a various palette of exceptions to be raised, pipe them all
-                        print(e)
-                        quit()
-                        #raise ConnectionAbortedError("This might be just a help text request")
+                    except SystemExit as e:
+                        if not sys.stdout.getvalue():
+                            # argparse sent usage to stderr, we do not have in in stdout instance will rerun the command
+                            raise ConnectionAbortedError("Error in help text")
+                        else:
+                            # argparse put everything in stdout
+                            quit()
                     see_menu = True
                     control_daemon(args.daemon, True)
 
@@ -353,6 +363,9 @@ class Controller:
                         getattr(TypeGroup, module).disable()
                 if args.show_uml is not None:
                     print(Types.get_uml(args.show_uml))
+                    quit()
+                if args.get_autocompletion:
+                    print(self.get_autocompletion(parser))
                     quit()
                 if args.version:
                     print(__version__)
@@ -938,3 +951,41 @@ class Controller:
         if not Config.get("yes"):
             print("Finished.")
         exit(0)
+
+    def get_autocompletion(self, parser):
+        actions = []
+        for action in parser._actions:
+            actions.extend(action.option_strings)
+
+        a = ["#!/usr/bin/env bash",
+             "# bash completion for convey",
+             ""
+             '_convey()',
+             '{',
+             '  local cur',
+             '  local cmd',
+             '',
+             '  cur=${COMP_WORDS[$COMP_CWORD]}',
+             '  prev="${COMP_WORDS[COMP_CWORD-1]}";',
+             '  cmd=( ${COMP_WORDS[@]} )',
+             '',
+             '  if [[ "$prev" == -f ]] || [[ "$prev" == --field ]] || [[ "$prev" == -fe ]] ||' +
+             ' [[ "$prev" == --field-excluded ]]; then',
+             f'        COMPREPLY=( $( compgen -W "{" ".join(t.name for t in Types.get_computable_types())}"  -- "$cur" ) )',
+             '        return 0',
+             '    fi',
+             '',
+             '  if [[ "$prev" == -a ]] || [[ "$prev" == --aggregate ]]; then',
+             '    param=(${cur//,/ })',
+             f'        COMPREPLY=( $( compgen -W "{" ".join("${param[0]},"+s for s in aggregate_functions)}"  -- "$cur" ) )',
+             '        return 0',
+             '    fi',
+             '',
+             '  if [[ "$cur" == -* ]]; then',
+             f'    COMPREPLY=( $( compgen -W "{" ".join(actions)}" -- $cur ) )',
+             '    return 0',
+             '  fi',
+             '}',
+             '',
+             'complete -F _convey -o default convey']
+        return "\n".join(a)

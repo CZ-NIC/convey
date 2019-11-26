@@ -213,6 +213,8 @@ class Whois:
         # return ""  # no grep result found
 
     def analyze(self):
+        import ipdb;
+        ipdb.set_trace()
         """
         :return: prefix, "local"|"foreign", incident-contact ( = abuse-mail|country), asn, netname, country, abuse-mail, TTL
         """
