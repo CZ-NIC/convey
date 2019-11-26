@@ -21,7 +21,7 @@ _convey()
     fi
 
   if [[ "$cur" == -* ]]; then
-    COMPREPLY=( $( compgen -W "-h --help --debug -F --fresh -y --yes --file -i --input -o --output --delimiter --quote-char --header --no-header -d --delete -v --verbose -q --quiet -f --field -fe --field-excluded --split -s --sort -a --aggregate --otrs_id --otrs_num --otrs_cookie --otrs_token --csirt-incident --whois --nmap --dig --web --disable-external --json --config -H --headless --user-agent -S --single-query --single-detect -C --csv-processing --multiple-hostname-ip --multiple-cidr-ip --whois-ttl --show-uml --get-autocompletion --compute-preview --delete-whois-cache --version --daemon" -- $cur ) )
+    COMPREPLY=( $( compgen -W "-h --help --debug -F --fresh -y --yes --file -i --input -o --output --delimiter --quote-char --header --no-header -d --delete -v --verbose -q --quiet -f --field -fe --field-excluded -t --type --split -s --sort -a --aggregate --otrs_id --otrs_num --otrs_cookie --otrs_token --csirt-incident --whois --nmap --dig --web --disable-external --json --config -H --headless --user-agent -S --single-query --single-detect -C --csv-processing --multiple-hostname-ip --multiple-cidr-ip --whois-ttl --show-uml --get-autocompletion --compute-preview --delete-whois-cache --version --daemon" -- $cur ) )
     return 0
   fi
 }

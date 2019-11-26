@@ -232,6 +232,8 @@ class Parser:
             s = ""
             if field.is_new:
                 s = f"computed from: {field.source_type}"
+            elif field.type:
+                s = field.type
             elif field.possible_types:
                 types = field.possible_types
                 if Types.any_ip in types and (Types.ip in types or Types.port_ip in types):

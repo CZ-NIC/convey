@@ -18,7 +18,8 @@
 * interface
     - nicer output when processing from STDIN
 * internal
-    - daemon pipes stderr as well    
+    - daemon pipes stderr as well
+    - got rid of python-Levenshtein package and did not use psutil package so installing whole gcc is not needed anymore          
 
 ## 1.2 (2019-11-13)
 * web service

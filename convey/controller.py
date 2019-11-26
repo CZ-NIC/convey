@@ -7,12 +7,12 @@ import socket
 import subprocess
 import sys
 from ast import literal_eval
+from difflib import SequenceMatcher
 from io import StringIO
 from pathlib import Path
 from sys import exit
 
 import pkg_resources
-from Levenshtein import distance
 from dialog import Dialog, DialogError
 from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.key_binding import KeyBindings
@@ -420,8 +420,8 @@ class Controller:
                     try:
                         target_type = types[types.index(target_type)]  # determine FIELD by exact name
                     except ValueError:
-                        d = {t.name: distance(task[0], t.name) for t in Types.get_computable_types()}
-                        rather = min(d, key=d.get)
+                        d = {t.name: SequenceMatcher(None, task[0], t.name).ratio() for t in Types.get_computable_types()}
+                        rather = max(d, key=d.get)
                         logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
                         quit()
                     source_field, source_type, c = self.parser.identifier.get_fitting_source(target_type, *task[1:])

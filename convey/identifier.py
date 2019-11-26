@@ -141,7 +141,7 @@ class Identifier:
                 raise Error
         except Error:  # delimiter failed – maybe there is an empty column: "89.187.1.81,06-05-2016,,CZ,botnet drone"
             if sample_text.strip() == "":
-                print("The file seems empty")
+                print("The file seems empty")  # XX I got here once after a clean installation at 26.11.2019
                 quit()
 
             # header detection

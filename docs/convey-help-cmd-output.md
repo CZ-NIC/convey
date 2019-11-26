@@ -5,7 +5,7 @@ usage: convey [-h] [--debug] [-F] [-y] [--file] [-i] [-o FILENAME]
               [--no-header] [-d COLUMN,[COLUMN]] [-v] [-q]
               [-f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
               [-fe FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
-              [--split COLUMN] [-s [COLUMN],...]
+              [-t [TYPE],...] [--split COLUMN] [-s [COLUMN],...]
               [-a [COLUMN, FUNCTION], ..., [group-by-COLUMN]]
               [--otrs_id OTRS_ID] [--otrs_num OTRS_NUM]
               [--otrs_cookie OTRS_COOKIE] [--otrs_token OTRS_TOKEN]
@@ -30,7 +30,7 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  --debug               On error, enter an ipdb session
+  --debug               On error, enter a pdb session
   -F, --fresh           Do not attempt to load any previous settings /
                         results. Do not load convey's global WHOIS cache. (But
                         merge WHOIS results in there afterwards.)
@@ -118,6 +118,9 @@ optional arguments:
   -fe FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM], --field-excluded FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]
                         The same as field but its column will not be added to
                         the output.
+  -t [TYPE],..., --type [TYPE],...
+                        Determine column type(s).
+                        Ex: --type country,,phone # 1st column is country, 2nd unspecified, 3rd is phone
   --split COLUMN        Split by this COLUMN.
   -s [COLUMN],..., --sort [COLUMN],...
                         List of columns.

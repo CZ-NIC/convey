@@ -924,6 +924,7 @@ class Types:
             (t.hostname, t.ip): Checker.hostname_ips if Config.get("multiple_hostname_ip", "FIELDS") else Checker.hostname_ip,
             # (t.url, t.ip): Whois.url2ip,
             (t.ip, t.whois): Whois,
+            # (t.asn, t.whois): Whois, # XX can be easily allowed, however Whois object will huff there is no IP prefix range
             (t.cidr, t.ip): Checker.cidr_ips if Config.get("multiple_cidr_ip", "FIELDS") else
             lambda x: str(ipaddress.ip_interface(x).ip),
             (t.whois, t.prefix): lambda x: str(x.get[0]),

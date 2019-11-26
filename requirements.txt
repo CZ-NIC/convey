@@ -11,6 +11,5 @@ tabulate
 appdirs
 humanize
 beautifulsoup4
-python-Levenshtein
-prompt_toolkit>=2
+prompt_toolkit>=2,<3
 pygments
