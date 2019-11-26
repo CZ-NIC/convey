@@ -8,13 +8,17 @@
 * LICENSE included
 * emergency input mode – when piping into the program (instead of giving the input as an argument), convey tries to gain a reduced STDIN from the terminal process #38
 * bash completion
-* fix:
+* fix
     - adding external modules at runtime via menu
     - Ctrl+C works when interrupting wizzard as expected #39
     - detect multiline quoted_printable
     - better phone format recognition
-* internal:
-    - daemon pipes stderr as well
+    - multiple STDIN processing in a single session    
+    - CSV flags (like --header) when processing in --yes mode
+* interface
+    - nicer output when processing from STDIN
+* internal
+    - daemon pipes stderr as well    
 
 ## 1.2 (2019-11-13)
 * web service
@@ -78,7 +82,7 @@
     - fix: log files
     - Processor handles Whois statistics no more, so Identifier Whois methods do not return tuple anymore (standardised)
     - advanced header detection
-* dialogs
+* interface
     - able to automatically add/remove config file flags at program upgrade if allowed by user
     - when no known method is known to process a field, an example is given
     - when more than 9 options, you can use letters as shortcuts

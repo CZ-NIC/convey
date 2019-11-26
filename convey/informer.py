@@ -141,7 +141,7 @@ class Informer:
         if self.parser.is_analyzed:
             if self.parser.saved_to_disk is False:
                 print("\n** Processing completed, results were not saved to a file yet.")
-                print(self.parser.stdout)
+                print(tabulate(self.parser.stdout_sample, headers="firstrow" if self.parser.has_header else ()))
             elif self.parser.saved_to_disk:
                 print(f"\n** Processing completed: Result file in {self.parser.target_file}")
             else:

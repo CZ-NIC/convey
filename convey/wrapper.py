@@ -43,7 +43,7 @@ def choose_file():
 def read_stdin():
     if Config.get("daemon", get=bool):
         raise ConnectionRefusedError("STDIN missing")
-    print("Write something to stdin. (End of transmission 3× <Ctrl>+d or <Enter>+<Ctrl>+d.)")
+    print("Write something to stdin. (End of transmission 2× <Ctrl>+d or <Enter>+<Ctrl>+d.)")
     return sys.stdin.read().rstrip().split("\n")  # rstrip \n at the end of the input
 
 

@@ -3,6 +3,7 @@ import logging
 import operator
 import traceback
 from bdb import BdbQuit
+from builtins import RuntimeWarning
 from collections import defaultdict
 from csv import reader as csvreader, writer as csvwriter
 from datetime import datetime
@@ -74,7 +75,7 @@ class Processor:
             else:
                 source_stream = open(file, "r")
                 settings["target_file"] = str(parser.target_file)
-            if parser.stdout:
+            if parser.external_stdout:
                 settings["target_file"] = 2
             # with open(file, "r") as sourceF:
             reader = csvreader(source_stream, dialect=parser.dialect)
@@ -128,7 +129,7 @@ class Processor:
             if settings["aggregate"]:  # write aggregation results now because we skipped it in process_line when aggregating
                 for location, data in self.parser.aggregation.items():
                     if location is 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
-                        t = parser.stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
+                        t = parser.external_stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
                     elif location is 1:  # this is a sign we output csv data to stdout
                         t = io.StringIO()
                         self.descriptors[1] = t, None  # put the aggregated data to the place we would attend them
@@ -151,6 +152,7 @@ class Processor:
                 result = self.descriptors[1][0].getvalue()
                 print(result.strip())
                 parser.stdout = result
+                parser.stdout_sample = [row.split(parser.dialect.delimiter) for row in result.split("\n", 10)[:10]]
                 self.parser.saved_to_disk = False
             if 2 in self.descriptors:
                 # the data were in parser.stdout and were taken by the remote application
@@ -196,17 +198,21 @@ class Processor:
                             val = l(val)
                     fields.append(val)
                     if isinstance(val, list):
-                        list_lengths.append(len(val))
+                        list_lengths.append(len(val) or 1)
                 if list_lengths:  # duplicate rows because we received lists amongst scalars
                     row_count = prod(list_lengths)
                     for i, f in enumerate(fields):  # 1st col returns 3 values, 2nd 2 values → both should have 3*2 = 6 values
                         if type(f) is not list:
                             fields[i] = [f]
+                        # if we received empty list, row is invalid
+                        # ex: missing IP of a hostname
+                        if not fields[i]:
+                            raise RuntimeWarning(i+1)
                         fields[i] *= row_count // len(fields[i])
                     it = zip(*fields)
-                    fields = it.__next__()
-                    for v in it:
-                        self.process_line(parser, line, settings, v)  # duplicate row because single lambda produced a list
+                    fields = it.__next__()  # now we are sure fields has only scalar values
+                    for v in it:  # duplicate row because one of lambdas produced a multiple value list
+                        self.process_line(parser, line, settings, v)  # new row with scalar values only
 
             # inclusive filter
             for f in settings["filter"]:  # list of tuples (col, value): [(23, "passed-value"), (13, "another-value")]
@@ -279,6 +285,8 @@ class Processor:
             if Config.is_debug():
                 traceback.print_exc()
                 Config.get_debugger().set_trace()
+            elif isinstance(e, RuntimeWarning):
+                logger.warning(f"Cannot compute {e}. column at line: {line}")
             else:
                 logger.warning(e, exc_info=True)
             parser.invalid_lines_count += 1
@@ -306,7 +314,7 @@ class Processor:
             # print("Opening", location)
 
             if location is 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
-                t = w = parser.stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
+                t = w = parser.external_stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
             else:
                 if location is 1:  # this is a sign we output csv data to stdout
                     t = io.StringIO()

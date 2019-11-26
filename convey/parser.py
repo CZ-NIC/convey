@@ -65,7 +65,7 @@ class Parser:
         # when called from another program we communicate through this stream rather than through a file
         # XX this is not used right now, convey is not at the moment connectable to other programs
         # see __init__.py at revision d2cf88f48409ca8cc5e229954df34836de884445
-        self.stdout = None
+        self.external_stdout = None
         self.is_single_query = False  # CSV processing vs single_query check usage
         self.ranges = {}  # XX should be refactored as part of Whois
         self.ip_seen = {}  # XX should be refactored as part of Whois
@@ -77,6 +77,7 @@ class Parser:
         self.source_file = source_file or self.invent_file_str()
         self.stdin = []
         self.stdout = None  # when accepting input from stdin and not saving the output into a file, we will have it here
+        self.stdout_sample = None
         self.target_file = None
         self.saved_to_disk = None  # has been saved to self.target_file
         self.processor = Processor(self)
@@ -172,27 +173,32 @@ class Parser:
             self.dialect, self.has_header, seems_single = self.identifier.guess_dialect(self.sample)
             uncertain = False
 
-            if not Config.get("yes"):
-                if Config.get("delimiter", "CSV"):
-                    self.dialect.delimiter = Config.get("delimiter", "CSV")
-                    print(f"Delimiter character set: '{self.dialect.delimiter}'\n", end="")
-                else:
-                    uncertain = True
-                    s = "proposed" if seems_single else "found"
-                    print(f"Delimiter character {s}: '{self.dialect.delimiter}'\n", end="")
+            l = []
+            if Config.get("delimiter", "CSV"):
+                self.dialect.delimiter = Config.get("delimiter", "CSV")
+                l.append(f"Delimiter character set: '{self.dialect.delimiter}'")
+            else:
+                uncertain = True
+                s = "proposed" if seems_single else "found"
+                l.append(f"Delimiter character {s}: '{self.dialect.delimiter}'")
 
-                if Config.get("quote_char", "CSV"):
-                    self.dialect.quotechar = Config.get("quote_char", "CSV")
-                    print(f"Quoting character set: '{self.dialect.quotechar}'\n", end="")
-                else:
-                    uncertain = True
-                    print(f"Quoting character: '{self.dialect.quotechar}'\n", end="")
+            if Config.get("quote_char", "CSV"):
+                self.dialect.quotechar = Config.get("quote_char", "CSV")
+                l.append(f"Quoting character set: '{self.dialect.quotechar}'")
+            else:
+                uncertain = True
+                l.append(f"Quoting character: '{self.dialect.quotechar}'")
 
-                if Config.get("header", "CSV") is not None:
-                    self.has_header = Config.get("header", "CSV")
-                else:
-                    uncertain = True
-                    print(f"Header is present: " + ("yes" if self.has_header else "not used"))
+            if Config.get("header", "CSV") is not None:
+                self.has_header = Config.get("header", "CSV")
+            else:
+                uncertain = True
+                l.append(f"Header is present: " + ("yes" if self.has_header else "not used"))
+
+            if Config.get("yes"):
+                uncertain = False
+            else:
+                print("\n".join(l))
 
             if uncertain and not is_yes("\nCould you confirm this?"):
                 while True:
