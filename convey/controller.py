@@ -52,7 +52,7 @@ def control_daemon(cmd, in_daemon=False):
         print("Convey daemon stopping.")
     if cmd in ["restart", "start"]:
         if in_daemon:
-            raise ConnectionResetError("Convey daemon restart.")
+            raise ConnectionResetError("restart.")
         else:
             Config.set("daemonize", True)
             control_daemon("kill")
@@ -61,7 +61,7 @@ def control_daemon(cmd, in_daemon=False):
             quit()
     if cmd in ["kill", "stop"]:
         if in_daemon:
-            raise ConnectionResetError("Convey daemon stop.")
+            raise ConnectionResetError("stop.")
         else:
             pid = daemon_pid()
             if pid:
@@ -76,12 +76,12 @@ def control_daemon(cmd, in_daemon=False):
         quit()
     if cmd is False:
         if in_daemon:
-            raise RuntimeWarning("Daemon should not be used")
+            raise ConnectionAbortedError("Daemon should not be used")
         else:
             Config.set("daemonize", False)
     if cmd == "server":
         if in_daemon:
-            raise RuntimeWarning("The new process will become the new server.")
+            raise ConnectionAbortedError("The new process will become the new server.")
         else:
             control_daemon("kill")
     return cmd
@@ -261,7 +261,7 @@ class Controller:
             try:
                 Config.init_verbosity(args.yes, 30 if args.quiet else (10 if args.verbose else None), True)
                 Config.integrity_check()
-            except RuntimeWarning:
+            except ConnectionAbortedError:
                 print("Config file integrity check failed. Launch convey normally to upgrade config parameters.")
                 quit()
 
@@ -272,7 +272,7 @@ class Controller:
             sys.stdout_real = stdout = sys.stdout
             sys.stdout = StringIO()
             console_handler.setStream(sys.stdout)
-            PromptSession.__init__ = lambda _, *ar, **kw: (_ for _ in ()).throw(RuntimeWarning('Prompt raised.'))
+            PromptSession.__init__ = lambda _, *ar, **kw: (_ for _ in ()).throw(ConnectionAbortedError('Prompt raised.'))
 
         if not is_daemon and not sys.stdin.isatty():  # piping to the process, no terminal
             try:
@@ -313,7 +313,7 @@ class Controller:
                     stdout.flush()
                     argv = literal_eval(msg)
                     if not argv:
-                        raise RuntimeWarning("No arguments passed")
+                        raise ConnectionAbortedError("No arguments passed")
                     try:
                         os.chdir(Path(argv[0]))
                     except OSError:
@@ -322,10 +322,10 @@ class Controller:
                     new_fields.clear()  # reset new fields so that they will not be remembered in another query
                     try:
                         self.args = args = parser.parse_args(argv[2:])  # the daemon has receives a new command
-                    except Exception as e:  # argparse has a various palette of exceptions to be raised, catch them all
+                    except Exception as e:  # argparse has a various palette of exceptions to be raised, pipe them all
                         print(e)
                         quit()
-                        #raise RuntimeWarning("This might be just a help text request")
+                        #raise ConnectionAbortedError("This might be just a help text request")
                     see_menu = True
                     control_daemon(args.daemon, True)
 
@@ -468,11 +468,14 @@ class Controller:
                     self.close()
                 if is_daemon:  # if in daemon, everything important has been already sent to STDOUT
                     quit()
-            except RuntimeWarning as e:
+            except ConnectionRefusedError as e:
+                send_ipc(pipe, chr(3), f"Daemon has insufficient input: {e}\n")
+                continue
+            except ConnectionAbortedError as e:
                 send_ipc(pipe, chr(4), "Daemon cannot help: " + (str(e) or "Probably a user dialog is needed.") + "\n")
                 continue
             except ConnectionResetError as e:
-                send_ipc(pipe, chr(17), str(e) + "\n")
+                send_ipc(pipe, chr(17), f"Daemon killed: {e}\n")
                 quit()
             except SystemExit:
                 if is_daemon:

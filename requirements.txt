@@ -1,4 +1,3 @@
-psutil
 pint
 chardet
 python-dateutil

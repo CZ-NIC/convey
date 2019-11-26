@@ -592,7 +592,7 @@ class Type:
         if len(computing_start) == 1:
             self.computing_start = computing_start[0]
         elif len(computing_start):
-            raise RuntimeWarning(f"Multiple 'computing_start' types defined for {self}: {computing_start}")
+            raise ConnectionAbortedError(f"Multiple 'computing_start' types defined for {self}: {computing_start}")
         if equals:
             self.equals = equals + [self]
 

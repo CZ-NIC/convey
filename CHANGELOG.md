@@ -8,6 +8,7 @@
 * fix:
     - adding external modules at runtime via menu
     - Ctrl+C works when interrupting wizzard as expected #39
+    - detect multiline quoted_printable
 
 ## 1.2 (2019-11-13)
 * web service

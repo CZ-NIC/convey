@@ -40,7 +40,9 @@ def main():
             else:
                 # chr(4) at the end means this was not a single query check and we should load full convey libraries
                 if type(response) is str:
-                    if not response.endswith(chr(17)):  # daemon is stopping
+                    if response.endswith(chr(3)):  # daemon has missing input
+                        pass
+                    elif not response.endswith(chr(17)):  # daemon is stopping
                         daemonize_on_exit = False
                         if not response.endswith(chr(4)):  # daemon brings some results
                             print(response, end='')

@@ -115,7 +115,7 @@ class Parser:
                 return "".join(s).replace("\n", "").replace("\r", "")
 
             def join_quo(s):
-                return "".join(s).replace("=\n", "").replace("=\r", "").replace("\n", r"\n").replace("\r", r"\r")
+                return "\n".join(s).replace("=\n", "").replace("=\r", "").replace("\n", r"\n").replace("\r", r"\r")
 
             len_ = len(self.sample)
             if len_ > 1 and re.search("[^A-Za-z0-9+/=]", join_base(self.sample)) is None:

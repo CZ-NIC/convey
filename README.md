@@ -617,6 +617,7 @@ Possible functions are:
 * min
 * max
 * list
+* set
 
 
 Let's have a file.
