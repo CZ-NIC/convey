@@ -336,8 +336,14 @@ class Identifier:
             try:
                 source_col_i = sorted(possibles, key=possibles.get, reverse=True)[0]
             except IndexError:
-                print(f"No suitable column of type '{source_type}' found to make field '{target_type}'")
-                quit()
+                f = [f for f in self.parser.fields if not f.is_new]
+                if len(f) == 1:
+                    # there is just a single non-computed (and thus unidentified) column
+                    # since we are forcing source_type, let's pretend the column is of this type
+                    source_col_i = f[0].col_i
+                else:
+                    print(f"No suitable column of type '{source_type}' found to make field '{target_type}'")
+                    quit()
 
         if not source_type or source_col_i is None:
             print(f"No suitable column found for field '{target_type}'")

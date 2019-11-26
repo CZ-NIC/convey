@@ -612,6 +612,29 @@ urlencode  3hours
 
 ```
 
+### Country names
+When specifying country code, you get country name.
+```bash
+$ convey --type country sc
+Seychelles
+```
+Lots of countries can be recognized.
+```
+bash
+$ convey --type country_name Futuna
+wf
+```
+You may get the country code from various telephone number formats. 
+```bash
+$ convey +2481234567
+Seychelles
+
+$ convey "1-541-754-3010"
+['ca', 'us']
+
+$ convey 
+```
+
 ### Aggregate
 
 Syntax is `[COLUMN, FUNCTION], ..., [group-by-COLUMN]`.  

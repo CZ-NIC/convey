@@ -32,7 +32,7 @@ class Parser:
     is_analyzed: bool
     attachments: List[Attachment]
 
-    def __init__(self, source_file=False, stdin=None, prepare=True):
+    def __init__(self, source_file=False, stdin=None, types=None, prepare=True):
         self.is_formatted = False
         self.is_processable = False
         self.is_repeating = False
@@ -43,6 +43,7 @@ class Parser:
         self.sample_parsed: List[List[str]] = []  # values of the prepared output (ex re-sorted), always excluding header
         self.fields: List[Field] = []  # CSV columns that will be generated to an output
         self.first_line_fields: List[str] = []  # CSV columns (equal to header if used) in the original file
+        self.types = types  # field types of the columns as given by the user
         # settings:
         #    "add": new_field:Field,
         #           source_col_i:int - number of field to compute from,
@@ -91,7 +92,7 @@ class Parser:
 
         self.refresh()
         if prepare:
-            self.prepare
+            self.prepare()
 
     def refresh(self):
         """
@@ -100,7 +101,6 @@ class Parser:
         Contacts.init()
         Attachment.refresh_attachment_stats(self)
 
-    @property
     def prepare(self):
         if self.size == 0:
             print("Empty contents.")
@@ -248,6 +248,8 @@ class Parser:
 
         for f in fields:
             f.col_i_original = f.col_i = len(self.fields)
+            if self.types and len(self.types) > f.col_i:
+                f.type = self.types[f.col_i]
             f.parser = self
             self.fields.append(f)
 

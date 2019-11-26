@@ -138,7 +138,7 @@ class Controller:
         parser = argparse.ArgumentParser(description="Data conversion swiss knife", formatter_class=SmartFormatter, epilog=epilog)
         parser.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
                                                              "In nothing is given, user will input data through stdin.")
-        parser.add_argument('--debug', help="On error, enter an ipdb session", action="store_true")
+        parser.add_argument('--debug', help="On error, enter a pdb session", action="store_true")
         parser.add_argument('-F', '--fresh', help="Do not attempt to load any previous settings / results."
                                                   " Do not load convey's global WHOIS cache."
                                                   " (But merge WHOIS results in there afterwards.)", action="store_true")
@@ -175,6 +175,10 @@ class Controller:
                             action=FieldVisibleAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
         parser.add_argument('-fe', '--field-excluded', help="The same as field but its column will not be added to the output.",
                             action=FieldExcludedAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
+        parser.add_argument('-t', '--type', help="R|Determine column type(s)."
+                                                 "\nEx: --type country,,phone"
+                                                 " # 1st column is country, 2nd unspecified, 3rd is phone",
+                            metavar="[TYPE],...")
         parser.add_argument('--split', help="Split by this COLUMN.",
                             metavar="COLUMN")
         parser.add_argument('-s', '--sort', help="List of columns.",
@@ -327,6 +331,7 @@ class Controller:
                         stdout.write("Invalid cwd\n")
                         continue
                     new_fields.clear()  # reset new fields so that they will not be remembered in another query
+                    Config.cache.clear()
                     try:
                         self.args = args = parser.parse_args(argv[2:])  # the daemon has receives a new command
                     except SystemExit as e:
@@ -381,7 +386,13 @@ class Controller:
                 if args.single_query or args.single_detect:
                     Config.set("single_query", True)
                 Config.set("adding-new-fields", bool(new_fields))
-                self.wrapper = Wrapper(args.file_or_input, args.file, args.input, args.fresh, args.delete_whois_cache)
+                if args.type:
+                    try:
+                        args.type = [getattr(Types, t) for t in args.type.split(",")]
+                    except AttributeError:
+                        print(f"Unknown type amongst: {args.type}")
+                        quit()
+                self.wrapper = Wrapper(args.file_or_input, args.file, args.input, args.type, args.fresh, args.delete_whois_cache)
                 self.parser: Parser = self.wrapper.parser
 
                 # load flags
@@ -977,7 +988,7 @@ class Controller:
              '',
              '  if [[ "$prev" == -a ]] || [[ "$prev" == --aggregate ]]; then',
              '    param=(${cur//,/ })',
-             f'        COMPREPLY=( $( compgen -W "{" ".join("${param[0]},"+s for s in aggregate_functions)}"  -- "$cur" ) )',
+             f'        COMPREPLY=( $( compgen -W "{" ".join("${param[0]}," + s for s in aggregate_functions)}"  -- "$cur" ) )',
              '        return 0',
              '    fi',
              '',

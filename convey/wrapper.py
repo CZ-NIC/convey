@@ -48,13 +48,14 @@ def read_stdin():
 
 
 class Wrapper:
-    def __init__(self, file_or_input, force_file=False, force_input=False, fresh=False, delete_cache=False):
+    def __init__(self, file_or_input, force_file=False, force_input=False, types=None, fresh=False, delete_cache=False):
         if delete_cache:
             Path(config_dir, WHOIS_CACHE).unlink()
 
         self.parser: Parser
         self.file = file = None
         self.stdin = stdin = None
+        self.types = types
         self.fresh = fresh
         try:
             case = int(Config.get("file_or_input"))
@@ -97,7 +98,7 @@ class Wrapper:
             Config.set_cache_dir(Path.cwd())
             self.cache_file = None
             self.stdin = stdin
-            self.parser: Parser = Parser(stdin=stdin)
+            self.parser: Parser = Parser(stdin=stdin, types=self.types)
             return
 
         if not Path(file).is_file():
@@ -267,5 +268,5 @@ class Wrapper:
                 input(f"Successfully written to {parser.target_file}. Hit any key.")
                 self.file = parser.target_file
 
-        self.parser = Parser(self.file, self.stdin)
+        self.parser = Parser(self.file, self.stdin, self.types)
         self.save()

@@ -3,6 +3,7 @@ from collections import defaultdict
 
 idds = ('00', '+')
 phone_reg = re.compile(r"(\+|00)?\d[\d\-()]{7,12}\d$")
+phone_dial = re.compile("[+(]?(\d{0,6})")  # any prefix like `+420` or `(089)`, then up to 6 digits (there is no longer prefix)
 
 
 def is_phone(val):
@@ -18,19 +19,34 @@ def phone_country(val, get_prefix=False):
         +420 (plus sign)
         00420 (IDD prefix)
     (Library phonenumbers did not find ex Puerto Rico at "1787")
+    XX get_prefix seems to not be used
     """
     for idd in idds:
         if val.startswith(idd):
             val = val.lstrip(idd)
             break
-    val = val.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")  # try to remove various formatting
+    m = phone_dial.match(val.strip())  # strip the number to what may be its prefix only
+    if m:
+        val = m.group(1)
 
     for i in range(1, len(val) + 1):
-        if int(val[:i]) not in phones_prefixes:
-            prefix = val[:i]
+        # get the biggest possible prefix,
+        # ex: 4 → "42 exists" → skipped
+        #     42 → "420 exist" → skipped
+        #     420 → "420X does not exist" → taken
+        # ex: number +1675, note there is +1 for US/CA and +1670 for an island
+        #     1 , skipped, 16 skipped, 167 skipped, 1675 taken
+        if i < len(val) and int(val[:i]) in phones_prefixes:
+            continue
+        for i2 in range(i, 0, -1):
+            # ex: 1675 does not exist, roll back to 167, 16, 1 which is US/CA
+            prefix = int(val[:i2])
+            if prefix not in phones:  # this prefix does not exist, must be shorter
+                continue
+
             if get_prefix:
                 return prefix
-            return phones[int(prefix)]
+            return phones[prefix]
 
 
 def address_country_lowered(val):

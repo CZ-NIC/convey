@@ -1,15 +1,18 @@
 # CHANGELOG
 
 ## 1.3 (unreleased)
-* aggregation – count grouped by a column, sum, etc.
+* flags
+    * --aggregate – count grouped by a column, sum, etc.
+    * --daemon, daemonize – since it takes around 0.75 s to start the program, notably because of the external libraries (pint, bs4, requests), when doing a single query or a headless processing (no menu involved) we may reduce this time at least ten times with a daemon)
+    * --type – specify type of the given column(s), useful when treating a column that cannot be easily detected (as country_name) 
 * LICENSE included
-* daemon – since it takes around 0.75 s to start the program, notably because of the external libraries (pint, bs4, requests), when doing a single query or a headless processing (no menu involved) we may reduce this time at least ten times with a daemon)
 * emergency input mode – when piping into the program (instead of giving the input as an argument), convey tries to gain a reduced STDIN from the terminal process #38
 * bash completion
 * fix:
     - adding external modules at runtime via menu
     - Ctrl+C works when interrupting wizzard as expected #39
     - detect multiline quoted_printable
+    - better phone format recognition
 * internal:
     - daemon pipes stderr as well
 

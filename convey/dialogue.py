@@ -98,18 +98,18 @@ def ask(text=None):
 
 
 def is_yes(text):
-    if Config.get("daemon", get=bool):
-        raise ConnectionAbortedError
     if Config.get("yes", get=bool):
         return True
+    if Config.get("daemon", get=bool):
+        raise ConnectionAbortedError
     return ask(text=text + " [y]/n: ").lower() in ("y", "yes", "")
 
 
 def is_no(text):
-    if Config.get("daemon", get=bool):
-        raise ConnectionAbortedError
     if Config.get("yes", get=bool):
         return True
+    if Config.get("daemon", get=bool):
+        raise ConnectionAbortedError
     return ask(text=text + " y/[n]: ").lower() in ("n", "no", "")
 
 

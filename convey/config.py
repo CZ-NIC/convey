@@ -308,11 +308,11 @@ class Config:
 
     @staticmethod
     def set(key, val, section='CONVEY'):
-        if val is None:
-            Config.config.remove_option(section, key)
-        else:
-            Config.cache[key] = val
-            # XX Config.config.set(section, key, str(val))
+        # XX was this needed? if val is None:
+        #    Config.config.remove_option(section, key)
+        #else:
+        Config.cache[key] = val
+        # XX Config.config.set(section, key, str(val))
 
     cache_dir = ""
     output = None  # True, False, None or str (path)

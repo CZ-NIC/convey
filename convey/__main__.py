@@ -113,7 +113,7 @@ def application(env, start_response):
     headers = [('Access-Control-Allow-Origin', '*')]
     t = env["QUERY_STRING"].split("q=")  # XX sanitize?
     if len(t) == 2:
-        res = WebServer.source_parser.set_stdin([t[1]]).prepare
+        res = WebServer.source_parser.set_stdin([t[1]]).prepare()
         if res.is_single_query:
             response = res.run_single_query(json=True)
             headers.append(('Content-Type', 'application/json'))
