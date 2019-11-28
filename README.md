@@ -39,6 +39,7 @@ Python3.6+ required.
     - [List of results possible](#list-of-results-possible)
     - [PickMethod decorator](#pickmethod-decorator)
     - [PickInput decorator](#pickinput-decorator)
+* [Web service](#web-service)
 * [Examples](#examples)
   + [URL parsing](#url-parsing)
     - [Output formats](#output-formats)
@@ -98,15 +99,11 @@ Could you confirm this? [y]/n
 ### Usage 3 – Web service
 Again, let's provide an IP to the web service, it returns JSON with WHOIS-related information and scraped HTTP content.
 ```bash
-# install convey and check where it is installed
-$ pip3 show convey
-Location: /home/$USER/.local/lib/python3.7/site-packages
-# launch __main__.py with uwsgi (note that LACNIC may freeze for 300 s, hence the timeout recommendation)
-$ uwsgi --http :26683 --http-timeout 310 --wsgi-file /home/$USER/.local/lib/python3.7/site-packages/convey/__main__.py
-
-# Access: http://localhost:26683/?q=example.com
-# {'ip': '93.184.216.34', 'prefix': '93.184.216.0-93.184.216.255', 'asn': '', 'abusemail': 'abuse@verizondigitalmedia.com', 'country': 'unknown', 'netname': 'edgecast-netblk-03', 'csirt-contact': '-', 'incident-contact': 'unknown', 'status': 200, 'text': 'DNSThe free app that makes your (much longer text...)'}
-
+$ convey --server  # start a UWSGI session
+```
+Access in the browser: http://localhost:26683/?q=example.com
+```json
+{"ip": "93.184.216.34", "prefix": "93.184.216.0-93.184.216.255", "asn": "", "abusemail": "abuse@verizondigitalmedia.com", "country": "unknown", "netname": "edgecast-netblk-03", "csirt-contact": "-", "incident-contact": "unknown", "status": 200, "text": "DNSThe free app that makes your (much longer text...)"}
 ```
 
 ## Installation and first run
@@ -126,11 +123,6 @@ pip3 install convey  # without root use may want to use --user
 # (optional) alternatively, you may want to install current master from GitHub
 pip3 install git+https://github.com/CZ-NIC/convey.git
 
-# (optional) install bash completion script
-# 1. apt-get install bash-completion jq
-# 2. pip3 show convey # → shows location /home/$USER/.local/lib/python3.7/site-packages
-# 3. copy /home/$USER/.local/lib/python3.7/site-packages/convey/extra/convey-autocompletion.bash /etc/bash_completion.d/convey-autocompletion.bash
-
 # launch
 convey [filename or input text] # or try `python3 -m convey` if you're not having `.local/bin` in your executable path
 ```
@@ -149,9 +141,14 @@ pip3 install -r requirements.txt  --user
 ./convey.py
 ```
 
+### Bash completion
+1. Run: `apt-get install bash-completion jq`
+2. Copy: [extra/convey-autocompletion.bash](./extra/convey-autocompletion.bash) to `/etc/bash_completion.d/`
+3. Restart terminal
+
 ### Dependencies and troubleshooting
 * You'll be asked to install `dialog` library at the first run if not already present in the system.
-* If something is missing on your system, you may find help yourself with this command: `sudo apt install python3-pip python3-tk git dialog whois dnsutils nmap curl && pip3 install setuptools wheel && pip3 install --upgrade ipython`
+* If something is missing on your system, you may find help yourself with this command: `sudo apt install python3-pip python3-tk git xdg-utils dialog whois dnsutils nmap curl && pip3 install setuptools wheel && pip3 install --upgrade ipython`
 
 ### Customisation
 * Launch convey with [`--help`](docs/convey-help-cmd-output.md) flag to see [further options](docs/convey-help-cmd-output.md).
@@ -173,7 +170,7 @@ Some of the field types we are able to compute:
 * **csirt-contact** – e-mail address corresponding with country code, taken from your personal contacts_foreign CSV in the format `country,abusemail`. Path to this file has to be specified in `config.ini » contacts_foreign`
 * **external** – you specify method in a custom .py file that receives the field and generates the value for you, see below
 * **hostname** – domain from url
-* **incident-contact** – if the IP comes from local country (specified in `config.ini » local_country`) the field gets *abusemail*, otherwise we get *country*. When splitting by this field, convey is subsequently able to send the splitted files to local abuse and foreign csirt contacts 
+* **incident-contact** – if the IP comes from local country (specified in `config.ini » local_country`) the field gets *abusemail*, otherwise we get *country*. When splitting by this field, convey is subsequently able to send the split files to local abuse and foreign csirt contacts 
 * **ip** – translated from url
 * **netname** – got from whois
 * **prefix** – got from whois
@@ -302,7 +299,44 @@ $ convey file.csv --field time_format[%M]  # `format` will have the value `M%`
 $ convey file.csv --field time_time --yes  # the default `format` `%H:%M` will be used
 ```
 
+## Web service
+When launched as a web service, three parameters are available:
+* `q` – search query
+* `type` – same as `--type` CLI flag
+* `field` – same as `--field` CLI flag.
+    * Note that unsafe field types `code` and `external` are disabled in web service by default. You may re-allow them in `webservice_allow_unsafe_fields` config option
+    * full syntax of CLI flag is supported
+    > *FIELD[[CUSTOM]],[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]*
+                                                                             
+    Ex: `reg_s,l,L` performs regular substitution of *'l'* by *'L'*
 
+Quick deployment may be realized by a single command:
+```bash
+$ convey --server
+```
+
+Internally, flag `--server` launches `wsgi.py` with a UWSGI session.
+* Note that convey must be installed via `pip`
+* Note that LACNIC may freeze for 300 s, hence the timeout recommendation.
+* Note that you may find your convey installation path by launching `pip3 show convey`
+```bash
+$ uwsgi --http :26683 --http-timeout 310 --wsgi-file /home/$USER/.local/lib/python3.7/site-packages/convey/wsgi.py
+```
+
+Access: `curl http://localhost:26683/?q=example.com`
+```json
+{"ip": "93.184.216.34", "prefix": "93.184.216.0-93.184.216.255", "asn": "", "abusemail": "abuse@verizondigitalmedia.com", "country": "unknown", "netname": "edgecast-netblk-03", "csirt-contact": "-", "incident-contact": "unknown", "status": 200, "text": "DNSThe free app that makes your (much longer text...)"}
+```
+
+Access: `curl http://localhost:26683/?q=example.com&field=ip`
+```json
+{"ip": "93.184.216.34"}
+```
+
+Access: `curl http://localhost:26683?q=hello&type=country&field=reg_s,l,L`
+```json
+{"reg_s": "heLLo"}
+```
 ## Examples
 
 In the examples, we will use these parameters to add a field and to shorten the result. 

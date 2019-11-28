@@ -129,7 +129,10 @@ class SmartFormatter(argparse.HelpFormatter):
 
 
 class Controller:
-    def __init__(self):
+    def __init__(self, parser=None):
+        self.parser = parser
+
+    def run(self):
         if "--disable-external" in sys.argv:
             Config.set("disable_external", True)
         Types.refresh()  # load types so that we can print out computable types in the help text
@@ -246,6 +249,7 @@ class Controller:
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--delete-whois-cache', help="Delete convey's global WHOIS cache.", action="store_true")
         parser.add_argument('--version', help=f"Show the version number (which is currently {__version__}).", action="store_true")
+        parser.add_argument('--server', help=f"Launches simple web server", action="store_true")
         parser.add_argument('--daemon', help=f"R|Run a UNIX socket daemon to speed up single query requests."
                                              "\n  * 1/true/on – allow using the daemon"
                                              "\n  * 0/false/off – do not use the daemon"
@@ -258,6 +262,12 @@ class Controller:
         self.args = args = parser.parse_args()
         see_menu = True
         is_daemon = None
+        if args.server:
+            port = 26683
+            print(f"Launching webserver at localhost:{port}...")
+            cmd = ["uwsgi", "--http", ":" + str(port), "--wsgi-file", Path(Path(__file__).parent,"wsgi.py")]
+            subprocess.run(cmd)
+            quit()
         if args.daemon is not None and control_daemon(args.daemon) == "server":
             # XXX after a thousand requests, we start to slow down. Memory leak must be somewhere
             is_daemon = True
@@ -345,6 +355,8 @@ class Controller:
                     control_daemon(args.daemon, True)
 
                 # this try-block may send the results to the client convey processes when a daemon is used
+                if args.server:
+                    raise ConnectionAbortedError("web server request")
                 if args.config is not None:
                     self.edit_configuration(args.config)
                     quit()
@@ -361,11 +373,7 @@ class Controller:
                 if is_daemon:
                     logger.debug("This result is from the daemon.")
                 Types.refresh()  # reload Types for the second time so that the methods reflect CLI flags
-                for module in ["whois", "web", "nmap", "dig"]:
-                    if Config.get(module, "FIELDS") is False:
-                        if module == "dig":
-                            module = "dns"
-                        getattr(TypeGroup, module).disable()
+                TypeGroup.init()
                 if args.show_uml is not None:
                     print(Types.get_uml(args.show_uml))
                     quit()
@@ -386,12 +394,6 @@ class Controller:
                 if args.single_query or args.single_detect:
                     Config.set("single_query", True)
                 Config.set("adding-new-fields", bool(new_fields))
-                if args.type:
-                    try:
-                        args.type = [getattr(Types, t) for t in args.type.split(",")]
-                    except AttributeError:
-                        print(f"Unknown type amongst: {args.type}")
-                        quit()
                 self.wrapper = Wrapper(args.file_or_input, args.file, args.input, args.type, args.fresh, args.delete_whois_cache)
                 self.parser: Parser = self.wrapper.parser
 
@@ -409,27 +411,7 @@ class Controller:
 
                 # append new fields from CLI
                 for add, task in new_fields:
-                    # FIELD,[COLUMN],[SOURCE_TYPE], ex: `netname 3|"IP address" ip|sourceip`
-                    task = [x for x in csv.reader([task])][0]
-                    custom = []
-                    target_type = task[0]
-                    m = re.search(r"(\w*)\[([^]]*)\]", target_type)
-                    if m:
-                        target_type = m.group(1)
-                        custom = [m.group(2)]
-                    try:
-                        target_type = types[types.index(target_type)]  # determine FIELD by exact name
-                    except ValueError:
-                        d = {t.name: SequenceMatcher(None, task[0], t.name).ratio() for t in Types.get_computable_types()}
-                        rather = max(d, key=d.get)
-                        logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
-                        quit()
-                    source_field, source_type, c = self.parser.identifier.get_fitting_source(target_type, *task[1:])
-                    custom = c + custom
-                    if not self.source_new_column(target_type, add, source_field, source_type, custom):
-                        print("Cancelled")
-                        quit()
-                    self.parser.is_processable = True
+                    self.add_new_column(task, add)
 
                 # run single value check if the input is not a CSV file
                 if args.single_detect:
@@ -601,6 +583,33 @@ class Controller:
                 pass
             except Debugged as e:
                 Config.get_debugger().set_trace()
+
+    def add_new_column(self, task, add=True):
+        """
+        :type task: str FIELD,[COLUMN],[SOURCE_TYPE], ex: `netname 3|"IP address" ip|sourceip`
+        :type add: bool Add to the result.
+        """
+        task = [x for x in csv.reader([task])][0]
+        custom = []
+        target_type = task[0]
+        m = re.search(r"(\w*)\[([^]]*)\]", target_type)
+        if m:
+            target_type = m.group(1)
+            custom = [m.group(2)]
+        try:
+            target_type = types[types.index(target_type)]  # determine FIELD by exact name
+        except ValueError:
+            d = {t.name: SequenceMatcher(None, task[0], t.name).ratio() for t in Types.get_computable_types()}
+            rather = max(d, key=d.get)
+            logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
+            quit()
+        source_field, source_type, c = self.parser.identifier.get_fitting_source(target_type, *task[1:])
+        custom = c + custom
+        if not self.source_new_column(target_type, add, source_field, source_type, custom):
+            print("Cancelled")
+            quit()
+        self.parser.is_processable = True
+        return target_type
 
     def send_menu(self):
         method = "smtp"

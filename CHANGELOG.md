@@ -8,6 +8,7 @@
 * LICENSE included
 * emergency input mode – when piping into the program (instead of giving the input as an argument), convey tries to gain a reduced STDIN from the terminal process #38
 * bash completion
+* webservice accepts `field` and `type` arguments (same as CLI flags)
 * fix
     - adding external modules at runtime via menu
     - Ctrl+C works when interrupting wizzard as expected #39

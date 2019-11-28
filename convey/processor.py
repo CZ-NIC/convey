@@ -3,7 +3,6 @@ import logging
 import operator
 import traceback
 from bdb import BdbQuit
-from builtins import RuntimeWarning
 from collections import defaultdict
 from csv import reader as csvreader, writer as csvwriter
 from datetime import datetime

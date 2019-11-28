@@ -43,7 +43,7 @@ class Parser:
         self.sample_parsed: List[List[str]] = []  # values of the prepared output (ex re-sorted), always excluding header
         self.fields: List[Field] = []  # CSV columns that will be generated to an output
         self.first_line_fields: List[str] = []  # CSV columns (equal to header if used) in the original file
-        self.types = types  # field types of the columns as given by the user
+        self.types = []  # field types of the columns as given by the user
         # settings:
         #    "add": new_field:Field,
         #           source_col_i:int - number of field to compute from,
@@ -86,9 +86,11 @@ class Parser:
 
         if stdin:  # we're analysing an input text
             self.set_stdin(stdin)
-        else:  # we're analysing a file on disk
+        elif source_file:  # we're analysing a file on disk
             self.lines_total, self.size = self.informer.source_file_len(self.source_file)
             self.first_line, self.sample = self.identifier.get_sample(self.source_file)
+        self.set_types(types)
+        # otherwise we are running a webservice which has no stding nor source_file
 
 
         self.refresh()
@@ -151,7 +153,7 @@ class Parser:
                     detection = self.get_fields_autodetection(False)[0][1]
                     if not detection and not Config.get("adding-new-fields"):
                         # this is not a single cell despite it was probable, let's continue input parsing
-                        logger.info("We couldn't parse the input text easily.")
+                        logger.info("We could not parse the input text easily.")
                     else:
                         if not detection:
                             # we are adding new fields - there is a reason to continue single processing
@@ -247,6 +249,10 @@ class Parser:
         return fields
 
     def add_field(self, replace: List["Field"] = None, append: "Field" = None):
+        """
+        :param replace: Replace fields by the new field list.
+        :param append: Append new field to the current list.
+        """
         fields = []
         if replace:
             self.fields = []
@@ -260,6 +266,18 @@ class Parser:
                 f.type = self.types[f.col_i]
             f.parser = self
             self.fields.append(f)
+        return self
+
+    def set_types(self, types):
+        if types:
+            try:
+                self.types = [getattr(Types, t) for t in types.split(",")]
+            except AttributeError:
+                print(f"Unknown type amongst: {types}")
+                quit()
+        else:
+            self.types = []
+        return self
 
     def get_computed_fields(self):
         for f in self.fields:
@@ -284,9 +302,9 @@ class Parser:
 
         def append(target_type, val):
             """
-            :type target_type: Field|Type If if is Field, it is added on purpose. If Type, convey just tries to add all.
+            :type target_type: Field|Type If Field, it is added on purpose. If Type, convey just tries to add all.
             """
-            data[str(target_type.name)] = val
+            data[str(target_type.name)] = [str(v) for v in val] if type(val) is list else (str(val) if val else "")
             if type(val) is list and len(val) == 1:
                 val = val[0]
             elif val is None or val == [] or (type(val) is str and val.strip() == ""):

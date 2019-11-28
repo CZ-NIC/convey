@@ -52,10 +52,10 @@ def main():
 
     try:
         from .controller import Controller
-        Controller()
+        Controller().run()
     except KeyboardInterrupt:
         print("Interrupted")
-    except SystemExit:
+    except SystemExit as e:
         if daemonize_on_exit:
             from .config import Config
             try:
@@ -92,43 +92,5 @@ def main():
                 Config.github_issue(f"crash: {value}", body)
 
 
-class WebServer:
-    source_parser = None
-
-
-def application(env, start_response):
-    """ WSGI launcher. You may expose installed convey as a web service.
-        Launch: uwsgi --http :9090 --wsgi-file wsgi.py
-        Access: http://localhost:9090/?q=1.2.3.4
-    """
-    if not WebServer.source_parser:
-        from convey.config import Config
-        from convey.parser import Parser
-        from convey.types import Types
-        Types.refresh()
-        Config.integrity_check()
-        Config.init_verbosity()
-        WebServer.source_parser = Parser(prepare=False)
-
-    headers = [('Access-Control-Allow-Origin', '*')]
-    t = env["QUERY_STRING"].split("q=")  # XX sanitize?
-    if len(t) == 2:
-        res = WebServer.source_parser.set_stdin([t[1]]).prepare()
-        if res.is_single_query:
-            response = res.run_single_query(json=True)
-            headers.append(('Content-Type', 'application/json'))
-            status = '200 OK'
-        else:
-            response = '{"error": "could not process input"}'
-            status = '400 Bad Request'
-    else:
-        status = '400 Bad Request'
-        response = '{"error": "invalid input"}'
-    start_response(status, headers)
-
-    return [bytes(response, "UTF-8")]
-
-
 if __name__ == "__main__":
-    print("*************")
     main()

@@ -496,6 +496,14 @@ class TypeGroup(IntEnum):
     nmap = 5
     web = 6
 
+    @staticmethod
+    def init():
+        for module in ["whois", "web", "nmap", "dig"]:
+            if Config.get(module, "FIELDS") is False:
+                if module == "dig":
+                    module = "dns"
+                getattr(TypeGroup, module).disable()
+
     def disable(self):
         for start, target in copy(methods):
             if start.group is self or target.group is self:
