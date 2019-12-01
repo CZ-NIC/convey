@@ -74,6 +74,8 @@ class Processor:
             else:
                 source_stream = open(file, "r")
                 settings["target_file"] = str(parser.target_file)
+            if parser.stdout is not None:
+                settings["target_file"] = 1
             if parser.external_stdout:
                 settings["target_file"] = 2
             # with open(file, "r") as sourceF:
@@ -142,17 +144,18 @@ class Processor:
         finally:
             if not stdin:
                 source_stream.close()
-                if not self.parser.is_split:
+            if not self.parser.is_split:
+                if 1 in self.descriptors:  # we have all data in a io.TextBuffer, not in a regular file
+                    # the data are in the self.descriptors[1]
+                    if Config.verbosity <= logging.INFO:
+                        print("\n\n** Completed! **\n")
+                    result = self.descriptors[1][0].getvalue()
+                    print(result.strip())
+                    parser.stdout = result
+                    parser.stdout_sample = [row.split(parser.dialect.delimiter) for row in result.split("\n", 10)[:10]]
+                    self.parser.saved_to_disk = False
+                else:
                     self.parser.saved_to_disk = True
-            elif not self.parser.is_split and 1 in self.descriptors:  # we have all data in a io.TextBuffer, not in a regular file
-                # the data are in the self.descriptors[1]
-                if Config.verbosity <= logging.INFO:
-                    print("\n\n** Completed! **\n")
-                result = self.descriptors[1][0].getvalue()
-                print(result.strip())
-                parser.stdout = result
-                parser.stdout_sample = [row.split(parser.dialect.delimiter) for row in result.split("\n", 10)[:10]]
-                self.parser.saved_to_disk = False
             if 2 in self.descriptors:
                 # the data were in parser.stdout and were taken by the remote application
                 del self.descriptors[2]

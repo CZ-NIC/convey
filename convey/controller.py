@@ -94,17 +94,26 @@ class BlankTrue(argparse.Action):
         Else raises ValueError.
     """
 
-    def __call__(self, _, namespace, values, option_string=None):
+    def __call__(self, _, namespace, values, option_string=None, allow_string=False):
         if values in [None, []]:  # blank argument with nargs="?" produces None, with ="*" produces []
             values = True
         elif values.lower() in ["0", "false", "off"]:
             values = False
         elif values.lower() in ["1", "true", "on"]:
             values = True
-        elif type(self.metavar) is not list or values.lower() not in self.metavar:
+        elif not allow_string and (type(self.metavar) is not list or values.lower() not in self.metavar):
+            print(allow_string, "*****")
             raise ValueError(f"Unrecognised value {values} of {self.dest}")
         setattr(namespace, self.dest, values)
 
+class BlankTrueString(BlankTrue):
+    """ When left blank, this flag produces True.
+        Return boolean for 0/false/off/1/true/on.
+        Else returns input value (or None) if flag omitted.
+    """
+
+    def __call__(self, *args, **kwargs):
+        super().__call__(*args, **kwargs, allow_string=True)
 
 new_fields = []
 
@@ -151,7 +160,10 @@ class Controller:
                             action="store_true")
         parser.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
                             action="store_true")
-        parser.add_argument('-o', '--output', help="Save output to this file", metavar="FILENAME")
+        parser.add_argument('-o', '--output', help="Save output to this file."
+                                                   " If left blank, pass output to STDOUT."
+                                                   " If omitted, a filename will be produced automatically.",
+                            action=BlankTrueString, nargs="?", metavar="[blank/FILENAME]")
         parser.add_argument('--delimiter', help="Force delimiter")
         parser.add_argument('--quote-char', help="Force quoting character")
         parser.add_argument('--header', help="Treat file as having header", action="store_true")
@@ -360,6 +372,10 @@ class Controller:
                 if args.config is not None:
                     self.edit_configuration(args.config)
                     quit()
+                Config.set("stdout", args.output is True or None)
+                if args.output is True:
+                    # --output=True means no output will be produced in favour of stdout
+                    args.output = None
                 for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
                              "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl", "disable_external"]:
                     if getattr(args, flag) is not None:

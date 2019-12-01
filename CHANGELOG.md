@@ -5,6 +5,7 @@
     * --aggregate – count grouped by a column, sum, etc.
     * --daemon, daemonize – since it takes around 0.75 s to start the program, notably because of the external libraries (pint, bs4, requests), when doing a single query or a headless processing (no menu involved) we may reduce this time at least ten times with a daemon)
     * --type – specify type of the given column(s), useful when treating a column that cannot be easily detected (as country_name) 
+    * --output left BLANK causes output be piped to STDOUT instead of to a file.
 * LICENSE included
 * emergency input mode – when piping into the program (instead of giving the input as an argument), convey tries to gain a reduced STDIN from the terminal process #38
 * bash completion
@@ -20,7 +21,7 @@
     - nicer output when processing from STDIN
 * internal
     - daemon pipes stderr as well
-    - got rid of python-Levenshtein package and did not use psutil package so installing whole gcc is not needed anymore          
+    - got rid of python-Levenshtein package and did not use psutil package so installing whole gcc is not needed anymore
 
 ## 1.2 (2019-11-13)
 * web service

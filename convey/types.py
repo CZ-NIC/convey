@@ -217,12 +217,13 @@ class Checker:
     def time_format(val, fmt):
         return dateutil.parser.parse(val, fuzzy=True).strftime(fmt)
 
+    # noinspection PyBroadException
     @staticmethod
     def is_unit(val):
         try:
             e = pint.parse_expression(val)
             return e and pint.get_compatible_units(e)
-        except (TypeError, ValueError, AttributeError):
+        except Exception:
             return False
 
     @staticmethod

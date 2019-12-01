@@ -25,7 +25,7 @@ def main():
         try:
             pipe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             pipe.connect(socket_file)
-            pipe.settimeout(3)
+            pipe.settimeout(10)  # it can take several seconds to call whois
         except ConnectionRefusedError:
             pass
         else:

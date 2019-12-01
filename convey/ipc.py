@@ -8,7 +8,7 @@ socket_file = "/tmp/convey_socket"
 
 def daemon_pid():
     import subprocess
-    return subprocess.run(["lsof", "-t", socket_file], stdout=subprocess.PIPE).stdout.strip()
+    return subprocess.run(["lsof", "-t", socket_file], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.strip()
 
 
 def send(pipe, msg):

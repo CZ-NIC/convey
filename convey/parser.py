@@ -76,7 +76,10 @@ class Parser:
         # load CSV
         self.source_file = source_file or self.invent_file_str()
         self.stdin = []
-        self.stdout = None  # when accepting input from stdin and not saving the output into a file, we will have it here
+        # When accepting input from stdin and not saving the output into a file
+        #   or when setting this to True,
+        #   the output will be here.
+        self.stdout = Config.get("stdout")
         self.stdout_sample = None
         self.target_file = None
         self.saved_to_disk = None  # has been saved to self.target_file
@@ -463,6 +466,10 @@ class Parser:
         if [f for f in self.fields if not f.is_chosen]:
             l.append("shuffled")
         for f in self.settings["add"]:
+            # XX get external function name
+            # if f.type == Types.external:
+            #     l.append(str(f))
+            # else:
             l.append(str(f))
         agg = self.settings["aggregate"]
         if agg:
@@ -619,6 +626,8 @@ class Parser:
 
     def resolve_invalid(self):
         """ Process all invalid rows. """
+        if Config.get("yes", get=bool) and Config.is_quiet():
+            return False
         if not self.invalid_lines_count:
             print("No invalid rows.")
             return
@@ -635,9 +644,12 @@ class Parser:
             except FileNotFoundError:
                 input("File {} not found, maybe resolving was run in the past and failed. Please rerun again.".format(path))
                 return False
-            s = "Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them," \
-                " or hit n for ignoring them. [o]/y/n "
-            res = ask(s)
+            if Config.get("yes", get=bool):
+                res = "n"
+            else:
+                s = "Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them," \
+                    " or hit n for ignoring them. [o]/y/n "
+                res = ask(s)
             if res == "n":
                 return False
             elif res == "y":

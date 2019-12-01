@@ -399,7 +399,7 @@ class Identifier:
                         reserve = f.col_i
                 if not source_col_i:
                     source_col_i = reserve
-        if check and (source_col_i is None or len(self.parser.first_line_fields) <= source_col_i):
+        if check and (source_col_i is None or len(self.parser.fields) <= source_col_i):
             logger.error(f"Cannot identify COLUMN {column}" + (" " + check if type(check) is str else "") +
                          ", put there an exact column name or the numerical order starting with 1.")
             quit()
