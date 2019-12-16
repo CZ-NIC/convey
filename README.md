@@ -26,6 +26,7 @@ Python3.6+ required.
 * [Installation and first run](#installation-and-first-run)
   + [Launch as a package:](#launch-as-a-package-)
   + [OR launch from a directory](#or-launch-from-a-directory)
+  + [Bash completion](#bash-completion)
   + [Dependencies and troubleshooting](#dependencies-and-troubleshooting)
   + [Customisation](#customisation)
 * [Computing fields](#computing-fields)

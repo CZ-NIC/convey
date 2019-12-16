@@ -164,8 +164,8 @@ class Controller:
                                                    " If left blank, pass output to STDOUT."
                                                    " If omitted, a filename will be produced automatically.",
                             action=BlankTrueString, nargs="?", metavar="[blank/FILENAME]")
-        parser.add_argument('--delimiter', help="Force delimiter")
-        parser.add_argument('--quote-char', help="Force quoting character")
+        parser.add_argument('--delimiter', help="Treat file as having this delimiter")
+        parser.add_argument('--quote-char', help="Treat file as having this quoting character")
         parser.add_argument('--header', help="Treat file as having header", action="store_true")
         parser.add_argument('--no-header', help="Treat file as not having header", action="store_true")
         parser.add_argument('-d', '--delete', help="Delete a column. You may comma separate multiple columns." + column_help,

@@ -186,7 +186,7 @@ class Processor:
                 fields = line.copy()
 
                 if len(fields) is not len(parser.first_line_fields):
-                    raise ValueError("Invalid number of line fields: {}".format(len(fields)))
+                    raise RuntimeWarning(f"Invalid number of line fields ({len(fields)})")
 
                 # add fields
                 list_lengths = []
@@ -209,7 +209,7 @@ class Processor:
                         # if we received empty list, row is invalid
                         # ex: missing IP of a hostname
                         if not fields[i]:
-                            raise RuntimeWarning(i+1)
+                            raise RuntimeWarning(f"Column {i+1} invalid")
                         fields[i] *= row_count // len(fields[i])
                     it = zip(*fields)
                     fields = it.__next__()  # now we are sure fields has only scalar values
@@ -288,7 +288,7 @@ class Processor:
                 traceback.print_exc()
                 Config.get_debugger().set_trace()
             elif isinstance(e, RuntimeWarning):
-                logger.warning(f"Cannot compute {e}. column at line: {line}")
+                logger.warning(f"Invalid line: {e} on line {line}")
             else:
                 logger.warning(e, exc_info=True)
             parser.invalid_lines_count += 1
