@@ -64,7 +64,7 @@ def get_path(file):
                  "\nShould we create a default config files at user config folder ({})? "
                  "Otherwise, they'll be created at program folder: {} [Y/n] ".format(file, config_dir, program_path)) \
                 in ["", "Y", "y"]:
-            Path(config_dir).mkdir(exist_ok=True)
+            Path(config_dir).mkdir(parents=True, exist_ok=True)
         else:
             config_dir = program_path
         try:

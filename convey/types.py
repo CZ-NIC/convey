@@ -14,7 +14,7 @@ from enum import IntEnum
 from pathlib import Path
 from quopri import decodestring, encodestring
 from typing import List
-from urllib.parse import unquote, quote, urlparse, urlsplit
+from urllib.parse import unquote, quote, urlparse, urlsplit, urljoin
 
 import dateutil.parser
 import requests
@@ -353,7 +353,7 @@ def url_port(s):
 
 class Web:
     """
-    :return: self.get = [http status | error, shortened text, original html, redirects, x-frame-options, csp]
+    :return: self.get = [http status | error, shortened text, original html, redirects, x-frame-options, csp, form_names]
     """
     cache = {}
     store_html = True
@@ -392,10 +392,10 @@ class Web:
                     s = -3
                 else:
                     s = e
-                self.cache[url] = self.get = str(s), None, None, redirects, None, None
+                self.cache[url] = self.get = str(s), None, None, redirects, None, None, None
                 break
             if response.headers.get("Location"):
-                current_url = response.headers.get("Location")
+                current_url = urljoin(current_url, response.headers.get("Location"))
                 redirects.append(current_url)
                 continue
             else:
@@ -415,15 +415,18 @@ class Web:
                     [s.extract() for s in soup(["style", "script", "head"])]  # remove tags with low probability of content
                     text = re.sub(r'\n\s*\n', '\n', soup.text)  # reduce multiple new lines to singles
                     text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ', text)  # reduce multiple spaces (not new lines) to singles
+                    #if not text.strip():
+                    form_names = [s.attrs["name"] for s in soup(("input", "select", "textarea"))]
                 else:
-                    text = None
+                    form_names = text = None
                 # for res in response.history[1:]:
                 #     redirects += f"REDIRECT {res.status_code} → {res.url}\n" + text
                 #     redirects.append(res.url)
-                self.cache[url] = self.get = response.status_code, text, response.text if self.store_html else None, \
+                self.cache[url] = self.get = response.status_code, text.strip(), response.text if self.store_html else None, \
                                              redirects, \
                                              response.headers.get('X-Frame-Options', None), \
-                                             response.headers.get('Content-Security-Policy', None)
+                                             response.headers.get('Content-Security-Policy', None), \
+                                             form_names
                 if current_url == url:
                     break
                 url = current_url
@@ -442,7 +445,7 @@ def dig(rr):
         try:
             text = subprocess.check_output(["dig", "+short", "-t", t, query, "+timeout=1"]).decode("utf-8")
         except FileNotFoundError:
-            Config.missing_dependency("dig")
+            Config.missing_dependency("dnsutils")
         if text.startswith(";;"):
             return None
         spl = text.split("\n")[:-1]
@@ -755,6 +758,7 @@ class Types:
     redirects = Type("redirects", TypeGroup.web)
     x_frame_options = Type("x_frame_options", TypeGroup.web)
     csp = Type("csp", TypeGroup.web)
+    form_names = Type("form_names", TypeGroup.web)
     ports = Type("ports", TypeGroup.nmap, "Open ports given by nmap")
     spf = Type("spf", TypeGroup.dns)
     txt = Type("txt", TypeGroup.dns)
@@ -967,6 +971,7 @@ class Types:
             (t.web, t.redirects): lambda x: x.get[3],
             (t.web, t.x_frame_options): lambda x: x.get[4],
             (t.web, t.csp): lambda x: x.get[5],
+            (t.web, t.form_names): lambda x: x.get[6],
             (t.hostname, t.ports): nmap,
             (t.ip, t.ports): nmap,
             (t.ports, t.port): True,

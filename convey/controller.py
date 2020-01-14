@@ -66,6 +66,8 @@ def control_daemon(cmd, in_daemon=False):
             pid = daemon_pid()
             if pid:
                 subprocess.run(["kill", pid])
+            if Path(socket_file).exists():                
+                Path(socket_file).unlink()
     if cmd == "stop":
         quit()
     if cmd == "status":

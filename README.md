@@ -149,7 +149,10 @@ pip3 install -r requirements.txt  --user
 
 ### Dependencies and troubleshooting
 * You'll be asked to install `dialog` library at the first run if not already present in the system.
-* If something is missing on your system, you may find help yourself with this command: `sudo apt install python3-pip python3-tk git xdg-utils dialog whois dnsutils nmap curl && pip3 install setuptools wheel && pip3 install --upgrade ipython`
+* If something is missing on your system, you may find help yourself with this command: `sudo apt install python3-pip python3-tk git xdg-utils dialog whois dnsutils nmap curl build-essential libssl-dev libpcre3 libpcre3-dev && pip3 install setuptools wheel uwsgi && pip3 install --upgrade ipython`
+    * `build-essential` is needed to build `uwsgi`
+    * `libpcre3 libpcre3-dev` needed to suppress uWSGI warning `!!! no internal routing support, rebuild with pcre support !!!`
+    * `libssl-dev` needed to be present before building `uwsgi` if you will need to use `--https`    
 
 ### Customisation
 * Launch convey with [`--help`](docs/convey-help-cmd-output.md) flag to see [further options](docs/convey-help-cmd-output.md).

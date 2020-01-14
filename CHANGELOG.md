@@ -17,6 +17,8 @@
     - better phone format recognition
     - multiple STDIN processing in a single session    
     - CSV flags (like --header) when processing in --yes mode
+    - web relative redirect working
+* type: form_names
 * interface
     - nicer output when processing from STDIN
 * internal

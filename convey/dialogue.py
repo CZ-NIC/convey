@@ -52,14 +52,14 @@ def pick_option(options, title="", guesses=[], skippable=True):
         opts = [it for it in enumerate(options)]
         for g in guesses:
             if g < len(opts):
-                choices.append(("{} * {} *".format(i_to_abc(g), opts[g][1][0]), opts[g][1][1]))
+                choices.append((f"{i_to_abc(g)} * {opts[g][1][0]} *", str(opts[g][1][1])))
 
     if not len(guesses) == len(options):  # if every column highlighted, no need to list them all just again
         if guesses:
             title += "\n\nAutomatically detected fields on the top"
             choices.append(("-", "-----"))
         for i, (field_name, desc) in enumerate(options):
-            choices.append((f"{i_to_abc(i)} {field_name}", desc))
+            choices.append((f"{i_to_abc(i)} {field_name}", str(desc)))
 
     code, col_i = dialog.skippable_menu(title or " ", choices=choices, skippable=skippable)
     if col_i == '-':
