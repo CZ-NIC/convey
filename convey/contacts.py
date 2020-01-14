@@ -50,8 +50,7 @@ class Attachment:
                     cc += Contacts.abusemails[domain] + ";"
 
             try:
-                with open(o.get_abs_path(), "r") as f:
-                    yield o, mail, cc, f.read()
+                yield o, mail, cc, o.get_abs_path()
             except FileNotFoundError:
                 continue
 

@@ -413,6 +413,9 @@ class Parser:
 
     def reset_settings(self):
         self.settings = defaultdict(list)
+        # when resetting settings, we free up any finished aggregation
+        # (because informer wants to display it but the self.parser.settings["aggregate"] is gone
+        self.aggregation = defaultdict(dict)  # self.aggregation[location file][grouped row][order in aggregation settings] = [sum generator, count]
         self.sample_parsed = [x for x in
                               csv.reader(self.sample[slice(1 if self.has_header else 0, None)], dialect=self.dialect)]
         self.add_field([Field(f) for f in self.first_line_fields])

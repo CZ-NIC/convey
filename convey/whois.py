@@ -134,6 +134,9 @@ class Whois:
         else:
             country = self.get[5]
             if country not in Contacts.csirtmails:
+                # XX this info is wanted if incident-contact (abusemail OR csirtmail) being fetched. But if only abusemail needed,
+                # we do not want to know this info. A the user gets confused
+                # with "no contact for XY countries without national/goverment CSIRT" printed in informer/statistics.
                 self.csvstats["ipsWorldMissing"].add(self.ip)
                 self.csvstats["countriesMissing"].add(country)
             else:

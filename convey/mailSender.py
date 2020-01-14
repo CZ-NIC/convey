@@ -5,14 +5,12 @@ import re
 import smtplib
 import sys
 from abc import abstractmethod, ABC
-from email.mime.application import MIMEApplication
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.utils import make_msgid, formatdate
+from pathlib import Path
 from socket import gaierror
 
 from validate_email import validate_email
 
+from envelope import envelope
 from .config import Config
 
 re_title = re.compile('<title>([^<]*)</title>')
@@ -51,32 +49,39 @@ class MailSender(ABC):
 
         if self.start() is False:
             return False
-        for attachment_object, email_to, email_cc, attachement_contents in mails:  # Xregistry.getMails():
+        for attachment_object, email_to, email_cc, attachment_path in mails:  # Xregistry.getMails():
+            # XX Remove text_vars, I suppose this was never used and hardly working
             text_vars = {"CONTACTS": email_to, "FILENAME": self.parser.attachment_name, "TICKETNUM": self.parser.otrs_num}
             subject = mailDraft.get_subject() % text_vars
             body = mailDraft.get_body() % text_vars  # format mail template, ex: {FILENAME} in the body will be transformed by the filename
+            if "{ATTACHMENT}" in body:  # XXX document this: if you write {ATTACHMENT} in the body, this will be replaced with the attachment contents and the attachment will no be included
+                body = body.replace("{ATTACHMENT}", attachment_path.read_text().replace("\n", "<br>\n")) # XX will we ever send text/plain instead of text/html?
+                attachment_path = None
             if subject == "" or body == "":
                 print("Missing subject or mail body text.")
                 return False
+
+            if attachment_object.sent:
+                # XX this should be known in the dialog before, user should know earlier how many e-mails will be skipped
+                print(f"Already sent to {email_to}, skipping!")
+                continue
 
             if Config.is_testing():
                 intended_to = email_to
                 email_to = Config.get('testing_mail')
                 body = "This is testing mail only from Convey. Don't be afraid, it wasn't delivered to: {}\n".format(
                     intended_to) + body
-            else:
-                intended_to = None
 
             if not validate_email(email_to):
                 logger.error("Erroneous e-mail: {}".format(email_to))
                 continue
 
-            if self.process(subject, body, email_to, email_cc, attachement_contents):
+            if self.process(subject, body, email_to, email_cc, attachment_path):
                 sent_mails += 1
-                logger.info("Sent: {}".format(email_to))
+                logger.warning(f"Sent: {email_to}")
                 attachment_object.sent = True
             else:
-                logger.error("Error sending: {}".format(email_to))
+                logger.error(f"Error sending: {email_to}")
                 attachment_object.sent = False
             total_count += 1
         self.stop()
@@ -210,7 +215,7 @@ class MailSenderOtrs(MailSender):
                 force = True
                 continue
 
-    def process(self, subject, body, mail_final, cc, attachment_contents):
+    def process(self, subject, body, mail_final, cc, attachment_path:Path):
         fields = (
             ("Action", "AgentTicketForward"),
             ("Subaction", "SendEmail"),
@@ -237,6 +242,7 @@ class MailSenderOtrs(MailSender):
         # load souboru k zaslani
         # attachment_contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
 
+        attachment_contents = attachment_path.read_text()
         if self.parser.attachment_name and attachment_contents != "":
             files = (("FileUpload", self.parser.attachment_name, attachment_contents),)
         else:
@@ -285,52 +291,58 @@ class MailSenderSmtp(MailSender):
     def stop(self):
         self.smtp.quit()
 
-    def process(self, subject, body, email_to, cc, contents):
-        base_msg = MIMEMultipart()
-        base_msg.attach(MIMEText(body, "html", "utf-8"))
+    def process(self, subject, body, email_to, cc, path):
+        # base_msg = MIMEMultipart()
+        # base_msg.attach(MIMEText(body, "html", "utf-8"))
+        #
+        # if path:
+        #     attachment = MIMEApplication(path, "text/csv")
+        #     attachment.add_header("Content-Disposition", "attachment",
+        #                           filename=self.parser.attachment_name)  # XX? 'proki_{}.zip'.format(time.strftime("%Y%m%d"))
+        #     base_msg.attach(attachment)
+        # msg = base_msg
 
-        if contents:
-            attachment = MIMEApplication(contents, "text/csv")
-            attachment.add_header("Content-Disposition", "attachment",
-                                  filename=self.parser.attachment_name)  # XX? 'proki_{}.zip'.format(time.strftime("%Y%m%d"))
-            base_msg.attach(attachment)
-        """ may be used tested code from Proki
-        if self.parameters.gpg:
-            msg = MIMEMultipart(_subtype="signed", micalg="pgp-sha1", protocol="application/pgp-signature")
-            s = base_msg.as_string().replace('\n', '\r\n')
-            signature = self._sign(s)
+        # sender = Config.get("email_from", "SMTP")
+        # recipients = [email_to]
+        # if cc and not Config.is_testing():
+        #     msg["Cc"] = cc
+        #     recipients.append[cc]
 
-            if not signature:
-                print("Failed to sign the message for {}".format(email_to))
-                return False
-            signature_msg = Message()
-            signature_msg['Content-Type'] = 'application/pgp-signature; name="signature.asc"'
-            signature_msg['Content-Description'] = 'OpenPGP digital signature'
-            signature_msg.set_payload(signature)
-            msg.attach(base_msg)
-            msg.attach(signature_msg)
-        else:
-            msg = base_msg
-        """
-        msg = base_msg
+        # msg["Subject"] = subject
+        # msg["From"] = Config.get("email_from_name", "SMTP")
+        # msg["To"] = email_to
+        # msg["Date"] = formatdate(localtime=True)
+        # msg["Message-ID"] = make_msgid()
 
-        sender = Config.get("email_from", "SMTP")
-        recipients = [email_to]
+        # XX config.ini / email_from may not be used anymore
+        sender = Config.get("email_from_name", "SMTP")
+        o = (envelope()
+             .message(body)
+             .subject(subject)
+             .from_(sender))
+        o.to(email_to)
+        o.smtp(self.smtp)
+
+        # XX o.reply_to()
+
+        if path:
+            o.attach(path, "text/csv", self.parser.attachment_name)
         if cc and not Config.is_testing():
-            msg["Cc"] = cc
-            recipients.append[cc]
+            o.cc(cc)
 
-        msg["Subject"] = subject
-        msg["From"] = Config.get("email_from_name", "SMTP")
-        msg["To"] = email_to
-        msg["Date"] = formatdate(localtime=True)
-        msg["Message-ID"] = make_msgid()
-        try:
-            self.smtp.sendmail(sender, recipients, msg.as_string().encode('ascii'))
-            # self.smtp.send_message(sender, recipients, MIMEText(message, "plain", "utf-8"))
-        except (smtplib.SMTPSenderRefused, Exception) as e:
-            logger.error("{} → {} error: {}".format(sender, " + ".join(recipients), e))
-            # if Config.is_debug(): import ipdb; ipdb.set_trace()
-            return False
-        else:
+        status = o.send(True)
+        if status:
             return True
+        else:
+            # logger.error("{} → {} error: {}".format(sender, " + ".join(recipients), e)) XX get exception name
+            return False
+
+        # try:
+        #     self.smtp.sendmail(sender, recipients, msg.as_string().encode('ascii'))
+        #     # self.smtp.send_message(sender, recipients, MIMEText(message, "plain", "utf-8"))
+        # except (smtplib.SMTPSenderRefused, Exception) as e:
+        #     logger.error("{} → {} error: {}".format(sender, " + ".join(recipients), e))
+        #     # if Config.is_debug(): import ipdb; ipdb.set_trace()
+        #     return False
+        # else:
+        #     return True

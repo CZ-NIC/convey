@@ -88,7 +88,9 @@ class Informer:
             l.append(f"{self.parser.velocity} lines / s")
             l.append(f"{self.parser.processor.descriptors_count} file descriptors open")
         if self.parser.queued_lines_count:
-            if len(Whois.queued_ips) != self.parser.queued_lines_count:
+            if Whois.queued_ips > 0 and len(Whois.queued_ips) != self.parser.queued_lines_count:
+                # why Whois.queued_ips > 0: Quota has ended and set of queued IPs has been emptied
+                # ... but the lines are still queued. We lost the information about the number of unique queued IPs.
                 v = f" lines ({len(Whois.queued_ips)} unique IPs)"
             else:
                 v = " lines"
@@ -226,25 +228,28 @@ class Informer:
 
         rows = []
         generators = cycle(g[0] for g in self.parser.settings["aggregate"][1])
-
-        for i, (row, d) in enumerate(data.items()):
+        # sorting by first column (may be a bottleneck, re-sorting every time)
+        dd = sorted(data.items(), key=lambda x: x[1][0][1], reverse=True)
+        for i, (grouped_el, d) in enumerate(dd):
             if limit and i == limit:
                 rows.append(["..." for fn, count in d])
+                if grouping:
+                    rows[-1].insert(0, "...")
                 break
-            if row is None and len(self.parser.settings["aggregate"][1]) == 1 \
+            if grouped_el is None and len(self.parser.settings["aggregate"][1]) == 1 \
                     and next(generators) == Aggregate.list:
                 # This is the total row
                 # We are aggregating only single thing which is list.
                 # That list would comprehend all of the values in the column. We omit it.
                 continue
 
-            # import ipdb; ipdb.set_trace()
             # rows.append([form(count if fn.__name__ in ("count", "list") else round(count * 100) / 100, 33) for fn, count in d])
-            rows.append([form(count if next(generators) not in (Aggregate.sum, Aggregate.avg) else round(count * 100) / 100, 33) for
+            rows.append([form(count if next(generators) not in (Aggregate.sum, Aggregate.avg) else round(count, 2), 33) for
                          fn, count in d])
             if grouping:
-                rows[-1].insert(0, form("total" if row is None else row, 36))
-        return tabulate(rows, header)
+                rows[-1].insert(0, form("total" if grouped_el is None else grouped_el, 36))
+        # floatfmt - display numbers longers than 15 as the scientific 1e+15, not numbers bigger than a million only
+        return tabulate(rows, header, floatfmt=".15g")
 
     def get_stats_phrase(self, generate=False):
         """ Prints phrase "Totally {} of unique IPs in {} countries...": """

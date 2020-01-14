@@ -21,9 +21,13 @@
 * type: form_names
 * interface
     - nicer output when processing from STDIN
+    - aggregation more human readable
 * internal
     - daemon pipes stderr as well
     - got rid of python-Levenshtein package and did not use psutil package so installing whole gcc is not needed anymore
+* sending
+    - SMTP sending the envelope library
+    - keyword {ATTACHMENT} makes the attachment contents become the part of the body (and the file is no more attached)
 
 ## 1.2 (2019-11-13)
 * web service
