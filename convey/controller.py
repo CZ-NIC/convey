@@ -158,6 +158,8 @@ class Controller:
         parser.add_argument('-F', '--fresh', help="Do not attempt to load any previous settings / results."
                                                   " Do not load convey's global WHOIS cache."
                                                   " (But merge WHOIS results in there afterwards.)", action="store_true")
+        parser.add_argument('-R', '--reprocess', help="Do not attempt to load any previous settings / results."
+                                                              " But load convey's global WHOIS cache.", action="store_true")
         parser.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions.",
                             action="store_true")
         parser.add_argument('--file', help="Treat <file_or_input> parameter as a file, never as an input",
@@ -414,7 +416,9 @@ class Controller:
                 if args.single_query or args.single_detect:
                     Config.set("single_query", True)
                 Config.set("adding-new-fields", bool(new_fields))
-                self.wrapper = Wrapper(args.file_or_input, args.file, args.input, args.type, args.fresh, args.delete_whois_cache)
+                self.wrapper = Wrapper(args.file_or_input, args.file, args.input,
+                                       args.type, args.fresh, args.reprocess,
+                                       args.delete_whois_cache)
                 self.parser: Parser = self.wrapper.parser
 
                 # load flags
@@ -678,10 +682,10 @@ class Controller:
                     info.append(f"{text}")
                     if c[0]:
                         info.append(f"Recipient list ({c[0]}/{sum(c)}): "
-                                    + ", ".join([mail for _, mail, _, _ in Attachment.get(abroad, False, 5, True)]))
+                                    + ", ".join([mail for _, mail, _, _ in Attachment.get_all(abroad, False, 5, True)]))
                     if c[1]:
                         info.append(f"Already sent ({c[1]}/{sum(c)}): "
-                                    + ", ".join([mail for _, mail, _, _ in Attachment.get(abroad, True, 5, True)]))
+                                    + ", ".join([mail for _, mail, _, _ in Attachment.get_all(abroad, True, 5, True)]))
                     info.append(f"\n{Contacts.mail_draft[draft].get_mail_preview()}\n")
                     return True
                 return False
@@ -698,7 +702,7 @@ class Controller:
             info.append("*" * 50)
             sum_ = st['local'][0] + st['abroad'][0]
             everything_sent = False
-            if sum_ <1:
+            if sum_ < 1:
                 everything_sent = True
                 info.append("All e-mails were sent.")
             clear()
@@ -726,21 +730,19 @@ class Controller:
                 return
             # print("\n")
 
-            # sending menu processing - all, basic and abroad e-mails
-            # XX Terms are equal: abuse == local == other == basic  What should be the universal noun? Let's invent a single word :(
-            #       It will be "local". And the other one is "abroad".
+            # sending menu processing - all, abuse and abroad e-mails
             limit_csirtmails_when_all = limit - st['local'][0]
             if option in ("1", "2") and st['local'][0] > 0:
                 print("Sending basic e-mails...")
-                sender.send_list(Attachment.get(False, False, limit))
+                # XXXXX sender.send_list(Attachment.get_all(False, False, limit))
             if option in ("1", "3") and st['abroad'][0] > 0:
                 # decrease the limit by the number of e-mails that was just send in basic list
                 l = {"1": limit_csirtmails_when_all, "3": limit}[option]
-                if l > 0:
+                if l < 1:
                     print("Cannot send abroad e-mails due to limit.")
                 else:
                     print("Sending to abroad e-mails...")
-                    sender.send_list(Attachment.get(True, False, l))
+                    # XXXXX sender.send_list(Attachment.get_all(True, False, l))
             if option in ["1", "2", "3"]:
                 input("\n\nPress Enter to continue...")
                 continue
@@ -752,42 +754,43 @@ class Controller:
                 limit = ask_number("How many e-mails should be send at once: ")
                 if limit < 0:
                     limit = float("inf")
-            elif option == "t":
-                t = Config.get("testing_mail")
-                t = f" – type in or hit Enter to use {t}" if t else ""
-                t = ask(f"Testing e-mail address to be sent to{t}: ").strip()
-                if not t:
+            elif option in ["t", "r"]:
+                attachments = list(Attachment.get_all())
+                if option == "t":
                     t = Config.get("testing_mail")
-                if not t:
-                    input("No address written. Hit Enter...")
-                    continue
-                attachments = list(Attachment.get())
-                choices = [(mail, "") for o, mail, cc, p in attachments]
-                try:
-                    el = attachments[pick_option(choices, f"What attachment should be send to {t}?")]
-                except Cancelled:
-                    continue
-                clear()
-                attachment = el[0]
-                old_testing, old_sent, attachment.sent = Config.get('testing'), attachment.sent, None
-                Config.set('testing', True)
-                Config.set('testing_mail', t)
-                sender.send_list([el])
-                Config.set('testing', old_testing)
-                input("\n\nTesting completed. Press Enter to continue...")
-                attachment.sent = old_sent
-            elif option == "r":
-                # choose recipient list
-                choices = [(mail, "", not o.sent) for o, mail, cc, p in Attachment.get()]
-                code, tags = Dialog(autowidgetsize=True).checklist("Toggle e-mails to be send", choices=choices)
-                if code != 'ok':
-                    continue
-                for attachment, mail, *_ in Attachment.get():
-                    # XX if the same address is going to receive both local and abroad template e-mail,
-                    #   this will change the status of its both e-mails.
-                    #   In the future, we'd like to have another checklist engine where item references can be passed directly.
-                    attachment.sent = mail not in tags
-                print("Changed!")
+                    t = f" – type in or hit Enter to use {t}" if t else ""
+                    t = ask(f"Testing e-mail address to be sent to{t}: ").strip()
+                    if not t:
+                        t = Config.get("testing_mail")
+                    if not t:
+                        input("No address written. Hit Enter...")
+                        continue
+                    choices = [(mail, "") for o, mail, cc, p in attachments]
+                    try:
+                        el = attachments[pick_option(choices, f"What attachment should be send to {t}?")]
+                    except Cancelled:
+                        continue
+                    clear()
+                    attachment = el[0]
+                    old_testing, old_sent, attachment.sent = Config.get('testing'), attachment.sent, None
+                    Config.set('testing', True)
+                    Config.set('testing_mail', t)
+                    sender.send_list([el])
+                    Config.set('testing', old_testing)
+                    input("\n\nTesting completed. Press Enter to continue...")
+                    attachment.sent = old_sent
+                elif option == "r":
+                    # choose recipient list
+                    choices = [(mail, "", not o.sent) for o, mail, cc, p in attachments]
+                    code, tags = Dialog(autowidgetsize=True).checklist("Toggle e-mails to be send", choices=choices)
+                    if code != 'ok':
+                        continue
+                    for attachment, mail, *_ in attachments:
+                        # XX if the same address is going to receive both local and abroad template e-mail,
+                        #   this will change the status of its both e-mails.
+                        #   In the future, we'd like to have another checklist engine where item references can be passed directly.
+                        attachment.sent = mail not in tags
+                    print("Changed!")
             elif option == "x":
                 return
 

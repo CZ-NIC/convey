@@ -21,7 +21,7 @@ class Attachment:
         st = self.parser.stats
 
         if validate_email(self.get_mail()):
-            st["local"][int(bool(self.sent))] += 1
+            st[self.get_draft_name()][int(bool(self.sent))] += 1
         else:
             st["non_deliverable"] += 1
         # self.abroad = None
@@ -49,15 +49,14 @@ class Attachment:
         cls.parser = parser
 
     @classmethod
-    def reset(cls):
-        st = cls.parser.stats
-        st["abroad"] = [0, 0]  # abroad [not-sent, sent]
-        st["local"] = [0, 0]  # local [not-sent, sent]
-        st["non_deliverable"] = 0
-        st["totals"] = 0
+    def reset(cls, stats):
+        stats["abroad"] = [0, 0]  # abroad [not-sent, sent]
+        stats["local"] = [0, 0]  # local [not-sent, sent]
+        stats["non_deliverable"] = 0
+        stats["totals"] = 0
 
     @classmethod
-    def get(cls, abroad=False, sent=None, limit=float("inf"), threedots=False):
+    def get_all(cls, abroad=None, sent=None, limit=float("inf"), threedots=False):
         for i, o in enumerate(cls.parser.attachments):
             if o.path in [Config.UNKNOWN_NAME, Config.INVALID_NAME]:
                 continue

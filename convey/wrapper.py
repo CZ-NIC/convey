@@ -4,6 +4,7 @@
 import logging
 import re
 import sys
+import traceback
 from bdb import BdbQuit
 from os import linesep
 from pathlib import Path
@@ -48,11 +49,12 @@ def read_stdin():
 
 
 class Wrapper:
-    def __init__(self, file_or_input, force_file=False, force_input=False, types=None, fresh=False, delete_cache=False):
+    def __init__(self, file_or_input, force_file=False, force_input=False,
+                 types=None, fresh=False, reprocess=False, delete_cache=False):
         if delete_cache:
             Path(config_dir, WHOIS_CACHE).unlink()
 
-        self.parser: Parser
+        self.parser: Parser = None
         self.file = file = None
         self.stdin = stdin = None
         self.types = types
@@ -106,48 +108,52 @@ class Wrapper:
             quit()
 
         self.assure_cache_file(file)
-        if Path(self.cache_file).is_file() and not fresh:
+        if Path(self.cache_file).is_file() and not (fresh or reprocess):
             logger.info("File {} has already been processed.".format(self.file))
             try:  # try to depickle
                 self.parser = jsonpickle.decode(open(self.cache_file, "r").read(), keys=True)
-                self.parser.ip_seen, self.parser.ranges = self.load_whois_cache()
-                self.parser.refresh()
-                self.parser.reset_whois(assure_init=True)
-                # correction of a wrongly pickling: instead of {IPNetwork('...'): (IPNetwork('...'),
-                # we see {IPNetwork('...'): (<jsonpickle.unpickler._IDProxy object at 0x...>,
-                # Note that IPRange is pickled correctly.
-                for prefix, o in self.parser.ranges.items():
-                    l = list(o)
-                    l[0] = prefix
-                    self.parser.ranges[prefix] = tuple(l)
             except:
-                import traceback
                 print(traceback.format_exc())
                 if not Config.error_caught():
                     input()
                 else:
                     print("Cache file loading failed, let's process it all again. If you continue, cache gets deleted.")
                 self.parser = None
-            if self.parser:
-                if self.parser.source_file != self.file:  # file might have been moved to another location
-                    self.parser.source_file = self.file
-                try:
-                    if self.parser.is_analyzed:
-                        self.parser.informer.sout_info()
-                    elif self.parser.is_formatted:
-                        self.parser.informer.sout_info()
-                        logger.info("It seems the file has already been formatted.")
-                    return
-                except BdbQuit:  # we do not want to catch quit() signal from ipdb
-                    print("Stopping.")
-                    quit()
-                except Exception as e:
-                    print(e)
-                    print("Format of the file may have changed since last time. "
-                          "Let's process it all again. If you continue, cache gets deleted.")
-                    if not Config.error_caught():
-                        input()
-        self.clear()
+
+        if self.parser:  # we have successfully loaded a parser
+            if self.parser.source_file != self.file:  # file might have been moved to another location
+                self.parser.source_file = self.file
+            try:
+                if self.parser.is_analyzed:
+                    self.parser.informer.sout_info()
+                elif self.parser.is_formatted:
+                    self.parser.informer.sout_info()
+                    logger.info("It seems the file has already been formatted.")
+            except BdbQuit:  # we do not want to catch quit() signal from ipdb
+                print("Stopping.")
+                quit()
+            except Exception as e:
+                print(e)
+                print("Format of the file may have changed since last time. "
+                      "Let's process it all again. If you continue, cache gets deleted.")
+                if not Config.error_caught():
+                    input()
+                self.parser = None
+
+        if not self.parser:
+            self.clear()
+
+        if not fresh:
+            self.parser.ip_seen, self.parser.ranges = self.load_whois_cache()
+            self.parser.refresh()
+            self.parser.reset_whois(assure_init=True)
+            # correction of a wrongly pickling: instead of {IPNetwork('...'): (IPNetwork('...'),
+            # we see {IPNetwork('...'): (<jsonpickle.unpickler._IDProxy object at 0x...>,
+            # Note that IPRange is pickled correctly.
+            for prefix, o in self.parser.ranges.items():
+                l = list(o)
+                l[0] = prefix
+                self.parser.ranges[prefix] = tuple(l)
 
     def assure_cache_file(self, file):
         self.file = Path(file).resolve()
@@ -229,7 +235,16 @@ class Wrapper:
                 # note that ip_seen MUST be placed before ranges due to https://github.com/jsonpickle/jsonpickle/issues/280
                 # That way, a netaddr object (IPNetwork, IPRange) are defined as value in ip_seen and not as key in range.
                 encoded = jsonpickle.encode([ip_seen, ranges], keys=True)
-                Path(config_dir, WHOIS_CACHE).write_text(encoded)
+                # noinspection PyBroadException
+                try:
+                    jsonpickle.decode(encoded, keys=True)
+                except:  # again, I met a strangely formed JSON
+                    type_, value, tb = sys.exc_info()
+                    body = f"```bash\n{traceback.format_exc()}```\n\n```json5\n{tb.tb_next.tb_frame.f_locals}\n```\n\n```json5\n{ip_seen}```\n\n```json5\n{ranges}```"
+                    print("The program will recover but without saving WHOIS cache.")
+                    Config.github_issue("Cannot jsonpickle whois", body)
+                else:
+                    Path(config_dir, WHOIS_CACHE).write_text(encoded)
             with open(self.cache_file, "w") as output:  # save cache
                 output.write(string)
 

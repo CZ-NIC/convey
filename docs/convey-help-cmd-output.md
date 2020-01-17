@@ -1,8 +1,9 @@
 This is the output of the `--help` command.
 ```
-usage: convey [-h] [--debug] [-F] [-y] [--file] [-i] [-o FILENAME]
-              [--delimiter DELIMITER] [--quote-char QUOTE_CHAR] [--header]
-              [--no-header] [-d COLUMN,[COLUMN]] [-v] [-q]
+usage: convey [-h] [--debug] [-F] [-R] [-y] [--file] [-i]
+              [-o [[blank/FILENAME]]] [--delimiter DELIMITER]
+              [--quote-char QUOTE_CHAR] [--header] [--no-header]
+              [-d COLUMN,[COLUMN]] [-v] [-q]
               [-f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
               [-fe FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
               [-t [TYPE],...] [--split COLUMN] [-s [COLUMN],...]
@@ -18,7 +19,7 @@ usage: convey [-h] [--debug] [-F] [-y] [--file] [-i] [-o FILENAME]
               [--multiple-cidr-ip [blank/false]] [--whois-ttl SECONDS]
               [--show-uml [SHOW_UML]] [--get-autocompletion]
               [--compute-preview [blank/false]] [--delete-whois-cache]
-              [--version]
+              [--version] [--server]
               [--daemon [['start', 'restart', 'stop', 'status', 'server']]]
               [file_or_input]
 
@@ -34,18 +35,22 @@ optional arguments:
   -F, --fresh           Do not attempt to load any previous settings /
                         results. Do not load convey's global WHOIS cache. (But
                         merge WHOIS results in there afterwards.)
+  -R, --reprocess       Do not attempt to load any previous settings /
+                        results. But load convey's global WHOIS cache.
   -y, --yes             Assume non-interactive mode and the default answer to
                         questions.
   --file                Treat <file_or_input> parameter as a file, never as an
                         input
   -i, --input           Treat <file_or_input> parameter as an input text, not
                         a file name
-  -o FILENAME, --output FILENAME
-                        Save output to this file
+  -o [[blank/FILENAME]], --output [[blank/FILENAME]]
+                        Save output to this file. If left blank, pass output
+                        to STDOUT. If omitted, a filename will be produced
+                        automatically.
   --delimiter DELIMITER
-                        Force delimiter
+                        Treat file as having this delimiter
   --quote-char QUOTE_CHAR
-                        Force quoting character
+                        Treat file as having this quoting character
   --header              Treat file as having header
   --no-header           Treat file as not having header
   -d COLUMN,[COLUMN], --delete COLUMN,[COLUMN]
@@ -108,6 +113,7 @@ optional arguments:
                         * txt
                         * ports (Open ports given by nmap)
                         * csp
+                        * form_names
                         * html
                         * http_status (HTTP response status. If 0 or negative, request failed.)
                         * redirects
@@ -189,6 +195,7 @@ optional arguments:
                         values.
   --delete-whois-cache  Delete convey's global WHOIS cache.
   --version             Show the version number (which is currently 1.2).
+  --server              Launches simple web server
   --daemon [['start', 'restart', 'stop', 'status', 'server']]
                         Run a UNIX socket daemon to speed up single query requests.
                           * 1/true/on – allow using the daemon

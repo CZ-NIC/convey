@@ -428,6 +428,7 @@ class Parser:
     def _reset(self, hard=True):
         """ Reset variables before new analysis. """
         self.stats = defaultdict(set)
+        Attachment.reset(self.stats)
         self.queued_lines_count = self.invalid_lines_count = 0
         # self.aggregation[location file][grouped row][order in aggregation settings] = [sum generator, count]
         self.aggregation = defaultdict(dict)
@@ -452,7 +453,6 @@ class Parser:
         self.is_processable = False
         self.attachments.clear()
         self.reset_whois(hard=hard)
-        Attachment.reset()
 
     def prepare_target_file(self):
         if not self.settings["split"] and self.settings["split"] is not 0:  # 0 is a valid column
