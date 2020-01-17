@@ -154,12 +154,17 @@ class Controller:
         parser = argparse.ArgumentParser(description="Data conversion swiss knife", formatter_class=SmartFormatter, epilog=epilog)
         parser.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
                                                              "In nothing is given, user will input data through stdin.")
-        parser.add_argument('--debug', help="On error, enter a pdb session", action="store_true")
+        parser.add_argument('--debug', help="On error, enter a pdb session",
+                            action=BlankTrue, nargs="?", metavar="blank/false")
+        parser.add_argument('--testing', help="Do not be afraid, e-mail messages will not be sent."
+                                              " They will get forwarded to the testing e-mail"
+                                              " (and e-mails in Cc will not be sent at all)",
+                            action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('-F', '--fresh', help="Do not attempt to load any previous settings / results."
                                                   " Do not load convey's global WHOIS cache."
                                                   " (But merge WHOIS results in there afterwards.)", action="store_true")
         parser.add_argument('-R', '--reprocess', help="Do not attempt to load any previous settings / results."
-                                                              " But load convey's global WHOIS cache.", action="store_true")
+                                                      " But load convey's global WHOIS cache.", action="store_true")
         parser.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions.",
                             action="store_true")
         parser.add_argument('--file', help="Treat <file_or_input> parameter as a file, never as an input",
@@ -383,10 +388,9 @@ class Controller:
                     # --output=True means no output will be produced in favour of stdout
                     args.output = None
                 for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
-                             "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl", "disable_external"]:
+                             "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl", "disable_external", "debug", "testing"]:
                     if getattr(args, flag) is not None:
                         Config.set(flag, getattr(args, flag))
-                Config.set("debug", args.debug)
                 if args.headless:
                     args.yes = True
                     args.quiet = True
@@ -682,10 +686,10 @@ class Controller:
                     info.append(f"{text}")
                     if c[0]:
                         info.append(f"Recipient list ({c[0]}/{sum(c)}): "
-                                    + ", ".join([mail for _, mail, _, _ in Attachment.get_all(abroad, False, 5, True)]))
+                                    + ", ".join([o.mail for o in Attachment.get_all(abroad, False, 5, True)]))
                     if c[1]:
                         info.append(f"Already sent ({c[1]}/{sum(c)}): "
-                                    + ", ".join([mail for _, mail, _, _ in Attachment.get_all(abroad, True, 5, True)]))
+                                    + ", ".join([o.mail for o in Attachment.get_all(abroad, True, 5, True)]))
                     info.append(f"\n{Contacts.mail_draft[draft].get_mail_preview()}\n")
                     return True
                 return False
@@ -734,7 +738,7 @@ class Controller:
             limit_csirtmails_when_all = limit - st['local'][0]
             if option in ("1", "2") and st['local'][0] > 0:
                 print("Sending basic e-mails...")
-                # XXXXX sender.send_list(Attachment.get_all(False, False, limit))
+                sender.send_list(Attachment.get_all(False, False, limit))
             if option in ("1", "3") and st['abroad'][0] > 0:
                 # decrease the limit by the number of e-mails that was just send in basic list
                 l = {"1": limit_csirtmails_when_all, "3": limit}[option]
@@ -742,8 +746,9 @@ class Controller:
                     print("Cannot send abroad e-mails due to limit.")
                 else:
                     print("Sending to abroad e-mails...")
-                    # XXXXX sender.send_list(Attachment.get_all(True, False, l))
+                    sender.send_list(Attachment.get_all(True, False, l))
             if option in ["1", "2", "3"]:
+                self.wrapper.save()  # save what message has been sent right now
                 input("\n\nPress Enter to continue...")
                 continue
 
@@ -765,31 +770,30 @@ class Controller:
                     if not t:
                         input("No address written. Hit Enter...")
                         continue
-                    choices = [(mail, "") for o, mail, cc, p in attachments]
+                    choices = [(o.mail, "") for o in attachments]
                     try:
-                        el = attachments[pick_option(choices, f"What attachment should be send to {t}?")]
+                        attachment = attachments[pick_option(choices, f"What attachment should be send to {t}?")]
                     except Cancelled:
                         continue
                     clear()
-                    attachment = el[0]
                     old_testing, old_sent, attachment.sent = Config.get('testing'), attachment.sent, None
                     Config.set('testing', True)
                     Config.set('testing_mail', t)
-                    sender.send_list([el])
+                    sender.send_list([attachment])
                     Config.set('testing', old_testing)
                     input("\n\nTesting completed. Press Enter to continue...")
                     attachment.sent = old_sent
                 elif option == "r":
                     # choose recipient list
-                    choices = [(mail, "", not o.sent) for o, mail, cc, p in attachments]
+                    choices = [(o.mail, o.get_draft_name(), not o.sent) for o in attachments]
                     code, tags = Dialog(autowidgetsize=True).checklist("Toggle e-mails to be send", choices=choices)
                     if code != 'ok':
                         continue
-                    for attachment, mail, *_ in attachments:
+                    for attachment in attachments:
                         # XX if the same address is going to receive both local and abroad template e-mail,
                         #   this will change the status of its both e-mails.
                         #   In the future, we'd like to have another checklist engine where item references can be passed directly.
-                        attachment.sent = mail not in tags
+                        attachment.sent = attachment.mail not in tags
                     print("Changed!")
             elif option == "x":
                 return

@@ -8,9 +8,9 @@ from abc import abstractmethod, ABC
 from pathlib import Path
 from socket import gaierror
 
+from envelope import envelope
 from validate_email import validate_email
 
-from envelope import envelope
 from .config import Config
 from .contacts import Attachment
 
@@ -32,29 +32,23 @@ class MailSender(ABC):
     def process(self):
         pass
 
-    def send_list(self, mails):
-        # def send_list(self, mails, mailDraft, totalCount, method="smtp"):
-        """ Send a registry (abusemails or csirtmails)
+    def send_list(self, mails, attach=True):
+        """ Send a bunch of e-mail messages
 
-            method - smtp OR otrs
+            @type attach: bool Attach the file to the message. XX not used yet but should be working
         """
-        # if method == "otrs" and not Config.get("otrs_enabled", "OTRS"):
-        #    print("OTRS is the only implemented option of sending now. Error.")
-        #    return False
-
-        # if not total_count:
-        #    print("... done. (No mails in the list, nothing to send.)")
-        #    return True
-
         sent_mails = 0
         total_count = 0
 
         if self.start() is False:
             return False
-        for attachment_object, email_to, email_cc, attachment_path in mails:
+        for a in mails:
             # text_vars = {"CONTACTS": email_to, "FILENAME": self.parser.attachment_name, "TICKETNUM": self.parser.otrs_num}
-            attachment_object: Attachment
-            e: envelope = attachment_object.get_draft().get_envelope()
+            a: Attachment
+            email_to = a.mail
+            email_cc = a.cc
+            attachment_path = a.path
+            e: envelope = a.get_draft().get_envelope()
             if b"{ATTACHMENT}" in e._message:
                 # XXX document this: if you write {ATTACHMENT} in the body,
                 #  this will be replaced with the attachment contents and the attachment will no be included
@@ -70,15 +64,19 @@ class MailSender(ABC):
                 print("Missing subject or mail body text.")
                 return False
 
-            if attachment_object.sent:
+            if a.sent:
                 # XX this should be known in the dialog before, user should know earlier how many e-mails will be skipped
                 print(f"Already sent to {email_to}, skipping!")
                 continue
+
+            if not attach:
+                attachment_path = None
 
             if Config.is_testing():
                 e._to.clear()
                 e._cc.clear()
                 e._bcc.clear()
+                email_cc = False
                 intended_to = email_to
                 email_to = Config.get('testing_mail')
                 e._message = bytes(f"This is testing mail only from Convey." \
@@ -92,20 +90,28 @@ class MailSender(ABC):
             # noinspection PyBroadException
             try:
                 status = self.process(e, email_to, email_cc, attachment_path)
-            except Exception:
+            except KeyboardInterrupt:
+                status = "interrupted"
+                total_count += len([x for x in mails])
+                break
+            except:
                 # if something fails (attachment FileNotFoundError, any other error),
                 # we want tag the previously sent e-mails so that they will not be resend next time
                 pass
             finally:
                 if status:
+                    t = "Marking as sent" if status == "interrupted" else "Sent"
+                    logger.warning(f"{t}: {email_to}")
                     sent_mails += 1
-                    logger.warning(f"Sent: {email_to}")
-                    attachment_object.sent = True
+                    a.sent = True
                 else:
                     logger.error(f"Error sending: {email_to}")
-                    attachment_object.sent = False
-            total_count += 1
+                    a.sent = False
+                total_count += 1
         self.stop()
+
+        if status == "interrupted":
+            print(f"Interrupted! We cannot be sure if the e-mail {email_to} was sent but it is probable.")
 
         print("\nSent: {}/{} mails.".format(sent_mails, total_count))
         if sent_mails != total_count:
@@ -258,9 +264,8 @@ class MailSenderOtrs(MailSender):
         except KeyError:
             pass
 
-        if not Config.is_testing():
-            if email_cc:  # X mailList.mails[mail]
-                fields += ("Cc", email_cc),
+        if email_cc:
+            fields += ("Cc", email_cc),
 
         # load souboru k zaslani
         # attachment_contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
@@ -324,7 +329,7 @@ class MailSenderSmtp(MailSender):
 
         if path:
             o.attach(path, "text/csv", self.parser.attachment_name)
-        if email_cc and not Config.is_testing():
+        if email_cc:
             o.cc(email_cc)
 
         return bool(o.send(True))

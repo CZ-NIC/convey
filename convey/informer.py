@@ -203,10 +203,10 @@ class Informer:
             if self.parser.is_split:
                 rows = []
                 for o in self.parser.attachments:
-                    rows.append((o.path,
+                    rows.append((o.filename,
                                  {True: "abroad", False: "✓", None: "×"}[o.abroad],
                                  {True: "✓", False: "error", None: "no"}[o.sent],
-                                 humanize.naturalsize(o.get_abs_path().stat().st_size),
+                                 humanize.naturalsize(o.path.stat().st_size),
                                  ))
                 print("\n\n** Generated files overview **\n", tabulate(rows, headers=("file", "deliverable", "sent", "size")))
             # else:

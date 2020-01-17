@@ -1,6 +1,7 @@
 import csv
 import re
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Dict
 
 from validate_email import validate_email
@@ -13,22 +14,23 @@ class Attachment:
     sent: bool  # True => sent, False => error while sending, None => not yet sent
     abroad: bool  # True => abroad e-mail is in Contacts dict, False => e-mail is file name, None => undeliverable (no e-mail)
 
-    def __init__(self, path):
-        self.abroad = path.startswith(Config.ABROAD_PREFIX)
+    def __init__(self, filename):
+        self.abroad = filename.startswith(Config.ABROAD_PREFIX)
         self._sent = None
-        self.path = path
+        self.filename = filename
 
         st = self.parser.stats
 
-        if validate_email(self.get_mail()):
+        if validate_email(self.mail):
             st[self.get_draft_name()][int(bool(self.sent))] += 1
         else:
             st["non_deliverable"] += 1
         # self.abroad = None
         st["totals"] += 1
 
-    def get_abs_path(self):
-        return Path(Config.get_cache_dir(), self.path)
+    @property
+    def path(self):
+        return Path(Config.get_cache_dir(), self.filename)
 
     @property
     def sent(self):
@@ -57,8 +59,9 @@ class Attachment:
 
     @classmethod
     def get_all(cls, abroad=None, sent=None, limit=float("inf"), threedots=False):
+        o: Attachment
         for i, o in enumerate(cls.parser.attachments):
-            if o.path in [Config.UNKNOWN_NAME, Config.INVALID_NAME]:
+            if o.filename in [Config.UNKNOWN_NAME, Config.INVALID_NAME]:
                 continue
             elif sent is not None and sent is not bool(o.sent):  # we want to filter either sent or not-sent attachments only
                 continue
@@ -67,25 +70,26 @@ class Attachment:
                 continue
             if limit == 0:
                 if threedots:
-                    yield None, "...", None, None
+                    yield SimpleNamespace(mail="...")  # XXXNone, "...", None, None
                 return
             else:
                 limit -= 1
+            yield o
 
-            mail = o.get_mail()
-
-            cc = ""
-            for domain in Contacts.get_domains(mail):
-                if domain in Contacts.mail2cc:
-                    cc += Contacts.mail2cc[domain] + ";"
-
-            path = o.get_abs_path()
-            yield o, mail, cc, path
-
-    def get_mail(self):
+    @property
+    def mail(self):
         if self.abroad:
-            return self.path[len(Config.ABROAD_PREFIX):]
-        return self.path
+            return self.filename[len(Config.ABROAD_PREFIX):]
+        return self.filename
+
+    @property
+    def cc(self):
+        """ Return cc header from Contacts. This has nothing in common with possible Cc header in the mail_draft! """
+        cc = ""
+        for domain in Contacts.get_domains(self.mail):
+            if domain in Contacts.mail2cc:
+                cc += Contacts.mail2cc[domain] + ";"
+        return cc
 
     def get_draft_name(self):
         return "abroad" if self.abroad else "local"
