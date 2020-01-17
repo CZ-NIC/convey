@@ -1,6 +1,15 @@
 # CHANGELOG
 
 ## 1.3 (unreleased)
+* CHANGED:
+    * config.ini renamed to
+        * contacts_local → contacts_cc
+        * contacts_foreign → contacts_abroad
+        * mail_template_basic → mail_template
+        * mail_template_partner → mail_template_abroad
+    * incident-contact field
+        * for non-local countries produces now the file whose name is in the form "abroad:abusemail@example.com"
+        * when non-local country is missing from contacts_abroad, it will be sent to its abusemail contact (but preserving mail_template_abroad) 
 * flags
     * --aggregate – count grouped by a column, sum, etc.
     * --daemon, daemonize – since it takes around 0.75 s to start the program, notably because of the external libraries (pint, bs4, requests), when doing a single query or a headless processing (no menu involved) we may reduce this time at least ten times with a daemon)
@@ -25,8 +34,9 @@
 * internal
     - daemon pipes stderr as well
     - got rid of python-Levenshtein package and did not use psutil package so installing whole gcc is not needed anymore
-* sending
-    - SMTP sending the envelope library
+    - after resetting settings fields keep their auto-detection information
+* sending: huge improvement of the interface
+    - SMTP sending uses the envelope library
     - keyword {ATTACHMENT} makes the attachment contents become the part of the body (and the file is no more attached)
 
 ## 1.2 (2019-11-13)
@@ -61,7 +71,7 @@
         - github_crash_submit
 * fixes:
     - fix: new installation should now correctly place contacts files in .config
-    - fix: refresh partner contact list e-mails when restart even if the file has been processed before
+    - fix: refresh abroad contact list e-mails when restart even if the file has been processed before
     - PyPi installer requirements fix
 * Whois module 
     - won't throw error if host can't be resolved

@@ -36,7 +36,7 @@ def pick_option(options, title="", guesses=[], skippable=True):
     """ Loop all options
         options tuples of items and descriptions: [("url", "this is url")]
         guesses = indices of options that should be highlighted
-        returns option number OR None
+        returns option number OR raises Cancelled
 
         :type skippable: bool If True and there is single option, the dialog returns 'Ok' without asking user.
     """

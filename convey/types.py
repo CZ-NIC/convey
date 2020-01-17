@@ -691,7 +691,8 @@ class Types:
             except bdb.BdbQuit:
                 raise
             except Exception as e:
-                s = "Can't import custom file from path: {}".format(path)
+                import ipdb; ipdb.set_trace()
+                s = f"Cannot import custom file from path: {path}"
                 input(s + ". Press any key...")
                 logger.warning(s)
 
@@ -749,8 +750,8 @@ class Types:
     abusemail = Type("abusemail", TypeGroup.whois, "Abuse e-mail contact from whois")
     prefix = Type("prefix", TypeGroup.whois)  # XX rename to 'inetnum'? to 'range'?
     csirt_contact = Type("csirt_contact", TypeGroup.whois,
-                         "E-mail address corresponding with country code, taken from your personal contacts_foreign CSV"
-                         " in the format `country,abusemail`. See config.ini/contacts_foreign")
+                         "E-mail address corresponding with country code, taken from your personal contacts_abroad CSV"
+                         " in the format `country,abusemail`. See config.ini/contacts_abroad")
     incident_contact = Type("incident_contact", TypeGroup.whois)
     text = Type("text", TypeGroup.web)
     http_status = Type("http_status", TypeGroup.web, "HTTP response status. If 0 or negative, request failed.")
@@ -945,7 +946,7 @@ class Types:
             (t.whois, t.abusemail): lambda x: x.get[6],
             (t.whois, t.country): lambda x: x.get[5],
             (t.whois, t.netname): lambda x: x.get[4],
-            (t.whois, t.csirt_contact): lambda x: Contacts.csirtmails[x.get[5]] if x.get[5] in Contacts.csirtmails else "-",
+            (t.whois, t.csirt_contact): lambda x: Contacts.country2mail[x.get[5]] if x.get[5] in Contacts.country2mail else "-",
             (t.whois, t.incident_contact): lambda x: x.get[2],
             (t.plaintext, t.bytes): lambda x: x.encode("UTF-8"),
             (t.bytes, t.plaintext): Checker.bytes_plaintext,

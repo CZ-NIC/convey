@@ -1,6 +1,6 @@
 pint
 chardet
-envelope
+envelope>=0.9.7
 python-dateutil
 requests
 netaddr

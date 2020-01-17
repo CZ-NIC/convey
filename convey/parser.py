@@ -70,6 +70,7 @@ class Parser:
         self.ranges = {}  # XX should be refactored as part of Whois
         self.ip_seen = {}  # XX should be refactored as part of Whois
         self.aggregation = defaultdict(dict)  # [location file][grouped row][order in aggregation settings] = [sum generator, count]
+        self.refresh()
         self._reset()
         self.selected: List[int] = []  # list of selected fields col_i that may be in/excluded and moved in the menu
 
@@ -93,19 +94,17 @@ class Parser:
             self.lines_total, self.size = self.informer.source_file_len(self.source_file)
             self.first_line, self.sample = self.identifier.get_sample(self.source_file)
         self.set_types(types)
-        # otherwise we are running a webservice which has no stding nor source_file
+        # otherwise we are running a webservice which has no stdin nor source_file
 
-
-        self.refresh()
         if prepare:
             self.prepare()
 
     def refresh(self):
         """
-        Refresh dependency files – contact list, we need to tell the attachments if they are deliverable.
+        Refresh dependency files – contact list Xwe need to tell the attachments if they are deliverable.
         """
         Contacts.init()
-        Attachment.refresh_attachment_stats(self)
+        Attachment.init(self)
 
     def prepare(self):
         if self.size == 0:
@@ -222,7 +221,6 @@ class Parser:
                     self.has_header = not self.has_header
             self.first_line_fields = csv.reader([self.first_line], dialect=self.dialect).__next__()
             self.reset_settings()
-            self.identifier.identify_fields()
         except Cancelled:
             print("Cancelled.")
             quit()
@@ -354,8 +352,8 @@ class Parser:
             try:
                 for i, l in enumerate(methods):
                     val_old = val
-                    if (repr((val, methods[:i+1]))) in method_cache:
-                        val = method_cache[(repr((val, methods[:i+1])))]
+                    if (repr((val, methods[:i + 1]))) in method_cache:
+                        val = method_cache[(repr((val, methods[:i + 1])))]
                         continue
                     if isinstance(val, list):
                         # resolve all items, while flattening any list encountered
@@ -364,7 +362,7 @@ class Parser:
                         val = l(val)
                     # We cache this value so that it will not be recomputed when crawling the same path on the graph again.
                     # Ex: `hostame → ip → country` and `hostname → ip → asn` will not call method `hostname → ip` twice (for each).
-                    method_cache[(repr((val, methods[:i+1])))] = val
+                    method_cache[(repr((val, methods[:i + 1])))] = val
             except Exception as e:
                 val = str(e)
             self.sample_parsed[0].append(val)
@@ -415,10 +413,12 @@ class Parser:
         self.settings = defaultdict(list)
         # when resetting settings, we free up any finished aggregation
         # (because informer wants to display it but the self.parser.settings["aggregate"] is gone
-        self.aggregation = defaultdict(dict)  # self.aggregation[location file][grouped row][order in aggregation settings] = [sum generator, count]
+        self.aggregation = defaultdict(
+            dict)  # self.aggregation[location file][grouped row][order in aggregation settings] = [sum generator, count]
         self.sample_parsed = [x for x in
                               csv.reader(self.sample[slice(1 if self.has_header else 0, None)], dialect=self.dialect)]
         self.add_field([Field(f) for f in self.first_line_fields])
+        self.identifier.identify_fields()
 
     def _reset_output(self):
         self.line_count = 0
@@ -429,7 +429,8 @@ class Parser:
         """ Reset variables before new analysis. """
         self.stats = defaultdict(set)
         self.queued_lines_count = self.invalid_lines_count = 0
-        self.aggregation = defaultdict(dict)  # self.aggregation[location file][grouped row][order in aggregation settings] = [sum generator, count]
+        # self.aggregation[location file][grouped row][order in aggregation settings] = [sum generator, count]
+        self.aggregation = defaultdict(dict)
 
         if self.dialect:
             class Wr:  # very ugly way to correctly get the output from csv.writer
@@ -451,6 +452,7 @@ class Parser:
         self.is_processable = False
         self.attachments.clear()
         self.reset_whois(hard=hard)
+        Attachment.reset()
 
     def prepare_target_file(self):
         if not self.settings["split"] and self.settings["split"] is not 0:  # 0 is a valid column
@@ -494,14 +496,14 @@ class Parser:
         """ Run main analysis of the file.
         :type autoopen_editor: bool May shadow config file value "autoopen_editor"
         """
+        self.refresh()
         self._reset(hard=False)
 
         if (autoopen_editor or autoopen_editor is None) and Config.get("autoopen_editor") and self.is_split:
-            Contacts.mailDraft["local"].gui_edit()
-            Contacts.mailDraft["foreign"].gui_edit()
+            Contacts.mail_draft["local"].edit()
+            Contacts.mail_draft["abroad"].edit()
 
         self.time_start = self.time_last = datetime.datetime.now().replace(microsecond=0)
-        self.refresh()
         self.prepare_target_file()
         self.processor.process_file(self.source_file, rewrite=True, stdin=self.stdin)
         self.time_end = datetime.datetime.now().replace(microsecond=0)

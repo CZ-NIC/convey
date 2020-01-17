@@ -60,16 +60,18 @@ def get_path(file):
     if not exists or not Path(file).exists():
         # create INI file at user config folder or at program directory
         program_path = Path(sys.argv[0]).parent.resolve()
-        if input("It seems this is a first run, since file {} haven't been found."
-                 "\nShould we create a default config files at user config folder ({})? "
-                 "Otherwise, they'll be created at program folder: {} [Y/n] ".format(file, config_dir, program_path)) \
-                in ["", "Y", "y"]:
+        if input(f"It seems this is a first run, since file {file} haven't been found."
+                 f"\nShould we create default config files at user config folder ({config_dir})?"
+                 f" Otherwise, they'll be created at program folder: {program_path} [Y/n] ") in ["", "Y", "y"]:
             Path(config_dir).mkdir(parents=True, exist_ok=True)
         else:
             config_dir = program_path
         try:
             for filename in glob.glob(str(Path(default_path, '*.*'))):
-                copy(filename, config_dir)
+                # do not overwrite existing files
+                #  – user just might have deleted EML templates and they would not be happy to see their config.ini wiped
+                if not Path(config_dir, Path(filename).name).exists():
+                    copy(str(filename), config_dir)
             file = "{}/{}".format(config_dir, file)
         except Exception as e:
             print(e)
@@ -91,6 +93,7 @@ class Config:
     QUEUED_NAME = ".queues_lines.tmp"
     INVALID_NAME = ".invalidlines.tmp"
     UNKNOWN_NAME = "unknown"
+    ABROAD_PREFIX = "abroad:"
     PROJECT_SITE = "https://github.com/CZ-NIC/convey/"
     verbosity: int = logging.INFO  # standard python3 logging level int
 
@@ -310,7 +313,7 @@ class Config:
     def set(key, val, section='CONVEY'):
         # XX was this needed? if val is None:
         #    Config.config.remove_option(section, key)
-        #else:
+        # else:
         Config.cache[key] = val
         # XX Config.config.set(section, key, str(val))
 

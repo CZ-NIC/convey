@@ -6,98 +6,117 @@ from typing import Dict
 from validate_email import validate_email
 
 from .config import Config, get_path
-from .mailDraft import MailDraft
+from .mail_draft import MailDraft
 
 
 class Attachment:
     sent: bool  # True => sent, False => error while sending, None => not yet sent
-    partner: bool  # True => partner e-mail is in Contacts dict, False => e-mail is file name, None => undeliverable (no e-mail)
+    abroad: bool  # True => abroad e-mail is in Contacts dict, False => e-mail is file name, None => undeliverable (no e-mail)
 
-    def __init__(self, partner, sent, path):
-        self.partner = partner
-        self.sent = sent
+    def __init__(self, path):
+        self.abroad = path.startswith(Config.ABROAD_PREFIX)
+        self._sent = None
         self.path = path
+
+        st = self.parser.stats
+
+        if validate_email(self.get_mail()):
+            st["local"][int(bool(self.sent))] += 1
+        else:
+            st["non_deliverable"] += 1
+        # self.abroad = None
+        st["totals"] += 1
 
     def get_abs_path(self):
         return Path(Config.get_cache_dir(), self.path)
 
-    @classmethod
-    def get_basic(cls, attachments):
-        return cls._get(attachments, False)
+    @property
+    def sent(self):
+        return self._sent
+
+    @sent.setter
+    def sent(self, value):
+        if self._sent != value:
+            if bool(self._sent) != bool(value):  # no effect if sent status chagnes from None (not tried) to False (not succeeded)
+                r = self.parser.stats[self.get_draft_name()]
+                # exchange the count from the not-sent to sent or vice verse
+                r[int(value is not True)] -= 1
+                r[int(value is True)] += 1
+            self._sent = value
 
     @classmethod
-    def get_partner(cls, attachments):
-        return cls._get(attachments, True)
+    def init(cls, parser):
+        cls.parser = parser
 
     @classmethod
-    def _get(cls, attachments, listed_only=False):
-        for o in attachments:
-            if o.path in [Config.UNKNOWN_NAME, Config.INVALID_NAME]:
-                continue
-
-            cc = ""
-
-            if listed_only:
-                if o.path in Contacts.csirtmails:
-                    mail = Contacts.csirtmails[o.path]
-                else:  # we don't want send to standard abuse mail, just to a partner
-                    continue
-            else:
-                mail = o.path
-
-            for domain in Contacts.get_domains(mail):
-                if domain in Contacts.abusemails:
-                    cc += Contacts.abusemails[domain] + ";"
-
-            try:
-                yield o, mail, cc, o.get_abs_path()
-            except FileNotFoundError:
-                continue
-
-    @classmethod
-    def refresh_attachment_stats(cls, parser):
-        attachments = parser.attachments
-        st = parser.stats
-        st["partner_count"] = [0, 0]
-        st["abuse_count"] = [0, 0]
+    def reset(cls):
+        st = cls.parser.stats
+        st["abroad"] = [0, 0]  # abroad [not-sent, sent]
+        st["local"] = [0, 0]  # local [not-sent, sent]
         st["non_deliverable"] = 0
         st["totals"] = 0
 
-        for o in attachments:
-            if o.path in Contacts.csirtmails:
-                st["partner_count"][int(bool(o.sent))] += 1
-                o.partner = True
-            elif validate_email(o.path):
-                st["abuse_count"][int(bool(o.sent))] += 1
-                o.partner = False
+    @classmethod
+    def get(cls, abroad=False, sent=None, limit=float("inf"), threedots=False):
+        for i, o in enumerate(cls.parser.attachments):
+            if o.path in [Config.UNKNOWN_NAME, Config.INVALID_NAME]:
+                continue
+            elif sent is not None and sent is not bool(o.sent):  # we want to filter either sent or not-sent attachments only
+                continue
+            if abroad is not None and any((abroad and not o.abroad, not abroad and o.abroad)):
+                # filtering abroad/local attachments only
+                continue
+            if limit == 0:
+                if threedots:
+                    yield None, "...", None, None
+                return
             else:
-                st["non_deliverable"] += 1
-                o.partner = None
-            st["totals"] += 1
+                limit -= 1
+
+            mail = o.get_mail()
+
+            cc = ""
+            for domain in Contacts.get_domains(mail):
+                if domain in Contacts.mail2cc:
+                    cc += Contacts.mail2cc[domain] + ";"
+
+            path = o.get_abs_path()
+            yield o, mail, cc, path
+
+    def get_mail(self):
+        if self.abroad:
+            return self.path[len(Config.ABROAD_PREFIX):]
+        return self.path
+
+    def get_draft_name(self):
+        return "abroad" if self.abroad else "local"
+
+    def get_draft(self):
+        return Contacts.mail_draft[self.get_draft_name()]
 
 
 class Contacts:
-    abusemails: Dict[str, str]
-    csirtmails: Dict[str, str]
-    mailDraft: Dict[str, MailDraft]
+    mail2cc: Dict[str, str]
+    country2mail: Dict[str, str]
+    mail_draft: Dict[str, MailDraft]
 
     @classmethod
     def init(cls):
         """
-        Refreshes list of abusemails (for Cc of the mails in the results) (config key contacts_local)
-        and csirtmails (country contact) (config key contacts_foreign)
+        Refreshes list of abusemails (for Cc of the mails in the results) (config key contacts_cc)
+        and csirtmails (country contact) (config key contacts_abroad)
         """
-        cls.mailDraft = {"local": MailDraft(Config.get("mail_template_basic")),
-                         "foreign": MailDraft(Config.get("mail_template_partner"))}
-        cls.abusemails = cls._update("contacts_local")
-        cls.csirtmails = cls._update("contacts_foreign")
+        cls.mail_draft = {"local": MailDraft(Config.get("mail_template")),
+                          "abroad": MailDraft(Config.get("mail_template_abroad"))}
+        cls.mail2cc = cls._update("contacts_cc")
+        cls.country2mail = cls._update("contacts_abroad")
 
     @staticmethod
-    def get_domains(mailStr):
+    def get_domains(mail: str):
         """ mail = mail@example.com;mail2@example2.com -> [example.com, example2.com] """
         try:
             # return set(re.findall("@([\w.]+)", mail))
-            return set([x[0] for x in re.findall("@(([A-Za-z0-9-]{1,63}\.)+[A-Za-z]{2,6})", mailStr)])
+            return set([x[0] for x in re.findall("@(([A-Za-z0-9-]{1,63}\.)+[A-Za-z]{2,6})", mail)])
         except AttributeError:
             return []
 

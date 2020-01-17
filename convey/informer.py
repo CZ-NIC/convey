@@ -147,29 +147,25 @@ class Informer:
             elif self.parser.saved_to_disk:
                 print(f"\n** Processing completed: Result file in {self.parser.target_file}")
             else:
-                partner_count, abuse_count, non_deliverable, totals = map(self.parser.stats.get, (
-                    'partner_count', 'abuse_count', 'non_deliverable', 'totals'))
+                abroad, local, non_deliverable, totals = map(self.parser.stats.get, (
+                    'abroad', 'local', 'non_deliverable', 'totals'))
 
                 print(f"** Processing completed: {totals} result files in {Config.get_cache_dir()}")
-                # abuse_count = Contacts.count_mails(self.attachments.keys(), abusemails_only=True)
-                # partner_count = Contacts.count_mails(self.attachments.keys(), partners_only=True)
+                # local = Contacts.count_mails(self.attachments.keys(), abusemails_only=True)
+                # abroad = Contacts.count_mails(self.attachments.keys(), abroads_only=True)
                 if totals == non_deliverable:
                     print("* It seems no file is meant to serve as an e-mail attachment.")
                 else:
-                    if abuse_count[0] + partner_count[0] == 0:
+                    if local[0] + abroad[0] == 0:
                         print(
-                            "Already sent all {} partner e-mails and {} other e-mails".format(partner_count[1], abuse_count[1]))
-                    if abuse_count[1] + partner_count[1] > 1:
-                        print("* already sent {}/{} partner e-mails\n* {}/{} other e-mails".format(partner_count[1],
-                                                                                                   sum(partner_count),
-                                                                                                   abuse_count[1],
-                                                                                                   sum(abuse_count)))
+                            f"Already sent all {abroad[1]} abroad e-mails and {local[1]} other e-mails")
+                    if local[1] + abroad[1] > 1:
+                        print(f"* already sent {abroad[1]}/{sum(abroad)} abroad e-mails\n* {local[1]}/{sum(local)} other e-mails")
                     else:
                         print(
-                            "* {} files seem to be attachments for partner e-mails\n* {} for other e-mails".format(partner_count[0],
-                                                                                                                   abuse_count[0]))
+                            f"* {abroad[0]} files seem to be attachments for abroad e-mails\n* {local[0]} for other e-mails")
                     if non_deliverable:
-                        print("* {} files undeliverable".format(non_deliverable))
+                        print(f"* {non_deliverable} files undeliverable")
 
                 if Config.get('testing'):
                     print(
@@ -188,7 +184,7 @@ class Informer:
             if parser.abuseReg.stat("records", False):
                 print("Couldn't find {} abusemails for {}× IP.".format(parser.reg["local"].stat("records", False), parser.reg["local"].stat("ips", False)))
             if parser.countryReg.stat("records", False):
-                print("Couldn't find {} csirtmails for {}× IP.".format(parser.reg["foreign"].stat("records", False), parser.reg["foreign"].stat("ips", False)))
+                print("Couldn't find {} csirtmails for {}× IP.".format(parser.reg["abroad"].stat("records", False), parser.reg["abroad"].stat("ips", False)))
             """
 
         if full:
@@ -208,9 +204,9 @@ class Informer:
                 rows = []
                 for o in self.parser.attachments:
                     rows.append((o.path,
-                                 {True: "partner", False: "✓", None: "×"}[o.partner],
+                                 {True: "abroad", False: "✓", None: "×"}[o.abroad],
                                  {True: "✓", False: "error", None: "no"}[o.sent],
-                                 humanize.naturalsize(Path(o.get_abs_path()).stat().st_size),
+                                 humanize.naturalsize(o.get_abs_path().stat().st_size),
                                  ))
                 print("\n\n** Generated files overview **\n", tabulate(rows, headers=("file", "deliverable", "sent", "size")))
             # else:

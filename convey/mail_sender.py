@@ -12,9 +12,11 @@ from validate_email import validate_email
 
 from envelope import envelope
 from .config import Config
+from .contacts import Attachment
 
 re_title = re.compile('<title>([^<]*)</title>')
 logger = logging.getLogger(__name__)
+
 
 class MailSender(ABC):
     def __init__(self, parser):
@@ -30,7 +32,7 @@ class MailSender(ABC):
     def process(self):
         pass
 
-    def send_list(self, mails, mailDraft, method="smtp"):
+    def send_list(self, mails):
         # def send_list(self, mails, mailDraft, totalCount, method="smtp"):
         """ Send a registry (abusemails or csirtmails)
 
@@ -49,15 +51,22 @@ class MailSender(ABC):
 
         if self.start() is False:
             return False
-        for attachment_object, email_to, email_cc, attachment_path in mails:  # Xregistry.getMails():
-            # XX Remove text_vars, I suppose this was never used and hardly working
-            text_vars = {"CONTACTS": email_to, "FILENAME": self.parser.attachment_name, "TICKETNUM": self.parser.otrs_num}
-            subject = mailDraft.get_subject() % text_vars
-            body = mailDraft.get_body() % text_vars  # format mail template, ex: {FILENAME} in the body will be transformed by the filename
-            if "{ATTACHMENT}" in body:  # XXX document this: if you write {ATTACHMENT} in the body, this will be replaced with the attachment contents and the attachment will no be included
-                body = body.replace("{ATTACHMENT}", attachment_path.read_text().replace("\n", "<br>\n")) # XX will we ever send text/plain instead of text/html?
+        for attachment_object, email_to, email_cc, attachment_path in mails:
+            # text_vars = {"CONTACTS": email_to, "FILENAME": self.parser.attachment_name, "TICKETNUM": self.parser.otrs_num}
+            attachment_object: Attachment
+            e: envelope = attachment_object.get_draft().get_envelope()
+            if b"{ATTACHMENT}" in e._message:
+                # XXX document this: if you write {ATTACHMENT} in the body,
+                #  this will be replaced with the attachment contents and the attachment will no be included
+                # XX .replace("\n", "<br>\n") OTRS sending sends text/plain – cannot have br conversion
+                #   SMTP sending sends both text/plain+html – sometimes needs and sometimes forbids br conversion,
+                #   depending on the envelope nl2br detection
+                #   XX maybe envelope could expose nl2br and mime as envelope().data.mime
+                #   along with .data.subject so that user can see directly?
+                e._message = e._message.replace(b"{ATTACHMENT}",
+                                                attachment_path.read_bytes().replace(b"\n", b"<br>\n"))
                 attachment_path = None
-            if subject == "" or body == "":
+            if e._message == b"" or e._subject == "":
                 print("Missing subject or mail body text.")
                 return False
 
@@ -67,27 +76,40 @@ class MailSender(ABC):
                 continue
 
             if Config.is_testing():
+                e._to.clear()
+                e._cc.clear()
+                e._bcc.clear()
                 intended_to = email_to
                 email_to = Config.get('testing_mail')
-                body = "This is testing mail only from Convey. Don't be afraid, it wasn't delivered to: {}\n".format(
-                    intended_to) + body
+                e._message = bytes(f"This is testing mail only from Convey." \
+                                   f" Don't be afraid, it wasn't delivered to: {intended_to}\r\n", "utf-8") + e._message
 
             if not validate_email(email_to):
                 logger.error("Erroneous e-mail: {}".format(email_to))
                 continue
 
-            if self.process(subject, body, email_to, email_cc, attachment_path):
-                sent_mails += 1
-                logger.warning(f"Sent: {email_to}")
-                attachment_object.sent = True
-            else:
-                logger.error(f"Error sending: {email_to}")
-                attachment_object.sent = False
+            status = False
+            # noinspection PyBroadException
+            try:
+                status = self.process(e, email_to, email_cc, attachment_path)
+            except Exception:
+                # if something fails (attachment FileNotFoundError, any other error),
+                # we want tag the previously sent e-mails so that they will not be resend next time
+                pass
+            finally:
+                if status:
+                    sent_mails += 1
+                    logger.warning(f"Sent: {email_to}")
+                    attachment_object.sent = True
+                else:
+                    logger.error(f"Error sending: {email_to}")
+                    attachment_object.sent = False
             total_count += 1
         self.stop()
 
         print("\nSent: {}/{} mails.".format(sent_mails, total_count))
-        return sent_mails == total_count
+        if sent_mails != total_count:
+            print("Couldn't send all abroad mails. (Details in convey.log.)")
 
 
 class MailSenderOtrs(MailSender):
@@ -208,23 +230,24 @@ class MailSenderOtrs(MailSender):
 
             sys.stdout.write(
                 "Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachment_name = {}.\nWas that correct? [y]/n ".format(
-                    self.parser.otrs_id, self.parser.otrs_num, self.parser.otrs_cookie, self.parser.otrs_token, self.parser.attachment_name))
+                    self.parser.otrs_id, self.parser.otrs_num, self.parser.otrs_cookie, self.parser.otrs_token,
+                    self.parser.attachment_name))
             if input().lower() in ("y", ""):
                 return True
             else:
                 force = True
                 continue
 
-    def process(self, subject, body, mail_final, cc, attachment_path:Path):
+    def process(self, e: envelope, email_to, email_cc, attachment_path: Path):
         fields = (
             ("Action", "AgentTicketForward"),
             ("Subaction", "SendEmail"),
             ("TicketID", str(self.parser.otrs_id)),
             ("Email", Config.get("email_from", "SMTP")),
             ("From", Config.get("email_from_name", "SMTP")),
-            ("To", mail_final),  # mails can be delimited by comma or semicolon
-            ("Subject", subject),
-            ("Body", body),
+            ("To", email_to),  # mails can be delimited by comma or semicolon
+            ("Subject", e._subject),
+            ("Body", e._message.decode()),
             ("ArticleTypeID", "1"),  # mail-external
             ("ComposeStateID", "4"),  # open
             ("ChallengeToken", self.parser.otrs_token),
@@ -236,8 +259,8 @@ class MailSenderOtrs(MailSender):
             pass
 
         if not Config.is_testing():
-            if cc:  # X mailList.mails[mail]
-                fields += ("Cc", cc),
+            if email_cc:  # X mailList.mails[mail]
+                fields += ("Cc", email_cc),
 
         # load souboru k zaslani
         # attachment_contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
@@ -253,7 +276,7 @@ class MailSenderOtrs(MailSender):
         if Config.is_testing():
             print(" **** Testing info:")
             print(' ** Fields: ' + str(fields))
-            #print(' ** Files length: ', len(files))
+            # print(' ** Files length: ', len(files))
             print(' ** Cookies: ' + str(cookies))
             # str(sys.stderr)
 
@@ -268,7 +291,9 @@ class MailSenderOtrs(MailSender):
         except Exception as e:
             import traceback
             print(traceback.format_exc())
-            print("\nE-mail couldn't be send to the host {}{} with the fields {}. Are you allowed to send from this e-mail etc?".format(host, selector, fields))
+            print(
+                "\nE-mail couldn't be send to the host {}{} with the fields {}. Are you allowed to send from this e-mail etc?".format(
+                    host, selector, fields))
             input("Program now ends.")
             quit()
         if not res or not self._check_response(res.read()):
@@ -291,58 +316,15 @@ class MailSenderSmtp(MailSender):
     def stop(self):
         self.smtp.quit()
 
-    def process(self, subject, body, email_to, cc, path):
-        # base_msg = MIMEMultipart()
-        # base_msg.attach(MIMEText(body, "html", "utf-8"))
-        #
-        # if path:
-        #     attachment = MIMEApplication(path, "text/csv")
-        #     attachment.add_header("Content-Disposition", "attachment",
-        #                           filename=self.parser.attachment_name)  # XX? 'proki_{}.zip'.format(time.strftime("%Y%m%d"))
-        #     base_msg.attach(attachment)
-        # msg = base_msg
-
-        # sender = Config.get("email_from", "SMTP")
-        # recipients = [email_to]
-        # if cc and not Config.is_testing():
-        #     msg["Cc"] = cc
-        #     recipients.append[cc]
-
-        # msg["Subject"] = subject
-        # msg["From"] = Config.get("email_from_name", "SMTP")
-        # msg["To"] = email_to
-        # msg["Date"] = formatdate(localtime=True)
-        # msg["Message-ID"] = make_msgid()
-
-        # XX config.ini / email_from may not be used anymore
+    def process(self, o, email_to, email_cc, path):
         sender = Config.get("email_from_name", "SMTP")
-        o = (envelope()
-             .message(body)
-             .subject(subject)
-             .from_(sender))
+        o.from_(sender)
         o.to(email_to)
         o.smtp(self.smtp)
 
-        # XX o.reply_to()
-
         if path:
             o.attach(path, "text/csv", self.parser.attachment_name)
-        if cc and not Config.is_testing():
-            o.cc(cc)
+        if email_cc and not Config.is_testing():
+            o.cc(email_cc)
 
-        status = o.send(True)
-        if status:
-            return True
-        else:
-            # logger.error("{} → {} error: {}".format(sender, " + ".join(recipients), e)) XX get exception name
-            return False
-
-        # try:
-        #     self.smtp.sendmail(sender, recipients, msg.as_string().encode('ascii'))
-        #     # self.smtp.send_message(sender, recipients, MIMEText(message, "plain", "utf-8"))
-        # except (smtplib.SMTPSenderRefused, Exception) as e:
-        #     logger.error("{} → {} error: {}".format(sender, " + ".join(recipients), e))
-        #     # if Config.is_debug(): import ipdb; ipdb.set_trace()
-        #     return False
-        # else:
-        #     return True
+        return bool(o.send(True))

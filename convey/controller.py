@@ -21,9 +21,9 @@ from prompt_toolkit.shortcuts import clear
 from .config import Config, get_terminal_size, console_handler
 from .contacts import Contacts, Attachment
 from .decorators import PickBase, PickMethod, PickInput
-from .dialogue import Cancelled, Debugged, Menu, pick_option, ask
+from .dialogue import Cancelled, Debugged, Menu, pick_option, ask, ask_number
 from .ipc import socket_file, recv, send, daemon_pid
-from .mailSender import MailSenderOtrs, MailSenderSmtp
+from .mail_sender import MailSenderOtrs, MailSenderSmtp
 from .parser import Parser, Field
 from .types import Types, TypeGroup, types, Type, graph, methods, Aggregate, get_module_from_path
 from .wizzard import Preview, bottom_plain_style
@@ -66,7 +66,7 @@ def control_daemon(cmd, in_daemon=False):
             pid = daemon_pid()
             if pid:
                 subprocess.run(["kill", pid])
-            if Path(socket_file).exists():                
+            if Path(socket_file).exists():
                 Path(socket_file).unlink()
     if cmd == "stop":
         quit()
@@ -108,6 +108,7 @@ class BlankTrue(argparse.Action):
             raise ValueError(f"Unrecognised value {values} of {self.dest}")
         setattr(namespace, self.dest, values)
 
+
 class BlankTrueString(BlankTrue):
     """ When left blank, this flag produces True.
         Return boolean for 0/false/off/1/true/on.
@@ -116,6 +117,7 @@ class BlankTrueString(BlankTrue):
 
     def __call__(self, *args, **kwargs):
         super().__call__(*args, **kwargs, allow_string=True)
+
 
 new_fields = []
 
@@ -279,11 +281,11 @@ class Controller:
         if args.server:
             port = 26683
             print(f"Launching webserver at localhost:{port}...")
-            cmd = ["uwsgi", "--http", ":" + str(port), "--wsgi-file", Path(Path(__file__).parent,"wsgi.py")]
+            cmd = ["uwsgi", "--http", ":" + str(port), "--wsgi-file", Path(Path(__file__).parent, "wsgi.py")]
             subprocess.run(cmd)
             quit()
         if args.daemon is not None and control_daemon(args.daemon) == "server":
-            # XXX after a thousand requests, we start to slow down. Memory leak must be somewhere
+            # XX :( after a thousand requests, we start to slow down. Memory leak must be somewhere
             is_daemon = True
             Config.set("daemonize", False)  # do not restart daemon when killed, there must be a reason this daemon was killed
             if Path(socket_file).exists():
@@ -630,6 +632,7 @@ class Controller:
         return target_type
 
     def send_menu(self):
+        # choose method SMTP/OTSR
         method = "smtp"
         if self.args.csirt_incident:
             if Config.get("otrs_enabled", "OTRS"):
@@ -642,6 +645,7 @@ class Controller:
             menu.add("Send by SMTP...")
             menu.add("Send by OTRS...")
             o = menu.sout()
+            clear()
             if o == '1':
                 method = "smtp"
             elif o == '2':
@@ -657,55 +661,135 @@ class Controller:
         else:
             sender = MailSenderSmtp(self.parser)
 
-        info = ["In the next step, we connect to the server to send e-mails:"]
-        cond1 = cond2 = False
+        # sending dialog loop
         st = self.parser.stats
-        if st["abuse_count"][0]:  # XX should be equal if just split by computed column! = self.parser.stats["ispCzFound"]:
-            info.append(f" Template of a basic e-mail starts: \n\n{Contacts.mailDraft['local'].get_mail_preview()}\n")
-            cond1 = True
-        else:
-            info.append(" No non-partner e-mail in the set.")
-        if st["partner_count"][0]:  # self.parser.stats["countriesFound"]:
-            info.append(f" Template of a partner e-mail starts: \n\n{Contacts.mailDraft['foreign'].get_mail_preview()}\n")
-            cond2 = True
-        else:
-            info.append(" No partner e-mail in the set.")
+        limit = float("inf")
+        limitable = lambda max_: f"limited to: {limit}/{max_}" if limit < max_ else max_
 
-        info.append("Do you really want to send e-mails now?")
-        if Config.is_testing():
-            info.append("\n\n\n*** TESTING MOD - mails will be sent to the address: {} ***"
-                        "\n (For turning off testing mode set `testing = False` in config.ini.)".format(Config.get('testing_mail')))
-        menu = Menu("\n".join(info), callbacks=False, fullscreen=True, skippable=False)
-        if cond1 and cond2:
-            menu.add("Send both partner and other e-mails ({}×)".format(st["abuse_count"][0] + st["partner_count"][0]), key="both")
-        if cond2:
-            menu.add("Send partner e-mails ({}×)".format(st["partner_count"][0]), key="partner")
-        if cond1:
-            menu.add("Send non-partner e-mails ({}×)".format(st["abuse_count"][0]), key="basic")
-        if len(menu.menu) == 0:
-            print("No e-mails in the set. Can't send. Continue to the main menu...")
-            input()
-            return
+        while True:
+            # clear screen
+            info = []
 
-        option = menu.sout()
+            # display info
+            def display_recipients(abroad, text):
+                draft = "abroad" if abroad else "local"
+                c = st[draft]
+                if sum(c) > 0:
+                    info.append(f"{text}")
+                    if c[0]:
+                        info.append(f"Recipient list ({c[0]}/{sum(c)}): "
+                                    + ", ".join([mail for _, mail, _, _ in Attachment.get(abroad, False, 5, True)]))
+                    if c[1]:
+                        info.append(f"Already sent ({c[1]}/{sum(c)}): "
+                                    + ", ".join([mail for _, mail, _, _ in Attachment.get(abroad, True, 5, True)]))
+                    info.append(f"\n{Contacts.mail_draft[draft].get_mail_preview()}\n")
+                    return True
+                return False
 
-        self.parser.informer.sout_info()  # clear screen
-        print("\n\n\n")
+            # XX Note:
+            #   st["local"][0] should be equal if just split by computed column! = self.parser.stats["ispCzFound"]:
+            #   st["abroad"][0] == self.parser.stats["countriesFound"]:
+            seen_local = display_recipients(False, "  *** E-mail template ***")
+            seen_abroad = display_recipients(True, "  *** Abroad template ***")
 
-        if option is None:
-            return
+            if Config.is_testing():
+                info.append(f"\n\n\n*** TESTING MOD - mails will be sent to the address: {Config.get('testing_mail')} ***"
+                            f"\n (For turning off testing mode set `testing = False` in config.ini.)")
+            info.append("*" * 50)
+            sum_ = st['local'][0] + st['abroad'][0]
+            everything_sent = False
+            if sum_ <1:
+                everything_sent = True
+                info.append("All e-mails were sent.")
+            clear()
+            menu = Menu("\n".join(info), callbacks=False, fullscreen=False, skippable=False)
 
-        # XX Terms are equal: abuse == local == other == basic  What should be the universal noun? Let's invent a single word :(
-        if option == "both" or option == "basic":
-            print("Sending basic e-mails...")
-            if not sender.send_list(Attachment.get_basic(self.parser.attachments), Contacts.mailDraft["local"], method=method):
-                print("Couldn't send all abuse mails. (Details in convey.log.)")
-        if option == "both" or option == "partner":
-            print("Sending to partner mails...")
-            if not sender.send_list(Attachment.get_partner(self.parser.attachments), Contacts.mailDraft["foreign"], method=method):
-                print("Couldn't send all partner mails. (Details in convey.log.)")
+            if seen_local or seen_abroad:
+                menu.add(f"Send all e-mails ({limitable(sum_)})", key="1", default=not everything_sent)
+            if seen_local and seen_abroad:
+                menu.add(f"Send local e-mails ({limitable(st['local'][0])})", key="2")
+                menu.add(f"Send abroad e-mails ({limitable(st['abroad'][0])})", key="3")
+            if len(menu.menu) == 0:
+                print("No e-mails in the set. Can't send. Continue to the main menu...")
+                input()
+                return
 
-        input("\n\nPress enter to continue...")
+            t = f" from {limit}" if limit < float("inf") else ""
+            menu.add(f"Limit sending amount{t} to...", key="l")
+            menu.add("Edit template...", key="e")
+            menu.add("Send test e-mail to...", key="t")
+            menu.add("Choose recipients...", key="r")
+            menu.add("Go back...", key="x", default=everything_sent)
+
+            option = menu.sout()
+            if option is None:
+                return
+            # print("\n")
+
+            # sending menu processing - all, basic and abroad e-mails
+            # XX Terms are equal: abuse == local == other == basic  What should be the universal noun? Let's invent a single word :(
+            #       It will be "local". And the other one is "abroad".
+            limit_csirtmails_when_all = limit - st['local'][0]
+            if option in ("1", "2") and st['local'][0] > 0:
+                print("Sending basic e-mails...")
+                sender.send_list(Attachment.get(False, False, limit))
+            if option in ("1", "3") and st['abroad'][0] > 0:
+                # decrease the limit by the number of e-mails that was just send in basic list
+                l = {"1": limit_csirtmails_when_all, "3": limit}[option]
+                if l > 0:
+                    print("Cannot send abroad e-mails due to limit.")
+                else:
+                    print("Sending to abroad e-mails...")
+                    sender.send_list(Attachment.get(True, False, l))
+            if option in ["1", "2", "3"]:
+                input("\n\nPress Enter to continue...")
+                continue
+
+            # other menu options
+            if option == "e":
+                self.edit_mail_templates(blocking=True, local=st['local'][0], abroad=st['abroad'][0])
+            elif option == "l":
+                limit = ask_number("How many e-mails should be send at once: ")
+                if limit < 0:
+                    limit = float("inf")
+            elif option == "t":
+                t = Config.get("testing_mail")
+                t = f" – type in or hit Enter to use {t}" if t else ""
+                t = ask(f"Testing e-mail address to be sent to{t}: ").strip()
+                if not t:
+                    t = Config.get("testing_mail")
+                if not t:
+                    input("No address written. Hit Enter...")
+                    continue
+                attachments = list(Attachment.get())
+                choices = [(mail, "") for o, mail, cc, p in attachments]
+                try:
+                    el = attachments[pick_option(choices, f"What attachment should be send to {t}?")]
+                except Cancelled:
+                    continue
+                clear()
+                attachment = el[0]
+                old_testing, old_sent, attachment.sent = Config.get('testing'), attachment.sent, None
+                Config.set('testing', True)
+                Config.set('testing_mail', t)
+                sender.send_list([el])
+                Config.set('testing', old_testing)
+                input("\n\nTesting completed. Press Enter to continue...")
+                attachment.sent = old_sent
+            elif option == "r":
+                # choose recipient list
+                choices = [(mail, "", not o.sent) for o, mail, cc, p in Attachment.get()]
+                code, tags = Dialog(autowidgetsize=True).checklist("Toggle e-mails to be send", choices=choices)
+                if code != 'ok':
+                    continue
+                for attachment, mail, *_ in Attachment.get():
+                    # XX if the same address is going to receive both local and abroad template e-mail,
+                    #   this will change the status of its both e-mails.
+                    #   In the future, we'd like to have another checklist engine where item references can be passed directly.
+                    attachment.sent = mail not in tags
+                print("Changed!")
+            elif option == "x":
+                return
 
     def process(self):
         self.parser.run_analysis()
@@ -736,6 +820,15 @@ class Controller:
             print(whois.whois_response)
         input()
 
+    def edit_mail_templates(self, blocking=False, local=True, abroad=True):
+        # XX you might easily be asked whether you wish to use GUI or text editor
+        if local:
+            Contacts.mail_draft["local"].edit()
+        if abroad:
+            Contacts.mail_draft["abroad"].edit()
+        if blocking:
+            input("Hit Enter when you are done editing...")
+
     def refresh_menu(self):
         menu = Menu(title="What should be reprocessed?", fullscreen=True)
         menu.add("Rework whole file again", self.wrapper.clear)
@@ -746,8 +839,7 @@ class Controller:
         menu.add("Resolve unknown abuse-mails", self.parser.resolve_unknown)
         menu.add("Resolve invalid lines", self.parser.resolve_invalid)
         menu.add("Resolve queued lines", self.parser.resolve_queued)
-        menu.add("Edit mail texts",
-                 lambda: Contacts.mailDraft["local"].gui_edit() and Contacts.mailDraft["foreign"].gui_edit())
+        menu.add("Edit mail templates", self.edit_mail_templates())
         menu.sout()
 
     def source_new_column(self, target_type, add=None, source_field: Field = None, source_type: Type = None, custom: list = None):

@@ -41,6 +41,7 @@ Python3.6+ required.
     - [PickMethod decorator](#pickmethod-decorator)
     - [PickInput decorator](#pickinput-decorator)
 * [Web service](#web-service)
+* [Sending files](#sending-files)
 * [Examples](#examples)
   + [URL parsing](#url-parsing)
     - [Output formats](#output-formats)
@@ -171,7 +172,7 @@ Some of the field types we are able to compute:
 * **asn** – got from whois
 * **base64** – encode/decode
 * **country** – country code from whois
-* **csirt-contact** – e-mail address corresponding with country code, taken from your personal contacts_foreign CSV in the format `country,abusemail`. Path to this file has to be specified in `config.ini » contacts_foreign`
+* **csirt-contact** – e-mail address corresponding with country code, taken from your personal contacts_abroad CSV in the format `country,abusemail`. Path to this file has to be specified in `config.ini » contacts_abroad`
 * **external** – you specify method in a custom .py file that receives the field and generates the value for you, see below
 * **hostname** – domain from url
 * **incident-contact** – if the IP comes from local country (specified in `config.ini » local_country`) the field gets *abusemail*, otherwise we get *country*. When splitting by this field, convey is subsequently able to send the split files to local abuse and foreign csirt contacts 
@@ -341,6 +342,46 @@ Access: `curl http://localhost:26683?q=hello&type=country&field=reg_s,l,L`
 ```json
 {"reg_s": "heLLo"}
 ```
+
+## Sending files
+
+When you split the CSV file into chunks by an e-mail, generated files may be sent to these addresses. Look at the example of an unlocked "send" menu below. You see the list of the recipients, followed by a conditional list of recipients that have been already sent to. Next, an exact e-mail message is printed out, including headers. 
+
+In the menu, you may either:
+ * **Send** the e-mails
+ * **Limit** the messages that are being send at once; if you are not 100 % sure you want to send the the whole message bucket at once.
+ * **Edit** the template. The message file will open either in the default GUI or terminal editor. The first line of the template should be `Subject: ...`, followed by a free line. Note that you may include any e-mail headers, such as `Reply-To: ...`, `Cc: ...`, etc. The e-mail will reflect all of them. You may write the message either in plain text or in the HTML.
+ * **Test** sending a message to your own address. You'll be prompted which of the messages should be delivered to you.
+ * **Choose** which recipients in a checkbox list will receive the message. 
+
+```bash
+  *** E-mail template ***
+Recipient list (1/3): alice@example.com
+Already sent (2/3): bob@example.com, cilia@example.com
+
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+Subject: My subject
+From: me@example.com
+Date: Fri, 17 Jan 2020 01:36:28 +0100
+
+Hello,
+
+this is my testing message.
+
+Keen regards
+
+**************************************************
+1) Send all e-mails (1) ←←←←←
+l) Limit sending amount to...
+e) Edit template...
+t) Send test e-mail to...
+r) Choose recipients...
+x) Go back...
+? 
+```
+
 ## Examples
 
 In the examples, we will use these parameters to add a field and to shorten the result. 

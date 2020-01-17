@@ -95,7 +95,7 @@ optional arguments:
                         * abusemail (Abuse e-mail contact from whois)
                         * asn (Autonomous system number) usual names: as, asn, asnumber
                         * country
-                        * csirt_contact (E-mail address corresponding with country code, taken from your personal contacts_foreign CSV in the format `country,abusemail`. See config.ini/contacts_foreign)
+                        * csirt_contact (E-mail address corresponding with country code, taken from your personal contacts_abroad CSV in the format `country,abusemail`. See config.ini/contacts_abroad)
                         * incident_contact
                         * netname
                         * prefix

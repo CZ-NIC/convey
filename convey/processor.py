@@ -82,6 +82,8 @@ class Processor:
             reader = csvreader(source_stream, dialect=parser.dialect)
             if parser.has_header:  # skip header
                 reader.__next__()
+
+            # XX if not threads:
             for row in reader:
                 if not row:  # skip blank
                     continue
@@ -127,6 +129,7 @@ class Processor:
                         parser.line_count -= 1  # let's pretend we didn't just do this row before and give it a second chance
                         self.process_line(parser, row, settings)
 
+            # after processing changes
             if settings["aggregate"]:  # write aggregation results now because we skipped it in process_line when aggregating
                 for location, data in self.parser.aggregation.items():
                     if location is 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
@@ -139,7 +142,6 @@ class Processor:
                         if len(self.parser.aggregation) > 1:
                             print("\nSplit location: " + location)
                     v = self.parser.informer.get_aggregation(data)
-                    #print(v)
                     t.write(v)
         finally:
             if not stdin:
@@ -169,8 +171,7 @@ class Processor:
             for f in self.files_created:
                 if f not in attch and f != Config.INVALID_NAME:
                     # set that a mail with this attachment have not yet been sent
-                    self.parser.attachments.append(Attachment(None, None, f))
-            Attachment.refresh_attachment_stats(self.parser)
+                    self.parser.attachments.append(Attachment(f))
 
     def _close_descriptors(self):
         """ Descriptors have to be closed (flushed) """

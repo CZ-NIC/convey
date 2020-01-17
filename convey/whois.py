@@ -77,17 +77,16 @@ class Whois:
         """
         self.ip = ip
         self.whois_response = []
-        if not Whois.unknown_mode:
-            prefix = self.cache_load()  # try load prefix from earlier WHOIS responses
-            if prefix:
-                if self.ttl != -1 and self.get[7] + self.ttl < time():
-                    # the TTL is too old, we cannot guarantee IP stayed in the same prefix, let's get rid of the old results
-                    del self.ip_seen[ip]
-                    del self.ranges[prefix]
-                    self.get = None
-                else:
-                    self.count_stats()
-                    return
+        prefix = self.cache_load()  # try load prefix from earlier WHOIS responses
+        if prefix:
+            if self.ttl != -1 and self.get[7] + self.ttl < time():
+                # the TTL is too old, we cannot guarantee IP stayed in the same prefix, let's get rid of the old results
+                del self.ip_seen[ip]
+                del self.ranges[prefix]
+                self.get = None
+            else:
+                self.count_stats()
+                return
 
         if self.see:
             print(f"Whois {ip}... ", end="", flush=True)
@@ -133,7 +132,7 @@ class Whois:
                 self.csvstats["ispCzFound"].add(mail)
         else:
             country = self.get[5]
-            if country not in Contacts.csirtmails:
+            if country not in Contacts.country2mail:
                 # XX this info is wanted if incident-contact (abusemail OR csirtmail) being fetched. But if only abusemail needed,
                 # we do not want to know this info. A the user gets confused
                 # with "no contact for XY countries without national/goverment CSIRT" printed in informer/statistics.
@@ -217,7 +216,7 @@ class Whois:
 
     def analyze(self):
         """
-        :return: prefix, "local"|"foreign", incident-contact ( = abuse-mail|country), asn, netname, country, abuse-mail, TTL
+        :return: prefix, "local"|"abroad", incident-contact ( = abuse-mail|country), asn, netname, country, abuse-mail, TTL
         """
         prefix = country = ""
 
@@ -312,12 +311,14 @@ class Whois:
         if match:
             prefix = self._str2prefix(match)
 
+        if Whois.unknown_mode and not self.get_abusemail():
+            self.resolve_unknown_mail()
+
+        ab = self.get_abusemail()
         if country not in Config.get("local_country", "FIELDS"):
-            return prefix, "foreign", country, asn, netname, country, self.get_abusemail(), int(time())
+            mail = Contacts.country2mail[country] if country in Contacts.country2mail else ab
+            return prefix, "abroad", Config.ABROAD_PREFIX + mail, asn, netname, country, ab, int(time())
         else:
-            if Whois.unknown_mode:
-                self.resolve_unknown_mail()
-            ab = self.get_abusemail()
             return prefix, "local", ab, asn, netname, country, ab, int(time())
 
     def _load_country_from_addresses(self):
