@@ -174,7 +174,7 @@ class Wrapper:
     # Store
     def save(self, last_chance=False):
         # chance to save the original file to the disk if reading from STDIN
-        if not self.cache_file and (self.parser.stdout or self.parser.is_formatted):
+        if not self.cache_file and ((self.parser.stdout is not True and self.parser.stdout) or self.parser.is_formatted):
             # * cache_file does not exist = we have not written anything on the disk
             # * target_file exist = there is a destination to write (when splitting, no target_file specified)
             #       XX which may be changed because it is usual to preserve file
@@ -198,7 +198,11 @@ class Wrapper:
                     self.parser.is_split = False
                     self.parser.is_analyzed = False
                 self.parser.source_file = target_file
-                target_file.write_text(self.parser.stdout or linesep.join(self.parser.stdin))
+                if self.parser.stdout is True:
+                    # case: input has been processed and returned an empty result, ex: all rows filtered out
+                    target_file.write_text("")
+                else:  # XX I do not understand when we save self.parser.stdin
+                    target_file.write_text(self.parser.stdout or linesep.join(self.parser.stdin))
                 self.parser.stdin = None
                 self.assure_cache_file(target_file)
             if self.parser.target_file:

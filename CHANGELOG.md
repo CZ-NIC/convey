@@ -38,6 +38,7 @@
     - daemon pipes stderr as well
     - got rid of python-Levenshtein package and did not use psutil package so installing whole gcc is not needed anymore
     - after resetting settings fields keep their auto-detection information
+    - tests
 * sending: huge improvement of the interface
     - SMTP sending uses the envelope library
     - keyword {ATTACHMENT} makes the attachment contents become the part of the body (and the file is no more attached)
