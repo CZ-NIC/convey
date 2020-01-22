@@ -1,6 +1,5 @@
 import io
 import logging
-import operator
 import traceback
 from bdb import BdbQuit
 from collections import defaultdict
@@ -8,6 +7,7 @@ from csv import reader as csvreader, writer as csvwriter
 from datetime import datetime
 from functools import reduce
 from math import ceil
+from operator import eq, ne, mul
 from pathlib import Path
 from typing import Dict
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def prod(iterable):  # XX as of Python3.8, replace with math.prod
-    return reduce(operator.mul, iterable, 1)
+    return reduce(mul, iterable, 1)
 
 
 class Processor:
@@ -191,9 +191,9 @@ class Processor:
 
                 # add fields
                 list_lengths = []
-                for col in settings["addByMethod"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
-                    val = fields[col[1]]
-                    for l in col[2]:
+                for col_i in settings["addByMethod"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
+                    val = fields[col_i[1]]
+                    for l in col_i[2]:
                         if isinstance(val, list):
                             # resolve all items, while flattening any list encountered
                             val = [y for x in (l(v) for v in val) for y in (x if type(x) is list else [x])]
@@ -210,16 +210,16 @@ class Processor:
                         # if we received empty list, row is invalid
                         # ex: missing IP of a hostname
                         if not fields[i]:
-                            raise RuntimeWarning(f"Column {i+1} invalid")
+                            raise RuntimeWarning(f"Column {i + 1} invalid")
                         fields[i] *= row_count // len(fields[i])
                     it = zip(*fields)
                     fields = it.__next__()  # now we are sure fields has only scalar values
                     for v in it:  # duplicate row because one of lambdas produced a multiple value list
                         self.process_line(parser, line, settings, v)  # new row with scalar values only
 
-            # inclusive filter
-            for f in settings["filter"]:  # list of tuples (col, value): [(23, "passed-value"), (13, "another-value")]
-                if f[1] != fields[f[0]]:
+            # filter (include, col, value), ex: [(True, 23, "passed-value"), (False, 13, "another-value")]
+            for include, col_i, val in settings["filter"]:
+                if (ne if include else eq)(val, fields[col_i]):
                     return False
 
             # unique columns

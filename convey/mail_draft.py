@@ -61,4 +61,4 @@ class MailDraft:
             editor = run(["xdg-mime", "query", "default", "text/plain"], stdout=PIPE).stdout.split()[0]  # run: blocking, output
             Popen(["gtk-launch", editor, self.mail_file], stdout=PIPE, stderr=PIPE)  # Popen: non blocking
         else:
-            call(["editor", self.mail_file]) # call: blocking, no output
+            call(["editor", self.mail_file])  # call: blocking, no output

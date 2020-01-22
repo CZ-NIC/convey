@@ -10,4 +10,6 @@
 /dist/
 /convey.egg-info/
 /config.ini
-convey.log
+*/convey.log
+/tests/**
+!/tests/*

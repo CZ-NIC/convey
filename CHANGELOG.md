@@ -33,6 +33,7 @@
 * interface
     - nicer output when processing from STDIN
     - aggregation more human readable
+    - exclude filter + filter menu (composed from unique, exclude and include filter)
 * internal
     - daemon pipes stderr as well
     - got rid of python-Levenshtein package and did not use psutil package so installing whole gcc is not needed anymore

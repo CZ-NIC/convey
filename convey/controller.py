@@ -208,7 +208,13 @@ class Controller:
         parser.add_argument('--split', help="Split by this COLUMN.",
                             metavar="COLUMN")
         parser.add_argument('-s', '--sort', help="List of columns.",
-                            metavar="[COLUMN],...")
+                            metavar="COLUMN,...")
+        parser.add_argument('-u', '--unique', help="Cast unique filter on this COLUMN.",
+                            metavar="COLUMN,VALUE")
+        parser.add_argument('-ef', '--exclude-filter', help="Filter include this COLUMN by a VALUE.",
+                            metavar="COLUMN,VALUE")
+        parser.add_argument('-if', '--include-filter', help="Filter include this COLUMN by a VALUE.",
+                            metavar="COLUMN,VALUE")
         parser.add_argument('-a', '--aggregate', help="R|Aggregate"
                                                       "\nEx: --aggregate 2,sum # will sum the second column"
                                                       "\nEx: --aggregate 2,sum,3,avg # will sum the second column and average the third"
@@ -425,6 +431,10 @@ class Controller:
                                        args.delete_whois_cache)
                 self.parser: Parser = self.wrapper.parser
 
+                def get_column_i(col, check):
+                    self.parser.is_processable = True
+                    return self.parser.identifier.get_column_i(col, check=check)
+
                 # load flags
                 for flag in csv_flags:
                     if args.__dict__[flag[0]]:
@@ -434,8 +444,7 @@ class Controller:
                 # prepare some columns to be removed
                 if args.delete:
                     for c in args.delete.split(","):
-                        self.parser.fields[self.parser.identifier.get_column_i(c, check="to be deleted")].is_chosen = False
-                    self.parser.is_processable = True
+                        self.parser.fields[get_column_i(c, "to be deleted")].is_chosen = False
 
                 # append new fields from CLI
                 for add, task in new_fields:
@@ -456,7 +465,7 @@ class Controller:
 
                 if args.aggregate:
                     params = [x for x in csv.reader([args.aggregate])][0]
-                    group = self.parser.identifier.get_column_i(params.pop(), check="to be grouped by") if len(params) % 2 else None
+                    group = get_column_i(params.pop(), "to be grouped by") if len(params) % 2 else None
                     l = []
                     if not params:
                         l.append([Aggregate.count, group])
@@ -466,7 +475,7 @@ class Controller:
                             fn = getattr(Aggregate, fn, None)
                             if not fn:
                                 logger.error(f"Unknown aggregate function {fn}. Possible functions are: {aggregate_functions_str}")
-                            column = self.parser.identifier.get_column_i(column, check="to be aggregated with")
+                            column = get_column_i(column, "to be aggregated with")
                             l.append([fn, column])
 
                             if fn == Aggregate.count:
@@ -477,15 +486,24 @@ class Controller:
                                                  f" as the grouping column {self.parser.fields[group].name}")
                                     quit()
                     self.parser.settings["aggregate"] = group, l
-                    self.parser.is_processable = True
 
                 if args.sort:
                     self.parser.resort(list(csv.reader([args.sort]))[0])
                     self.parser.is_processable = True
 
                 if args.split:
-                    self.parser.settings["split"] = self.parser.identifier.get_column_i(args.split, check="to be split with")
-                    self.parser.is_processable = True
+                    self.parser.settings["split"] = get_column_i(args.split, "to be split with")
+
+                if args.include_filter:
+                    col, val = [x for x in csv.reader([args.include_filter])][0]
+                    self.add_filtering(True, get_column_i(col, "to be filtered with"), val)
+
+                if args.exclude_filter:
+                    col, val = [x for x in csv.reader([args.exclude_filter])][0]
+                    self.add_filtering(False, get_column_i(col, "to be filtered with"), val)
+
+                if args.unique:
+                    self.add_uniquing(get_column_i(args.unique, "to be put a single time"))
 
                 # start csirt-incident macro XX deprecated
                 if args.csirt_incident and not self.parser.is_analyzed:
@@ -534,8 +552,7 @@ class Controller:
             menu = Menu(title="Main menu - how the file should be processed?")
             menu.add("Pick or delete columns", self.choose_cols)
             menu.add("Add a column", self.add_column)
-            menu.add("Unique filter", self.add_uniquing)
-            menu.add("Value filter", self.add_filtering)
+            menu.add("Filter", self.add_filter)
             menu.add("Split by a column", self.add_splitting)
             menu.add("Change CSV dialect", self.add_dialect)
             menu.add("Aggregate", self.add_aggregation)
@@ -1016,10 +1033,20 @@ class Controller:
             self.source_new_column(Types.get_computable_types()[target_type_i], add=add)
         return col_i
 
-    def add_filtering(self):
-        col_i = self.select_col("filter")
-        val = ask("What value should the field have to keep the line?")
-        self.parser.settings["filter"].append((col_i, val))
+    def add_filter(self):
+        menu = Menu(title="Choose a filter")
+        menu.add("Unique filter", self.add_uniquing)
+        menu.add("Include filter", self.add_filtering)
+        menu.add("Exclude filter", lambda: self.add_filtering(False))
+        menu.sout()
+
+    def add_filtering(self, include=True, col_i=None, val=None):
+        if col_i is None:
+            col_i = self.select_col("filter")
+        if val is None:
+            s = "" if include else "not "
+            val = ask(f"What value must {s}the field have to keep the line?")
+        self.parser.settings["filter"].append((include, col_i, val))
         self.parser.is_processable = True
 
     def add_splitting(self):
@@ -1078,8 +1105,9 @@ class Controller:
         self.select_col("New column", only_computables=True, add=True)
         self.parser.is_processable = True
 
-    def add_uniquing(self):
-        col_i = self.select_col("unique")
+    def add_uniquing(self, col_i=None):
+        if col_i is None:
+            col_i = self.select_col("unique")
         self.parser.settings["unique"].append(col_i)
         self.parser.is_processable = True
 
@@ -1106,8 +1134,8 @@ class Controller:
              '  prev="${COMP_WORDS[COMP_CWORD-1]}";',
              '  cmd=( ${COMP_WORDS[@]} )',
              '',
-             '  if [[ "$prev" == -f ]] || [[ "$prev" == --field ]] || [[ "$prev" == -fe ]] ||' +
-             ' [[ "$prev" == --field-excluded ]]; then',
+             '  if [[ "$prev" == -f ]] || [[ "$prev" == --field ]] ||' +
+             '  [[ "$prev" == -fe ]] || [[ "$prev" == --field-excluded ]]; then',
              f'        COMPREPLY=( $( compgen -W "{" ".join(t.name for t in Types.get_computable_types())}"  -- "$cur" ) )',
              '        return 0',
              '    fi',

@@ -9,6 +9,7 @@ from collections import defaultdict
 from itertools import zip_longest
 from json import dumps
 from math import ceil, inf
+from operator import eq, ne
 from pathlib import Path
 from shutil import move
 from typing import List
@@ -721,18 +722,37 @@ class Parser:
                 self.fields[(f.col_i + direction) % len(self.fields)].is_selected = True
 
     def get_sample_values(self):
+        settings = self.settings
+        unique_sets = defaultdict(set)
+
         rows = []  # nice table formatting
         full_rows = []  # formatting that optically matches the Sample above
-        for l in self.sample_parsed:
+        for line in self.sample_parsed:
             row = []
-            full_row = []
-            for f, c in zip_longest(self.fields, l):
-                if c is None:
-                    c = f.compute_preview(l)
-                row.append(f.color(c, True))
-                full_row.append(f.color(c))
-            rows.append(row)
-            full_rows.append(full_row)
+            for field, cell in zip_longest(self.fields, line):
+                if cell is None:
+                    cell = field.compute_preview(line)
+                row.append((cell, field))
+
+            # check if current line is filtered out
+            line_chosen = True
+            for include, col_i, val in settings["filter"]:  # (include, col, value), ex: [(True, 23, "passed-value"), ...]
+                if (ne if include else eq)(val, row[col_i][0]):
+                    line_chosen = False
+
+            if settings["unique"]:  # unique columns
+                for col_i in settings["unique"]:  # list of uniqued columns [2, 3, 5, ...]
+                    if row[col_i][0] in unique_sets[col_i]:  # skip line
+                        line_chosen = False
+                        break
+                else:  # do not skip line
+                    for col_i in settings["unique"]:
+                        unique_sets[col_i].add(row[col_i][0])
+
+            # colorize the line
+            g = lambda short: (field.color(cell, short, line_chosen) for cell, field in row)
+            rows.append([*g(True)])
+            full_rows.append([*g(False)])
         return full_rows, rows
 
     def __getstate__(self):
@@ -823,13 +843,13 @@ class Field:
         if val:
             self.possible_types[val] = 100
 
-    def color(self, v, shorten=False):
+    def color(self, v, shorten=False, line_chosen=True):
         """ Colorize single line of a value. Strikes it if field is not chosen. """
         v = str(v)  # ex: Types.http_status returns int
         if shorten:
             v = v[:17] + "..." if len(v) > 20 else v
         l = []
-        if not self.is_chosen:
+        if not self.is_chosen or not line_chosen:
             l.append("9")  # strike
         if self.is_selected:
             l.append("7")  # bold

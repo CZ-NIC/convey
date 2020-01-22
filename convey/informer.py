@@ -39,7 +39,8 @@ class Informer:
         if self.parser.has_header is not None:
             l.append("header: " + ("used" if self.parser.has_header else "not used"))
         if self.parser.settings["filter"]:
-            l.append("Filter: " + ", ".join([f"{self.parser.fields[f].name}({val})" for f, val in self.parser.settings["filter"]]))
+            l.append("Filter: " + ", ".join([f"{self.parser.fields[f].name} {'' if include else '!'}= {val}"
+                                             for include, f, val in self.parser.settings["filter"]]))
         if self.parser.settings["unique"]:
             l.append("Unique col: " + ", ".join([self.parser.fields[f].name for f in self.parser.settings["unique"]]))
         if self.parser.settings["split"]:
