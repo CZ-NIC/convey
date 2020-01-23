@@ -2,7 +2,9 @@
 from pathlib import Path
 from subprocess import call, Popen, PIPE, run
 
+from colorama import Fore
 from envelope import envelope
+
 from .config import Config, get_path
 
 
@@ -13,8 +15,11 @@ class MailDraft:
         self.mail_file = Path(Config.get_cache_dir(), filename)
 
     def get_mail_preview(self) -> str:
-        return "\n".join(str(self.get_envelope()).splitlines()[:20])
-        # return (self.get_subject() + ": " + self.get_body()[0:50] + "... ").replace("\n", " ").replace("\r", " ")
+        l = str(self.get_envelope()).splitlines()
+        s = "\n".join(l[:40])
+        if len(l) > 40:
+            s += "\n..."
+        return Fore.CYAN + s + Fore.RESET
 
     def edit_text(self):
         if input("Do you wish to open GUI for editing? [y]/n ").lower() in ("y", ""):
@@ -41,7 +46,12 @@ class MailDraft:
             return self.edit_text()
         e = (envelope
              .load(self.text)
-             .from_(Config.get("email_from_name", "SMTP")))
+             # .from_(Config.get("email_from_name", "SMTP")))
+
+             # KDYZ to XXX sem napíšu, tak zmizí hlavičky XXXXXXXXXXx
+             .signature("auto"))
+        if not e._sender:  # XX this should be a publicly exposed method (and internal ._sender may change to ._from in the future)
+            e.from_(Config.get("email_from_name", "SMTP"))
         if not e._message or not e._message.strip():
             print("Missing body text. Try writing 'Subject: text', followed by a newline a text.")
             self.text = False

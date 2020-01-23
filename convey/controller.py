@@ -14,6 +14,7 @@ from sys import exit
 
 import pkg_resources
 from dialog import Dialog, DialogError
+from colorama import init as colorama_init
 from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
@@ -346,6 +347,7 @@ class Controller:
             see_menu = False
             args.yes = True
 
+        colorama_init()
         while True:
             try:
                 if is_daemon:
@@ -850,6 +852,8 @@ class Controller:
             Contacts.mail_draft["local"].edit()
         if abroad:
             Contacts.mail_draft["abroad"].edit()
+        if not (local or abroad):
+            print("Neither local nor abroad e-mails are to be sent, no editor was opened.")
         if blocking:
             input("Hit Enter when you are done editing...")
 

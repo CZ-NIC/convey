@@ -6,7 +6,7 @@ python:
   #- 3.8
 before_install:
   - sudo apt update
-  - sudo apt install swig  # needed to install M2Crypto on bionic
+  - sudo apt install swig  # envelope: needed to install M2Crypto on bionic
 script:
   - echo $PWD
   - ls

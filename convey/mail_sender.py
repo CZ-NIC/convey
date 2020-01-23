@@ -321,15 +321,14 @@ class MailSenderSmtp(MailSender):
     def stop(self):
         self.smtp.quit()
 
-    def process(self, o, email_to, email_cc, path):
+    def process(self, e: envelope, email_to, email_cc, path):
         sender = Config.get("email_from_name", "SMTP")
-        o.from_(sender)
-        o.to(email_to)
-        o.smtp(self.smtp)
+        e.to(email_to)
+        e.smtp(self.smtp)
 
         if path:
-            o.attach(path, "text/csv", self.parser.attachment_name)
+            e.attach(path, "text/csv", self.parser.attachment_name)
         if email_cc:
-            o.cc(email_cc)
+            e.cc(email_cc)
 
-        return bool(o.send(True))
+        return bool(e.send(True))
