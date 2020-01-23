@@ -1,19 +1,21 @@
 This is the output of the `--help` command.
 ```
-usage: convey [-h] [--debug] [-F] [-R] [-y] [--file] [-i]
+usage: convey [-h] [--debug [blank/false]] [--testing [blank/false]] [-F] [-R]
+              [-v] [-q] [-y] [-H] [--send [[blank/smtp/otrs]]] [--file] [-i]
               [-o [[blank/FILENAME]]] [--delimiter DELIMITER]
               [--quote-char QUOTE_CHAR] [--header] [--no-header]
-              [-d COLUMN,[COLUMN]] [-v] [-q]
+              [-d COLUMN,[COLUMN]]
               [-f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
               [-fe FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
-              [-t [TYPE],...] [--split COLUMN] [-s [COLUMN],...]
+              [-t [TYPE],...] [--split COLUMN] [-s COLUMN,...]
+              [-u COLUMN,VALUE] [-ef COLUMN,VALUE] [-if COLUMN,VALUE]
               [-a [COLUMN, FUNCTION], ..., [group-by-COLUMN]]
               [--otrs_id OTRS_ID] [--otrs_num OTRS_NUM]
               [--otrs_cookie OTRS_COOKIE] [--otrs_token OTRS_TOKEN]
               [--csirt-incident] [--whois [blank/false]]
               [--nmap [blank/false]] [--dig [blank/false]]
               [--web [blank/false]] [--disable-external] [--json]
-              [--config [1 terminal|2 GUI|3 both by default]] [-H]
+              [--config [1 terminal|2 GUI|3 both by default]]
               [--user-agent USER_AGENT] [-S] [--single-detect] [-C]
               [--multiple-hostname-ip [blank/false]]
               [--multiple-cidr-ip [blank/false]] [--whois-ttl SECONDS]
@@ -31,14 +33,26 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  --debug               On error, enter a pdb session
+  --debug [blank/false]
+                        On error, enter a pdb session
+  --testing [blank/false]
+                        Do not be afraid, e-mail messages will not be sent.
+                        They will get forwarded to the testing e-mail (and
+                        e-mails in Cc will not be sent at all)
   -F, --fresh           Do not attempt to load any previous settings /
                         results. Do not load convey's global WHOIS cache. (But
                         merge WHOIS results in there afterwards.)
   -R, --reprocess       Do not attempt to load any previous settings /
                         results. But load convey's global WHOIS cache.
+  -v, --verbose         Sets the verbosity to see DEBUG messages.
+  -q, --quiet           Sets the verbosity to see WARNINGs and ERRORs only. Prints out the least information possible.
+                        (Ex: if checking single value outputs a single word, prints out just that.)
   -y, --yes             Assume non-interactive mode and the default answer to
                         questions.
+  -H, --headless        Launch program in a headless mode which imposes --yes
+                        and --quiet. No menu is shown.
+  --send [[blank/smtp/otrs]]
+                        Automatically send e-mails when split; imposes --yes.
   --file                Treat <file_or_input> parameter as a file, never as an
                         input
   -i, --input           Treat <file_or_input> parameter as an input text, not
@@ -57,9 +71,6 @@ optional arguments:
                         Delete a column. You may comma separate multiple
                         columns.COLUMN is ID the column (1, 2, 3...), the
                         exact column name, field type name or its usual name.
-  -v, --verbose         Sets the verbosity to see DEBUG messages.
-  -q, --quiet           Sets the verbosity to see WARNINGs and ERRORs only. Prints out the least information possible.
-                        (Ex: if checking single value outputs a single word, prints out just that.)
   -f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM], --field FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]
                         Compute field.
                         * FIELD is a field type (see below) that may be appended with a [CUSTOM] in square brackets.
@@ -128,8 +139,14 @@ optional arguments:
                         Determine column type(s).
                         Ex: --type country,,phone # 1st column is country, 2nd unspecified, 3rd is phone
   --split COLUMN        Split by this COLUMN.
-  -s [COLUMN],..., --sort [COLUMN],...
+  -s COLUMN,..., --sort COLUMN,...
                         List of columns.
+  -u COLUMN,VALUE, --unique COLUMN,VALUE
+                        Cast unique filter on this COLUMN.
+  -ef COLUMN,VALUE, --exclude-filter COLUMN,VALUE
+                        Filter include this COLUMN by a VALUE.
+  -if COLUMN,VALUE, --include-filter COLUMN,VALUE
+                        Filter include this COLUMN by a VALUE.
   -a [COLUMN, FUNCTION], ..., [group-by-COLUMN], --aggregate [COLUMN, FUNCTION], ..., [group-by-COLUMN]
                         Aggregate
                         Ex: --aggregate 2,sum # will sum the second column
@@ -168,8 +185,6 @@ optional arguments:
   --config [1 terminal|2 GUI|3 both by default]
                         Open config file and exit. (GUI over terminal editor
                         preferred and tried first.)
-  -H, --headless        Launch program in a headless mode which imposes --yes
-                        and --quiet. No menu is shown.
   --user-agent USER_AGENT
                         Change user agent to be used when scraping a URL
   -S, --single-query    Consider the input as a single value, not a CSV.

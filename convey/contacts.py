@@ -70,7 +70,7 @@ class Attachment:
                 continue
             if limit == 0:
                 if threedots:
-                    yield SimpleNamespace(mail="...")  # XXXNone, "...", None, None
+                    yield SimpleNamespace(mail="...")
                 return
             else:
                 limit -= 1

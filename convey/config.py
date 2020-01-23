@@ -60,9 +60,13 @@ def get_path(file):
     if not exists or not Path(file).exists():
         # create INI file at user config folder or at program directory
         program_path = Path(sys.argv[0]).parent.resolve()
-        if input(f"It seems this is a first run, since file {file} haven't been found."
-                 f"\nShould we create default config files at user config folder ({config_dir})?"
-                 f" Otherwise, they'll be created at program folder: {program_path} [Y/n] ") in ["", "Y", "y"]:
+        # this is before Config file is load, we have to parse sys.argv directly
+        yes = any(x in sys.argv for x in ['-y', '--yes', '-H', '--headless'])
+        if not yes:
+            yes = input(f"It seems this is a first run, since file {file} haven't been found."
+                        f"\nShould we create default config files at user config folder ({config_dir})?"
+                        f" Otherwise, they'll be created at program folder: {program_path} [Y/n] ") in ["", "Y", "y"]
+        if yes:
             Path(config_dir).mkdir(parents=True, exist_ok=True)
         else:
             config_dir = program_path

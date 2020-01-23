@@ -1,6 +1,6 @@
 # Convey
 
-<!-- [![Build Status](https://travis-ci.org/CZ-NIC/convey.svg?branch=master)](https://travis-ci.org/CZ-NIC/convey)-->
+[![Build Status](https://travis-ci.org/CZ-NIC/convey.svg?branch=master)](https://travis-ci.org/CZ-NIC/convey)
 
 Swiss knife for mutual conversion of the web related data types, like `base64` or outputs of the programs `whois`, `dig`, `curl`.
 Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.
@@ -12,11 +12,10 @@ Any input is accepted:
 * **CSV file** (any delimiter, header or whatever) performs one or more actions
     1) **Pick, delete or sort columns** (if only some columns are needed)
     2) **Add a column** (computes one field from another – see below)
-    3) **Unique filter** (no value duplicates)
-    4) **Value filter** (only rows with a specific values are preserved)
-    5) **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
-    6) **Change CSV dialect** (change delimiter or quoting character)
-    7) **Aggregate** (count grouped by a column, sum...)
+    3) **Filter** (keep/discard rows with specific values, no duplicates)    
+    4) **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
+    5) **Change CSV dialect** (change delimiter or quoting character)
+    6) **Aggregate** (count grouped by a column, sum...)
 
 Python3.6+ required.
 
@@ -44,6 +43,7 @@ Python3.6+ required.
     - [PickInput decorator](#pickinput-decorator)
 * [Web service](#web-service)
 * [Sending files](#sending-files)
+  + [Arbitrary e-mail headers, "From" header, GPG signing](#arbitrary-e-mail-headers---from--header--gpg-signing)
 * [Examples](#examples)
   + [URL parsing](#url-parsing)
     - [Output formats](#output-formats)
@@ -385,6 +385,11 @@ x) Go back...
 ? 
 ```
 
+### Arbitrary e-mail headers, "From" header, GPG signing
+In the template, you may specify any e-mail header, such as `Reply-To`, `Cc` or `From`. If `From` is not found, we take `SMTP/email_from_name` config value. If `gnupg` home is found on the default user path, we check if there is a secret key matching the `From` header and if found, e-mail will be GPG-signed. If it is going to be signed, you would see something like `Content-Type: multipart/signed; protocol="application/pgp-signature";` header in the e-mail template preview.
+ 
+
+
 ## Examples
 
 In the examples, we will use these parameters to add a field and to shorten the result. 
@@ -540,10 +545,10 @@ example.com      93.184.216.0/24
 Main menu - how the file should be processed?
 1) Pick or delete columns
 2) Add a column
-3) Unique filter
-4) Value filter
-5) Split by a column
-6) Change CSV dialect
+3) Filter
+4) Split by a column
+5) Change CSV dialect
+6) Aggregate
 p) process ←←←←←
 ~) send (split first)
 ~) show all details (process first)

@@ -13,8 +13,8 @@ from pathlib import Path
 from sys import exit
 
 import pkg_resources
-from dialog import Dialog, DialogError
 from colorama import init as colorama_init
+from dialog import Dialog, DialogError
 from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
@@ -113,7 +113,7 @@ class BlankTrue(argparse.Action):
 class BlankTrueString(BlankTrue):
     """ When left blank, this flag produces True.
         Return boolean for 0/false/off/1/true/on.
-        Else returns input value (or None) if flag omitted.
+        Else returns input value or None if flag omitted.
     """
 
     def __call__(self, *args, **kwargs):
@@ -166,8 +166,18 @@ class Controller:
                                                   " (But merge WHOIS results in there afterwards.)", action="store_true")
         parser.add_argument('-R', '--reprocess', help="Do not attempt to load any previous settings / results."
                                                       " But load convey's global WHOIS cache.", action="store_true")
+        parser.add_argument('-v', '--verbose', help="Sets the verbosity to see DEBUG messages.", action="store_true")
+        parser.add_argument('-q', '--quiet', help="R|Sets the verbosity to see WARNINGs and ERRORs only."
+                                                  " Prints out the least information possible."
+                                                  "\n(Ex: if checking single value outputs a single word, prints out just that.)",
+                            action="store_true")
         parser.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions.",
                             action="store_true")
+        parser.add_argument('-H', '--headless',
+                            help="Launch program in a headless mode which imposes --yes and --quiet. No menu is shown.",
+                            action="store_true")
+        parser.add_argument('--send', help="Automatically send e-mails when split; imposes --yes.",
+                            action=BlankTrueString, nargs="?", metavar="[blank/smtp/otrs]")
         parser.add_argument('--file', help="Treat <file_or_input> parameter as a file, never as an input",
                             action="store_true")
         parser.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
@@ -182,11 +192,6 @@ class Controller:
         parser.add_argument('--no-header', help="Treat file as not having header", action="store_true")
         parser.add_argument('-d', '--delete', help="Delete a column. You may comma separate multiple columns." + column_help,
                             metavar="COLUMN,[COLUMN]")
-        parser.add_argument('-v', '--verbose', help="Sets the verbosity to see DEBUG messages.", action="store_true")
-        parser.add_argument('-q', '--quiet', help="R|Sets the verbosity to see WARNINGs and ERRORs only."
-                                                  " Prints out the least information possible."
-                                                  "\n(Ex: if checking single value outputs a single word, prints out just that.)",
-                            action="store_true")
         parser.add_argument('-f', '--field',
                             help="R|Compute field."
                                  "\n* FIELD is a field type (see below) that may be appended with a [CUSTOM] in square brackets."
@@ -250,9 +255,6 @@ class Controller:
         parser.add_argument('--config', help="Open config file and exit."
                                              " (GUI over terminal editor preferred and tried first.)",
                             type=int, const=3, nargs='?', metavar="1 terminal|2 GUI|3 both by default")
-        parser.add_argument('-H', '--headless',
-                            help="Launch program in a headless mode which imposes --yes and --quiet. No menu is shown.",
-                            action="store_true")
         parser.add_argument('--user-agent', help="Change user agent to be used when scraping a URL")
         parser.add_argument('-S', '--single-query', help="Consider the input as a single value, not a CSV.",
                             action="store_true")
@@ -518,6 +520,14 @@ class Controller:
                 if self.parser.is_processable and Config.get("yes"):
                     self.process()
 
+                if args.send and self.parser.is_analyzed and self.parser.is_split and not self.parser.is_processable:
+                    Config.set("yes", True)
+                    see_menu = False
+                    if args.send is not True:
+                        self.send_menu(args.send)
+                    else:
+                        self.send_menu()
+
                 if not see_menu:
                     self.close()
                 if is_daemon:  # if in daemon, everything important has been already sent to STDOUT
@@ -658,16 +668,15 @@ class Controller:
         self.parser.is_processable = True
         return target_type
 
-    def send_menu(self):
-        # choose method SMTP/OTSR
-        method = "smtp"
+    def send_menu(self, method="smtp"):
+        # choose method SMTP/OTRS
         if self.args.csirt_incident:
             if Config.get("otrs_enabled", "OTRS"):
                 method = "otrs"
             else:
                 print("You are using csirt-incident macro but otrs_enabled key is set to False in config.ini. Exiting.")
                 quit()
-        elif Config.get("otrs_enabled", "OTRS"):
+        elif Config.get("otrs_enabled", "OTRS") and not Config.get("yes"):
             menu = Menu(title="What sending method do we want to use?", callbacks=False, fullscreen=True)
             menu.add("Send by SMTP...")
             menu.add("Send by OTRS...")
@@ -685,8 +694,10 @@ class Controller:
             sender = MailSenderOtrs(self.parser)
             sender.assure_tokens()
             self.wrapper.save()
-        else:
+        elif method == "smtp":
             sender = MailSenderSmtp(self.parser)
+        else:
+            raise RuntimeError("Unknown sending method: {method}")
 
         # sending dialog loop
         st = self.parser.stats
@@ -728,30 +739,33 @@ class Controller:
             if sum_ < 1:
                 everything_sent = True
                 info.append("All e-mails were sent.")
-            clear()
-            menu = Menu("\n".join(info), callbacks=False, fullscreen=False, skippable=False)
 
-            if seen_local or seen_abroad:
-                menu.add(f"Send all e-mails ({limitable(sum_)})", key="1", default=not everything_sent)
-            if seen_local and seen_abroad:
-                menu.add(f"Send local e-mails ({limitable(st['local'][0])})", key="2")
-                menu.add(f"Send abroad e-mails ({limitable(st['abroad'][0])})", key="3")
-            if len(menu.menu) == 0:
-                print("No e-mails in the set. Can't send. Continue to the main menu...")
-                input()
-                return
+            if Config.get("yes"):
+                option = "1"
+            else:
+                clear()
+                menu = Menu("\n".join(info), callbacks=False, fullscreen=False, skippable=False)
 
-            t = f" from {limit}" if limit < float("inf") else ""
-            menu.add(f"Limit sending amount{t} to...", key="l")
-            menu.add("Edit template...", key="e")
-            menu.add("Send test e-mail to...", key="t")
-            menu.add("Choose recipients...", key="r")
-            menu.add("Go back...", key="x", default=everything_sent)
+                if seen_local or seen_abroad:
+                    menu.add(f"Send all e-mails ({limitable(sum_)})", key="1", default=not everything_sent)
+                if seen_local and seen_abroad:
+                    menu.add(f"Send local e-mails ({limitable(st['local'][0])})", key="2")
+                    menu.add(f"Send abroad e-mails ({limitable(st['abroad'][0])})", key="3")
+                if len(menu.menu) == 0:
+                    print("No e-mails in the set. Can't send. Continue to the main menu...")
+                    input()
+                    return
 
-            option = menu.sout()
-            if option is None:
-                return
-            # print("\n")
+                t = f" from {limit}" if limit < float("inf") else ""
+                menu.add(f"Limit sending amount{t} to...", key="l")
+                menu.add("Edit template...", key="e")
+                menu.add("Send test e-mail to...", key="t")
+                menu.add("Choose recipients...", key="r")
+                menu.add("Go back...", key="x", default=everything_sent)
+
+                option = menu.sout()
+                if option is None:
+                    return
 
             # sending menu processing - all, abuse and abroad e-mails
             limit_csirtmails_when_all = limit - st['local'][0]
@@ -767,6 +781,8 @@ class Controller:
                     print("Sending to abroad e-mails...")
                     sender.send_list(Attachment.get_all(True, False, l))
             if option in ["1", "2", "3"]:
+                if Config.get("yes"):
+                    return
                 self.wrapper.save()  # save what message has been sent right now
                 input("\n\nPress Enter to continue...")
                 continue

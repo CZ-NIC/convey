@@ -46,10 +46,8 @@ class MailDraft:
             return self.edit_text()
         e = (envelope
              .load(self.text)
-             # .from_(Config.get("email_from_name", "SMTP")))
-
-             # KDYZ to XXX sem napíšu, tak zmizí hlavičky XXXXXXXXXXx
              .signature("auto"))
+
         if not e._sender:  # XX this should be a publicly exposed method (and internal ._sender may change to ._from in the future)
             e.from_(Config.get("email_from_name", "SMTP"))
         if not e._message or not e._message.strip():

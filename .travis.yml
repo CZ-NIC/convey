@@ -2,13 +2,13 @@ dist: bionic
 language: python
 python:
   - 3.6
-  #- 3.7
-  #- 3.8
+  - 3.7
+  - 3.8
 before_install:
   - sudo apt update
-  - sudo apt install swig  # envelope: needed to install M2Crypto on bionic
+  - sudo apt install swig dialog
+  # envelope: needed to install swig for M2Crypto on bionic
 script:
-  - echo $PWD
-  - ls
-  - ls -la
+  #- ./convey.py --output --reprocess --headless --file tests/filter.csv --exclude-filter 1,foo --daemon false
   - python3 tests.py
+  #- echo "foo" | ./convey.py --output --reprocess --headless --include-filter 1,foo --daemon false
