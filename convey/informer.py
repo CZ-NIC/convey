@@ -43,7 +43,7 @@ class Informer:
                                              for include, f, val in self.parser.settings["filter"]]))
         if self.parser.settings["unique"]:
             l.append("Unique col: " + ", ".join([self.parser.fields[f].name for f in self.parser.settings["unique"]]))
-        if self.parser.settings["split"]:
+        if self.parser.settings["split"] or self.parser.settings["split"] is 0:
             l.append("Split by: {}".format(self.parser.fields[self.parser.settings["split"]]))
         if self.parser.settings["aggregate"]:
             # settings["aggregate"] = column to be grouped, [(sum, column to be summed)]

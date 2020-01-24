@@ -576,15 +576,15 @@ class Controller:
                 if self.parser.is_processable:
                     menu.add("send (process first)")
                 else:
-                    menu.add("send", self.send_menu, key="s", default=True)
+                    menu.add("send...", self.send_menu, key="s", default=True)
             else:
                 menu.add("send (split first)")
             if self.parser.is_analyzed:
                 menu.add("show all details", lambda: (self.parser.informer.sout_info(full=True), input()), key="d")
             else:
                 menu.add("show all details (process first)")
-            menu.add("Refresh...", self.refresh_menu, key="r")
-            menu.add("Config...", self.config_menu, key="c")
+            menu.add("reset...", self.reset_menu, key="r")
+            menu.add("config...", self.config_menu, key="c")
             menu.add("exit", self.close, key="x")
 
             try:
@@ -873,17 +873,62 @@ class Controller:
         if blocking:
             input("Hit Enter when you are done editing...")
 
-    def refresh_menu(self):
+    def choose_settings(self):
+        """ Remove some of the processing settings """
+        actions = []
+        discard = []
+        st = self.parser.settings
+        fields = self.parser.fields
+
+        def add_list(labels):
+            actions.extend(labels)
+            discard.extend((st[type_].pop, i) for i, _ in enumerate(items))
+
+        # Build processing settings list
+        for type_, items in st.items():
+            if not items and items is not 0:
+                continue
+            if type_ == "split":
+                actions.append(f"split by {fields[items]}")
+                discard.append((st.pop, "split"))
+            elif type_ == "add":
+                add_list(f"add {f} (from {str(f.source_field)})" for f in items)
+            elif type_ == "filter":
+                add_list(f"filter {fields[f].name} {'' if include else '!'}= {val}" for include, f, val in items)
+            elif type_ == "unique":
+                add_list(f"unique {fields[f].name}" for f in items)
+            elif type_ == "aggregate":
+                actions.extend(f"{fn.__name__}({fields[col].name})" for fn, col in items[1])
+                discard.extend((st[type_][1].pop, i) for i, _ in enumerate(items[1]))
+
+        if not actions:
+            input("No processing settings found. Hit Enter...")
+            return
+
+        # Build dialog
+        choices = [(str(i + 1), v, False) for i, v in enumerate(actions)]
+        ret, values = Dialog(autowidgetsize=True).checklist("What processing settings should be discarded?", choices=choices)
+        if ret == "ok":
+            # these processing settings should be removed
+            for v in values[::-1]:  # we reverse the list, we need to pop bigger indices first without shifting lower indices
+                fn, v = discard[int(v) - 1]
+                fn(v)
+            if st["aggregate"] and not st["aggregate"][1]:
+                # when removing an aggregation settings, we check if it was the last one to get rid of the setting altogether
+                del st["aggregate"]
+
+    def reset_menu(self):
         menu = Menu(title="What should be reprocessed?", fullscreen=True)
-        menu.add("Rework whole file again", self.wrapper.clear)
-        menu.add("Delete processing settings", self.parser.reset_settings)
+        menu.add("Delete some processing settings", self.choose_settings)
+        menu.add("Delete all processing settings", self.parser.reset_settings)
         menu.add("Delete whois cache", self.parser.reset_whois)
         # XX note that aggregation generators were deleted (jsonpickling) → aggregation count will reset when re-resolving
         # See comment in the Aggregation class, concerning generator serialization.
         menu.add("Resolve unknown abuse-mails", self.parser.resolve_unknown)
         menu.add("Resolve invalid lines", self.parser.resolve_invalid)
         menu.add("Resolve queued lines", self.parser.resolve_queued)
-        menu.add("Edit mail templates", self.edit_mail_templates())
+        menu.add("Edit mail templates", self.edit_mail_templates)
+        menu.add("Rework whole file again", self.wrapper.clear)
         menu.sout()
 
     def source_new_column(self, target_type, add=None, source_field: Field = None, source_type: Type = None, custom: list = None):

@@ -124,12 +124,10 @@ class Wrapper:
             if self.parser.source_file != self.file:  # file might have been moved to another location
                 self.parser.source_file = self.file
             try:
-                if self.parser.is_analyzed:
-                    self.parser.informer.sout_info()
-                elif self.parser.is_formatted:
+                if self.parser.is_analyzed or self.parser.is_formatted:
                     self.parser.informer.sout_info()
                     logger.info("It seems the file has already been formatted.")
-            except BdbQuit:  # we do not want to catch quit() signal from ipdb
+            except BdbQuit:  # we do not want to catch quit() signal from pdb
                 print("Stopping.")
                 quit()
             except Exception as e:

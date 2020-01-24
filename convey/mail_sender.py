@@ -79,8 +79,8 @@ class MailSender(ABC):
                 email_cc = False
                 intended_to = email_to
                 email_to = Config.get('testing_mail')
-                e._message = bytes(f"This is testing mail only from Convey." \
-                                   f" Don't be afraid, it wasn't delivered to: {intended_to}\r\n", "utf-8") + e._message
+                e.message(f"This is testing mail only from Convey."
+                          f" Don't be afraid, it wasn't delivered to: {intended_to}\r\n{e._message}")
 
             if not validate_email(email_to):
                 logger.error("Erroneous e-mail: {}".format(email_to))

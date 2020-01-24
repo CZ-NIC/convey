@@ -781,6 +781,8 @@ class Parser:
         for k, v in state["dialect"].items():
             setattr(self.dialect, k, v)
         self.identifier = Identifier(self)
+        self.ranges = {}
+        self.ip_seen = {}
 
 
 class Field:
