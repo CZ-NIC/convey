@@ -18,6 +18,7 @@ class Attachment:
         self.abroad = filename.startswith(Config.ABROAD_PREFIX)
         self._sent = None
         self.filename = filename
+        self.attach = True  # whether the file contents should be added as an e-mail attachment
 
         st = self.parser.stats
 
@@ -96,6 +97,9 @@ class Attachment:
 
     def get_draft(self):
         return Contacts.mail_draft[self.get_draft_name()]
+
+    def get_envelope(self):
+        return self.get_draft().get_envelope(self)
 
 
 class Contacts:

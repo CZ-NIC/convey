@@ -354,8 +354,10 @@ In the menu, you may either:
  * **Send** the e-mails
  * **Limit** the messages that are being send at once; if you are not 100 % sure you want to send the the whole message bucket at once.
  * **Edit** the template. The message file will open either in the default GUI or terminal editor. The first line of the template should be `Subject: ...`, followed by a free line. Note that you may include any e-mail headers, such as `Reply-To: ...`, `Cc: ...`, etc. The e-mail will reflect all of them. You may write the message either in plain text or in the HTML.
- * **Test** sending a message to your own address. You'll be prompted which of the messages should be delivered to you.
  * **Choose** which recipients in a checkbox list will receive the message. 
+ * **Test** sending a message to your own address. You'll be prompted which of the messages should be delivered to you. The e-mail contents possibly modified by a dynamic template is shown just before sending.
+ * **Print all e-mails** to a file to have the more granulated control over what is going to be sent.
+ * **Toggle file attaching** on and off. There are use cases when you do not want the files to be sent with, the text suits fine.
 
 ```bash
   *** E-mail template ***
@@ -379,8 +381,10 @@ Keen regards
 1) Send all e-mails (1) ←←←←←
 l) Limit sending amount to...
 e) Edit template...
-t) Send test e-mail to...
 r) Choose recipients...
+t) Send test e-mail...
+p) Print e-mails to a file...
+a) Attach files (toggle): True
 x) Go back...
 ? 
 ```
@@ -388,7 +392,29 @@ x) Go back...
 ### Arbitrary e-mail headers, "From" header, GPG signing
 In the template, you may specify any e-mail header, such as `Reply-To`, `Cc` or `From`. If `From` is not found, we take `SMTP/email_from_name` config value. If `gnupg` home is found on the default user path, we check if there is a secret key matching the `From` header and if found, e-mail will be GPG-signed. If it is going to be signed, you would see something like `Content-Type: multipart/signed; protocol="application/pgp-signature";` header in the e-mail template preview.
  
+### Dynamic templates
+Message is processed with [Jinja2](https://jinja.palletsprojects.com/en/2.10.x/) templating system by default.
 
+Few instruments are included to treat the attachment contents:
+* **row()** – Generate attachment contents fields row by row
+* **print_attachment()** – Prints the attachment contents and prevent it to be attached.
+    ```jinja2
+    You will find our findings below.
+    
+    {{ print_attachment() }}
+    ```
+* **amount(count=2)** – Check if the attachment has at least count number of lines. Header is not counted. Useful when deciding whether the are single row in the result or multiple.
+* **joined(column: int, delimiter=", ")** – Return a column joined by delimiter
+* **first_line** – Access first line fields
+    Example:
+    ```jinja2
+    {% if amount() %}
+        Here is the complete list of the elements.    
+        {{ joined(1,"\n") }}
+    {% else %}
+        Here is the element you had problems with: {{ first_line[1] }}
+    {% endif %}
+    ```
 
 ## Examples
 

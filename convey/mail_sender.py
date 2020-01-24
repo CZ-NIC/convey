@@ -5,7 +5,7 @@ import re
 import smtplib
 import sys
 from abc import abstractmethod, ABC
-from pathlib import Path
+from email.utils import getaddresses
 from socket import gaierror
 
 from envelope import envelope
@@ -32,64 +32,35 @@ class MailSender(ABC):
     def process(self):
         pass
 
-    def send_list(self, mails, attach=True):
-        """ Send a bunch of e-mail messages
-
-            @type attach: bool Attach the file to the message. XX not used yet but should be working
-        """
+    def send_list(self, mails):
+        """ Send a bunch of e-mail messages """
         sent_mails = 0
         total_count = 0
 
         if self.start() is False:
             return False
-        for a in mails:
-            # text_vars = {"CONTACTS": email_to, "FILENAME": self.parser.attachment_name, "TICKETNUM": self.parser.otrs_num}
-            a: Attachment
-            email_to = a.mail
-            email_cc = a.cc
-            attachment_path = a.path
-            e: envelope = a.get_draft().get_envelope()
-            if b"{ATTACHMENT}" in e._message:
-                # XXX document this: if you write {ATTACHMENT} in the body,
-                #  this will be replaced with the attachment contents and the attachment will no be included
-                # XX .replace("\n", "<br>\n") OTRS sending sends text/plain – cannot have br conversion
-                #   SMTP sending sends both text/plain+html – sometimes needs and sometimes forbids br conversion,
-                #   depending on the envelope nl2br detection
-                #   XX maybe envelope could expose nl2br and mime as envelope().data.mime
-                #   along with .data.subject so that user can see directly?
-                e._message = e._message.replace(b"{ATTACHMENT}",
-                                                attachment_path.read_bytes().replace(b"\n", b"<br>\n"))
-                attachment_path = None
-            if e._message == b"" or e._subject == "":
+        for attachment in mails:
+            attachment: Attachment
+            e: envelope = attachment.get_envelope()
+
+            if e._message == "" or e._subject == "":
                 print("Missing subject or mail body text.")
                 return False
 
-            if a.sent:
+            if attachment.sent:
                 # XX this should be known in the dialog before, user should know earlier how many e-mails will be skipped
-                print(f"Already sent to {email_to}, skipping!")
+                print(f"Message for {attachment.mail} already sent, skipping!")
                 continue
 
-            if not attach:
-                attachment_path = None
-
-            if Config.is_testing():
-                e._to.clear()
-                e._cc.clear()
-                e._bcc.clear()
-                email_cc = False
-                intended_to = email_to
-                email_to = Config.get('testing_mail')
-                e.message(f"This is testing mail only from Convey."
-                          f" Don't be afraid, it wasn't delivered to: {intended_to}\r\n{e._message}")
-
-            if not validate_email(email_to):
-                logger.error("Erroneous e-mail: {}".format(email_to))
-                continue
+            for address in e._to:
+                if not validate_email(address):
+                    logger.error("Erroneous e-mail: {}".format(address))
+                    continue
 
             status = False
             # noinspection PyBroadException
             try:
-                status = self.process(e, email_to, email_cc, attachment_path)
+                status = self.process(e)
             except KeyboardInterrupt:
                 status = "interrupted"
                 total_count += len([x for x in mails])
@@ -101,17 +72,20 @@ class MailSender(ABC):
             finally:
                 if status:
                     t = "Marking as sent" if status == "interrupted" else "Sent"
-                    logger.warning(f"{t}: {email_to}")
+                    s = ", ".join(e.get_recipients())
+                    if Config.is_testing():
+                        s += f" (intended for {attachment.mail})"
+                    logger.warning(f"{t}: {s}")
                     sent_mails += 1
-                    a.sent = True
+                    attachment.sent = True
                 else:
-                    logger.error(f"Error sending: {email_to}")
-                    a.sent = False
+                    logger.error(f"Error sending: {attachment.mail}")
+                    attachment.sent = False
                 total_count += 1
         self.stop()
 
         if status == "interrupted":
-            print(f"Interrupted! We cannot be sure if the e-mail {email_to} was sent but it is probable.")
+            print(f"Interrupted! We cannot be sure if the e-mail {attachment.mail} was sent but it is probable.")
 
         print("\nSent: {}/{} mails.".format(sent_mails, total_count))
         if sent_mails != total_count:
@@ -244,16 +218,17 @@ class MailSenderOtrs(MailSender):
                 force = True
                 continue
 
-    def process(self, e: envelope, email_to, email_cc, attachment_path: Path):
+    def process(self, e: envelope):
         fields = (
             ("Action", "AgentTicketForward"),
             ("Subaction", "SendEmail"),
             ("TicketID", str(self.parser.otrs_id)),
-            ("Email", Config.get("email_from", "SMTP")),
-            ("From", Config.get("email_from_name", "SMTP")),
-            ("To", email_to),  # mails can be delimited by comma or semicolon
+            ("Email", getaddresses([e._sender])[0][1]),
+            # XX delete this option and rename the other: Config.get("email_from", "SMTP")),
+            ("From", e._sender), # XX XConfig.get("email_from_name", "SMTP")
+            ("To", e._to),  # mails can be delimited by comma or semicolon
             ("Subject", e._subject),
-            ("Body", e._message.decode()),
+            ("Body", e._message),
             ("ArticleTypeID", "1"),  # mail-external
             ("ComposeStateID", "4"),  # open
             ("ChallengeToken", self.parser.otrs_token),
@@ -264,14 +239,17 @@ class MailSenderOtrs(MailSender):
         except KeyError:
             pass
 
-        if email_cc:
-            fields += ("Cc", email_cc),
+        if e._cc:
+            fields += ("Cc", e._cc),
 
         # load souboru k zaslani
         # attachment_contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
 
-        attachment_contents = attachment_path.read_text()
-        if self.parser.attachment_name and attachment_contents != "":
+
+        attachment_contents = ""
+        if self.parser.attachment_name and len(e._attachments):
+            attachment_contents = e._attachments[0][0].read_text()
+        if attachment_contents:
             files = (("FileUpload", self.parser.attachment_name, attachment_contents),)
         else:
             files = ()
@@ -321,14 +299,6 @@ class MailSenderSmtp(MailSender):
     def stop(self):
         self.smtp.quit()
 
-    def process(self, e: envelope, email_to, email_cc, path):
-        sender = Config.get("email_from_name", "SMTP")
-        e.to(email_to)
+    def process(self, e: envelope):
         e.smtp(self.smtp)
-
-        if path:
-            e.attach(path, "text/csv", self.parser.attachment_name)
-        if email_cc:
-            e.cc(email_cc)
-
         return bool(e.send(True))

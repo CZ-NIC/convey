@@ -56,7 +56,7 @@ class Parser:
         self.otrs_id = Config.get("ticketid", "OTRS")
         self.otrs_token = False
         self.otrs_num = Config.get("ticketnum", "OTRS")
-        self.attachment_name = "part-" + (Path(source_file).name if source_file else "attachment")
+        self.attachment_name = (Path(source_file).name if source_file else "attachment")
         self.ip_count_guess = None
         self.ip_count = None
         self.attachments = []  # files created if splitting

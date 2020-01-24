@@ -1,8 +1,9 @@
 This is the output of the `--help` command.
 ```
 usage: convey [-h] [--debug [blank/false]] [--testing [blank/false]] [-F] [-R]
-              [-v] [-q] [-y] [-H] [--send [[blank/smtp/otrs]]] [--file] [-i]
-              [-o [[blank/FILENAME]]] [--delimiter DELIMITER]
+              [-v] [-q] [-y] [-H] [--send [[blank/smtp/otrs]]]
+              [--jinja [blank/false]] [--attach-files [blank/false]] [--file]
+              [-i] [-o [[blank/FILENAME]]] [--delimiter DELIMITER]
               [--quote-char QUOTE_CHAR] [--header] [--no-header]
               [-d COLUMN,[COLUMN]]
               [-f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
@@ -53,6 +54,10 @@ optional arguments:
                         and --quiet. No menu is shown.
   --send [[blank/smtp/otrs]]
                         Automatically send e-mails when split; imposes --yes.
+  --jinja [blank/false]
+                        Process e-mail messages with jinja2 templating system
+  --attach-files [blank/false]
+                        Split files are added as e-mail attachments
   --file                Treat <file_or_input> parameter as a file, never as an
                         input
   -i, --input           Treat <file_or_input> parameter as an input text, not

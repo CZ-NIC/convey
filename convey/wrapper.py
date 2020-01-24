@@ -251,6 +251,27 @@ class Wrapper:
                 output.write(string)
 
     def clear(self):
+        # XX  Check XLS
+        # import xlrd
+        # wb = xlrd.open_workbook("/home/edvard/edvard/www/convey/xlrd/Untitled 1.xlsx")
+        # sh = wb.sheet_by_name('Sheet1')
+        # for rownum in range(sh.nrows):
+        #     print(sh.row_values(rownum))
+
+        # XX Check ods
+        # import ezodf
+        #
+        # doc = ezodf.opendoc("/home/edvard/edvard/www/convey/xlrd/Untitled 1.ods")
+        #
+        # sheet = doc.sheets[0]
+        # df_dict = {}
+        # rows = []
+        # for i, row in enumerate(sheet.rows()):
+        #     r = []
+        #     for j, cell in enumerate(row):
+        #         r.append(cell.value)
+        #     rows.append(r)
+
         # Check if the contents is a CSV and not just a log
         # ex: "06:25:13.378767 IP 142.234.39.36.51354 > 195.250.148.86.80: Flags [S], seq 1852455482, win 29200, length 0"
         re_ip_with_port = re.compile("((\d{1,3}\.){4})(\d+)")

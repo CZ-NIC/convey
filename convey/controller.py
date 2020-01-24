@@ -11,15 +11,16 @@ from difflib import SequenceMatcher
 from io import StringIO
 from pathlib import Path
 from sys import exit
+from tempfile import NamedTemporaryFile
 
 import pkg_resources
-from colorama import init as colorama_init
+from colorama import init as colorama_init, Fore
 from dialog import Dialog, DialogError
 from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
 
-from .config import Config, get_terminal_size, console_handler
+from .config import Config, get_terminal_size, console_handler, edit
 from .contacts import Contacts, Attachment
 from .decorators import PickBase, PickMethod, PickInput
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask, ask_number
@@ -178,6 +179,10 @@ class Controller:
                             action="store_true")
         parser.add_argument('--send', help="Automatically send e-mails when split; imposes --yes.",
                             action=BlankTrueString, nargs="?", metavar="[blank/smtp/otrs]")
+        parser.add_argument('--jinja', help="Process e-mail messages with jinja2 templating system",
+                            action=BlankTrue, nargs="?", metavar="blank/false")
+        parser.add_argument('--attach-files', help="Split files are added as e-mail attachments",
+                            action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--file', help="Treat <file_or_input> parameter as a file, never as an input",
                             action="store_true")
         parser.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
@@ -398,7 +403,8 @@ class Controller:
                     # --output=True means no output will be produced in favour of stdout
                     args.output = None
                 for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
-                             "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl", "disable_external", "debug", "testing"]:
+                             "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl", "disable_external", "debug", "testing",
+                             "attach_files", "jinja"]:
                     if getattr(args, flag) is not None:
                         Config.set(flag, getattr(args, flag))
                 if args.headless:
@@ -759,8 +765,10 @@ class Controller:
                 t = f" from {limit}" if limit < float("inf") else ""
                 menu.add(f"Limit sending amount{t} to...", key="l")
                 menu.add("Edit template...", key="e")
-                menu.add("Send test e-mail to...", key="t")
                 menu.add("Choose recipients...", key="r")
+                menu.add("Send test e-mail...", key="t")
+                menu.add("Print e-mails to a file...", key="p")
+                menu.add(f"Attach files (toggle): {Config.get('attach_files', 'SMTP', get=bool)}", key="a")
                 menu.add("Go back...", key="x", default=everything_sent)
 
                 option = menu.sout()
@@ -794,23 +802,49 @@ class Controller:
                 limit = ask_number("How many e-mails should be send at once: ")
                 if limit < 0:
                     limit = float("inf")
-            elif option in ["t", "r"]:
+            elif option == "a":
+                Config.set("attach_files", not Config.get('attach_files', 'SMTP', get=bool))
+            elif option in ["t", "r", "p"]:
                 attachments = list(Attachment.get_all())
-                if option == "t":
+                if option == "p":
+                        with NamedTemporaryFile(mode="w+") as f:
+                            try:
+                                print(f"The messages are being temporarily generated to the file (stop by Ctrl+C): {f.name}")
+                                for attachment in attachments:
+                                    print(".", end="")
+                                    sys.stdout.flush()
+                                    f.write(str(attachment.get_envelope()))
+                                print("Done!")
+                            except KeyboardInterrupt:
+                                print("Interrupted!")
+                            finally:
+                                edit(f.name)
+                elif option == "t":
+                    # Choose an attachment
+                    choices = [(o.mail, "") for o in attachments]
+                    try:
+                        attachment = attachments[pick_option(choices, f"What attachment should server as a test?")]
+                    except Cancelled:
+                        continue
+                    clear()
+
+                    # Display generated attachment
+                    print(attachment.get_envelope().preview())
+
+                    # Define testing e-mail
                     t = Config.get("testing_mail")
                     t = f" – type in or hit Enter to use {t}" if t else ""
-                    t = ask(f"Testing e-mail address to be sent to{t}: ").strip()
+                    try:
+                        t = ask(Fore.YELLOW + f"Testing e-mail address to be sent to{t} (Ctrl+C to go back): " + Fore.RESET).strip()
+                    except KeyboardInterrupt:
+                        continue
                     if not t:
                         t = Config.get("testing_mail")
                     if not t:
                         input("No address written. Hit Enter...")
                         continue
-                    choices = [(o.mail, "") for o in attachments]
-                    try:
-                        attachment = attachments[pick_option(choices, f"What attachment should be send to {t}?")]
-                    except Cancelled:
-                        continue
-                    clear()
+
+                    # Send testing e-mail
                     old_testing, old_sent, attachment.sent = Config.get('testing'), attachment.sent, None
                     Config.set('testing', True)
                     Config.set('testing_mail', t)

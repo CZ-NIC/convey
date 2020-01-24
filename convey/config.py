@@ -8,7 +8,7 @@ import sys
 import webbrowser
 from pathlib import Path
 from shutil import copy
-from subprocess import Popen, PIPE, call
+from subprocess import Popen, PIPE, call, run
 from time import sleep
 from urllib.parse import quote
 
@@ -351,6 +351,15 @@ class Config:
                         # a GUI app have not started, let's launch a CLI terminal
                         call(["editor", Config.path])
                     break
+
+
+def edit(path):
+    if input("Do you wish to open GUI for editing? Otherwise console editor will be used. [y]/n ").lower() in ("y", ""):
+        editor = run(["xdg-mime", "query", "default", "text/plain"], stdout=PIPE).stdout.split()[0]  # run: blocking, output
+        Popen(["gtk-launch", editor, path], stdout=PIPE, stderr=PIPE)  # Popen: non blocking
+        input("Hit Enter to continue...")
+    else:
+        call(["editor", path])  # call: blocking, no output
 
 
 def get_terminal_size():
