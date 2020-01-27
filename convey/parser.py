@@ -6,6 +6,7 @@ import re
 import subprocess
 import time
 from collections import defaultdict
+from copy import deepcopy
 from itertools import zip_longest
 from json import dumps
 from math import ceil, inf
@@ -21,6 +22,7 @@ from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, is_yes, ask
 from .identifier import Identifier
 from .informer import Informer
+from .mail_draft import MailDraft
 from .processor import Processor
 from .types import Types, Type, Web, TypeGroup, Checker
 from .whois import Whois
@@ -46,10 +48,14 @@ class Parser:
         self.first_line_fields: List[str] = []  # CSV columns (equal to header if used) in the original file
         self.types = []  # field types of the columns as given by the user
         # settings:
-        #    "add": new_field:Field,
-        #           source_col_i:int - number of field to compute from,
-        #           fitting_type:Field - possible type of source ,
-        #           custom:tuple - If target is a 'custom' field, we'll receive a tuple (module path, method name).
+        #    * "add": new_field:Field,
+        #             source_col_i:int - number of field to compute from,
+        #             fitting_type:Field - possible type of source ,
+        #             custom:tuple - If target is a 'custom' field, we'll receive a tuple (module path, method name).
+        #    * "dialect": always present (set in controller just after parser.prepare()), output CSV dialect
+        #    * "header": True if input CSV has header and output CSV should have it too.
+        #                False if either input CSV has not header or the output CSV should omit it.
+        #
         self.settings = defaultdict(list)
         self.redo_invalids = Config.get("redo_invalids")
         self.otrs_cookie = False  # OTRS attributes to be linked to CSV
@@ -106,6 +112,7 @@ class Parser:
         """
         Contacts.init()
         Attachment.init(self)
+        MailDraft.init(self)
 
     def prepare(self):
         if self.size == 0:
@@ -440,7 +447,7 @@ class Parser:
                     self.written = row
 
             wr = Wr()
-            cw = csv.writer(wr, dialect=self.dialect)
+            cw = csv.writer(wr, dialect=self.settings["dialect"])
             cw.writerow([f for f in self.fields if f.is_chosen])
             self.header = wr.written
         self._reset_output()
@@ -465,21 +472,25 @@ class Parser:
 
     def invent_file_str(self):
         l = []
-        if self.settings["filter"]:
+        se = self.settings
+        if se["filter"]:
             l.append("filter")
-        if self.settings["unique"]:
+        if se["unique"]:
             l.append("uniqued")
-        if self.settings["dialect"]:
+        if se["dialect"] and (se["dialect"].delimiter != self.dialect.delimiter
+                              or se["dialect"].quotechar != self.dialect.quotechar):
             l.append("dialect")
+        if se["header"] is False:
+            l.append("noheader")
         if [f for f in self.fields if not f.is_chosen]:
             l.append("shuffled")
-        for f in self.settings["add"]:
+        for f in se["add"]:
             # XX get external function name
             # if f.type == Types.external:
             #     l.append(str(f))
             # else:
             l.append(str(f))
-        agg = self.settings["aggregate"]
+        agg = se["aggregate"]
         if agg:
             if agg[0] is not None:
                 l.append(f"{self.fields[agg[0]]}-grouped")
@@ -777,9 +788,19 @@ class Parser:
         self.__dict__.update(state)
         self.informer = Informer(self)
         self.processor = Processor(self)
-        self.dialect = csv.unix_dialect
+
+        # input CSV dialect
+        self.dialect = deepcopy(csv.unix_dialect)
         for k, v in state["dialect"].items():
             setattr(self.dialect, k, v)
+
+        # output CSV dialect
+        d = self.settings["dialect"]
+        if d:
+            self.settings["dialect"] = deepcopy(csv.unix_dialect)
+            for k, v in d.items():
+                setattr(self.settings["dialect"], k, v)
+
         self.identifier = Identifier(self)
         self.ranges = {}
         self.ip_seen = {}
@@ -864,7 +885,7 @@ class Field:
         s = "\033[" + ";".join(l) + f"m{v}\033[0m"
         return s
 
-    def get(self, long=False, color=True):
+    def get(self, long=False, color=True, line_chosen=True):
         s = ""
         if long:
             if self.is_new:
@@ -874,7 +895,7 @@ class Field:
         if not s:
             s = self.name
         if color:
-            s = "\n".join((self.color(c) for c in s.split("\n")))
+            s = "\n".join((self.color(c, line_chosen=line_chosen) for c in s.split("\n")))
         return s
 
     def has_clear_type(self):

@@ -1,30 +1,34 @@
 This is the output of the `--help` command.
 ```
-usage: convey [-h] [--debug [blank/false]] [--testing [blank/false]] [-F] [-R]
-              [-v] [-q] [-y] [-H] [--send [[blank/smtp/otrs]]]
-              [--jinja [blank/false]] [--attach-files [blank/false]] [--file]
-              [-i] [-o [[blank/FILENAME]]] [--delimiter DELIMITER]
-              [--quote-char QUOTE_CHAR] [--header] [--no-header]
-              [-d COLUMN,[COLUMN]]
-              [-f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
-              [-fe FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
-              [-t [TYPE],...] [--split COLUMN] [-s COLUMN,...]
-              [-u COLUMN,VALUE] [-ef COLUMN,VALUE] [-if COLUMN,VALUE]
-              [-a [COLUMN, FUNCTION], ..., [group-by-COLUMN]]
-              [--otrs_id OTRS_ID] [--otrs_num OTRS_NUM]
-              [--otrs_cookie OTRS_COOKIE] [--otrs_token OTRS_TOKEN]
-              [--csirt-incident] [--whois [blank/false]]
-              [--nmap [blank/false]] [--dig [blank/false]]
-              [--web [blank/false]] [--disable-external] [--json]
-              [--config [1 terminal|2 GUI|3 both by default]]
-              [--user-agent USER_AGENT] [-S] [--single-detect] [-C]
-              [--multiple-hostname-ip [blank/false]]
-              [--multiple-cidr-ip [blank/false]] [--whois-ttl SECONDS]
-              [--show-uml [SHOW_UML]] [--get-autocompletion]
-              [--compute-preview [blank/false]] [--delete-whois-cache]
-              [--version] [--server]
-              [--daemon [['start', 'restart', 'stop', 'status', 'server']]]
-              [file_or_input]
+usage: convey.py [-h] [--debug [blank/false]] [--testing [blank/false]] [-F]
+                 [-R] [-v] [-q] [-y] [-H] [--send [[blank/smtp/otrs]]]
+                 [--send-test ['E-MAIL', 'TEMPLATE_FILE']
+                 ['E-MAIL', 'TEMPLATE_FILE']] [--jinja [blank/false]]
+                 [--attach-files [blank/false]] [--file] [-i]
+                 [-o [[blank/FILENAME]]] [--delimiter DELIMITER]
+                 [--quote-char QUOTE_CHAR] [--header] [--no-header]
+                 [--delimiter-output DELIMITER_OUTPUT]
+                 [--quote-char-output QUOTE_CHAR_OUTPUT]
+                 [--header-output [blank/false]] [-d COLUMN,[COLUMN]]
+                 [-f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
+                 [-fe FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
+                 [-t [TYPE],...] [--split COLUMN] [-s COLUMN,...]
+                 [-u COLUMN,VALUE] [-ef COLUMN,VALUE] [-if COLUMN,VALUE]
+                 [-a [COLUMN, FUNCTION], ..., [group-by-COLUMN]]
+                 [--otrs_id OTRS_ID] [--otrs_num OTRS_NUM]
+                 [--otrs_cookie OTRS_COOKIE] [--otrs_token OTRS_TOKEN]
+                 [--csirt-incident] [--whois [blank/false]]
+                 [--nmap [blank/false]] [--dig [blank/false]]
+                 [--web [blank/false]] [--disable-external] [--json]
+                 [--config [1 terminal|2 GUI|3 both by default]]
+                 [--user-agent USER_AGENT] [-S] [--single-detect] [-C]
+                 [--multiple-hostname-ip [blank/false]]
+                 [--multiple-cidr-ip [blank/false]] [--whois-ttl SECONDS]
+                 [--show-uml [SHOW_UML]] [--get-autocompletion]
+                 [--compute-preview [blank/false]] [--delete-whois-cache]
+                 [--version] [--server]
+                 [--daemon [['start', 'restart', 'stop', 'status', 'server']]]
+                 [file_or_input]
 
 Data conversion swiss knife
 
@@ -54,6 +58,9 @@ optional arguments:
                         and --quiet. No menu is shown.
   --send [[blank/smtp/otrs]]
                         Automatically send e-mails when split; imposes --yes.
+  --send-test ['E-MAIL', 'TEMPLATE_FILE'] ['E-MAIL', 'TEMPLATE_FILE']
+                        Display e-mail message that would be generated for
+                        given e-mail.
   --jinja [blank/false]
                         Process e-mail messages with jinja2 templating system
   --attach-files [blank/false]
@@ -65,13 +72,19 @@ optional arguments:
   -o [[blank/FILENAME]], --output [[blank/FILENAME]]
                         Save output to this file. If left blank, pass output
                         to STDOUT. If omitted, a filename will be produced
-                        automatically.
+                        automatically. May be combined with --headless.
   --delimiter DELIMITER
                         Treat file as having this delimiter
   --quote-char QUOTE_CHAR
                         Treat file as having this quoting character
   --header              Treat file as having header
   --no-header           Treat file as not having header
+  --delimiter-output DELIMITER_OUTPUT
+                        Output delimiter
+  --quote-char-output QUOTE_CHAR_OUTPUT
+                        Output quoting char
+  --header-output [blank/false]
+                        If false, header is omitted when processing..
   -d COLUMN,[COLUMN], --delete COLUMN,[COLUMN]
                         Delete a column. You may comma separate multiple
                         columns.COLUMN is ID the column (1, 2, 3...), the
@@ -214,7 +227,7 @@ optional arguments:
                         When adding new columns, show few first computed
                         values.
   --delete-whois-cache  Delete convey's global WHOIS cache.
-  --version             Show the version number (which is currently 1.2).
+  --version             Show the version number (which is currently 1.3rc8).
   --server              Launches simple web server
   --daemon [['start', 'restart', 'stop', 'status', 'server']]
                         Run a UNIX socket daemon to speed up single query requests.

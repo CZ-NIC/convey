@@ -132,6 +132,7 @@ class Wrapper:
                 quit()
             except Exception as e:
                 print(e)
+                import ipdb; ipdb.post_mortem()
                 print("Format of the file may have changed since last time. "
                       "Let's process it all again. If you continue, cache gets deleted.")
                 if not Config.error_caught():

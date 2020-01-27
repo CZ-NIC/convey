@@ -32,25 +32,34 @@ class Informer:
         # sys.stderr.write("\x1b[2J\x1b[H") # clears gnome-terminal
         # print(chr(27) + "[2J")
         l = []
-        l.append("Reading STDIN" if self.parser.stdin else "Source file: " + str(self.parser.source_file))
-        if self.parser.dialect:
-            l.append("delimiter: '" + self.parser.dialect.delimiter + "'")
-            l.append("quoting: '" + self.parser.dialect.quotechar + "'")
-        if self.parser.has_header is not None:
-            l.append("header: " + ("used" if self.parser.has_header else "not used"))
-        if self.parser.settings["filter"]:
-            l.append("Filter: " + ", ".join([f"{self.parser.fields[f].name} {'' if include else '!'}= {val}"
-                                             for include, f, val in self.parser.settings["filter"]]))
-        if self.parser.settings["unique"]:
-            l.append("Unique col: " + ", ".join([self.parser.fields[f].name for f in self.parser.settings["unique"]]))
-        if self.parser.settings["split"] or self.parser.settings["split"] is 0:
-            l.append("Split by: {}".format(self.parser.fields[self.parser.settings["split"]]))
-        if self.parser.settings["aggregate"]:
+        p = self.parser
+        se = p.settings
+        l.append("Reading STDIN" if p.stdin else "Source file: " + str(p.source_file))
+        if p.dialect:
+            s = p.dialect.delimiter
+            if se["dialect"] and p.dialect.delimiter != se["dialect"].delimiter:
+                s = f"{s} → {se['dialect'].delimiter}"
+            l.append(f"delimiter: '{s}'")
+
+            s = p.dialect.quotechar
+            if se["dialect"] and p.dialect.quotechar != se["dialect"].quotechar:
+                l[-1] += f"{s} → {se['dialect'].quotechar}"
+            l.append(f"quoting: '{s}'")
+        if p.has_header is not None:
+            l.append("header: " + (("remove" if se["header"] is False else "used") if p.has_header else "not used"))
+        if se["filter"]:
+            l.append("Filter: " + ", ".join([f"{p.fields[f].name} {'' if include else '!'}= {val}"
+                                             for include, f, val in se["filter"]]))
+        if se["unique"]:
+            l.append("Unique col: " + ", ".join([p.fields[f].name for f in se["unique"]]))
+        if se["split"] or se["split"] is 0:
+            l.append("Split by: {}".format(p.fields[se["split"]]))
+        if se["aggregate"]:
             # settings["aggregate"] = column to be grouped, [(sum, column to be summed)]
             # Ex: settings["aggregate"] = 1, [(Aggregate.sum, 2), (Aggregate.avg, 3)]
-            v = ", ".join(f"{fn.__name__}({self.parser.fields[col].name})" for fn, col in self.parser.settings["aggregate"][1])
-            if self.parser.settings["aggregate"][0] is not None:
-                l.append(f"Group by {self.parser.fields[self.parser.settings['aggregate'][0]]}: " + v)
+            v = ", ".join(f"{fn.__name__}({p.fields[col].name})" for fn, col in se["aggregate"][1])
+            if se["aggregate"][0] is not None:
+                l.append(f"Group by {p.fields[se['aggregate'][0]]}: " + v)
             else:
                 l.append("Aggregate: " + v)
 
@@ -60,42 +69,42 @@ class Informer:
         sys.stdout.write(", ".join(l))
 
         l3 = []
-        for f in self.parser.fields:
+        for f in p.fields:
             if not f.is_new and f.has_clear_type():
                 t = ", ".join([str(t) for t in f.possible_types])
                 l3.append(f.color(f"{f} ({t})"))
         sys.stdout.write("\nIdentified columns: " + ", ".join(l3))
-        if self.parser.settings["add"]:
+        if se["add"]:
             l2 = []
-            for f in self.parser.settings["add"]:
+            for f in se["add"]:
                 l2.append(f.color(f"{f} (from {str(f.source_field)})"))
             sys.stdout.write("\nComputed columns: " + ", ".join(l2))
         l = []
         progress = 0
-        if self.parser.line_count:
-            if self.parser.ip_count:
-                sys.stdout.write(", {} IPs".format(self.parser.ip_count))
-            elif self.parser.ip_count_guess:
-                sys.stdout.write(", around {} IPs".format(self.parser.ip_count_guess))
-            l.append("Log lines processed: {}/{}, {} %".format(self.parser.line_count, self.parser.lines_total,
-                                                               ceil(100 * self.parser.line_count / self.parser.lines_total)))
-            progress = self.parser.line_count / self.parser.lines_total
+        if p.line_count:
+            if p.ip_count:
+                sys.stdout.write(", {} IPs".format(p.ip_count))
+            elif p.ip_count_guess:
+                sys.stdout.write(", around {} IPs".format(p.ip_count_guess))
+            l.append("Log lines processed: {}/{}, {} %".format(p.line_count, p.lines_total,
+                                                               ceil(100 * p.line_count / p.lines_total)))
+            progress = p.line_count / p.lines_total
         else:
-            l.append("Log lines: {}".format(self.parser.lines_total))
-        if self.parser.time_end:
-            l.append("{}".format(self.parser.time_end - self.parser.time_start))
-        elif self.parser.time_start:
-            l.append(f"{datetime.now().replace(microsecond=0) - self.parser.time_start}")
-            l.append(f"{self.parser.velocity} lines / s")
-            l.append(f"{self.parser.processor.descriptors_count} file descriptors open")
-        if self.parser.queued_lines_count:
-            if Whois.queued_ips > 0 and len(Whois.queued_ips) != self.parser.queued_lines_count:
+            l.append("Log lines: {}".format(p.lines_total))
+        if p.time_end:
+            l.append("{}".format(p.time_end - p.time_start))
+        elif p.time_start:
+            l.append(f"{datetime.now().replace(microsecond=0) - p.time_start}")
+            l.append(f"{p.velocity} lines / s")
+            l.append(f"{p.processor.descriptors_count} file descriptors open")
+        if p.queued_lines_count:
+            if Whois.queued_ips > 0 and len(Whois.queued_ips) != p.queued_lines_count:
                 # why Whois.queued_ips > 0: Quota has ended and set of queued IPs has been emptied
                 # ... but the lines are still queued. We lost the information about the number of unique queued IPs.
                 v = f" lines ({len(Whois.queued_ips)} unique IPs)"
             else:
                 v = " lines"
-            s = f"skipped {self.parser.queued_lines_count}{v} due to LACNIC quota"
+            s = f"skipped {p.queued_lines_count}{v} due to LACNIC quota"
             if Whois.quota.is_running():
                 s += f" till {Whois.quota.time()}"
             l.append(s)
@@ -107,26 +116,28 @@ class Informer:
                 r += " " * (progress - len(r))
             r = f"\033[7m{r[:progress]}\033[0m" + r[progress:]
         sys.stdout.write("\n" + r + "\n")
-        if self.parser.whois_stats:
-            print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in self.parser.whois_stats.items())
-                  + f"; {len(self.parser.ranges)} prefixes discovered")
+        if p.whois_stats:
+            print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in p.whois_stats.items())
+                  + f"; {len(p.ranges)} prefixes discovered")
 
-        print("\nSample:\n" + "".join(self.parser.sample[:4]))  # show first 3rd lines
+        print("\nSample:\n" + "".join(p.sample[:4]))  # show first 3rd lines
 
-        if self.parser.is_formatted:  # show how would the result be alike
-            full_rows, rows = self.parser.get_sample_values()
+        if p.is_formatted:  # show how would the result be alike
+            full_rows, rows = p.get_sample_values()
 
-            first_line_length = tabulate(rows, headers=[f.get(True, color=False) for f in self.parser.fields]).split("\n")[0]
-            if rows and not self.parser.settings["dialect"] and len(first_line_length) <= get_terminal_size()[1]:
+            first_line_length = tabulate(rows, headers=[f.get(True, color=False) for f in p.fields]).split("\n")[0]
+            if rows and len(first_line_length) <= get_terminal_size()[1]:
                 # print big and nice table because we do not care about the dialect and terminal is wide enough
+                # we do not display dialect change in the big preview
                 print("\033[0;36mPreview:\033[0m")
-                header = [f.get(True) for f in self.parser.fields]
+                header = [f.get(True, line_chosen=se["header"] is not False) for f in p.fields]
                 print(tabulate(rows, headers=header))
             else:
                 # print the rows in the same way so that they optically match the Sample above
                 print("\033[0;36mCompact preview:\033[0m")
-                cw = writer(sys.stdout, dialect=self.parser.settings["dialect"] or self.parser.dialect)
-                cw.writerow([f.get() for f in self.parser.fields])
+                cw = writer(sys.stdout, dialect=se["dialect"] or p.dialect)
+                if se["header"] is not False and p.has_header:
+                     cw.writerow([f.get() for f in p.fields])
                 for r in full_rows:
                     cw.writerow(r)
 
@@ -134,21 +145,21 @@ class Informer:
         if output:
             print(f"Output file specified: {output}")
 
-        if self.parser.aggregation:  # an aggregation has finished
+        if p.aggregation:  # an aggregation has finished
             print("\n")
-            if len(self.parser.aggregation) == 1:
-                print(self.get_aggregation(next(iter(self.parser.aggregation.values())), color=True, limit=8))
+            if len(p.aggregation) == 1:
+                print(self.get_aggregation(next(iter(p.aggregation.values())), color=True, limit=8))
             else:
                 print("Aggregating in split files...")
 
-        if self.parser.is_analyzed:
-            if self.parser.saved_to_disk is False:
+        if p.is_analyzed:
+            if p.saved_to_disk is False:
                 print("\n** Processing completed, results were not saved to a file yet.")
-                print(tabulate(self.parser.stdout_sample, headers="firstrow" if self.parser.has_header else ()))
-            elif self.parser.saved_to_disk:
-                print(f"\n** Processing completed: Result file in {self.parser.target_file}")
+                print(tabulate(p.stdout_sample, headers="firstrow" if p.has_header else ()))
+            elif p.saved_to_disk:
+                print(f"\n** Processing completed: Result file in {p.target_file}")
             else:
-                abroad, local, non_deliverable, totals = map(self.parser.stats.get, (
+                abroad, local, non_deliverable, totals = map(p.stats.get, (
                     'abroad', 'local', 'non_deliverable', 'totals'))
 
                 print(f"** Processing completed: {totals} result files in {Config.get_cache_dir()}")
@@ -175,10 +186,10 @@ class Informer:
 
             stat = self.get_stats_phrase()
             print("\n Statistics overview:\n" + stat)
-            if Config.get("write_statistics") and not self.parser.stdin:
+            if Config.get("write_statistics") and not p.stdin:
                 # we write statistics.txt only if we're sourcing from a file, not from stdin
                 # XX move this to parser.run_analysis and _resolve_again or to Processor – do not rewrite it every time here!
-                with open(Path(Path(self.parser.source_file).parent, "statistics.txt"), "w") as f:
+                with open(Path(Path(p.source_file).parent, "statistics.txt"), "w") as f:
                     f.write(stat)
             """
             XX
@@ -191,9 +202,9 @@ class Informer:
         if full:
             # XX subprocess.run("less", input=v, encoding="utf-8")
             # XX show aggregation too
-            if len(self.parser.ranges.items()):
+            if len(p.ranges.items()):
                 rows = []
-                for prefix, o in self.parser.ranges.items():
+                for prefix, o in p.ranges.items():
                     prefix, location, incident, asn, netname, country, abusemail, timestamp = o
                     rows.append((prefix, location, incident or "-", asn or "-", netname or "-"))
                 print("\n\n** Whois information overview **\n",
@@ -201,9 +212,9 @@ class Informer:
             else:
                 print("No whois information available.")
 
-            if self.parser.is_split:
+            if p.is_split:
                 rows = []
-                for o in self.parser.attachments:
+                for o in p.attachments:
                     rows.append((o.filename,
                                  {True: "abroad", False: "✓", None: "×"}[o.abroad],
                                  {True: "✓", False: "error", None: "no"}[o.sent],

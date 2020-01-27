@@ -14,7 +14,7 @@ Any input is accepted:
     2) **Add a column** (computes one field from another – see below)
     3) **Filter** (keep/discard rows with specific values, no duplicates)    
     4) **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
-    5) **Change CSV dialect** (change delimiter or quoting character)
+    5) **Change CSV dialect** (change delimiter or quoting character, remove header)
     6) **Aggregate** (count grouped by a column, sum...)
 
 Python3.6+ required.
@@ -396,7 +396,7 @@ In the template, you may specify any e-mail header, such as `Reply-To`, `Cc` or 
 Message is processed with [Jinja2](https://jinja.palletsprojects.com/en/2.10.x/) templating system by default.
 
 Few instruments are included to treat the attachment contents:
-* **row()** – Generate attachment contents fields row by row
+* **row()** – Generate attachment contents fields row by row. Header skipped. 
 * **print_attachment()** – Prints the attachment contents and prevent it to be attached.
     ```jinja2
     You will find our findings below.
@@ -405,14 +405,14 @@ Few instruments are included to treat the attachment contents:
     ```
 * **amount(count=2)** – Check if the attachment has at least count number of lines. Header is not counted. Useful when deciding whether the are single row in the result or multiple.
 * **joined(column: int, delimiter=", ")** – Return a column joined by delimiter
-* **first_line** – Access first line fields
+* **first_row** – Access first line fields
     Example:
     ```jinja2
     {% if amount() %}
         Here is the complete list of the elements.    
         {{ joined(1,"\n") }}
     {% else %}
-        Here is the element you had problems with: {{ first_line[1] }}
+        Here is the element you had problems with: {{ first_row[1] }}
     {% endif %}
     ```
 

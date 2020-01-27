@@ -61,8 +61,10 @@ class Processor:
         if [f for f in self.parser.fields if (not f.is_chosen or f.col_i_original != f.col_i)]:
             settings["chosen_cols"] = [f.col_i_original for f in self.parser.fields if f.is_chosen]
 
-        if not settings["dialect"]:
-            settings["dialect"] = parser.dialect
+        # X if not settings["dialect"]:
+        #     settings["dialect"] = parser.dialect
+        # if settings["header"] is not False:
+        #     settings["header"] = parser.has_header
 
         Web.init(self.parser.get_computed_fields())
 
@@ -329,6 +331,6 @@ class Processor:
         self.descriptorsStatsAll[location] += 1
         self.descriptorsStatsOpen[location] = self.descriptorsStatsAll[location]
         f = self.descriptors[location]
-        if method == "w" and parser.has_header:
+        if method == "w" and settings["header"]:
             f[0].write(parser.header)
         f[1].writerow(chosen_fields)

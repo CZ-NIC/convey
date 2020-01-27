@@ -141,8 +141,9 @@ class Checker:
     def hostname_ip(cls, val):
         if val not in cls.hostname_cache:
             try:
-                cls.hostname_cache[val] = timeout(1, socket.gethostbyname, val)
+                cls.hostname_cache[val] = timeout(3, socket.gethostbyname, val)
             except (TimeoutError, OSError) as e:
+                logger.warning(f"Hostname {val}: {e}")
                 cls.hostname_cache[val] = []
         return cls.hostname_cache[val]
 

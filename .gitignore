@@ -13,3 +13,4 @@
 */convey.log
 /tests/**
 !/tests/*
+/tests/statistics.txt

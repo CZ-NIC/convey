@@ -72,7 +72,7 @@ class MailSender(ABC):
             finally:
                 if status:
                     t = "Marking as sent" if status == "interrupted" else "Sent"
-                    s = ", ".join(e.get_recipients())
+                    s = ", ".join(e.recipients())
                     if Config.is_testing():
                         s += f" (intended for {attachment.mail})"
                     logger.warning(f"{t}: {s}")

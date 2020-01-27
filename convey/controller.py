@@ -23,7 +23,7 @@ from prompt_toolkit.shortcuts import clear
 from .config import Config, get_terminal_size, console_handler, edit
 from .contacts import Contacts, Attachment
 from .decorators import PickBase, PickMethod, PickInput
-from .dialogue import Cancelled, Debugged, Menu, pick_option, ask, ask_number
+from .dialogue import Cancelled, Debugged, Menu, pick_option, ask, ask_number, is_yes
 from .ipc import socket_file, recv, send, daemon_pid
 from .mail_sender import MailSenderOtrs, MailSenderSmtp
 from .parser import Parser, Field
@@ -179,6 +179,8 @@ class Controller:
                             action="store_true")
         parser.add_argument('--send', help="Automatically send e-mails when split; imposes --yes.",
                             action=BlankTrueString, nargs="?", metavar="[blank/smtp/otrs]")
+        parser.add_argument('--send-test', help="Display e-mail message that would be generated for given e-mail.",
+                            nargs=2, metavar=["E-MAIL", "TEMPLATE_FILE"])
         parser.add_argument('--jinja', help="Process e-mail messages with jinja2 templating system",
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--attach-files', help="Split files are added as e-mail attachments",
@@ -189,12 +191,17 @@ class Controller:
                             action="store_true")
         parser.add_argument('-o', '--output', help="Save output to this file."
                                                    " If left blank, pass output to STDOUT."
-                                                   " If omitted, a filename will be produced automatically.",
+                                                   " If omitted, a filename will be produced automatically."
+                                                   " May be combined with --headless.",
                             action=BlankTrueString, nargs="?", metavar="[blank/FILENAME]")
         parser.add_argument('--delimiter', help="Treat file as having this delimiter")
         parser.add_argument('--quote-char', help="Treat file as having this quoting character")
         parser.add_argument('--header', help="Treat file as having header", action="store_true")
         parser.add_argument('--no-header', help="Treat file as not having header", action="store_true")
+        parser.add_argument('--delimiter-output', help="Output delimiter")
+        parser.add_argument('--quote-char-output', help="Output quoting char")
+        parser.add_argument('--header-output', help="If false, header is omitted when processing..",
+                            action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('-d', '--delete', help="Delete a column. You may comma separate multiple columns." + column_help,
                             metavar="COLUMN,[COLUMN]")
         parser.add_argument('-f', '--field',
@@ -331,7 +338,7 @@ class Controller:
         if not is_daemon and not sys.stdin.isatty():  # piping to the process, no terminal
             try:
                 sys.stdin = open("/dev/tty")
-            except FileNotFoundError:
+            except OSError:
                 # this might work on Windows platform
                 # Return "" for every input we got.
                 PromptSession.prompt = lambda *ar, **kw: ""
@@ -354,6 +361,7 @@ class Controller:
             see_menu = False
             args.yes = True
 
+        atexit_done = True
         colorama_init()
         while True:
             try:
@@ -407,7 +415,7 @@ class Controller:
                              "attach_files", "jinja"]:
                     if getattr(args, flag) is not None:
                         Config.set(flag, getattr(args, flag))
-                if args.headless:
+                if args.headless or args.send_test:
                     args.yes = True
                     args.quiet = True
                     see_menu = False
@@ -515,6 +523,26 @@ class Controller:
                 if args.unique:
                     self.add_uniquing(get_column_i(args.unique, "to be put a single time"))
 
+                # set output dialect
+                # Taken from config.ini or flags. If differs from the current one, parser marked as processable.
+                self.parser.settings["dialect"] = dialect = type('', (), {})()
+                for k, v in self.parser.dialect.__dict__.copy().items():
+                    setattr(dialect, k, v)
+
+                def change_dialect(s, s2):
+                    v = getattr(args, s + "_output") or Config.get(s + "_output", "CSV")
+                    if v and v != getattr(dialect, s2):
+                        setattr(dialect, s2, v)
+                        self.parser.is_processable = True
+
+                change_dialect("delimiter", "delimiter")
+                change_dialect("quote_char", "quotechar")
+                self.parser.settings["header"] = self.parser.has_header
+                if self.parser.has_header and args.header_output is not None:
+                    # If current parser has header, we may cut it off
+                    # However, this is such a small change, we will not turning parser.is_processable on.
+                    self.parser.settings["header"] = args.header_output
+
                 # start csirt-incident macro XX deprecated
                 if args.csirt_incident and not self.parser.is_analyzed:
                     self.parser.settings["split"] = len(self.parser.fields)
@@ -533,6 +561,11 @@ class Controller:
                         self.send_menu(args.send)
                     else:
                         self.send_menu()
+                if args.send_test:
+                    c = Path(args.send_test[1]).read_text()
+                    Path(Config.get_cache_dir(), Config.get("mail_template")).write_text(c)
+                    Path(Config.get_cache_dir(), Config.get("mail_template_abroad")).write_text(c)
+                    self.send_menu(test_attachment=args.send_test[0])
 
                 if not see_menu:
                     self.close()
@@ -674,7 +707,7 @@ class Controller:
         self.parser.is_processable = True
         return target_type
 
-    def send_menu(self, method="smtp"):
+    def send_menu(self, method="smtp", test_attachment=None):
         # choose method SMTP/OTRS
         if self.args.csirt_incident:
             if Config.get("otrs_enabled", "OTRS"):
@@ -746,7 +779,9 @@ class Controller:
                 everything_sent = True
                 info.append("All e-mails were sent.")
 
-            if Config.get("yes"):
+            if test_attachment:
+                option = "test"
+            elif Config.get("yes"):
                 option = "1"
             else:
                 clear()
@@ -804,26 +839,33 @@ class Controller:
                     limit = float("inf")
             elif option == "a":
                 Config.set("attach_files", not Config.get('attach_files', 'SMTP', get=bool))
-            elif option in ["t", "r", "p"]:
+            elif option in ["test", "t", "r", "p"]:
                 attachments = list(Attachment.get_all())
                 if option == "p":
-                        with NamedTemporaryFile(mode="w+") as f:
-                            try:
-                                print(f"The messages are being temporarily generated to the file (stop by Ctrl+C): {f.name}")
-                                for attachment in attachments:
-                                    print(".", end="")
-                                    sys.stdout.flush()
-                                    f.write(str(attachment.get_envelope()))
-                                print("Done!")
-                            except KeyboardInterrupt:
-                                print("Interrupted!")
-                            finally:
-                                edit(f.name)
+                    with NamedTemporaryFile(mode="w+") as f:
+                        try:
+                            print(f"The messages are being temporarily generated to the file (stop by Ctrl+C): {f.name}")
+                            for attachment in attachments:
+                                print(".", end="")
+                                sys.stdout.flush()
+                                f.write(str(attachment.get_envelope()))
+                            print("Done!")
+                        except KeyboardInterrupt:
+                            print("Interrupted!")
+                        finally:
+                            edit(f.name)
+                elif option == "test":
+                    choices = [o for o in attachments if o.mail == test_attachment]
+                    if len(choices) != 1:
+                        print(f"Invalid testing attachment {test_attachment}")
+                    else:
+                        print(choices[0].get_envelope().preview())
+                    return
                 elif option == "t":
                     # Choose an attachment
                     choices = [(o.mail, "") for o in attachments]
                     try:
-                        attachment = attachments[pick_option(choices, f"What attachment should server as a test?")]
+                        attachment = attachments[pick_option(choices, f"What attachment should serve as a test?")]
                     except Cancelled:
                         continue
                     clear()
@@ -1181,23 +1223,28 @@ class Controller:
         self.parser.is_processable = True
 
     def add_dialect(self):
-        dialect = type('', (), {})()
-        for k, v in self.parser.dialect.__dict__.copy().items():
-            setattr(dialect, k, v)
-        # XX not ideal and mostly copies Parser.__init__ but this is a great start for a use case we haven't found yet
-        # There might be a table with all the csv.dialect properties or so.
+        # XX not ideal and mostly copies Parser.__init__
+        # XX There might be a table with all the csv.dialect properties or so.
+        dialect = self.parser.settings["dialect"]
         while True:
-            sys.stdout.write("What should be the delimiter: ")
-            dialect.delimiter = input()
+            s = "What is delimiter " + (f"(default '{dialect.delimiter}')" if dialect.delimiter else "") + ": "
+            dialect.delimiter = input(s) or dialect.delimiter
             if len(dialect.delimiter) != 1:
                 print("Delimiter must be a 1-character string. Invent one (like ',').")
                 continue
-            sys.stdout.write("What should be the quoting char: ")
-            dialect.quotechar = input()
+            s = "What is quoting char " + (f"(default '{dialect.quotechar}')" if dialect.quotechar else "") + ": "
+            dialect.quotechar = input(s) or dialect.quotechar
             break
         dialect.quoting = csv.QUOTE_NONE if not dialect.quotechar else csv.QUOTE_MINIMAL
 
-        self.parser.settings["dialect"] = dialect
+        if self.parser.has_header:
+            if self.parser.settings['header'] is False:
+                s = f"Should we remove header? "
+            else:
+                s = f"Should we include header? "
+            if not is_yes(s):
+                self.parser.settings["header"] = not self.parser.settings["header"]
+
         self.parser.is_processable = True
 
     def add_column(self):

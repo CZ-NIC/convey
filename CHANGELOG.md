@@ -11,6 +11,7 @@
         * for non-local countries produces now the file whose name is in the form "abroad:abusemail@example.com"
         * when non-local country is missing from contacts_abroad, it will be sent to its abusemail contact (but preserving mail_template_abroad)
     * attachment name no more prepended with prefix "part-" 
+    * by default, produced file CSV dialect is set to standard: comma, double quotes. (This may be changed in the config.ini by letting the relevant fields in CSV section blank to let the output file have the same dialect as the input.)
 * flags
     * --aggregate – count grouped by a column, sum, etc.
     * --daemon, daemonize – since it takes around 0.75 s to start the program, notably because of the external libraries (pint, bs4, requests), when doing a single query or a headless processing (no menu involved) we may reduce this time at least ten times with a daemon)
@@ -18,8 +19,10 @@
     * --output left BLANK causes output be piped to STDOUT instead of to a file.
     * --reprocess
     * --testing
+    * --send, --send-test [e-mail] [template]
     * --jinja
     * --attach-files
+    * --delimiter-output, --quote-char-output, --header-output (may be set to `false`) to change output file syntax
 * LICENSE included
 * emergency input mode – when piping into the program (instead of giving the input as an argument), convey tries to gain a reduced STDIN from the terminal process #38
 * bash completion
@@ -45,7 +48,7 @@
     - tests
 * sending: huge improvement of the interface
     - SMTP sending uses the envelope library
-    - jinja templates, including helper instruments: print_attachment, amount, row, joined, first_line     
+    - jinja templates, including helper instruments: print_attachment, amount, row, joined, first_row     
 
 ## 1.2 (2019-11-13)
 * web service
