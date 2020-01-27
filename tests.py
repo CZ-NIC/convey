@@ -3,7 +3,7 @@ import shlex
 import sys
 from pathlib import Path
 from subprocess import run, PIPE
-from unittest import TestCase
+from unittest import TestCase, main
 
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 
@@ -71,4 +71,4 @@ class TestTemplate(TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    main()

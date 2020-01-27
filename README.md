@@ -25,10 +25,10 @@ Python3.6+ required.
   + [Usage 2 – CSV processor program](#usage-2--csv-processor-program)
   + [Usage 3 – Web service](#usage-3--web-service)
 * [Installation and first run](#installation-and-first-run)
+  + [Prerequisities](#prerequisities)
   + [Launch as a package:](#launch-as-a-package-)
   + [OR launch from a directory](#or-launch-from-a-directory)
   + [Bash completion](#bash-completion)
-  + [Dependencies and troubleshooting](#dependencies-and-troubleshooting)
   + [Customisation](#customisation)
 * [Computing fields](#computing-fields)
   + [Computable fields](#computable-fields)
@@ -43,7 +43,8 @@ Python3.6+ required.
     - [PickInput decorator](#pickinput-decorator)
 * [Web service](#web-service)
 * [Sending files](#sending-files)
-  + [Arbitrary e-mail headers, "From" header, GPG signing](#arbitrary-e-mail-headers---from--header--gpg-signing)
+  + [Arbitrary e-mail headers, "From" header, GPG signing](#arbitrary-e-mail-headers-from-header-gpg-signing)
+  + [Dynamic templates](#dynamic-templates)
 * [Examples](#examples)
   + [URL parsing](#url-parsing)
     - [Output formats](#output-formats)
@@ -112,6 +113,14 @@ Access in the browser: http://localhost:26683/?q=example.com
 
 ## Installation and first run
 
+### Prerequisities
+* You'll be asked to install `dialog` library at the first run if not already present in the system.
+* If something is missing on your system, you may find help yourself with this command:    
+`sudo apt install python3-pip python3-dev python3-tk git xdg-utils dialog whois dnsutils nmap curl build-essential libssl-dev libpcre3 libpcre3-dev swig && pip3 install setuptools wheel uwsgi && pip3 install --upgrade ipython`
+    * `build-essential` is needed to build `uwsgi` and `envelope`
+    * `libpcre3 libpcre3-dev` needed to suppress uWSGI warning `!!! no internal routing support, rebuild with pcre support !!!`
+    * `libssl-dev` needed to be present before building `uwsgi` if you will need to use `--https`
+    * `python3-dev swig` needed to build `envelope`    
 
 ### Launch as a package:
 
@@ -149,14 +158,6 @@ pip3 install -r requirements.txt  --user
 1. Run: `apt-get install bash-completion jq`
 2. Copy: [extra/convey-autocompletion.bash](./extra/convey-autocompletion.bash) to `/etc/bash_completion.d/`
 3. Restart terminal
-
-### Dependencies and troubleshooting
-* You'll be asked to install `dialog` library at the first run if not already present in the system.
-* If something is missing on your system, you may find help yourself with this command: `sudo apt install python3-pip python3-dev python3-tk git xdg-utils dialog whois dnsutils nmap curl build-essential libssl-dev libpcre3 libpcre3-dev swig && pip3 install setuptools wheel uwsgi && pip3 install --upgrade ipython`
-    * `build-essential` is needed to build `uwsgi` and `envelope`
-    * `libpcre3 libpcre3-dev` needed to suppress uWSGI warning `!!! no internal routing support, rebuild with pcre support !!!`
-    * `libssl-dev` needed to be present before building `uwsgi` if you will need to use `--https`
-    * `python3-dev swig` needed to build `envelope`    
 
 ### Customisation
 * Launch convey with [`--help`](docs/convey-help-cmd-output.md) flag to see [further options](docs/convey-help-cmd-output.md).
@@ -403,7 +404,7 @@ Few instruments are included to treat the attachment contents:
     
     {{ print_attachment() }}
     ```
-* **amount(count=2)** – Check if the attachment has at least count number of lines. Header is not counted. Useful when deciding whether the are single row in the result or multiple.
+* **amount(count=2)** – Check if the attachment has at least `count` number of lines. Header is not counted. Useful when deciding whether the are single row in the result or multiple.
 * **joined(column: int, delimiter=", ")** – Return a column joined by delimiter
 * **first_row** – Access first line fields
     Example:

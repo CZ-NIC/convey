@@ -172,12 +172,13 @@ class Controller:
                                                   " Prints out the least information possible."
                                                   "\n(Ex: if checking single value outputs a single word, prints out just that.)",
                             action="store_true")
-        parser.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions.",
+        parser.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions. "
+                                                "Will not send e-mails unless --send is on too.",
                             action="store_true")
         parser.add_argument('-H', '--headless',
                             help="Launch program in a headless mode which imposes --yes and --quiet. No menu is shown.",
                             action="store_true")
-        parser.add_argument('--send', help="Automatically send e-mails when split; imposes --yes.",
+        parser.add_argument('--send', help="Automatically send e-mails when split.",
                             action=BlankTrueString, nargs="?", metavar="[blank/smtp/otrs]")
         parser.add_argument('--send-test', help="Display e-mail message that would be generated for given e-mail.",
                             nargs=2, metavar=["E-MAIL", "TEMPLATE_FILE"])
@@ -555,12 +556,12 @@ class Controller:
                     self.process()
 
                 if args.send and self.parser.is_analyzed and self.parser.is_split and not self.parser.is_processable:
-                    Config.set("yes", True)
+                    #Config.set("yes", True)
                     see_menu = False
                     if args.send is not True:
-                        self.send_menu(args.send)
+                        self.send_menu(args.send, send_now=True)
                     else:
-                        self.send_menu()
+                        self.send_menu(send_now=True)
                 if args.send_test:
                     c = Path(args.send_test[1]).read_text()
                     Path(Config.get_cache_dir(), Config.get("mail_template")).write_text(c)
@@ -707,7 +708,7 @@ class Controller:
         self.parser.is_processable = True
         return target_type
 
-    def send_menu(self, method="smtp", test_attachment=None):
+    def send_menu(self, method="smtp", test_attachment=None, send_now=False):
         # choose method SMTP/OTRS
         if self.args.csirt_incident:
             if Config.get("otrs_enabled", "OTRS"):
@@ -715,6 +716,8 @@ class Controller:
             else:
                 print("You are using csirt-incident macro but otrs_enabled key is set to False in config.ini. Exiting.")
                 quit()
+        elif Config.get("otrs_enabled", "OTRS") and self.args.otrs_id:
+            method = "otrs"
         elif Config.get("otrs_enabled", "OTRS") and not Config.get("yes"):
             menu = Menu(title="What sending method do we want to use?", callbacks=False, fullscreen=True)
             menu.add("Send by SMTP...")
@@ -781,8 +784,9 @@ class Controller:
 
             if test_attachment:
                 option = "test"
-            elif Config.get("yes"):
+            elif send_now:  # XConfig.get("yes")
                 option = "1"
+                send_now = False
             else:
                 clear()
                 menu = Menu("\n".join(info), callbacks=False, fullscreen=False, skippable=False)

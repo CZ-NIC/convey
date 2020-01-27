@@ -1,4 +1,3 @@
-# Send mails throught OTRS
 import http.client
 import logging
 import re
@@ -36,6 +35,7 @@ class MailSender(ABC):
         """ Send a bunch of e-mail messages """
         sent_mails = 0
         total_count = 0
+        status = None
 
         if self.start() is False:
             return False
@@ -219,14 +219,17 @@ class MailSenderOtrs(MailSender):
                 continue
 
     def process(self, e: envelope):
+        def assure_str(c):
+            return c if type(c) is str else ";".join(c)
+
         fields = (
             ("Action", "AgentTicketForward"),
             ("Subaction", "SendEmail"),
             ("TicketID", str(self.parser.otrs_id)),
             ("Email", getaddresses([e._sender])[0][1]),
             # XX delete this option and rename the other: Config.get("email_from", "SMTP")),
-            ("From", e._sender), # XX XConfig.get("email_from_name", "SMTP")
-            ("To", e._to),  # mails can be delimited by comma or semicolon
+            ("From", assure_str(e._sender)),  # XX XConfig.get("email_from_name", "SMTP")
+            ("To", assure_str(e._to)),  # mails can be delimited by comma or semicolon
             ("Subject", e._subject),
             ("Body", e._message),
             ("ArticleTypeID", "1"),  # mail-external
@@ -240,11 +243,10 @@ class MailSenderOtrs(MailSender):
             pass
 
         if e._cc:
-            fields += ("Cc", e._cc),
+            fields += ("Cc", assure_str(e._cc)),
 
-        # load souboru k zaslani
-        # attachment_contents = registryRecord.getFileContents() #csv.ips2logfile(mailList.mails[mail])
-
+        if e._bcc:  # XX not sure if working
+            fields += ("Bcc", assure_str(e._bcc)),
 
         attachment_contents = ""
         if self.parser.attachment_name and len(e._attachments):
