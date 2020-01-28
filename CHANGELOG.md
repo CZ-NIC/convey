@@ -1,6 +1,10 @@
 # CHANGELOG
 
-## 1.3 (unreleased)
+## 1.3.1 (unreleased)
+* internal
+    * external field missing method name exception
+
+## 1.3 (2020-01-28)
 * CHANGED:
     * config.ini renamed to
         * contacts_local → contacts_cc

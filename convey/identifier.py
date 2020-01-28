@@ -101,7 +101,12 @@ class Identifier:
 
         if target.group == TypeGroup.custom:
             if target == Types.external:
-                lambdas += [getattr(get_module_from_path(custom[0]), custom[1])]  # (module path, method name).
+                try:
+                    lambdas += [getattr(get_module_from_path(custom[0]), custom[1])]  # (module path, method name).
+                except IndexError:
+                    raise ValueError(f"You must specify which method should be used in {custom[0]}")
+                except AttributeError:
+                    raise ValueError(f"Cannot find method {custom[1]} in {custom[0]}")
             elif target == Types.code:
                 if type(custom) is list and len(custom) == 1:
                     custom = custom[0]  # code accepts a string
