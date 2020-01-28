@@ -6,10 +6,15 @@ import re
 import sys
 import traceback
 from bdb import BdbQuit
+from contextlib import contextmanager
+from csv import writer
 from os import linesep
 from pathlib import Path
 
+import ezodf
 import jsonpickle
+import xlrd
+from xlrd import XLRDError
 
 from .config import Config, config_dir
 from .dialogue import is_yes
@@ -22,6 +27,7 @@ __author__ = "Edvard Rejthar"
 __date__ = "$Mar 23, 2015 8:33:24 PM$"
 
 WHOIS_CACHE = ".convey-whois-cache.json"
+
 
 def choose_file():
     print("Set path to the source log file.")
@@ -132,7 +138,8 @@ class Wrapper:
                 quit()
             except Exception as e:
                 print(e)
-                import ipdb; ipdb.post_mortem()
+                import ipdb;
+                ipdb.post_mortem()
                 print("Format of the file may have changed since last time. "
                       "Let's process it all again. If you continue, cache gets deleted.")
                 if not Config.error_caught():
@@ -252,60 +259,100 @@ class Wrapper:
                 output.write(string)
 
     def clear(self):
-        # XX  Check XLS
-        # import xlrd
-        # wb = xlrd.open_workbook("/home/edvard/edvard/www/convey/xlrd/Untitled 1.xlsx")
-        # sh = wb.sheet_by_name('Sheet1')
-        # for rownum in range(sh.nrows):
-        #     print(sh.row_values(rownum))
-
-        # XX Check ods
-        # import ezodf
-        #
-        # doc = ezodf.opendoc("/home/edvard/edvard/www/convey/xlrd/Untitled 1.ods")
-        #
-        # sheet = doc.sheets[0]
-        # df_dict = {}
-        # rows = []
-        # for i, row in enumerate(sheet.rows()):
-        #     r = []
-        #     for j, cell in enumerate(row):
-        #         r.append(cell.value)
-        #     rows.append(r)
-
-        # Check if the contents is a CSV and not just a log
-        # ex: "06:25:13.378767 IP 142.234.39.36.51354 > 195.250.148.86.80: Flags [S], seq 1852455482, win 29200, length 0"
-        re_ip_with_port = re.compile("((\d{1,3}\.){4})(\d+)")
-        re_log_line = re.compile(r"([^\s]*)\sIP\s([^\s]*)\s>\s([^\s:]*)")
-        _, sample = Identifier(None).get_sample(self.file)
-        if sample and re_log_line.match(sample[0]) and is_yes(
-                "\nThis seems like a log file. Do you wish to transform it to CSV first?"):
-            parser = Parser(self.file, prepare=False)
-            parser.prepare_target_file()
-            with open(parser.target_file, "w") as target:
-                target.write(",".join(["time", "source", "src_port", "dst", "dst_port"]) + "\n")
-                with open(parser.source_file) as f:
-                    for line in f.readlines():
-                        try:
-                            res = re_log_line.search(line).groups()
-                        except AttributeError:
-                            print("Error", line)
-                            break
-                        else:
-                            def parse_ip(val):
-                                m = re_ip_with_port.match(val)
-                                if m:
-                                    return m[1][:-1], m[3]
-                                else:
-                                    return "", ""
-
-                            timestamp = res[0]
-                            source, src_port = parse_ip(res[1])
-                            dst, dst_port = parse_ip(res[2])
-
-                            target.write(",".join([timestamp, source, src_port, dst, dst_port]) + "\n")
-                input(f"Successfully written to {parser.target_file}. Hit any key.")
-                self.file = parser.target_file
+        self.check_xls() or self.check_ods() or self.check_log()
 
         self.parser = Parser(self.file, self.stdin, self.types)
         self.save()
+
+    def check_log(self):
+        """ Check if the contents is a CSV and not just a log
+         ex: "06:25:13.378767 IP 142.234.39.36.51354 > 195.250.148.86.80: Flags [S], seq 1852455482, win 29200, length 0"
+         """
+        re_ip_with_port = re.compile("((\d{1,3}\.){4})(\d+)")
+        re_log_line = re.compile(r"([^\s]*)\sIP\s([^\s]*)\s>\s([^\s:]*)")
+        _, sample = Identifier(None).get_sample(self.file)
+        if sample and re_log_line.match(sample[0]):
+
+            if is_yes("This seems like a log file. Do you wish to transform it to CSV first?"):
+                with self.rework() as target:
+                    target.writerow(["time", "source", "src_port", "dst", "dst_port"])
+                    with open(self.file) as f:
+                        for line in f.readlines():
+                            try:
+                                res = re_log_line.search(line).groups()
+                            except AttributeError:
+                                print("Error", line)
+                                break
+                            else:
+                                def parse_ip(val):
+                                    m = re_ip_with_port.match(val)
+                                    if m:
+                                        return m[1][:-1], m[3]
+                                    else:
+                                        return "", ""
+
+                                timestamp = res[0]
+                                source, src_port = parse_ip(res[1])
+                                dst, dst_port = parse_ip(res[2])
+                                target.writerow([timestamp, source, src_port, dst, dst_port])
+            return True
+
+    def check_ods(self):
+        """ Check if the contents is an ODS file """
+        try:
+            doc = ezodf.opendoc(self.file)
+        except KeyError:
+            pass
+        else:
+            if is_yes("This seems like an ODS file. Do you wish to transform it to CSV first?"):
+                sheet = doc.sheets[0]
+                with self.rework() as target:
+                    for i, row in enumerate(sheet.rows()):
+                        r = []
+                        for j, cell in enumerate(row):
+                            r.append(cell.value)
+                        target.writerow(r)
+            return True
+
+    def check_xls(self):
+        """ Check if the contents is a XLS file """
+        try:
+            wb = xlrd.open_workbook(self.file)
+            sh = wb.sheet_by_name('Sheet1')
+        except XLRDError:
+            pass
+        else:
+            if is_yes("This seems like a XLS file. Do you wish to transform it to CSV first?"):
+                with self.rework() as target:
+                    for row in range(sh.nrows):
+                        target.writerow(sh.row_values(row))
+            return True
+
+    @contextmanager
+    def rework(self):
+        target = Path(str(self.file) + ".csv")
+        if target.exists():
+            if is_yes(f"It seems the file {target.absolute()} already exists. Do you wish to process it?"):
+                try:
+                    yield None
+                except AttributeError:
+                    pass
+                finally:
+                    # XXX however, this resets the cache of the file because we continue in the clear() method
+                    #   We rather do want to directly go to the file.
+                    self.assure_cache_file(target.absolute())  # changes self.file
+                    return
+            else:
+                print(f"The file {target} already exist, cannot be recreated.")
+                quit()
+        # noinspection PyBroadException
+        try:
+            with target.open("w") as f:
+                yield writer(f)
+        except Exception as e:
+            print(e)
+            input(f"Could not convert. Hit any key.")
+        else:
+            input(f"Successfully written to {target.absolute()}. Hit any key.")
+            # XX remove old cache directory if empty
+            self.assure_cache_file(target.absolute())  # changes self.file

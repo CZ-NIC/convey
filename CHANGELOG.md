@@ -2,6 +2,7 @@
 
 ## 1.3.1 (unreleased)
 * thread processing
+* automatically converts XLSX and ODS spreadsheet file formats too
 * internal
     * external field missing method name exception
 

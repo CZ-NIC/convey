@@ -8,7 +8,7 @@ Convenable way to quickly gather all meaningful information or to process large 
 Any input is accepted: 
 * if a **single value** input is detected, all **meaningful information** is fetched
 * multiline **base64**/**quoted_printable** string gets decoded
-* **log file** is converted to CSV 
+* **log/XLS/XLSX/ODS file** converted to CSV 
 * **CSV file** (any delimiter, header or whatever) performs one or more actions
     1) **Pick, delete or sort columns** (if only some columns are needed)
     2) **Add a column** (computes one field from another – see below)

@@ -464,11 +464,12 @@ class Parser:
 
     def prepare_target_file(self):
         if not self.settings["split"] and self.settings["split"] is not 0:  # 0 is a valid column
-            self.target_file = self.invent_file_str()
             self.is_split = False
+            self.target_file = self.invent_file_str()
         else:
-            self.target_file = None
             self.is_split = True
+            self.target_file = None
+        return self.target_file
 
     def invent_file_str(self):
         l = []
