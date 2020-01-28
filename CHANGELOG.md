@@ -1,6 +1,7 @@
 # CHANGELOG
 
 ## 1.3.1 (unreleased)
+* thread processing
 * internal
     * external field missing method name exception
 

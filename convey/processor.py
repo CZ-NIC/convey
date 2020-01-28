@@ -9,6 +9,9 @@ from functools import reduce
 from math import ceil
 from operator import eq, ne, mul
 from pathlib import Path
+from queue import Queue, Empty
+from threading import Thread, Event
+from time import sleep
 from typing import Dict
 
 from .config import Config
@@ -45,6 +48,34 @@ class Processor:
         self.descriptorsStatsOpen = {}
         self.descriptorsStatsAll = defaultdict(int)
         self.descriptors = {}
+
+    def _stats(self, stats_stop):
+        parser = self.parser
+        last_count = 0
+        delta = 0
+        while True:
+            if stats_stop._flag is True:
+                return
+            if stats_stop._flag is not 1 and last_count != parser.line_count:
+                # if parser.line_count == parser.line_sout:
+                now = datetime.now()
+                delta = (now - parser.time_last).total_seconds()
+                parser.time_last = now
+                # XX since this is run in a thread, we can get rid of the velocity
+                if delta < 1 or delta > 2:
+                    new_vel = ceil(parser.velocity / delta) + 1
+                    if abs(new_vel - parser.velocity) > 100 and parser.velocity < new_vel:
+                        # smaller accelerating of velocity (decelerating is alright)
+                        parser.velocity += 100
+                    else:
+                        parser.velocity = new_vel
+                parser.line_sout = parser.line_count + 1 + parser.velocity
+                # import sys
+                # sys.stderr.write("\x1b[2J\x1b[H")
+                # sys.stderr.flush()
+                parser.informer.sout_info()
+                Whois.quota.check_over()
+            sleep(0.3 if delta < 10 else 1)
 
     def process_file(self, file, rewrite=False, stdin=None):
         parser = self.parser
@@ -85,51 +116,100 @@ class Processor:
             if parser.has_header:  # skip header
                 reader.__next__()
 
-            # XX if not threads:
+            # prepare thread processing
+            threads = []
+            t = Config.get("threads")
+            if t == "auto":
+                # XX since threads are experimental, make this disable threads
+                # In the future, enable it when using DNS and disable when using WHOIS (that may lead to duplicite calls)
+                thread_count = 0
+            elif type(t) is bool:
+                thread_count = 10 if t else 0
+            else:
+                thread_count = int(t)
+
+            if thread_count:
+                q = Queue(maxsize=thread_count + 2)
+
+                def x(i):
+                    while True:
+                        m = q.get()
+                        parser.line_count += 1
+                        if m is False:  # kill signal received
+                            q.task_done()
+                            return
+                        self.process_line(parser, m, settings)
+                        q.task_done()
+
+                for index in range(thread_count):
+                    t = Thread(target=x, args=(index,), daemon=True)
+                    t.start()
+                    threads.append(t)
+
+            stats_stop = Event()  # if ._flag is True, ends, if is 1, pauses, if is False, runs
+            Thread(target=self._stats, args=(stats_stop,), daemon = True).start()
+
             for row in reader:
-                if not row:  # skip blank
-                    continue
-                parser.line_count += 1
-                if parser.line_count == parser.line_sout:
-                    now = datetime.now()
-                    delta = (now - parser.time_last).total_seconds()
-                    parser.time_last = now
-                    if delta < 1 or delta > 2:
-                        new_vel = ceil(parser.velocity / delta) + 1
-                        if abs(new_vel - parser.velocity) > 100 and parser.velocity < new_vel:
-                            # smaller accelerating of velocity (decelerating is alright)
-                            parser.velocity += 100
-                        else:
-                            parser.velocity = new_vel
-                    parser.line_sout = parser.line_count + 1 + parser.velocity
-                    parser.informer.sout_info()
-                    Whois.quota.check_over()
                 try:
-                    self.process_line(parser, row, settings)
+                    if not row:  # skip blank
+                        continue
+                    if thread_count:
+                        q.put(row)
+                    else:
+                        parser.line_count += 1  # XX stats might be displayed in a thread
+                        self.process_line(parser, row, settings)
                 except BdbQuit:  # not sure if working, may be deleted
+                    stats_stop.set()
                     print("BdbQuit called")
                     raise
                 except KeyboardInterrupt:
+                    stats_stop._flag = 1  # pause
                     print(f"Keyboard interrupting on line number: {parser.line_count}")
                     s = "[a]utoskip LACNIC encounters" \
                         if self.parser.queued_lines_count and not Config.get("lacnic_quota_skip_lines", "FIELDS") else ""
                     o = ask("Keyboard interrupt caught. Options: continue (default, do the line again), "
                             "[s]kip the line, [d]ebug, [e]nd processing earlier, [q]uit: ")
+                    stats_stop._flag = False
                     if o == "a":
                         Config.set("lacnic_quota_skip_lines", True, "FIELDS")
                     if o == "d":
                         print("Maybe you should hit n multiple times because pdb takes you to the wrong scope.")  # I dont know why.
                         Config.get_debugger().set_trace()
                     elif o == "s":
-                        continue  # skip to the next line
-                    elif o == "e":
+                        continue  # skip to the next line XXmaybe this is not true for threads
+                    elif o == "e":  # end processing now
+                        if thread_count:
+                            try:
+                                while q.get_nowait():  # empty remaining queue
+                                    pass
+                            except Empty:
+                                pass
+                            [q.put(False) for _ in threads]  # send kill signal
+                            [t.join() for t in threads]  # wait the threads to write descriptors
                         return
                     elif o == "q":
                         self._close_descriptors()
                         quit()
                     else:  # continue from last row
                         parser.line_count -= 1  # let's pretend we didn't just do this row before and give it a second chance
+                        if thread_count:
+                            # XX when in threads, task_done was not called to queue so no need to requeuing,
+                            #  Instead, the line is put to invalid rows. At least when I was digging a number of DNS queries
+                            #  that received.
+                            # subprocess.CalledProcessError: Command '['dig', '+short', '-t',
+                            #           'A', '...', '+timeout=1']' died with <Signals.SIGINT: 2>.
+                            # This behaviour was not observed without threads, instead, a KeyboardInterrupt was produced.
+                            continue
                         self.process_line(parser, row, settings)
+
+            # join threads
+            while True:
+                try:
+                    [q.put(False) for _ in threads]  # send kill signal
+                    [t.join() for t in threads]  # wait the threads to write descriptors
+                    break
+                except KeyboardInterrupt:
+                    print("Cannot keyboard interrupt now, all events were sent to threads.")
 
             # after processing changes
             if settings["aggregate"]:  # write aggregation results now because we skipped it in process_line when aggregating
@@ -146,6 +226,8 @@ class Processor:
                     v = self.parser.informer.get_aggregation(data)
                     t.write(v)
         finally:
+            stats_stop.set()
+            print("ENDING!!")
             if not stdin:
                 source_stream.close()
             if not self.parser.is_split:
@@ -331,6 +413,7 @@ class Processor:
         self.descriptorsStatsAll[location] += 1
         self.descriptorsStatsOpen[location] = self.descriptorsStatsAll[location]
         f = self.descriptors[location]
+        # XX threads: lock
         if method == "w" and settings["header"]:
             f[0].write(parser.header)
         f[1].writerow(chosen_fields)

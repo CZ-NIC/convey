@@ -289,6 +289,8 @@ class Controller:
                                                "\n    * +1 to gray out disabled fields/methods"
                                                "\n    * +2 to include usual field names",
                             type=int, const=1, nargs='?')
+        parser.add_argument('--threads', help="Set the thread processing number.",
+                            action=BlankTrueString, nargs="?", metavar="blank/false/auto/INT")
         parser.add_argument('--get-autocompletion', help="Get bash autocompletion.", action="store_true")
         parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
@@ -362,7 +364,6 @@ class Controller:
             see_menu = False
             args.yes = True
 
-        atexit_done = True
         colorama_init()
         while True:
             try:
@@ -449,6 +450,9 @@ class Controller:
                                        args.type, args.fresh, args.reprocess,
                                        args.delete_whois_cache)
                 self.parser: Parser = self.wrapper.parser
+
+                if args.threads is not None:
+                    Config.set("threads", args.threads)
 
                 def get_column_i(col, check):
                     self.parser.is_processable = True
