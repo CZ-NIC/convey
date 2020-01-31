@@ -309,6 +309,9 @@ class Config:
     @staticmethod
     def github_issue(title, body):
         url = f"https://github.com/CZ-NIC/convey/issues/new?title={quote(title)}&body={quote(body)}"
+        if len(url) > 2000:
+            url = url[:1987] + "%7D%60%60%60"  # newline and 3× backtick
+            #print(f"Copy this to the body: {body}")
         webbrowser.open(url)
         input(f"\nPlease submit a Github issue at {url}"
               "\nTrying to open issue tracker in a browser...")

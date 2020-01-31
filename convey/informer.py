@@ -7,6 +7,7 @@ from math import ceil
 from pathlib import Path
 
 import humanize
+from colorama import Fore
 from tabulate import tabulate
 
 from .config import Config, get_terminal_size
@@ -39,12 +40,12 @@ class Informer:
             s = p.dialect.delimiter
             if se["dialect"] and p.dialect.delimiter != se["dialect"].delimiter:
                 s = f"{s} → {se['dialect'].delimiter}"
-            l.append(f"delimiter: '{s}'")
+            l.append(f"delimiter: '{Fore.YELLOW}{s}{Fore.RESET}'")
 
             s = p.dialect.quotechar
             if se["dialect"] and p.dialect.quotechar != se["dialect"].quotechar:
-                l[-1] += f"{s} → {se['dialect'].quotechar}"
-            l.append(f"quoting: '{s}'")
+                s = f"{s} → {se['dialect'].quotechar}"
+            l.append(f"quoting: '{Fore.YELLOW}{s}{Fore.RESET}'")
         if p.has_header is not None:
             l.append("header: " + (("remove" if se["header"] is False else "used") if p.has_header else "not used"))
         if se["filter"]:
@@ -137,7 +138,7 @@ class Informer:
                 print("\033[0;36mCompact preview:\033[0m")
                 cw = writer(sys.stdout, dialect=se["dialect"] or p.dialect)
                 if se["header"] is not False and p.has_header:
-                     cw.writerow([f.get() for f in p.fields])
+                    cw.writerow([f.get() for f in p.fields])
                 for r in full_rows:
                     cw.writerow(r)
 
@@ -169,13 +170,11 @@ class Informer:
                     print("* It seems no file is meant to serve as an e-mail attachment.")
                 else:
                     if local[0] + abroad[0] == 0:
-                        print(
-                            f"Already sent all {abroad[1]} abroad e-mails and {local[1]} other e-mails")
-                    if local[1] + abroad[1] > 1:
-                        print(f"* already sent {abroad[1]}/{sum(abroad)} abroad e-mails\n* {local[1]}/{sum(local)} other e-mails")
+                        print(f"Already sent all {abroad[1]} abroad e-mails and {local[1]} local e-mails")
+                    elif local[1] + abroad[1] > 1:
+                        print(f"Already sent {abroad[1]}/{sum(abroad)} abroad e-mails and {local[1]}/{sum(local)} local e-mails")
                     else:
-                        print(
-                            f"* {abroad[0]} files seem to be attachments for abroad e-mails\n* {local[0]} for other e-mails")
+                        print(f"* {abroad[0]} files seem to be attachments for abroad e-mails\n* {local[0]} for local e-mails")
                     if non_deliverable:
                         print(f"* {non_deliverable} files undeliverable")
 

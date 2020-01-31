@@ -227,7 +227,6 @@ class Processor:
                     t.write(v)
         finally:
             stats_stop.set()
-            print("ENDING!!")
             if not stdin:
                 source_stream.close()
             if not self.parser.is_split:

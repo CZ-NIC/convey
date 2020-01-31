@@ -14,6 +14,7 @@ from pathlib import Path
 import ezodf
 import jsonpickle
 import xlrd
+from netaddr import IPRange
 from xlrd import XLRDError
 
 from .config import Config, config_dir
@@ -173,7 +174,11 @@ class Wrapper:
     def load_whois_cache():
         p = Path(config_dir, WHOIS_CACHE)  # restore whois cache
         if p.exists():
-            return jsonpickle.decode(p.read_text(), keys=True)
+            ip_seen, ranges_serialized = jsonpickle.decode(p.read_text(), keys=True)
+            ranges = {}
+            for k, v in ranges_serialized.items():
+                ranges[IPRange(k[0], k[1])] = v
+            return ip_seen, ranges
         return {}, {}
 
     ##
@@ -244,7 +249,12 @@ class Wrapper:
                     ip_seen, ranges = self.parser.ip_seen, self.parser.ranges
                 # note that ip_seen MUST be placed before ranges due to https://github.com/jsonpickle/jsonpickle/issues/280
                 # That way, a netaddr object (IPNetwork, IPRange) are defined as value in ip_seen and not as key in range.
-                encoded = jsonpickle.encode([ip_seen, ranges], keys=True)
+                # Update version 1.3.1: However this was not enough, serializing object as dict keys was still a problem.
+                # So we are manually converting them to int-tuples.
+                ranges_serializable = {}
+                for k, v in ranges.items():
+                    ranges_serializable[k.first, k.last] = v
+                encoded = jsonpickle.encode([ip_seen, ranges_serializable], keys=True)
                 # noinspection PyBroadException
                 try:
                     jsonpickle.decode(encoded, keys=True)

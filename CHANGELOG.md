@@ -5,6 +5,10 @@
 * automatically converts XLSX and ODS spreadsheet file formats too
 * internal
     * external field missing method name exception
+    * loading dialect from a cached file bug
+    * jsonpickle whois caching bug mitigated: now we are doing the serialization part ourselves
+    * dependency of lxml of ezodf (which was not installed with ezodf I do not know why) added to requirements
+    * submitting to github strips URL to 2000 chars (which is a reasonable maximum that server accepts)
 
 ## 1.3 (2020-01-28)
 * CHANGED:

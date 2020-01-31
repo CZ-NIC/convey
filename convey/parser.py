@@ -6,7 +6,6 @@ import re
 import subprocess
 import time
 from collections import defaultdict
-from copy import deepcopy
 from itertools import zip_longest
 from json import dumps
 from math import ceil, inf
@@ -791,14 +790,14 @@ class Parser:
         self.processor = Processor(self)
 
         # input CSV dialect
-        self.dialect = deepcopy(csv.unix_dialect)
+        self.dialect = csv.unix_dialect()
         for k, v in state["dialect"].items():
             setattr(self.dialect, k, v)
 
         # output CSV dialect
         d = self.settings["dialect"]
         if d:
-            self.settings["dialect"] = deepcopy(csv.unix_dialect)
+            self.settings["dialect"] = csv.unix_dialect()
             for k, v in d.items():
                 setattr(self.settings["dialect"], k, v)
 

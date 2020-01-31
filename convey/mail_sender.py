@@ -43,16 +43,17 @@ class MailSender(ABC):
             attachment: Attachment
             e: envelope = attachment.get_envelope()
 
-            if e._message == "" or e._subject == "":
+            if e.message().strip() == "" or e.subject().strip() == "":
+                # program flow should never allow lead us here
                 print("Missing subject or mail body text.")
                 return False
 
             if attachment.sent:
-                # XX this should be known in the dialog before, user should know earlier how many e-mails will be skipped
+                # program flow should never allow lead us here
                 print(f"Message for {attachment.mail} already sent, skipping!")
                 continue
 
-            for address in e._to:
+            for address in e._to:  # XX this may fail when we put multiple To: addresses in the template header
                 if not validate_email(address):
                     logger.error("Erroneous e-mail: {}".format(address))
                     continue
