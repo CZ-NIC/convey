@@ -413,7 +413,7 @@ class Processor:
         self.descriptorsStatsAll[location] += 1
         self.descriptorsStatsOpen[location] = self.descriptorsStatsAll[location]
         f = self.descriptors[location]
-        # XX threads: lock
+        # XXXX threads: lock? Check if really is not atomic, I had no bad experience.
         if method == "w" and settings["header"]:
             f[0].write(parser.header)
         f[1].writerow(chosen_fields)

@@ -2,7 +2,7 @@ ezodf
 xlrd
 jinja2
 colorama
-pint
+pint=0.9
 chardet
 envelope>=0.9.8
 python-dateutil
