@@ -73,9 +73,10 @@ class MailDraft:
                     e.to(Config.get('testing_mail'))
                     e.message(f"This is testing mail only from Convey."
                               f" Don't be afraid, it was not delivered to: {intended_to}\r\n{e._message}")
-                elif attachment.cc:
+                else:
                     e.to(attachment.mail)
-                    e.cc(attachment.cc)
+                    if attachment.cc:
+                        e.cc(attachment.cc)
 
             return e
 

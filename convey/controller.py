@@ -790,7 +790,7 @@ class Controller:
                 option = "test"
             elif send_now:  # XConfig.get("yes")
                 option = "1"
-                send_now = False
+                send_now = False  # while-loop must not re-send
             else:
                 clear()
                 menu = Menu("\n".join(info), callbacks=False, fullscreen=False, skippable=False)
@@ -801,9 +801,7 @@ class Controller:
                     menu.add(f"Send local e-mails ({limitable(st['local'][0])})", key="2")
                     menu.add(f"Send abroad e-mails ({limitable(st['abroad'][0])})", key="3")
                 if len(menu.menu) == 0:
-                    print("No e-mails in the set. Can't send. Continue to the main menu...")
-                    input()
-                    return
+                    print("No e-mails in the set. Cannot send.")
 
                 t = f" from {limit}" if limit < float("inf") else ""
                 menu.add(f"Limit sending amount{t} to...", key="l")
@@ -949,9 +947,9 @@ class Controller:
     def edit_mail_templates(self, blocking=False, local=True, abroad=True):
         # XX you might easily be asked whether you wish to use GUI or text editor
         if local:
-            Contacts.mail_draft["local"].edit()
+            Contacts.mail_draft["local"].edit_text()
         if abroad:
-            Contacts.mail_draft["abroad"].edit()
+            Contacts.mail_draft["abroad"].edit_text()
         if not (local or abroad):
             print("Neither local nor abroad e-mails are to be sent, no editor was opened.")
         if blocking:

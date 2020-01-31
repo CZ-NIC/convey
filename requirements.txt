@@ -2,7 +2,7 @@ ezodf
 xlrd
 jinja2
 colorama
-pint=0.9
+pint<0.10
 chardet
 envelope>=0.9.8
 python-dateutil
@@ -18,3 +18,4 @@ humanize
 beautifulsoup4
 prompt_toolkit>=2,<3
 pygments
+lxml
