@@ -535,8 +535,14 @@ class Controller:
                     setattr(dialect, k, v)
 
                 def change_dialect(s, s2):
+                    # delimiter_output, quote_char_output
                     v = getattr(args, s + "_output") or Config.get(s + "_output", "CSV")
                     if v and v != getattr(dialect, s2):
+                        # XXX documents
+                        # XXXX convey received_time.csv --delimiter-output "\t"
+                        # convey received_time.csv --delimiter-output \\t
+                        # AND Make informer print out TAB
+                        v = v.replace(r"\t", "\t")
                         setattr(dialect, s2, v)
                         self.parser.is_processable = True
 
@@ -819,7 +825,7 @@ class Controller:
             # sending menu processing - all, abuse and abroad e-mails
             limit_csirtmails_when_all = limit - st['local'][0]
             if option in ("1", "2") and st['local'][0] > 0:
-                print("Sending basic e-mails...")
+                print("Sending e-mails...")
                 sender.send_list(Attachment.get_all(False, False, limit))
             if option in ("1", "3") and st['abroad'][0] > 0:
                 # decrease the limit by the number of e-mails that was just send in basic list

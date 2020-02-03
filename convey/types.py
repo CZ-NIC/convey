@@ -989,6 +989,7 @@ class Types:
             # (t.email, check legit mailbox)
             (t.country_name, t.country): address_country,
             (t.country, t.country_name): lambda x: country_codes[x],
+            (t.country, t.csirt_contact): lambda x: Contacts.country2mail[x] if x in Contacts.country2mail else "-",
             (t.phone, t.country): phone_country,
             (t.hostname, t.tld): Checker.HostnameTld,
             (t.prefix, t.cidr): Checker.prefix_cidr,

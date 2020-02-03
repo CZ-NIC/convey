@@ -1,34 +1,34 @@
 This is the output of the `--help` command.
 ```
-usage: convey.py [-h] [--debug [blank/false]] [--testing [blank/false]] [-F]
-                 [-R] [-v] [-q] [-y] [-H] [--send [[blank/smtp/otrs]]]
-                 [--send-test ['E-MAIL', 'TEMPLATE_FILE']
-                 ['E-MAIL', 'TEMPLATE_FILE']] [--jinja [blank/false]]
-                 [--attach-files [blank/false]] [--file] [-i]
-                 [-o [[blank/FILENAME]]] [--delimiter DELIMITER]
-                 [--quote-char QUOTE_CHAR] [--header] [--no-header]
-                 [--delimiter-output DELIMITER_OUTPUT]
-                 [--quote-char-output QUOTE_CHAR_OUTPUT]
-                 [--header-output [blank/false]] [-d COLUMN,[COLUMN]]
-                 [-f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
-                 [-fe FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
-                 [-t [TYPE],...] [--split COLUMN] [-s COLUMN,...]
-                 [-u COLUMN,VALUE] [-ef COLUMN,VALUE] [-if COLUMN,VALUE]
-                 [-a [COLUMN, FUNCTION], ..., [group-by-COLUMN]]
-                 [--otrs_id OTRS_ID] [--otrs_num OTRS_NUM]
-                 [--otrs_cookie OTRS_COOKIE] [--otrs_token OTRS_TOKEN]
-                 [--csirt-incident] [--whois [blank/false]]
-                 [--nmap [blank/false]] [--dig [blank/false]]
-                 [--web [blank/false]] [--disable-external] [--json]
-                 [--config [1 terminal|2 GUI|3 both by default]]
-                 [--user-agent USER_AGENT] [-S] [--single-detect] [-C]
-                 [--multiple-hostname-ip [blank/false]]
-                 [--multiple-cidr-ip [blank/false]] [--whois-ttl SECONDS]
-                 [--show-uml [SHOW_UML]] [--get-autocompletion]
-                 [--compute-preview [blank/false]] [--delete-whois-cache]
-                 [--version] [--server]
-                 [--daemon [['start', 'restart', 'stop', 'status', 'server']]]
-                 [file_or_input]
+usage: convey [-h] [--debug [blank/false]] [--testing [blank/false]] [-F] [-R]
+              [-v] [-q] [-y] [-H] [--send [[blank/smtp/otrs]]]
+              [--send-test ['E-MAIL', 'TEMPLATE_FILE']
+              ['E-MAIL', 'TEMPLATE_FILE']] [--jinja [blank/false]]
+              [--attach-files [blank/false]] [--file] [-i]
+              [-o [[blank/FILENAME]]] [--delimiter DELIMITER]
+              [--quote-char QUOTE_CHAR] [--header] [--no-header]
+              [--delimiter-output DELIMITER_OUTPUT]
+              [--quote-char-output QUOTE_CHAR_OUTPUT]
+              [--header-output [blank/false]] [-d COLUMN,[COLUMN]]
+              [-f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
+              [-fe FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
+              [-t [TYPE],...] [--split COLUMN] [-s COLUMN,...]
+              [-u COLUMN,VALUE] [-ef COLUMN,VALUE] [-if COLUMN,VALUE]
+              [-a [COLUMN, FUNCTION], ..., [group-by-COLUMN]]
+              [--otrs_id OTRS_ID] [--otrs_num OTRS_NUM]
+              [--otrs_cookie OTRS_COOKIE] [--otrs_token OTRS_TOKEN]
+              [--csirt-incident] [--whois [blank/false]]
+              [--nmap [blank/false]] [--dig [blank/false]]
+              [--web [blank/false]] [--disable-external] [--json]
+              [--config [1 terminal|2 GUI|3 both by default]]
+              [--user-agent USER_AGENT] [-S] [--single-detect] [-C]
+              [--multiple-hostname-ip [blank/false]]
+              [--multiple-cidr-ip [blank/false]] [--whois-ttl SECONDS]
+              [--show-uml [SHOW_UML]] [--threads [blank/false/auto/INT]]
+              [--get-autocompletion] [--compute-preview [blank/false]]
+              [--delete-whois-cache] [--version] [--server]
+              [--daemon [['start', 'restart', 'stop', 'status', 'server']]]
+              [file_or_input]
 
 Data conversion swiss knife
 
@@ -53,11 +53,12 @@ optional arguments:
   -q, --quiet           Sets the verbosity to see WARNINGs and ERRORs only. Prints out the least information possible.
                         (Ex: if checking single value outputs a single word, prints out just that.)
   -y, --yes             Assume non-interactive mode and the default answer to
-                        questions.
+                        questions. Will not send e-mails unless --send is on
+                        too.
   -H, --headless        Launch program in a headless mode which imposes --yes
                         and --quiet. No menu is shown.
   --send [[blank/smtp/otrs]]
-                        Automatically send e-mails when split; imposes --yes.
+                        Automatically send e-mails when split.
   --send-test ['E-MAIL', 'TEMPLATE_FILE'] ['E-MAIL', 'TEMPLATE_FILE']
                         Display e-mail message that would be generated for
                         given e-mail.
@@ -222,12 +223,14 @@ optional arguments:
                          * FLAGs:
                             * +1 to gray out disabled fields/methods
                             * +2 to include usual field names
+  --threads [blank/false/auto/INT]
+                        Set the thread processing number.
   --get-autocompletion  Get bash autocompletion.
   --compute-preview [blank/false]
                         When adding new columns, show few first computed
                         values.
   --delete-whois-cache  Delete convey's global WHOIS cache.
-  --version             Show the version number (which is currently 1.3rc8).
+  --version             Show the version number (which is currently 1.2).
   --server              Launches simple web server
   --daemon [['start', 'restart', 'stop', 'status', 'server']]
                         Run a UNIX socket daemon to speed up single query requests.

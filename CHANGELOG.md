@@ -1,6 +1,12 @@
 # CHANGELOG
 
-## 1.3.1 (unreleased)
+## 1.3.2 (unreleased)
+* types
+    * csirt_contact now may be derived from tld
+* internal
+    * OTRS no more appends ".txt" to the attachment name    
+
+## 1.3.1 (2020-01-31)
 * thread processing
 * automatically converts XLSX and ODS spreadsheet file formats too
 * internal
@@ -8,7 +14,7 @@
     * loading dialect from a cached file bug
     * jsonpickle whois caching bug mitigated: now we are doing the serialization part ourselves
     * dependency of lxml of ezodf (which was not installed with ezodf I do not know why) added to requirements
-    * submitting to github strips URL to 2000 chars (which is a reasonable maximum that server accepts)
+    * submitting to github strips URL to 2000 chars (which is a reasonable maximum that server accepts)    
 
 ## 1.3 (2020-01-28)
 * CHANGED:

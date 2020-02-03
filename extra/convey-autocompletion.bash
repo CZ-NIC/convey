@@ -21,7 +21,7 @@ _convey()
     fi
 
   if [[ "$cur" == -* ]]; then
-    COMPREPLY=( $( compgen -W "-h --help --debug --testing -F --fresh -R --reprocess -v --verbose -q --quiet -y --yes -H --headless --send --send-test --jinja --attach-files --file -i --input -o --output --delimiter --quote-char --header --no-header --delimiter-output --quote-char-output --header-output -d --delete -f --field -fe --field-excluded -t --type --split -s --sort -u --unique -ef --exclude-filter -if --include-filter -a --aggregate --otrs_id --otrs_num --otrs_cookie --otrs_token --csirt-incident --whois --nmap --dig --web --disable-external --json --config --user-agent -S --single-query --single-detect -C --csv-processing --multiple-hostname-ip --multiple-cidr-ip --whois-ttl --show-uml --get-autocompletion --compute-preview --delete-whois-cache --version --server --daemon" -- $cur ) )
+    COMPREPLY=( $( compgen -W "-h --help --debug --testing -F --fresh -R --reprocess -v --verbose -q --quiet -y --yes -H --headless --send --send-test --jinja --attach-files --file -i --input -o --output --delimiter --quote-char --header --no-header --delimiter-output --quote-char-output --header-output -d --delete -f --field -fe --field-excluded -t --type --split -s --sort -u --unique -ef --exclude-filter -if --include-filter -a --aggregate --otrs_id --otrs_num --otrs_cookie --otrs_token --csirt-incident --whois --nmap --dig --web --disable-external --json --config --user-agent -S --single-query --single-detect -C --csv-processing --multiple-hostname-ip --multiple-cidr-ip --whois-ttl --show-uml --threads --get-autocompletion --compute-preview --delete-whois-cache --version --server --daemon" -- $cur ) )
     return 0
   fi
 }
