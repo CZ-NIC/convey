@@ -8,7 +8,8 @@
     * delimiter now may contain tab character, input by "\t" or "tab"
     * show current SMTP server in the send submenu 
 * internal
-    * OTRS no more appends ".txt" to the attachment name    
+    * OTRS no more appends ".txt" to the attachment name
+    * web scraping bug of suspicious form-tag without name attribute present
 
 ## 1.3.1 (2020-01-31)
 * thread processing

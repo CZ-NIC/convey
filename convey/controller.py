@@ -313,6 +313,7 @@ class Controller:
         see_menu = True
         is_daemon = None
         if args.server:
+            # XX not implemeneted: allow or disable fields by in CLI by ex: `--web`
             port = 26683
             print(f"Launching webserver at localhost:{port}...")
             cmd = ["uwsgi", "--http", ":" + str(port), "--wsgi-file", Path(Path(__file__).parent, "wsgi.py")]
