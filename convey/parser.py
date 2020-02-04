@@ -188,8 +188,7 @@ class Parser:
             if Config.get("delimiter", "CSV"):
                 self.dialect.delimiter = Config.get("delimiter", "CSV")
                 l.append(f"Delimiter character set: '{self.dialect.delimiter}'")
-                if self.dialect.delimiter == "\\t":
-                    self.dialect.delimiter = "\t"
+                self.dialect.delimiter = self.dialect.delimiter.replace(r"\t", "\t").replace("TAB", "\t").replace("tab", "\t")
             else:
                 uncertain = True
                 s = "proposed" if seems_single else "found"

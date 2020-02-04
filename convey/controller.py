@@ -105,7 +105,9 @@ class BlankTrue(argparse.Action):
             values = False
         elif values.lower() in ["1", "true", "on"]:
             values = True
-        elif not allow_string and (type(self.metavar) is not list or values.lower() not in self.metavar):
+        elif not allow_string\
+                and (type(self.metavar) is not list or values.lower() not in self.metavar)\
+                and (len(self.metavar.split("/")) < 2 or values.lower() not in self.metavar.split("/")):
             print(allow_string, "*****")
             raise ValueError(f"Unrecognised value {values} of {self.dest}")
         setattr(namespace, self.dest, values)
@@ -152,7 +154,7 @@ class Controller:
             Config.set("disable_external", True)
         Types.refresh()  # load types so that we can print out computable types in the help text
         epilog = "To launch a web service see README.md."
-        column_help = "COLUMN is ID the column (1, 2, 3...), the exact column name, field type name or its usual name."
+        column_help = "COLUMN is ID of the column (1, 2, 3...), the exact column name, field type name or its usual name."
         parser = argparse.ArgumentParser(description="Data conversion swiss knife", formatter_class=SmartFormatter, epilog=epilog)
         parser.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
                                                              "In nothing is given, user will input data through stdin.")
@@ -179,9 +181,9 @@ class Controller:
                             help="Launch program in a headless mode which imposes --yes and --quiet. No menu is shown.",
                             action="store_true")
         parser.add_argument('--send', help="Automatically send e-mails when split.",
-                            action=BlankTrueString, nargs="?", metavar="[blank/smtp/otrs]")
+                            action=BlankTrueString, nargs="?", metavar="blank/smtp/otrs")
         parser.add_argument('--send-test', help="Display e-mail message that would be generated for given e-mail.",
-                            nargs=2, metavar=["E-MAIL", "TEMPLATE_FILE"])
+                            nargs=2, metavar=("E-MAIL", "TEMPLATE_FILE"))
         parser.add_argument('--jinja', help="Process e-mail messages with jinja2 templating system",
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--attach-files', help="Split files are added as e-mail attachments",
@@ -194,13 +196,13 @@ class Controller:
                                                    " If left blank, pass output to STDOUT."
                                                    " If omitted, a filename will be produced automatically."
                                                    " May be combined with --headless.",
-                            action=BlankTrueString, nargs="?", metavar="[blank/FILENAME]")
-        parser.add_argument('--delimiter', help="Treat file as having this delimiter")
+                            action=BlankTrueString, nargs="?", metavar="blank/FILENAME")
+        parser.add_argument('--delimiter', help="Treat file as having this delimiter. For tab use either \\t or tab.")
         parser.add_argument('--quote-char', help="Treat file as having this quoting character")
         parser.add_argument('--header', help="Treat file as having header", action="store_true")
         parser.add_argument('--no-header', help="Treat file as not having header", action="store_true")
-        parser.add_argument('--delimiter-output', help="Output delimiter")
-        parser.add_argument('--quote-char-output', help="Output quoting char")
+        parser.add_argument('--delimiter-output', help="Output delimiter. For tab use either \\t or tab.", metavar="DELIMITER")
+        parser.add_argument('--quote-char-output', help="Output quoting char", metavar="QUOTE_CHAR")
         parser.add_argument('--header-output', help="If false, header is omitted when processing..",
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('-d', '--delete', help="Delete a column. You may comma separate multiple columns." + column_help,
@@ -305,7 +307,7 @@ class Controller:
                                              "\n  * status – print out the status of the daemon"
                                              "\n  * restart – restart the daemon and continue"
                                              "\n  * server – run the server in current process (I.E. for debugging)",
-                            action=BlankTrue, nargs="?", metavar=["start", "restart", "stop", "status", "server"])
+                            action=BlankTrue, nargs="?", metavar="start/restart/stop/status/server")
         self.args = args = parser.parse_args()
         see_menu = True
         is_daemon = None
@@ -538,11 +540,10 @@ class Controller:
                     # delimiter_output, quote_char_output
                     v = getattr(args, s + "_output") or Config.get(s + "_output", "CSV")
                     if v and v != getattr(dialect, s2):
-                        # XXX documents
-                        # XXXX convey received_time.csv --delimiter-output "\t"
-                        # convey received_time.csv --delimiter-output \\t
-                        # AND Make informer print out TAB
-                        v = v.replace(r"\t", "\t")
+                        v = v.replace(r"\t", "\t").replace("TAB", "\t").replace("tab", "\t")
+                        if len(v) != 1:
+                            print(f"Output {s2} has to be 1 character long: {v}")
+                            quit()
                         setattr(dialect, s2, v)
                         self.parser.is_processable = True
 
@@ -844,7 +845,13 @@ class Controller:
 
             # other menu options
             if option == "e":
-                self.edit_mail_templates(blocking=True, local=st['local'][0], abroad=st['abroad'][0])
+                local, abroad = st['local'][0], st['abroad'][0]
+                if local:
+                    Contacts.mail_draft["local"].edit_text()
+                if abroad:
+                    Contacts.mail_draft["abroad"].edit_text()
+                if not (local or abroad):
+                    print("Neither local nor abroad e-mails are to be sent, no editor was opened.")
             elif option == "l":
                 limit = ask_number("How many e-mails should be send at once: ")
                 if limit < 0:
@@ -933,6 +940,8 @@ class Controller:
         menu.add("Edit configuration", self.edit_configuration)
         menu.add("Fetch whois for an IP", self.debug_ip)
         menu.add("Start debugger", start_debugger)
+        menu.add("Edit default e-mail template", lambda: edit(Contacts.mail_draft["local"].template_file))
+        menu.add("Edit default abroad e-mail template", lambda: edit(Contacts.mail_draft["abroad"].template_file))
         menu.sout()
 
     @staticmethod
@@ -950,16 +959,6 @@ class Controller:
             print(whois.whois_response)
         input()
 
-    def edit_mail_templates(self, blocking=False, local=True, abroad=True):
-        # XX you might easily be asked whether you wish to use GUI or text editor
-        if local:
-            Contacts.mail_draft["local"].edit_text()
-        if abroad:
-            Contacts.mail_draft["abroad"].edit_text()
-        if not (local or abroad):
-            print("Neither local nor abroad e-mails are to be sent, no editor was opened.")
-        if blocking:
-            input("Hit Enter when you are done editing...")
 
     def choose_settings(self):
         """ Remove some of the processing settings """
@@ -1015,7 +1014,6 @@ class Controller:
         menu.add("Resolve unknown abuse-mails", self.parser.resolve_unknown)
         menu.add("Resolve invalid lines", self.parser.resolve_invalid)
         menu.add("Resolve queued lines", self.parser.resolve_queued)
-        menu.add("Edit mail templates", self.edit_mail_templates)
         menu.add("Rework whole file again", self.wrapper.clear)
         menu.sout()
 

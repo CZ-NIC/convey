@@ -37,9 +37,10 @@ class Informer:
         se = p.settings
         l.append("Reading STDIN" if p.stdin else "Source file: " + str(p.source_file))
         if p.dialect:
-            s = p.dialect.delimiter
+            s = p.dialect.delimiter.replace("\t", "TAB")
             if se["dialect"] and p.dialect.delimiter != se["dialect"].delimiter:
-                s = f"{s} → {se['dialect'].delimiter}"
+                s2 = se['dialect'].delimiter.replace("\t", "TAB")
+                s = f"{s} → {s2}"
             l.append(f"delimiter: '{Fore.YELLOW}{s}{Fore.RESET}'")
 
             s = p.dialect.quotechar

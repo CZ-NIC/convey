@@ -3,6 +3,9 @@
 ## 1.3.2 (unreleased)
 * types
     * csirt_contact now may be derived from tld
+* dialog
+    * edit default e-mail templates from config submenu
+    * delimiter now may contain tab character, input by "\t" or "tab"
 * internal
     * OTRS no more appends ".txt" to the attachment name    
 
