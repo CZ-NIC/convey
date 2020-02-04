@@ -6,6 +6,7 @@
 * dialog
     * edit default e-mail templates from config submenu
     * delimiter now may contain tab character, input by "\t" or "tab"
+    * show current SMTP server in the send submenu 
 * internal
     * OTRS no more appends ".txt" to the attachment name    
 

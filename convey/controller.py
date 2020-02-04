@@ -19,6 +19,7 @@ from dialog import Dialog, DialogError
 from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
+from validate_email import validate_email
 
 from .config import Config, get_terminal_size, console_handler, edit
 from .contacts import Contacts, Attachment
@@ -791,7 +792,8 @@ class Controller:
             everything_sent = False
             if sum_ < 1:
                 everything_sent = True
-                info.append("All e-mails were sent.")
+                info.append("No e-mail to be sent.")
+            method_s = "OTRS" if method == "otrs" else Config.get("smtp_host", "SMTP")
 
             if test_attachment:
                 option = "test"
@@ -803,7 +805,7 @@ class Controller:
                 menu = Menu("\n".join(info), callbacks=False, fullscreen=False, skippable=False)
 
                 if seen_local or seen_abroad:
-                    menu.add(f"Send all e-mails ({limitable(sum_)})", key="1", default=not everything_sent)
+                    menu.add(f"Send all e-mails ({limitable(sum_)}) via {method_s}", key="1", default=not everything_sent)
                 if seen_local and seen_abroad:
                     menu.add(f"Send local e-mails ({limitable(st['local'][0])})", key="2")
                     menu.add(f"Send abroad e-mails ({limitable(st['abroad'][0])})", key="3")
@@ -915,7 +917,8 @@ class Controller:
                     attachment.sent = old_sent
                 elif option == "r":
                     # choose recipient list
-                    choices = [(o.mail, o.get_draft_name(), not o.sent) for o in attachments]
+                    choices = [(o.mail, o.get_draft_name() + ("" if validate_email(o.mail) else " (invalid)"), not o.sent)
+                               for o in attachments]
                     code, tags = Dialog(autowidgetsize=True).checklist("Toggle e-mails to be send", choices=choices)
                     if code != 'ok':
                         continue
