@@ -1,15 +1,18 @@
 # CHANGELOG
 
 ## 1.3.2 (unreleased)
+* webservice uwsgi file (HTTPS support)
 * types
     * csirt_contact now may be derived from tld
 * dialog
     * edit default e-mail templates from config submenu
     * delimiter now may contain tab character, input by "\t" or "tab"
-    * show current SMTP server in the send submenu 
+    * show current SMTP server in the send submenu
+    * --config now can edit any config file, not only config.ini 
 * internal
     * OTRS no more appends ".txt" to the attachment name
     * web scraping bug of suspicious form-tag without name attribute present
+    * fix: print all attachments flush
 
 ## 1.3.1 (2020-01-31)
 * thread processing

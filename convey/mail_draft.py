@@ -25,12 +25,12 @@ class MailDraft:
             s += "\n..."
         return Fore.CYAN + s + Fore.RESET
 
-    def edit_text(self):
+    def edit_text(self, blocking=True):
         """ Opens file for mail text to GUI editing. Created from the template if had not existed before. """
         if not Path(self.mail_file).is_file():
             Path(self.mail_file).write_text(Path(self.template_file).read_text())
 
-        edit(self.mail_file)
+        edit(self.mail_file, mode=2, blocking=blocking)
 
     def get_envelope(self, attachment: "Attachment" = None) -> envelope:
         def _get_envelope():
@@ -84,9 +84,9 @@ class MailDraft:
             e = _get_envelope()
             if isinstance(e, envelope):
                 return e
-            # user fill GUI file, saves it and we get back to the method
-            print(e)
-            self.edit_text()
+            else:  # user fill GUI file, saves it and we get back to the method
+                print(e)
+                self.edit_text()
 
     def jinja(self, attachment: "Attachment"):
         def print_attachment():

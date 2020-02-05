@@ -331,6 +331,11 @@ Internally, flag `--server` launches `wsgi.py` with a UWSGI session.
 ```bash
 $ uwsgi --http :26683 --http-timeout 310 --wsgi-file /home/$USER/.local/lib/python3.7/site-packages/convey/wsgi.py
 ```
+* If you received or [generated](https://uwsgi-docs.readthedocs.io/en/latest/HTTPS.html#https-support-from-1-3) key and certificate, you may turn on HTTPS in `uwsgi.ini` accesible by: 
+    ```bash
+    $ convey --config uwsgi
+    ```
+
 
 Access: `curl http://localhost:26683/?q=example.com`
 ```json

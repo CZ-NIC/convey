@@ -338,31 +338,51 @@ class Config:
         """ Cache dir with ending slash. """
         return Config.cache_dir
 
-    @staticmethod
-    def edit_configuration(flags=3):
-        if flags & 2:
-            app = Popen(['xdg-open', Config.path], stdout=PIPE, stderr=PIPE)
-        elif flags & 1:
-            call(["editor", Config.path])
 
-        if flags & 3:
-            for i in enumerate(range(10)):  # lets wait a second to be sure GUI app started
-                sleep(0.1)
-                p = app.poll()
-                if p is not None:
-                    if p != 0:
-                        # a GUI app have not started, let's launch a CLI terminal
-                        call(["editor", Config.path])
-                    break
+def edit(path="config", mode=3, restart_when_done=False, blocking=False):
+    """
 
+    @param path: One of the keywords to edit default files in config folder or any pathlib.Path.
+    @param mode: 1 text, 2 gui, 3 gui or text
+    @param restart_when_done: If True, user is told to restart Convey when done.
+    @type blocking: If True and GUI used, user is told to Hit Enter before continuing.
+    """
+    if type(mode) is str:  # from CLI
+        mode = int(mode)
+    d = {"template": Config.get("mail_template"), "template_abroad": Config.get("mail_template_abroad"),
+         "uwsgi": "uwsgi.ini", "config": "config.ini"}
+    if path in d:
+        path = get_path(d[path])
+    elif not isinstance(path, Path):
+        input(f"Not found: {path}. Hit Enter...")
+        return
 
-def edit(path):
-    if input("Do you wish to open GUI for editing? Otherwise console editor will be used. [y]/n ").lower() in ("y", ""):
+    if restart_when_done:
+        print(f"Opening {path}... restart Convey when done.")
+
+    gui = True
+    if mode & 2:
+        # we cannot use xdg-open because template.eml would probably launch an e-mail client
+        # app = Popen(['xdg-open', path], stdout=PIPE, stderr=PIPE)
         editor = run(["xdg-mime", "query", "default", "text/plain"], stdout=PIPE).stdout.split()[0]  # run: blocking, output
-        Popen(["gtk-launch", editor, path], stdout=PIPE, stderr=PIPE)  # Popen: non blocking
-        input("Hit Enter to continue...")
-    else:
+        app = Popen(["gtk-launch", editor, path], stdout=PIPE, stderr=PIPE)  # Popen: non blocking
+    elif mode & 1:
         call(["editor", path])  # call: blocking, no output
+        gui = False
+
+    if mode & 3 == 3:
+        for _ in range(10):  # lets wait a second to be sure GUI app started
+            sleep(0.1)
+            p = app.poll()
+            if p is not None:
+                if p != 0:
+                    # a GUI app have not started, let's launch a CLI terminal
+                    call(["editor", path])
+                    gui = False
+                break
+
+    if gui and blocking:
+        input("Hit Enter to continue...")
 
 
 def get_terminal_size():

@@ -21,7 +21,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
 from validate_email import validate_email
 
-from .config import Config, get_terminal_size, console_handler, edit
+from .config import Config, get_terminal_size, console_handler, edit, get_path
 from .contacts import Contacts, Attachment
 from .decorators import PickBase, PickMethod, PickInput
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask, ask_number, is_yes
@@ -106,8 +106,8 @@ class BlankTrue(argparse.Action):
             values = False
         elif values.lower() in ["1", "true", "on"]:
             values = True
-        elif not allow_string\
-                and (type(self.metavar) is not list or values.lower() not in self.metavar)\
+        elif not allow_string \
+                and (type(self.metavar) is not list or values.lower() not in self.metavar) \
                 and (len(self.metavar.split("/")) < 2 or values.lower() not in self.metavar.split("/")):
             print(allow_string, "*****")
             raise ValueError(f"Unrecognised value {values} of {self.dest}")
@@ -268,9 +268,10 @@ class Controller:
         parser.add_argument('--disable-external', help="R|Disable external function registered in config.ini to be imported.",
                             action="store_true", default=False)
         parser.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
-        parser.add_argument('--config', help="Open config file and exit."
-                                             " (GUI over terminal editor preferred and tried first.)",
-                            type=int, const=3, nargs='?', metavar="1 terminal|2 GUI|3 both by default")
+        parser.add_argument('--config', help="R|Open a config file and exit."
+                                             "\n File: config (default)/uwsgi/template/template_abroad"
+                                             "\n Mode: 1 terminal / 2 GUI / 3 try both (default)",
+                            nargs='*', metavar=("FILE", "MODE"))
         parser.add_argument('--user-agent', help="Change user agent to be used when scraping a URL")
         parser.add_argument('-S', '--single-query', help="Consider the input as a single value, not a CSV.",
                             action="store_true")
@@ -313,10 +314,10 @@ class Controller:
         see_menu = True
         is_daemon = None
         if args.server:
-            # XX not implemeneted: allow or disable fields by in CLI by ex: `--web`
-            port = 26683
-            print(f"Launching webserver at localhost:{port}...")
-            cmd = ["uwsgi", "--http", ":" + str(port), "--wsgi-file", Path(Path(__file__).parent, "wsgi.py")]
+            # XX not implemeneted: allow or disable fields via CLI by ex: `--web`
+            print(f"Webserver configuration can be changed by `convey --config uwsgi`")
+            print(get_path("uwsgi.ini").read_text())
+            cmd = ["uwsgi", "--ini", get_path("uwsgi.ini"), "--wsgi-file", Path(Path(__file__).parent, "wsgi.py")]
             subprocess.run(cmd)
             quit()
         if args.daemon is not None and control_daemon(args.daemon) == "server":
@@ -410,7 +411,7 @@ class Controller:
                 if args.server:
                     raise ConnectionAbortedError("web server request")
                 if args.config is not None:
-                    self.edit_configuration(args.config)
+                    edit(*args.config, restart_when_done=True)
                     quit()
                 Config.set("stdout", args.output is True or None)
                 if args.output is True:
@@ -569,7 +570,7 @@ class Controller:
                     self.process()
 
                 if args.send and self.parser.is_analyzed and self.parser.is_split and not self.parser.is_processable:
-                    #Config.set("yes", True)
+                    # Config.set("yes", True)
                     see_menu = False
                     if args.send is not True:
                         self.send_menu(args.send, send_now=True)
@@ -871,11 +872,12 @@ class Controller:
                                 print(".", end="")
                                 sys.stdout.flush()
                                 f.write(str(attachment.get_envelope()))
+                            f.file.flush()
                             print("Done!")
                         except KeyboardInterrupt:
                             print("Interrupted!")
                         finally:
-                            edit(f.name)
+                            edit(Path(f.name), blocking=True)
                 elif option == "test":
                     choices = [o for o in attachments if o.mail == test_attachment]
                     if len(choices) != 1:
@@ -941,17 +943,13 @@ class Controller:
             self.start_debugger = True
 
         menu = Menu(title="Config menu")
-        menu.add("Edit configuration", self.edit_configuration)
+        menu.add("Edit configuration", lambda: edit("config", 3, restart_when_done=True, blocking=True))
+        menu.add("Edit default e-mail template", lambda: edit("template", blocking=True))
+        menu.add("Edit default abroad e-mail template", lambda: edit("template_abroad", blocking=True))
+        menu.add("Edit uwsgi configuration", lambda: edit("uwsgi"))
         menu.add("Fetch whois for an IP", self.debug_ip)
         menu.add("Start debugger", start_debugger)
-        menu.add("Edit default e-mail template", lambda: edit(Contacts.mail_draft["local"].template_file))
-        menu.add("Edit default abroad e-mail template", lambda: edit(Contacts.mail_draft["abroad"].template_file))
         menu.sout()
-
-    @staticmethod
-    def edit_configuration(flags):
-        print("Opening {}... restart Convey when done.".format(Config.path))
-        Config.edit_configuration(flags)
 
     def debug_ip(self):
         ip = input("Debugging whois – get IP: ")
@@ -962,7 +960,6 @@ class Controller:
             print(whois.analyze())
             print(whois.whois_response)
         input()
-
 
     def choose_settings(self):
         """ Remove some of the processing settings """

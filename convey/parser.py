@@ -511,8 +511,8 @@ class Parser:
         self._reset(hard=False)
 
         if (autoopen_editor or autoopen_editor is None) and Config.get("autoopen_editor") and self.is_split:
-            Contacts.mail_draft["local"].edit()
-            Contacts.mail_draft["abroad"].edit()
+            Contacts.mail_draft["local"].edit_text(blocking=False)
+            Contacts.mail_draft["abroad"].edit_text(blocking=False)
 
         self.time_start = self.time_last = datetime.datetime.now().replace(microsecond=0)
         self.prepare_target_file()
