@@ -936,12 +936,16 @@ class Field:
                 # source column has not yet been resolved because of column resorting
                 # (note this will not a problem when processing)
                 return "..."
-            for l in self.get_methods():
-                if isinstance(c, list):
-                    # resolve all items, while flattening any list encountered
-                    c = [y for x in (l(v) for v in c) for y in (x if type(x) is list else [x])]
-                else:
-                    c = l(c)
+            # noinspection PyBroadException
+            try:
+                for l in self.get_methods():
+                    if isinstance(c, list):
+                        # resolve all items, while flattening any list encountered
+                        c = [y for x in (l(v) for v in c) for y in (x if type(x) is list else [x])]
+                    else:
+                        c = l(c)
+            except Exception:
+                c = "INVALID"
         else:
             c = "..."
         # add a newly computed value to source_parsed

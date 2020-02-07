@@ -324,16 +324,13 @@ Quick deployment may be realized by a single command:
 $ convey --server
 ```
 
-Internally, flag `--server` launches `wsgi.py` with a UWSGI session.
 * Note that convey must be installed via `pip`
 * Note that LACNIC may freeze for 300 s, hence the timeout recommendation.
 * Note that you may find your convey installation path by launching `pip3 show convey`
-```bash
-$ uwsgi --http :26683 --http-timeout 310 --wsgi-file /home/$USER/.local/lib/python3.7/site-packages/convey/wsgi.py
-```
-* If you received or [generated](https://uwsgi-docs.readthedocs.io/en/latest/HTTPS.html#https-support-from-1-3) key and certificate, you may turn on HTTPS in `uwsgi.ini` accesible by: 
+* If you received or [generated](https://uwsgi-docs.readthedocs.io/en/latest/HTTPS.html#https-support-from-1-3) key and certificate, you may turn on HTTPS in `uwsgi.ini` accesible by: `convey --config uwsgi`
+* Internally, flag `--server` launches `wsgi.py` with a UWSGI session.
     ```bash
-    $ convey --config uwsgi
+    $ uwsgi --http :26683 --http-timeout 310 --wsgi-file /home/$USER/.local/lib/python3.7/site-packages/convey/wsgi.py
     ```
 
 

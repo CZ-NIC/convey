@@ -253,6 +253,10 @@ class Wrapper:
                 # So we are manually converting them to int-tuples.
                 ranges_serializable = {}
                 for k, v in ranges.items():
+                    if not k:
+                        # this is the case we parse an invalid IP that resolves to empty prefix
+                        # we need to include such record too because items from ip_seen may refer here
+                        ranges_serializable[""] = v
                     ranges_serializable[k.first, k.last] = v
                 encoded = jsonpickle.encode([ip_seen, ranges_serializable], keys=True)
                 # noinspection PyBroadException

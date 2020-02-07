@@ -10,7 +10,7 @@ from math import ceil
 from operator import eq, ne, mul
 from pathlib import Path
 from queue import Queue, Empty
-from threading import Thread, Event
+from threading import Thread, Event, Lock
 from time import sleep
 from typing import Dict
 
@@ -48,6 +48,7 @@ class Processor:
         self.descriptorsStatsOpen = {}
         self.descriptorsStatsAll = defaultdict(int)
         self.descriptors = {}
+        self._lock = Lock()
 
     def _stats(self, stats_stop):
         parser = self.parser
@@ -412,7 +413,7 @@ class Processor:
         self.descriptorsStatsAll[location] += 1
         self.descriptorsStatsOpen[location] = self.descriptorsStatsAll[location]
         f = self.descriptors[location]
-        # XXXX threads: lock? Check if really is not atomic, I had no bad experience.
-        if method == "w" and settings["header"]:
-            f[0].write(parser.header)
-        f[1].writerow(chosen_fields)
+        with self._lock:
+            if method == "w" and settings["header"]:
+                f[0].write(parser.header)
+            f[1].writerow(chosen_fields)

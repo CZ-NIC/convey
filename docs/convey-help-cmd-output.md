@@ -1,14 +1,12 @@
 This is the output of the `--help` command.
 ```
 usage: convey [-h] [--debug [blank/false]] [--testing [blank/false]] [-F] [-R]
-              [-v] [-q] [-y] [-H] [--send [[blank/smtp/otrs]]]
-              [--send-test ['E-MAIL', 'TEMPLATE_FILE']
-              ['E-MAIL', 'TEMPLATE_FILE']] [--jinja [blank/false]]
+              [-v] [-q] [-y] [-H] [--send [blank/smtp/otrs]]
+              [--send-test E-MAIL TEMPLATE_FILE] [--jinja [blank/false]]
               [--attach-files [blank/false]] [--file] [-i]
-              [-o [[blank/FILENAME]]] [--delimiter DELIMITER]
+              [-o [blank/FILENAME]] [--delimiter DELIMITER]
               [--quote-char QUOTE_CHAR] [--header] [--no-header]
-              [--delimiter-output DELIMITER_OUTPUT]
-              [--quote-char-output QUOTE_CHAR_OUTPUT]
+              [--delimiter-output DELIMITER] [--quote-char-output QUOTE_CHAR]
               [--header-output [blank/false]] [-d COLUMN,[COLUMN]]
               [-f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
               [-fe FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]]
@@ -20,14 +18,13 @@ usage: convey [-h] [--debug [blank/false]] [--testing [blank/false]] [-F] [-R]
               [--csirt-incident] [--whois [blank/false]]
               [--nmap [blank/false]] [--dig [blank/false]]
               [--web [blank/false]] [--disable-external] [--json]
-              [--config [1 terminal|2 GUI|3 both by default]]
-              [--user-agent USER_AGENT] [-S] [--single-detect] [-C]
-              [--multiple-hostname-ip [blank/false]]
+              [--config [FILE [MODE ...]]] [--user-agent USER_AGENT] [-S]
+              [--single-detect] [-C] [--multiple-hostname-ip [blank/false]]
               [--multiple-cidr-ip [blank/false]] [--whois-ttl SECONDS]
               [--show-uml [SHOW_UML]] [--threads [blank/false/auto/INT]]
               [--get-autocompletion] [--compute-preview [blank/false]]
               [--delete-whois-cache] [--version] [--server]
-              [--daemon [['start', 'restart', 'stop', 'status', 'server']]]
+              [--daemon [start/restart/stop/status/server]]
               [file_or_input]
 
 Data conversion swiss knife
@@ -57,9 +54,9 @@ optional arguments:
                         too.
   -H, --headless        Launch program in a headless mode which imposes --yes
                         and --quiet. No menu is shown.
-  --send [[blank/smtp/otrs]]
+  --send [blank/smtp/otrs]
                         Automatically send e-mails when split.
-  --send-test ['E-MAIL', 'TEMPLATE_FILE'] ['E-MAIL', 'TEMPLATE_FILE']
+  --send-test E-MAIL TEMPLATE_FILE
                         Display e-mail message that would be generated for
                         given e-mail.
   --jinja [blank/false]
@@ -70,30 +67,31 @@ optional arguments:
                         input
   -i, --input           Treat <file_or_input> parameter as an input text, not
                         a file name
-  -o [[blank/FILENAME]], --output [[blank/FILENAME]]
+  -o [blank/FILENAME], --output [blank/FILENAME]
                         Save output to this file. If left blank, pass output
                         to STDOUT. If omitted, a filename will be produced
                         automatically. May be combined with --headless.
   --delimiter DELIMITER
-                        Treat file as having this delimiter
+                        Treat file as having this delimiter. For tab use
+                        either \t or tab.
   --quote-char QUOTE_CHAR
                         Treat file as having this quoting character
   --header              Treat file as having header
   --no-header           Treat file as not having header
-  --delimiter-output DELIMITER_OUTPUT
-                        Output delimiter
-  --quote-char-output QUOTE_CHAR_OUTPUT
+  --delimiter-output DELIMITER
+                        Output delimiter. For tab use either \t or tab.
+  --quote-char-output QUOTE_CHAR
                         Output quoting char
   --header-output [blank/false]
                         If false, header is omitted when processing..
   -d COLUMN,[COLUMN], --delete COLUMN,[COLUMN]
                         Delete a column. You may comma separate multiple
-                        columns.COLUMN is ID the column (1, 2, 3...), the
+                        columns.COLUMN is ID of the column (1, 2, 3...), the
                         exact column name, field type name or its usual name.
   -f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM], --field FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]
                         Compute field.
                         * FIELD is a field type (see below) that may be appended with a [CUSTOM] in square brackets.
-                        * COLUMN is ID the column (1, 2, 3...), the exact column name, field type name or its usual name.
+                        * COLUMN is ID of the column (1, 2, 3...), the exact column name, field type name or its usual name.
                         * SOURCE_TYPE is either field type or usual field type. That way, you may specify processing method.
                         * CUSTOM is any string dependent on the new FIELD type (if not provided, will be asked it for).
                         Ex: --field tld[gTLD]  # would add TLD from probably a hostname, filtered by CUSTOM=gTLD
@@ -201,9 +199,10 @@ optional arguments:
   --disable-external    Disable external function registered in config.ini to be imported.
   --json                When checking single value, prefer JSON output rather
                         than text.
-  --config [1 terminal|2 GUI|3 both by default]
-                        Open config file and exit. (GUI over terminal editor
-                        preferred and tried first.)
+  --config [FILE [MODE ...]]
+                        Open a config file and exit.
+                         File: config (default)/uwsgi/template/template_abroad
+                         Mode: 1 terminal / 2 GUI / 3 try both (default)
   --user-agent USER_AGENT
                         Change user agent to be used when scraping a URL
   -S, --single-query    Consider the input as a single value, not a CSV.
@@ -232,7 +231,7 @@ optional arguments:
   --delete-whois-cache  Delete convey's global WHOIS cache.
   --version             Show the version number (which is currently 1.2).
   --server              Launches simple web server
-  --daemon [['start', 'restart', 'stop', 'status', 'server']]
+  --daemon [start/restart/stop/status/server]
                         Run a UNIX socket daemon to speed up single query requests.
                           * 1/true/on – allow using the daemon
                           * 0/false/off – do not use the daemon

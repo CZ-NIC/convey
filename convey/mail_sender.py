@@ -168,8 +168,11 @@ class MailSenderOtrs(MailSender):
             return False
 
         title = mo.group(1)
-        if b'P\xc5\x99edat - Tiket -  OTRS'.decode(
-                "utf-8") in title or 'Forward - Ticket -  OTRS' in title:  # XX r with caron make nb-python fail. 2nd: once, the subject was: <title>20160715228000147 - Předat - Tiket -  OTRS</title>
+        if b'P\xc5\x99edat - Tiket -  OTRS'.decode("utf-8") in title or 'Forward - Ticket -  OTRS' in title:
+            # XX r with caron make nb-python fail.
+            # XX we are not sure sending successed. Ex: if we do not include "To" recipient, we land on the same page
+            #   but no message will be send because the page will just state recipient is missing.
+            #   However, this is not a priority, this mostly works.
             return True
 
         elif title == 'Login - OTRS':

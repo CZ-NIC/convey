@@ -13,6 +13,9 @@
     * OTRS no more appends ".txt" to the attachment name
     * web scraping bug of suspicious form-tag without name attribute present
     * fix: print all attachments flush
+    * fix: cache empty whois prefix (ex: of a wrongly formatted IP)
+    * fix: catch preview exception
+    * fix: threading atomic write
 
 ## 1.3.1 (2020-01-31)
 * thread processing
