@@ -6,8 +6,7 @@ python:
   - 3.8
 before_install:
   - sudo apt update
-  - sudo apt install swig dialog
-  # envelope: needed to install swig for M2Crypto on bionic
+  - sudo apt install dialog
 script:
   #- ./convey.py --output --reprocess --headless --file tests/filter.csv --exclude-filter 1,foo --daemon false
   - python3 tests.py

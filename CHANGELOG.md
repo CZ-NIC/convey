@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 1.3.2 (unreleased)
+## 1.3.4 (unreleased)
 * webservice uwsgi file (HTTPS support)
 * types
     * csirt_contact now may be derived from tld

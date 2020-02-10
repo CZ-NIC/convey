@@ -177,7 +177,7 @@ class Wrapper:
             ip_seen, ranges_serialized = jsonpickle.decode(p.read_text(), keys=True)
             ranges = {}
             for k, v in ranges_serialized.items():
-                ranges[IPRange(k[0], k[1])] = v
+                ranges[IPRange(k[0], k[1]) if k else ""] = v
             return ip_seen, ranges
         return {}, {}
 
@@ -257,7 +257,8 @@ class Wrapper:
                         # this is the case we parse an invalid IP that resolves to empty prefix
                         # we need to include such record too because items from ip_seen may refer here
                         ranges_serializable[""] = v
-                    ranges_serializable[k.first, k.last] = v
+                    else:
+                        ranges_serializable[k.first, k.last] = v
                 encoded = jsonpickle.encode([ip_seen, ranges_serializable], keys=True)
                 # noinspection PyBroadException
                 try:
