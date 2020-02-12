@@ -579,7 +579,10 @@ class Parser:
         self.lines_total, self.size = self.informer.source_file_len(temp)
         if basename in self.processor.files_created:
             self.processor.files_created.remove(basename)  # this file exists no more, if recreated, include header
+        dialect_tmp = self.dialect
+        self.dialect = self.settings["dialect"]
         self.processor.process_file(temp)
+        self.dialect = dialect_tmp
         Path(temp).unlink()
         self.lines_total, self.size = lines_total, size
         self._reset_output()
@@ -589,8 +592,8 @@ class Parser:
     def resolve_unknown(self):
         """ Process all prefixes with unknown abusemails. """
 
-        if len(self.stats["ipsCzMissing"]) < 1:
-            print("No unknown abusemails.")
+        if len(self.stats["ipsCzMissing"]) < 1: # XXX unknown file length should be checked instead, see count_stats
+            input("No unknown abusemails. Press Enter to continue...")
             return
 
         s = "There are {0} IPs in {1} unknown prefixes. Should I proceed additional search for these {1} items?".format(
@@ -610,7 +613,7 @@ class Parser:
         count = self.queued_lines_count
         if not count:
             return True
-        print(f"There are {self.queued_lines_count} queued rows")
+        print(f"There are {count} queued rows")
         if Whois.quota.remains():
             print(f"We will have to wait {Whois.quota.remains()} s before LACNIC quota is over.")
         if not (force or is_yes(f"Reanalyse them?")):
@@ -647,7 +650,7 @@ class Parser:
         if Config.get("yes", get=bool) and Config.is_quiet():
             return False
         if not self.invalid_lines_count:
-            print("No invalid rows.")
+            input("No invalid rows. Press Enter to continue...")
             return
 
         path = Path(Config.get_cache_dir(), Config.INVALID_NAME)

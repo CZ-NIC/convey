@@ -58,11 +58,12 @@ class Processor:
             if stats_stop._flag is True:
                 return
             if stats_stop._flag is not 1 and last_count != parser.line_count:
-                # if parser.line_count == parser.line_sout:
+                last_count = parser.line_count  # do not refresh when stuck (ex: debugging with pdb)
                 now = datetime.now()
                 delta = (now - parser.time_last).total_seconds()
                 parser.time_last = now
-                # XX since this is run in a thread, we can get rid of the velocity
+                # XX since this is run in a thread, we change the velocity to be measured
+                #  by last_count,parser.line_count / time elapsed
                 if delta < 1 or delta > 2:
                     new_vel = ceil(parser.velocity / delta) + 1
                     if abs(new_vel - parser.velocity) > 100 and parser.velocity < new_vel:
@@ -89,6 +90,13 @@ class Processor:
             adds.append((f.name, f.source_field.col_i_original, f.get_methods()))
         del settings["add"]
         settings["addByMethod"] = adds
+
+        # settings["f_pre"] = []
+        # settings["f_post"] = []
+        # for it in settings["filter"]:
+        #     col_i = it[1]
+        #     settings["f_post" if parser.fields[col_i].is_new else "f_pre"].append(it)
+        # del settings["filter"]
 
         if [f for f in self.parser.fields if (not f.is_chosen or f.col_i_original != f.col_i)]:
             settings["chosen_cols"] = [f.col_i_original for f in self.parser.fields if f.is_chosen]

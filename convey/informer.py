@@ -100,7 +100,7 @@ class Informer:
             l.append(f"{p.velocity} lines / s")
             l.append(f"{p.processor.descriptors_count} file descriptors open")
         if p.queued_lines_count:
-            if Whois.queued_ips > 0 and len(Whois.queued_ips) != p.queued_lines_count:
+            if Whois.queued_ips and len(Whois.queued_ips) != p.queued_lines_count:
                 # why Whois.queued_ips > 0: Quota has ended and set of queued IPs has been emptied
                 # ... but the lines are still queued. We lost the information about the number of unique queued IPs.
                 v = f" lines ({len(Whois.queued_ips)} unique IPs)"
@@ -224,7 +224,7 @@ class Informer:
             # else:
             #     print("Files overview not needed – everything have been processed into a single file.")
 
-            print("\n\nPress enter to continue...")
+            print("\n\nPress Enter to continue...")
 
     def get_aggregation(self, data, color=False, limit=None):
         form = lambda v, fmt: f"\033[{fmt}m{v}\033[0m" if color else v

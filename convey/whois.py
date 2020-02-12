@@ -14,7 +14,7 @@ from .infodicts import address_country_lowered
 logger = logging.getLogger(__name__)
 
 rirs = ["whois.ripe.netf", "whois.arin.net", "whois.lacnic.net", "whois.apnic.net", "whois.afrinic.net"]
-
+whole_space = IPRange('0.0.0.0', '255.255.255.255')
 
 class Quota:
     def __init__(self):
@@ -100,6 +100,7 @@ class Whois:
         prefix = get[0]
         if not prefix:
             logger.info("No prefix found for IP {}".format(ip))
+            prefix = IPRange(0, 0)  # make key consistent when saving into cache
         self.ip_seen[ip] = prefix
         self.get = self.ranges[prefix] = get
         self.count_stats()
@@ -124,7 +125,6 @@ class Whois:
         mail = self.get[2]
         if self.get[1] == "local":
             if not mail:
-                # chosen_fields = line  # reset to the original line (will be reprocessed)
                 self.csvstats["ipsCzMissing"].add(self.ip)
                 self.csvstats["czUnknownPrefixes"].add(self.get[0])
             else:
@@ -136,6 +136,8 @@ class Whois:
                 # XX this info is wanted if incident-contact (abusemail OR csirtmail) being fetched. But if only abusemail needed,
                 # we do not want to know this info. A the user gets confused
                 # with "no contact for XY countries without national/goverment CSIRT" printed in informer/statistics.
+                # Moreover, if some unknown mails are found amongst these abroad records, user is not told
+                #   (see resolve_unknown / if len(self.stats["ipsCzMissing"]) < 1: )
                 self.csvstats["ipsWorldMissing"].add(self.ip)
                 self.csvstats["countriesMissing"].add(country)
             else:
@@ -274,6 +276,37 @@ class Whois:
                         self._exec(server="apnic", server_url="whois.apnic.net")
                         continue
 
+                # loads prefix
+                match = self._match_response(["% abuse contact for '([^']*)'",
+                                              "% information related to '([^']*)'",
+                                              # ip 151.80.121.243 needed this , % information related to
+                                              # \'151.80.121.224 - 151.80.121.255\'\n\n% no abuse contact registered
+                                              # for 151.80.121.224 - 151.80.121.255
+                                              r"inetnum:\s*(.*)",  # inetnum:        151.80.121.224 - 151.80.121.255
+                                              r"netrange:\s*(.*)",  # NetRange:       216.245.0.0 - 216.245.63.255
+                                              r"cidr:\s*(.*)",  # CIDR:           216.245.0.0/18
+                                              r"network:ip-network:\s*(.*)"
+                                              # whois 154.48.250.2 "network:IP-Network:154.48.224.0/19"
+                                              ])
+                if match:
+                    prefix = self._str2prefix(match)
+                    if prefix and prefix == whole_space:
+                        # whois 104.224.36.20 asks -h whois.apnic.net
+                        # inetnum:        0.0.0.0 - 255.255.255.255
+                        # netname:        IANA-BLOCK
+                        # descr:          General placeholder reference for all IPv4 addresses
+                        # country:        AU
+                        # RIPE if asked does provide at least prefix:
+                        # % No abuse contact registered for 104.166.192.0 - 104.232.35.255
+                        #
+                        # inetnum:        104.166.192.0 - 104.232.35.255
+                        # netname:        NON-RIPE-NCC-MANAGED-ADDRESS-BLOCK
+                        prefix = None
+                        if server == "general":
+                            self._exec(server="ripe", server_url="whois.ripe.net")
+                            server = "disabled apnic"
+                            continue
+
                 if not country:
                     country = self._load_country_from_addresses()
                 break
@@ -293,23 +326,8 @@ class Whois:
             else:
                 break
 
-        # if not country:
-        #    country = Config.UNKNOWN_NAME
-
         asn = self._match_response(r'\norigin(.*)\d+', last_word=True)
         netname = self._match_response([r'netname:\s*([^\s]*)', r'network:network-name:\s*([^\s]*)'])
-
-        # loads prefix
-        match = self._match_response(["% abuse contact for '([^']*)'",
-                                      "% information related to '([^']*)'",
-                                      # ip 151.80.121.243 needed this , % information related to \'151.80.121.224 - 151.80.121.255\'\n\n% no abuse contact registered for 151.80.121.224 - 151.80.121.255
-                                      r"inetnum:\s*(.*)",  # inetnum:        151.80.121.224 - 151.80.121.255
-                                      r"netrange:\s*(.*)",  # NetRange:       216.245.0.0 - 216.245.63.255
-                                      r"cidr:\s*(.*)",  # CIDR:           216.245.0.0/18
-                                      r"network:ip-network:\s*(.*)"  # whois 154.48.250.2 "network:IP-Network:154.48.224.0/19"
-                                      ])
-        if match:
-            prefix = self._str2prefix(match)
 
         if Whois.unknown_mode and not self.get_abusemail():
             self.resolve_unknown_mail()

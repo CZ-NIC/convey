@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from csv import writer
 from os import linesep
 from pathlib import Path
+from time import time
 
 import ezodf
 import jsonpickle
@@ -58,7 +59,7 @@ def read_stdin():
 class Wrapper:
     def __init__(self, file_or_input, force_file=False, force_input=False,
                  types=None, fresh=False, reprocess=False, delete_cache=False):
-        if delete_cache:
+        if delete_cache and Path(config_dir, WHOIS_CACHE).exists():
             Path(config_dir, WHOIS_CACHE).unlink()
 
         self.parser: Parser = None
@@ -66,6 +67,7 @@ class Wrapper:
         self.stdin = stdin = None
         self.types = types
         self.fresh = fresh
+        self.last_hash = None
         try:
             case = int(Config.get("file_or_input"))
         except (ValueError, TypeError):
@@ -172,12 +174,13 @@ class Wrapper:
 
     @staticmethod
     def load_whois_cache():
-        p = Path(config_dir, WHOIS_CACHE)  # restore whois cache
+        """ restore whois cache and remove expired results """
+        p = Path(config_dir, WHOIS_CACHE)
         if p.exists():
-            ip_seen, ranges_serialized = jsonpickle.decode(p.read_text(), keys=True)
-            ranges = {}
-            for k, v in ranges_serialized.items():
-                ranges[IPRange(k[0], k[1]) if k else ""] = v
+            ip_seen, ranges = jsonpickle.decode(p.read_text(), keys=True)
+            ranges = {IPRange(k[0], k[1]): v for k, v in ranges.items()
+                      if v[7] + Config.get("whois_ttl", "FIELDS", int) >= time()}
+            ip_seen = {k: v for k, v in ip_seen.items() if v in ranges}
             return ip_seen, ranges
         return {}, {}
 
@@ -251,25 +254,23 @@ class Wrapper:
                 # That way, a netaddr object (IPNetwork, IPRange) are defined as value in ip_seen and not as key in range.
                 # Update version 1.3.1: However this was not enough, serializing object as dict keys was still a problem.
                 # So we are manually converting them to int-tuples.
-                ranges_serializable = {}
-                for k, v in ranges.items():
-                    if not k:
-                        # this is the case we parse an invalid IP that resolves to empty prefix
-                        # we need to include such record too because items from ip_seen may refer here
-                        ranges_serializable[""] = v
-                    else:
-                        ranges_serializable[k.first, k.last] = v
+                ranges_serializable = {(k.first, k.last): v for k, v in ranges.items()}
                 encoded = jsonpickle.encode([ip_seen, ranges_serializable], keys=True)
-                # noinspection PyBroadException
-                try:
-                    jsonpickle.decode(encoded, keys=True)
-                except:  # again, I met a strangely formed JSON
-                    type_, value, tb = sys.exc_info()
-                    body = f"```bash\n{traceback.format_exc()}```\n\n```json5\n{tb.tb_next.tb_frame.f_locals}\n```\n\n```json5\n{ip_seen}```\n\n```json5\n{ranges}```"
-                    print("The program will recover but without saving WHOIS cache.")
-                    Config.github_issue("Cannot jsonpickle whois", body)
-                else:
-                    Path(config_dir, WHOIS_CACHE).write_text(encoded)
+                h = hash(encoded)
+                if self.last_hash != h:
+                    self.last_hash = h
+                    # noinspection PyBroadException
+                    try:
+                        jsonpickle.decode(encoded, keys=True)
+                    except:  # again, I met a strangely formed JSON
+                        type_, value, tb = sys.exc_info()
+                        body = f"```bash\n{traceback.format_exc()}```\n\n" \
+                               f"```json5\n{tb.tb_next.tb_frame.f_locals}\n```\n\n" \
+                               f"```json5\n{ip_seen}```\n\n```json5\n{ranges}```"
+                        print("The program will recover but without saving WHOIS cache.")
+                        Config.github_issue("Cannot jsonpickle whois", body)
+                    else:
+                        Path(config_dir, WHOIS_CACHE).write_text(encoded)
             with open(self.cache_file, "w") as output:  # save cache
                 output.write(string)
 

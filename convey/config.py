@@ -382,7 +382,7 @@ def edit(path="config", mode=3, restart_when_done=False, blocking=False):
                 break
 
     if gui and blocking:
-        input("Hit Enter to continue...")
+        input("Press Enter to continue...")
 
 
 def get_terminal_size():

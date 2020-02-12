@@ -14,6 +14,9 @@
     * web scraping bug of suspicious form-tag without name attribute present
     * fix: print all attachments flush
     * fix: cache empty whois prefix (ex: of a wrongly formatted IP)
+    * whois cache saved only when changed (useful when having a huge cache)
+    * mitigation for another type of a wrong WHOIS response
+    * fix: reprocessing while changing dialect 
     * fix: catch preview exception
     * fix: threading atomic write
 
