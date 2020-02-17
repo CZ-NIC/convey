@@ -9,13 +9,15 @@ logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 
 
 class Convey:
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, whois=False):
         # XX travis will not work will daemon=true
         self.cmd = ["./convey.py", "--output", "--reprocess", "--headless", "--daemon", "false"]
         if filename:
             if not Path(filename).exists():
                 raise FileNotFoundError(filename)
             self.cmd.extend(["--file", filename])
+        if not whois:
+            self.cmd.append("--fresh")
 
     def __call__(self, cmd, see=False):
         cmd = [*self.cmd, *shlex.split(cmd)]
@@ -34,10 +36,16 @@ class Convey:
 class TestFilter(TestCase):
     def test_filter(self):
         convey = Convey("tests/filter.csv")
-        self.assertEqual(3, len(convey("--include-filter 1,foo", see=True)))
+        self.assertEqual(3, len(convey("--include-filter 1,foo")))
         self.assertEqual(2, len(convey("--exclude-filter 1,foo")))
         self.assertEqual(2, len(convey("--unique 1")))
 
+    def test_post_filter(self):
+        """ Filter after a field was generated. """
+        convey = Convey("tests/filter.csv")
+        self.assertEqual(3, len(convey("--field base64,1 --include-filter base64,Zm9v")))
+        self.assertEqual(2, len(convey("--field base64,1 --exclude-filter base64,Zm9v")))
+        self.assertEqual(2, len(convey("--field base64,1 --unique base64")))
 
 class TestDialect(TestCase):
     def test_dialect(self):

@@ -25,8 +25,8 @@
     * fix: reprocessing while changing dialect 
     * fix: catch preview exception
     * fix: threading atomic write
-    * applying filter before line processing if possible (spares a lot of time) XXXX
-    * fix Python3.6: disabled logging messages from daemon (threw errors)     
+    * applying filter before line processing if possible (spares a lot of time, ex: skip lines before WHOIS processing)
+    * fix Python3.6: disabled logging messages from daemon (threw errors)    
 
 ## 1.3.1 (2020-01-31)
 * thread processing
