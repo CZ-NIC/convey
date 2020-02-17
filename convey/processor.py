@@ -166,7 +166,7 @@ class Processor:
                     threads.append(t)
 
             stats_stop = Event()  # if ._flag is True, ends, if is 1, pauses, if is False, runs
-            Thread(target=self._stats, args=(stats_stop,), daemon = True).start()
+            Thread(target=self._stats, args=(stats_stop,), daemon=True).start()
 
             for row in reader:
                 try:

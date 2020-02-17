@@ -12,6 +12,7 @@
     * show current SMTP server in the send submenu
     * --config now can edit any config file, not only config.ini
     * print out settings so that it can be reprocessed via bash command (currently experimental, on file exit)
+    * displays what is happening if WHOIS cache is being loaded/saved longer than 1 s
 * flags
     * --whois-delete-unknown 
 * internal
@@ -25,7 +26,7 @@
     * fix: catch preview exception
     * fix: threading atomic write
     * applying filter before line processing if possible (spares a lot of time) XXXX
-    * fix Python3.6: disabled logging messages from daemon (threw errors) 
+    * fix Python3.6: disabled logging messages from daemon (threw errors)     
 
 ## 1.3.1 (2020-01-31)
 * thread processing

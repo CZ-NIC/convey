@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from threading import Thread
 from typing import Callable
 
 
@@ -93,35 +92,3 @@ class PickInput(PickBase):
         self.default = None if p.default is p.empty else p.default
         self.description = subtype.__doc__ or (f"Input {subtype.__name__} variable " + par[1])
         self.parameter_name = par[1]
-
-
-def timeout(seconds: int, function: Callable, *args, **kwargs):
-    """
-    Launch the function in a new thread. If function stops before timeout, returns output or re-raise an exception received.
-    If timeout reached, raises TimeoutError and let the thread hang indefinitely, ignoring any successive output or exception.
-    However, thread can print to stdout even after TimeoutError has been reached because there is no safe option to kill a thread.
-    :param seconds: int
-    :param function:
-    :param args: Any positional arguments the function receives.
-    :param kwargs: Any keyword arguments the function receives.
-    :return:
-    """
-    result = []
-    exception = []
-
-    def wrapper(*args, **kwargs):
-        try:
-            result.append(function(*args, **kwargs))
-        except Exception as e:
-            exception.append(e)
-
-    thread = Thread(target=wrapper, args=args, kwargs=kwargs)
-    thread.daemon = True  # will not block the program exit if hung
-    thread.start()
-    thread.join(seconds)
-    if thread.is_alive():
-        raise TimeoutError(f'Timeout {seconds} of {function}')
-    else:
-        if exception:
-            raise exception[0] from None
-        return result[0]

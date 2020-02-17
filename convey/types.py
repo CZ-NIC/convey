@@ -27,9 +27,10 @@ from validate_email import validate_email
 from convey import PickMethod, PickInput
 from .config import Config
 from .contacts import Contacts
-from .decorators import PickBase, timeout
+from .decorators import PickBase
 from .graph import Graph
 from .infodicts import is_phone, phone_country, address_country, country_codes
+from .utils import timeout
 from .whois import Whois
 
 logger = logging.getLogger(__name__)
