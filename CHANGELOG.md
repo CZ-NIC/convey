@@ -1,6 +1,8 @@
 # CHANGELOG
 
 ## 1.3.4 (unreleased)
+* CHANGED:
+    * --delete-whois-cache renamed to --whois-delete
 * webservice uwsgi file (HTTPS support)
 * types
     * csirt_contact now may be derived from tld
@@ -8,7 +10,10 @@
     * edit default e-mail templates from config submenu
     * delimiter now may contain tab character, input by "\t" or "tab"
     * show current SMTP server in the send submenu
-    * --config now can edit any config file, not only config.ini 
+    * --config now can edit any config file, not only config.ini
+    * print out settings so that it can be reprocessed via bash command (currently experimental, on file exit)
+* flags
+    * --whois-delete-unknown 
 * internal
     * OTRS no more appends ".txt" to the attachment name
     * web scraping bug of suspicious form-tag without name attribute present
@@ -19,6 +24,8 @@
     * fix: reprocessing while changing dialect 
     * fix: catch preview exception
     * fix: threading atomic write
+    * applying filter before line processing if possible (spares a lot of time) XXXX
+    * fix Python3.6: disabled logging messages from daemon (threw errors) 
 
 ## 1.3.1 (2020-01-31)
 * thread processing
@@ -107,7 +114,7 @@
         - --field, --field-excluded, --delete, --split, --sort
         - --single-query, --csv-processing
         - --version
-        - --disable-external, --delete-whois-cache
+        - --disable-external, --whois-delete
     - INI only flags
         - github_crash_submit
 * fixes:

@@ -287,6 +287,8 @@ class Controller:
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--whois-ttl', help="How many seconds will a WHOIS answer cache will be considered fresh.",
                             type=int, metavar="SECONDS")
+        parser.add_argument('--whois-delete', help="Delete convey's global WHOIS cache.", action="store_true")
+        parser.add_argument('--whois-delete-unknown', help="Delete convey's global WHOIS cache.", action="store_true")
         parser.add_argument('--show-uml', help="R|Show UML of fields and methods and exit."
                                                " Methods that are currently disabled via flags or config file are grayed out."
                                                "\n * FLAGs:"
@@ -298,7 +300,6 @@ class Controller:
         parser.add_argument('--get-autocompletion', help="Get bash autocompletion.", action="store_true")
         parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('--delete-whois-cache', help="Delete convey's global WHOIS cache.", action="store_true")
         parser.add_argument('--version', help=f"Show the version number (which is currently {__version__}).", action="store_true")
         parser.add_argument('--server', help=f"Launches simple web server", action="store_true")
         parser.add_argument('--daemon', help=f"R|Run a UNIX socket daemon to speed up single query requests."
@@ -340,7 +341,9 @@ class Controller:
             server.listen()
             sys.stdout_real = stdout = sys.stdout
             sys.stdout = sys.stderr = StringIO()
-            console_handler.setStream(sys.stdout)
+            if sys.version_info >= (3, 7):  # XX remove when dropped Python 3.6 support.
+                # In 3.6, logging message from the daemon will not work.
+                console_handler.setStream(sys.stdout)
             PromptSession.__init__ = lambda _, *ar, **kw: (_ for _ in ()).throw(ConnectionAbortedError('Prompt raised.'))
 
         if not is_daemon and not sys.stdin.isatty():  # piping to the process, no terminal
@@ -419,7 +422,7 @@ class Controller:
                     args.output = None
                 for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
                              "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl", "disable_external", "debug", "testing",
-                             "attach_files", "jinja"]:
+                             "attach_files", "jinja", "whois_delete_unknown"]:
                     if getattr(args, flag) is not None:
                         Config.set(flag, getattr(args, flag))
                 if args.headless or args.send_test:
@@ -453,7 +456,7 @@ class Controller:
                 Config.set("adding-new-fields", bool(new_fields))
                 self.wrapper = Wrapper(args.file_or_input, args.file, args.input,
                                        args.type, args.fresh, args.reprocess,
-                                       args.delete_whois_cache)
+                                       args.whois_delete)
                 self.parser: Parser = self.wrapper.parser
 
                 if args.threads is not None:
@@ -963,8 +966,8 @@ class Controller:
 
     def choose_settings(self):
         """ Remove some of the processing settings """
-        actions = []
-        discard = []
+        actions = [] # description
+        discard = [] # lambda to remove the setting
         st = self.parser.settings
         fields = self.parser.fields
 
@@ -1271,6 +1274,30 @@ class Controller:
     def close(self):
         self.wrapper.save(last_chance=True)  # re-save cache file
         if not Config.get("yes"):
+            if not Config.is_quiet():
+                # Build processing settings list
+                l = []
+                st = self.parser.settings
+                fields = self.parser.fields
+
+                for type_, items in st.items():
+                    if not items and items is not 0:
+                        continue
+                    if type_ == "split":
+                        l.append(f"--split {fields[items]}")
+                    elif type_ == "add":
+                        l.extend(f"--field {f},{str(f.source_field)}" for f in items)
+                    elif type_ == "filter":
+                        l.extend(f"--{'include' if include else 'exclude'}-filter {fields[f].name},{val}"
+                                 for include, f, val in items)
+                    elif type_ == "unique":
+                        l.extend(f"--unique {fields[f].name}" for f in items)
+                    elif type_ == "aggregate":
+                        # XXX does not work well
+                        l.append(f"--aggregate {items[0]}," + ",".join(f"{fn.__name__},{fields[col].name}" for fn, col in items[1]))
+                if l:
+                    print(f" Settings cached:\n convey {self.parser.source_file} " + " ".join(l) + "\n")
+
             print("Finished.")
         exit(0)
 

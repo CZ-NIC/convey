@@ -79,11 +79,13 @@ class Whois:
         self.whois_response = []
         prefix = self.cache_load()  # try load prefix from earlier WHOIS responses
         if prefix:
-            if self.ttl != -1 and self.get[7] + self.ttl < time():
+            if (self.ttl != -1 and self.get[7] + self.ttl < time())\
+                    or (Whois.unknown_mode and not self.get[6]):
                 # the TTL is too old, we cannot guarantee IP stayed in the same prefix, let's get rid of the old results
-                del self.ip_seen[ip]
+                # OR we are in unknown_mode which means we want abusemail. If not here, maybe another IP claimed
+                # a range superset without abuse e-mail. Delete this possible superset
+                # We do not have to call now `self.get = None; del self.ip_seen[ip]` if there is no need to be thread safe.
                 del self.ranges[prefix]
-                self.get = None
             else:
                 self.count_stats()
                 return
@@ -108,6 +110,8 @@ class Whois:
     def cache_load(self):
         if self.ip in self.ip_seen:  # ip has been seen in the past
             prefix = self.ip_seen[self.ip]
+            if prefix not in self.ranges:  # removed ex: due to TTL
+                return
             self.get = self.ranges[prefix]
             return prefix
         elif self.ip in self.queued_ips:
@@ -148,6 +152,8 @@ class Whois:
         """ Forces to load abusemail for an IP.
         We try first omit -r flag and then add -B flag.
 
+        XXX -B flag disabled (at least temporarily). Document.
+
         XX Note that we try only RIPE server because it's the only one that has flags -r and -B.
         If ARIN abusemail is not found, we have no help yet. I dont know if that ever happens.
             XX We prefer general calling of whois program instead of asking him for different whois servers manually
@@ -157,16 +163,20 @@ class Whois:
         """
         self._exec(server="ripe (no -r)", server_url="whois.ripe.net")  # no -r flag
         self.get_abusemail(True)
-        if self.abusemail == Config.UNKNOWN_NAME:
-            self._exec(server="ripe (-B flag)", server_url="whois.ripe.net -B")  # with -B flag
-            self.get_abusemail(True)
+        # XXX
+        # if self.abusemail == Config.UNKNOWN_NAME:
+        #     self._exec(server="ripe (-B flag)", server_url="whois.ripe.net -B")  # with -B flag
+        #     self.get_abusemail(True)
 
     @staticmethod
     def _str2prefix(s):
         """ Accepts formats:
             88.174.0.0 - 88.187.255.255, 216.245.0.0/18, 2000::/7 ...
         """
-        sp = s.split(" - ")
+        # We have to strip it because of
+        #   whois 172.97.38.164
+        #   network:netrange:172.97.36.0 -  172.97.39.255
+        sp = [a.strip() for a in s.split(" - ")]
         try:
             if len(sp) > 1:
                 return IPRange(*sp)

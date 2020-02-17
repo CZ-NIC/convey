@@ -21,9 +21,10 @@ usage: convey [-h] [--debug [blank/false]] [--testing [blank/false]] [-F] [-R]
               [--config [FILE [MODE ...]]] [--user-agent USER_AGENT] [-S]
               [--single-detect] [-C] [--multiple-hostname-ip [blank/false]]
               [--multiple-cidr-ip [blank/false]] [--whois-ttl SECONDS]
+              [--whois-delete] [--whois-delete-unknown]
               [--show-uml [SHOW_UML]] [--threads [blank/false/auto/INT]]
               [--get-autocompletion] [--compute-preview [blank/false]]
-              [--delete-whois-cache] [--version] [--server]
+              [--version] [--server]
               [--daemon [start/restart/stop/status/server]]
               [file_or_input]
 
@@ -217,6 +218,9 @@ optional arguments:
                         Duplicate row for each.
   --whois-ttl SECONDS   How many seconds will a WHOIS answer cache will be
                         considered fresh.
+  --whois-delete        Delete convey's global WHOIS cache.
+  --whois-delete-unknown
+                        Delete convey's global WHOIS cache.
   --show-uml [SHOW_UML]
                         Show UML of fields and methods and exit. Methods that are currently disabled via flags or config file are grayed out.
                          * FLAGs:
@@ -228,7 +232,6 @@ optional arguments:
   --compute-preview [blank/false]
                         When adding new columns, show few first computed
                         values.
-  --delete-whois-cache  Delete convey's global WHOIS cache.
   --version             Show the version number (which is currently 1.2).
   --server              Launches simple web server
   --daemon [start/restart/stop/status/server]

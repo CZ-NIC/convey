@@ -581,6 +581,7 @@ class Parser:
             self.processor.files_created.remove(basename)  # this file exists no more, if recreated, include header
         dialect_tmp = self.dialect
         self.dialect = self.settings["dialect"]
+        # XXXX chybi tady time start asi
         self.processor.process_file(temp)
         self.dialect = dialect_tmp
         Path(temp).unlink()

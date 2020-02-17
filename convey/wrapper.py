@@ -172,17 +172,33 @@ class Wrapper:
         Config.set_cache_dir(Path(Path(self.file).parent, Path(self.file).name + "_convey" + hash_))
         self.cache_file = Path(Config.get_cache_dir(), Path(self.file).name + ".cache")
 
-    @staticmethod
-    def load_whois_cache():
+    def load_whois_cache(self):
         """ restore whois cache and remove expired results """
         p = Path(config_dir, WHOIS_CACHE)
         if p.exists():
             ip_seen, ranges = jsonpickle.decode(p.read_text(), keys=True)
             ranges = {IPRange(k[0], k[1]): v for k, v in ranges.items()
                       if v[7] + Config.get("whois_ttl", "FIELDS", int) >= time()}
+            nothing_to_save = True
+            if Config.get("whois_delete_unknown", get=bool) and IPRange(0, 0) in ranges:
+                # all IP addresses within an unknown prefix removed from cache
+                del ranges[IPRange(0, 0)]
+                nothing_to_save = False
             ip_seen = {k: v for k, v in ip_seen.items() if v in ranges}
+            if nothing_to_save:  # count hash now so that we do not re-save whois cache if not changed while processing
+                self._whois_changed(ranges, ip_seen)
             return ip_seen, ranges
         return {}, {}
+
+    def _whois_changed(self, ranges, ip_seen):
+        """ Quick hashing to identify if something changed to spare time.
+              When cache json is 5.7 MB big, jsonpickling takes 3000 ms, hashing dict items 200 ms
+              and hashing values only 100 ms."""
+        logger.debug("Checking whois cache new records") # XXXX funguje tenhle řádek?
+        h = hash(frozenset(ranges.values())) + hash(frozenset(ip_seen.values()))
+        if self.last_hash != h:
+            self.last_hash = h
+            return True
 
     ##
     # Store
@@ -250,15 +266,16 @@ class Wrapper:
                     ranges = {**ranges, **self.parser.ranges}
                 else:
                     ip_seen, ranges = self.parser.ip_seen, self.parser.ranges
-                # note that ip_seen MUST be placed before ranges due to https://github.com/jsonpickle/jsonpickle/issues/280
-                # That way, a netaddr object (IPNetwork, IPRange) are defined as value in ip_seen and not as key in range.
-                # Update version 1.3.1: However this was not enough, serializing object as dict keys was still a problem.
-                # So we are manually converting them to int-tuples.
-                ranges_serializable = {(k.first, k.last): v for k, v in ranges.items()}
-                encoded = jsonpickle.encode([ip_seen, ranges_serializable], keys=True)
-                h = hash(encoded)
-                if self.last_hash != h:
-                    self.last_hash = h
+                if self._whois_changed(ranges, ip_seen) or True:
+                    # note that ip_seen MUST be placed before ranges due to https://github.com/jsonpickle/jsonpickle/issues/280
+                    # That way, a netaddr object (IPNetwork, IPRange) are defined as value in ip_seen and not as key in range.
+                    # Update version 1.3.1: However this was not enough, serializing object as dict keys was still a problem.
+                    # So we are manually converting them to int-tuples.
+
+                    logger.info("Saving WHOIS cache") # XXXX if cache is len větší než něco, tak informuj
+                    ranges_serializable = {(k.first, k.last): v for k, v in ranges.items()}
+                    encoded = jsonpickle.encode([ip_seen, ranges_serializable], keys=True)
+                    #quit()
                     # noinspection PyBroadException
                     try:
                         jsonpickle.decode(encoded, keys=True)

@@ -85,18 +85,28 @@ class Processor:
         settings = parser.settings.copy()
 
         # apply setup
-        adds = []  # convert settings["add"] to lambdas
+        # convert settings["add"] to lambdas
+        adds = []
         for f in settings["add"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
             adds.append((f.name, f.source_field.col_i_original, f.get_methods()))
         del settings["add"]
         settings["addByMethod"] = adds
 
+        # XXXX Ready to be deployed:
+        # # convert filter settings to pre (before line processing) and post that spare a lot of time
+        # #   (ex: skip lines before WHOIS processing)
         # settings["f_pre"] = []
         # settings["f_post"] = []
         # for it in settings["filter"]:
         #     col_i = it[1]
         #     settings["f_post" if parser.fields[col_i].is_new else "f_pre"].append(it)
         # del settings["filter"]
+        #
+        # settings["u_pre"] = []
+        # settings["u_post"] = []
+        # for col_i in settings["unique"]:  # list of uniqued columns [2, 3, 5, ...]
+        #     settings["u_post" if parser.fields[col_i].is_new else "u_pre"].append(col_i)
+        # del settings["unique"]
 
         if [f for f in self.parser.fields if (not f.is_chosen or f.col_i_original != f.col_i)]:
             settings["chosen_cols"] = [f.col_i_original for f in self.parser.fields if f.is_chosen]
@@ -275,6 +285,27 @@ class Processor:
         Parses line – compute fields while adding, perform filters, pick or delete cols, split and write to a file.
         """
         try:
+            # XXXX uncomment
+            # process = False
+            # if not fields:
+            #     fields = line.copy()
+            #     process = True
+            # # filter (include, col, value), ex: [(True, 23, "passed-value"), (False, 13, "another-value")]
+            # for include, col_i, val in settings["f_pre"]:
+            #     if (ne if include else eq)(val, fields[col_i]):
+            #         return False
+            #
+            # # unique columns
+            # if settings["u_pre"]:
+            #     for u in settings["u_pre"]:  # list of uniqued columns [2, 3, 5, ...]
+            #         if fields[u] in self.unique_sets[u]:  # skip line
+            #             return False
+            #     else:  # do not skip line
+            #         for u in settings["u_pre"]:
+            #             self.unique_sets[u].add(fields[u])
+            #
+            # if process:
+
             if not fields:
                 fields = line.copy()
 
@@ -310,13 +341,13 @@ class Processor:
                         self.process_line(parser, line, settings, v)  # new row with scalar values only
 
             # filter (include, col, value), ex: [(True, 23, "passed-value"), (False, 13, "another-value")]
-            for include, col_i, val in settings["filter"]:
+            for include, col_i, val in settings["filter"]: # XXXX CHANGE to f_post
                 if (ne if include else eq)(val, fields[col_i]):
                     return False
 
             # unique columns
             if settings["unique"]:
-                for u in settings["unique"]:  # list of uniqued columns [2, 3, 5, ...]
+                for u in settings["unique"]:  # list of uniqued columns [2, 3, 5, ...] # XXXX CHANGE to u_post
                     if fields[u] in self.unique_sets[u]:  # skip line
                         return False
                 else:  # do not skip line

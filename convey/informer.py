@@ -99,7 +99,9 @@ class Informer:
             l.append(f"{datetime.now().replace(microsecond=0) - p.time_start}")
             l.append(f"{p.velocity} lines / s")
             l.append(f"{p.processor.descriptors_count} file descriptors open")
-        if p.queued_lines_count:
+        if p.queued_lines_count and hasattr(Whois, "queued_ips"):
+            # XX it would be cleaner if the case that Whois.queued_ips (and Whois.quota) does not exist
+            #    will not happen; but it will when queued, interrupted and launched again.
             if Whois.queued_ips and len(Whois.queued_ips) != p.queued_lines_count:
                 # why Whois.queued_ips > 0: Quota has ended and set of queued IPs has been emptied
                 # ... but the lines are still queued. We lost the information about the number of unique queued IPs.
