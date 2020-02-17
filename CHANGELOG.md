@@ -26,7 +26,8 @@
     * fix: catch preview exception
     * fix: threading atomic write
     * applying filter before line processing if possible (spares a lot of time, ex: skip lines before WHOIS processing)
-    * fix Python3.6: disabled logging messages from daemon (threw errors)    
+    * fix Python3.6: disabled logging messages from daemon (threw errors)
+    * fix: processing velocity info (lines / s) showed garbage since threads implemented    
 
 ## 1.3.1 (2020-01-31)
 * thread processing

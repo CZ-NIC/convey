@@ -67,7 +67,7 @@ class Parser:
         self.attachments = []  # files created if splitting
         self.queued_lines_count = self.invalid_lines_count = 0
         self.line_count = 0
-        self.time_last = self.time_start = self.time_end = None
+        self.time_start = self.time_end = None
         # when called from another program we communicate through this stream rather than through a file
         # XX this is not used right now, convey is not at the moment connectable to other programs
         # see __init__.py at revision d2cf88f48409ca8cc5e229954df34836de884445
@@ -428,7 +428,6 @@ class Parser:
 
     def _reset_output(self):
         self.line_count = 0
-        self.line_sout = 1
         self.velocity = 0
 
     def _reset(self, hard=True):
@@ -453,7 +452,6 @@ class Parser:
 
         self.time_start = None
         self.time_end = None
-        self.time_last = None
         self.is_analyzed = False
         self.is_split = False
         self.is_processable = False
@@ -514,7 +512,7 @@ class Parser:
             Contacts.mail_draft["local"].edit_text(blocking=False)
             Contacts.mail_draft["abroad"].edit_text(blocking=False)
 
-        self.time_start = self.time_last = datetime.datetime.now().replace(microsecond=0)
+        self.time_start = datetime.datetime.now().replace(microsecond=0)
         self.prepare_target_file()
         self.processor.process_file(self.source_file, rewrite=True, stdin=self.stdin)
         self.time_end = datetime.datetime.now().replace(microsecond=0)
@@ -581,7 +579,7 @@ class Parser:
             self.processor.files_created.remove(basename)  # this file exists no more, if recreated, include header
         dialect_tmp = self.dialect
         self.dialect = self.settings["dialect"]
-        # XXXX chybi tady time start asi
+        # XX missing start time reset here
         self.processor.process_file(temp)
         self.dialect = dialect_tmp
         Path(temp).unlink()

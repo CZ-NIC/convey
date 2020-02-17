@@ -32,8 +32,9 @@ Python3.6+ required.
   + [Customisation](#customisation)
 * [Computing fields](#computing-fields)
   + [Computable fields](#computable-fields)
+    - [Whois module](#whois-module)
   + [Detectable fields](#detectable-fields)
-  + [Overview of all methods:](#overview-of-all-methods)
+  + [Overview of all methods](#overview-of-all-methods)
   + [External field how-to](#external-field-how-to)
     - [Simple custom method](#simple-custom-method)
       * [Launch an external method](#launch-an-external-method)
@@ -183,6 +184,15 @@ Some of the field types we are able to compute:
 * **netname** – got from whois
 * **prefix** – got from whois
 
+#### Whois module
+
+When obtaining a WHOIS record
+* We are internally calling `whois` program, detecting what servers were asked.
+* Sometimes you encounter a funny formatted *whois* response. We try to mitigate such cases and **re-ask another registry** in well known cases.
+* Since IP addresses in the same prefix share the same information we cache it to gain **maximal speed** while reducing *whois* queries.
+* Sometimes you encounter an IP that gives no information but asserts its prefix includes a large portion of the address space. All IP addresses in that portion ends labeled as unknowns. At the end of the processing you are **asked to redo unknowns** one by one to complete missing information, flushing misleading superset from the cache.  
+* You may easily hit **LACNIC query rate** quota. In that case, we re-queue such lines to be queried after the quota is over if possible. At the end of the processing, you will get asked whether you wish to carefully and slowly reprocess the lines awaiting the quota lift.
+
 ### Detectable fields
 
 Some of the field types we are able to auto-detect: 
@@ -197,7 +207,7 @@ Some of the field types we are able to auto-detect:
 * **base64** – text encoded with base64
 * **wrong_url** – URL that has been deactivated by replacing certain chars, ex: "hxxp://example[.]com"
 
-### Overview of all methods:
+### Overview of all methods
 
 Current field computing capacity can be get from `--show-uml` flag. Generate yours by ex: `convey --show-uml | dot -Tsvg -o /tmp/convey-methods.svg`
 

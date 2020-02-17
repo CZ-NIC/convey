@@ -4,9 +4,8 @@ import traceback
 from bdb import BdbQuit
 from collections import defaultdict
 from csv import reader as csvreader, writer as csvwriter
-from datetime import datetime
 from functools import reduce
-from math import ceil
+from math import log
 from operator import eq, ne, mul
 from pathlib import Path
 from queue import Queue, Empty
@@ -53,31 +52,27 @@ class Processor:
     def _stats(self, stats_stop):
         parser = self.parser
         last_count = 0
-        delta = 0
+        speed = 1  # speed of refresh
         while True:
             if stats_stop._flag is True:
                 return
-            if stats_stop._flag is not 1 and last_count != parser.line_count:
-                last_count = parser.line_count  # do not refresh when stuck (ex: debugging with pdb)
-                now = datetime.now()
-                delta = (now - parser.time_last).total_seconds()
-                parser.time_last = now
-                # XX since this is run in a thread, we change the velocity to be measured
-                #  by last_count,parser.line_count / time elapsed
-                if delta < 1 or delta > 2:
-                    new_vel = ceil(parser.velocity / delta) + 1
-                    if abs(new_vel - parser.velocity) > 100 and parser.velocity < new_vel:
-                        # smaller accelerating of velocity (decelerating is alright)
-                        parser.velocity += 100
-                    else:
-                        parser.velocity = new_vel
-                parser.line_sout = parser.line_count + 1 + parser.velocity
-                # import sys
-                # sys.stderr.write("\x1b[2J\x1b[H")
-                # sys.stderr.flush()
+            if stats_stop._flag is not 1 and last_count != parser.line_count:  # do not refresh when stuck (ex: debugging with pdb)
+                v = (parser.line_count - last_count) / speed  # current velocity (lines / second) since last time
+                if v == 0:
+                    speed = 1  # refresh in 1 sec
+                else:
+                    # faster we process, slower we display (to not waste CPU with displaying)
+                    # 10^2 lines/s = 1 s, 10^3 ~ 2, 10^4 ~ 3...
+                    speed = log(v ** 2, 100) - 1
+                    if speed < 0.3:  # but if going too slow, we will not refresh in such a quick interval
+                        speed = 0.3
+
+                parser.velocity = round(v) if v > 1 else round(v, 3)
+                last_count = parser.line_count
+
                 parser.informer.sout_info()
                 Whois.quota.check_over()
-            sleep(0.3 if delta < 10 else 1)
+            sleep(speed)
 
     def process_file(self, file, rewrite=False, stdin=None):
         parser = self.parser
