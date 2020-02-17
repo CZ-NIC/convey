@@ -34,7 +34,7 @@ class Parser:
     is_analyzed: bool
     attachments: List[Attachment]
 
-    def __init__(self, source_file=False, stdin=None, types=None, prepare=True):
+    def __init__(self, source_file: Path = False, stdin=None, types=None, prepare=True):
         self.is_formatted = False
         self.is_processable = False
         self.is_repeating = False
@@ -61,7 +61,7 @@ class Parser:
         self.otrs_id = Config.get("ticketid", "OTRS")
         self.otrs_token = False
         self.otrs_num = Config.get("ticketnum", "OTRS")
-        self.attachment_name = (Path(source_file).name if source_file else "attachment")
+        self.attachment_name = (source_file.name if source_file else "attachment")
         self.ip_count_guess = None
         self.ip_count = None
         self.attachments = []  # files created if splitting
@@ -496,8 +496,8 @@ class Parser:
             for fn, col in agg[1]:
                 l.append(f"{fn.__name__}-{self.fields[col]}")
         if hasattr(self, "source_file"):
-            l.insert(0, Path(self.source_file).name)
-            target_file = f"{'_'.join(l)}.csv"
+            l.insert(0, self.source_file.stem)
+            target_file = f"{'_'.join(l)}{self.source_file.suffix}"
         else:
             target_file = f"output_{time.strftime('%Y-%m-%d %H:%M:%S')}.csv"
         output = Config.get("output")
@@ -593,7 +593,7 @@ class Parser:
     def resolve_unknown(self):
         """ Process all prefixes with unknown abusemails. """
 
-        if len(self.stats["ipsCzMissing"]) < 1: # XXX unknown file length should be checked instead, see count_stats
+        if len(self.stats["ipsCzMissing"]) < 1:  # XXX unknown file length should be checked instead, see count_stats
             input("No unknown abusemails. Press Enter to continue...")
             return
 

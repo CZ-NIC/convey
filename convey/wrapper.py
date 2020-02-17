@@ -119,7 +119,7 @@ class Wrapper:
 
         self.assure_cache_file(file)
         if Path(self.cache_file).is_file() and not (fresh or reprocess):
-            logger.info("File {} has already been processed.".format(self.file))
+            logger.info(f"File {self.file} has already been processed.")
             try:  # try to depickle
                 self.parser = jsonpickle.decode(open(self.cache_file, "r").read(), keys=True)
             except:
@@ -142,8 +142,6 @@ class Wrapper:
                 quit()
             except Exception as e:
                 print(e)
-                import ipdb;
-                ipdb.post_mortem()
                 print("Format of the file may have changed since last time. "
                       "Let's process it all again. If you continue, cache gets deleted.")
                 if not Config.error_caught():
@@ -167,11 +165,11 @@ class Wrapper:
 
     def assure_cache_file(self, file):
         self.file = Path(file).resolve()
-        info = Path(self.file).stat()
+        info = self.file.stat()
         hash_ = str(hash(info.st_size + round(info.st_mtime)))
         # cache-file with source file metadata
-        Config.set_cache_dir(Path(Path(self.file).parent, Path(self.file).name + "_convey" + hash_))
-        self.cache_file = Path(Config.get_cache_dir(), Path(self.file).name + ".cache")
+        Config.set_cache_dir(Path(self.file.parent, self.file.name + "_convey" + hash_))
+        self.cache_file = Path(Config.get_cache_dir(), self.file.name + ".cache")
 
     def load_whois_cache(self):
         """ restore whois cache and remove expired results """
