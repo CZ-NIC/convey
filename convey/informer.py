@@ -4,7 +4,7 @@ from collections import deque
 from csv import writer
 from datetime import datetime
 from io import StringIO
-from itertools import cycle
+from itertools import cycle, count
 from math import ceil, log
 from pathlib import Path
 from threading import Event, Thread
@@ -366,18 +366,21 @@ class Informer:
     def _stats(self):
         parser = self.parser
         last_count = 0
-        speed = 1  # speed of refresh
-        while True:
+        speed = 0.1  # speed of refresh
+        for tick in count():
             if self.stats_stop._flag is True:
                 return
             if self.stats_stop._flag is not 1 and last_count != parser.line_count:  # do not refresh when stuck (ex: pdb debugging)
                 v = (parser.line_count - last_count) / speed  # current velocity (lines / second) since last time
-                if v == 0:
-                    speed = 1  # refresh in 1 sec
+                if tick < 20:  # in the beginning, refresh quickly; great look & lower performance
+                    speed = 0.2
+                elif v == 0:
+                    speed = 1  # refresh in 1 sec when processing so heavy no line processed since last time
                 else:
                     # faster we process, slower we display (to not waste CPU with displaying)
                     # 10^2 lines/s = 1 s, 10^3 ~ 2, 10^4 ~ 3...
-                    speed = log(v ** 2, 100) - 1
+                    # But to make the transition more smoothly, make the avg with the last speed (which is weighted 3 times)
+                    speed = (log(v ** 2, 100) - 1 + speed * 3) / 4
                     if speed < 0.3:  # but if going too slow, we will not refresh in such a quick interval
                         speed = 0.3
 
