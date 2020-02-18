@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 1.3.4 (unreleased)
+## 1.4 (unreleased)
 * CHANGED:
     * --delete-whois-cache renamed to --whois-delete
 * webservice uwsgi file (HTTPS support)
@@ -13,6 +13,7 @@
     * --config now can edit any config file, not only config.ini
     * print out settings so that it can be reprocessed via bash command (currently experimental, on file exit)
     * displays what is happening if WHOIS cache is being loaded/saved longer than 1 s
+    * atomic thread safe information printing – no more blinking and shuffled info; few records stay on the screen when information refresh 
 * flags
     * --whois-delete-unknown 
 * internal

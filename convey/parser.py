@@ -77,7 +77,7 @@ class Parser:
         self.ip_seen = {}  # XX should be refactored as part of Whois
         self.aggregation = defaultdict(dict)  # [location file][grouped row][order in aggregation settings] = [sum generator, count]
         self.refresh()
-        self._reset()
+        self._reset(reset_header=False)
         self.selected: List[int] = []  # list of selected fields col_i that may be in/excluded and moved in the menu
 
         # load CSV
@@ -430,15 +430,17 @@ class Parser:
         self.line_count = 0
         self.velocity = 0
 
-    def _reset(self, hard=True):
-        """ Reset variables before new analysis. """
+    def _reset(self, hard=True, reset_header=True):
+        """ Reset variables before new analysis.
+        @type reset_header: False if we are in the constructor and added fields is not ready yet.
+        """
         self.stats = defaultdict(set)
         Attachment.reset(self.stats)
         self.queued_lines_count = self.invalid_lines_count = 0
         # self.aggregation[location file][grouped row][order in aggregation settings] = [sum generator, count]
         self.aggregation = defaultdict(dict)
 
-        if self.dialect:
+        if reset_header:
             class Wr:  # very ugly way to correctly get the output from csv.writer
                 def write(self, row):
                     self.written = row

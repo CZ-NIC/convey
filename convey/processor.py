@@ -5,19 +5,17 @@ from bdb import BdbQuit
 from collections import defaultdict
 from csv import reader as csvreader, writer as csvwriter
 from functools import reduce
-from math import log
 from operator import eq, ne, mul
 from pathlib import Path
 from queue import Queue, Empty
-from threading import Thread, Event, Lock
-from time import sleep
+from threading import Thread, Lock
 from typing import Dict
 
 from .config import Config
 from .contacts import Attachment
 from .dialogue import ask
 from .types import Web
-from .whois import Quota, Whois
+from .whois import Quota
 
 logger = logging.getLogger(__name__)
 
@@ -49,33 +47,9 @@ class Processor:
         self.descriptors = {}
         self._lock = Lock()
 
-    def _stats(self, stats_stop):
-        parser = self.parser
-        last_count = 0
-        speed = 1  # speed of refresh
-        while True:
-            if stats_stop._flag is True:
-                return
-            if stats_stop._flag is not 1 and last_count != parser.line_count:  # do not refresh when stuck (ex: debugging with pdb)
-                v = (parser.line_count - last_count) / speed  # current velocity (lines / second) since last time
-                if v == 0:
-                    speed = 1  # refresh in 1 sec
-                else:
-                    # faster we process, slower we display (to not waste CPU with displaying)
-                    # 10^2 lines/s = 1 s, 10^3 ~ 2, 10^4 ~ 3...
-                    speed = log(v ** 2, 100) - 1
-                    if speed < 0.3:  # but if going too slow, we will not refresh in such a quick interval
-                        speed = 0.3
-
-                parser.velocity = round(v) if v > 1 else round(v, 3)
-                last_count = parser.line_count
-
-                parser.informer.sout_info()
-                Whois.quota.check_over()
-            sleep(speed)
-
     def process_file(self, file, rewrite=False, stdin=None):
         parser = self.parser
+        inf = self.parser.informer
         self.__init__(parser, rewrite=rewrite)
         settings = parser.settings.copy()
 
@@ -159,8 +133,7 @@ class Processor:
                     t.start()
                     threads.append(t)
 
-            stats_stop = Event()  # if ._flag is True, ends, if is 1, pauses, if is False, runs
-            Thread(target=self._stats, args=(stats_stop,), daemon=True).start()
+            inf.start()
 
             for row in reader:
                 try:
@@ -169,20 +142,19 @@ class Processor:
                     if thread_count:
                         q.put(row)
                     else:
-                        parser.line_count += 1  # XX stats might be displayed in a thread
+                        parser.line_count += 1
                         self.process_line(parser, row, settings)
-                except BdbQuit:  # not sure if working, may be deleted
-                    stats_stop.set()
-                    print("BdbQuit called")
+                except BdbQuit:
+                    print("Interrupted.")
                     raise
                 except KeyboardInterrupt:
-                    stats_stop._flag = 1  # pause
+                    inf.pause()
                     print(f"Keyboard interrupting on line number: {parser.line_count}")
                     s = "[a]utoskip LACNIC encounters" \
                         if self.parser.queued_lines_count and not Config.get("lacnic_quota_skip_lines", "FIELDS") else ""
                     o = ask("Keyboard interrupt caught. Options: continue (default, do the line again), "
                             "[s]kip the line, [d]ebug, [e]nd processing earlier, [q]uit: ")
-                    stats_stop._flag = False
+                    inf.release()
                     if o == "a":
                         Config.set("lacnic_quota_skip_lines", True, "FIELDS")
                     if o == "d":
@@ -236,10 +208,10 @@ class Processor:
                         t = open(Path(Config.get_cache_dir(), location), "w")
                         if len(self.parser.aggregation) > 1:
                             print("\nSplit location: " + location)
-                    v = self.parser.informer.get_aggregation(data)
+                    v = inf.get_aggregation(data)
                     t.write(v)
         finally:
-            stats_stop.set()
+            inf.stop()
             if not stdin:
                 source_stream.close()
             if not self.parser.is_split:
@@ -392,8 +364,6 @@ class Processor:
                         next(loc[grp][i][0])
                     loc[grp][i][1] = loc[grp][i][0].send(fields[col_data_i])
                 return  # we will not write anything right know, aggregation results are not ready yet
-        except BdbQuit:  # BdbQuit and KeyboardInterrupt caught higher
-            raise
         except Quota.QuotaExceeded:
             parser.queued_lines_count += 1
             location = Config.QUEUED_NAME
@@ -401,6 +371,7 @@ class Processor:
         except Exception as e:
             if Config.is_debug():
                 traceback.print_exc()
+                # cannot post_mortem from here, I could not quit; looped here again there, catching BdbQuit ignored
                 Config.get_debugger().set_trace()
             elif isinstance(e, RuntimeWarning):
                 logger.warning(f"Invalid line: {e} on line {line}")
@@ -445,5 +416,9 @@ class Processor:
         f = self.descriptors[location]
         with self._lock:
             if method == "w" and settings["header"]:
-                f[0].write(parser.header)
+                # write original header (stored unchanged in parser.first_line_fields) if line to be reprocessed or modified header
+                if location in (Config.INVALID_NAME, Config.UNKNOWN_NAME, Config.QUEUED_NAME):
+                    f[1].writerow(parser.first_line_fields)
+                else:
+                    f[0].write(parser.header)
             f[1].writerow(chosen_fields)

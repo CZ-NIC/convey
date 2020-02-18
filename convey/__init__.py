@@ -23,4 +23,4 @@ except FileNotFoundError:  # FileNotFoundError emitted when we are in a director
     quit()
 logging.basicConfig(level=logging.INFO, handlers=handlers)
 
-__all__ = [PickMethod, PickInput]
+__all__ = ["PickMethod", "PickInput"]

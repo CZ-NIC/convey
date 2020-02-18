@@ -101,7 +101,7 @@ class Whois:
             print(get[2])
         prefix = get[0]
         if not prefix:
-            logger.info("No prefix found for IP {}".format(ip))
+            logger.info(f"No prefix found for IP {ip}")
             prefix = IPRange(0, 0)  # make key consistent when saving into cache
         self.ip_seen[ip] = prefix
         self.get = self.ranges[prefix] = get

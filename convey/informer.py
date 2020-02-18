@@ -1,10 +1,14 @@
 import subprocess
 import sys
+from collections import deque
 from csv import writer
 from datetime import datetime
+from io import StringIO
 from itertools import cycle
-from math import ceil
+from math import ceil, log
 from pathlib import Path
+from threading import Event, Thread
+from time import sleep
 
 import humanize
 from colorama import Fore
@@ -20,18 +24,20 @@ class Informer:
 
     def __init__(self, parser):
         self.parser = parser
+        self.queue = deque(maxlen=10)
+        self.stdout = sys.stdout
+        self.stats_stop = Event()  # if ._flag is True, ends, if is 1, pauses, if is False, runs
 
     def sout_info(self, clear=True, full=False):
+        """ Prints file information on the display. """
         if Config.is_quiet():
             return
 
-        """ Prints file information on the display. """
-        if clear and not Config.get("daemon", get=bool):
-            sys.stderr.write("\x1b[2J\x1b[H")
-            sys.stderr.flush()
-            # os.system('cls' if os.name == 'nt' else 'clear')
-        # sys.stderr.write("\x1b[2J\x1b[H") # clears gnome-terminal
-        # print(chr(27) + "[2J")
+        stdout = StringIO()
+
+        def print_s(s):
+            stdout.write(s + "\n")
+
         l = []
         p = self.parser
         se = p.settings
@@ -68,26 +74,26 @@ class Informer:
         # XX
         # if self.parser.redo_invalids is not None:
         #    l.append("Redo invalids: " + str(self.parser.redo_invalids))
-        sys.stdout.write(", ".join(l))
+        stdout.write(", ".join(l))
 
         l3 = []
         for f in p.fields:
             if not f.is_new and f.has_clear_type():
                 t = ", ".join([str(t) for t in f.possible_types])
                 l3.append(f.color(f"{f} ({t})"))
-        sys.stdout.write("\nIdentified columns: " + ", ".join(l3))
+        stdout.write("\nIdentified columns: " + ", ".join(l3))
         if se["add"]:
             l2 = []
             for f in se["add"]:
                 l2.append(f.color(f"{f} (from {str(f.source_field)})"))
-            sys.stdout.write("\nComputed columns: " + ", ".join(l2))
+            stdout.write("\nComputed columns: " + ", ".join(l2))
         l = []
         progress = 0
         if p.line_count:
             if p.ip_count:
-                sys.stdout.write(", {} IPs".format(p.ip_count))
+                stdout.write(", {} IPs".format(p.ip_count))
             elif p.ip_count_guess:
-                sys.stdout.write(", around {} IPs".format(p.ip_count_guess))
+                stdout.write(", around {} IPs".format(p.ip_count_guess))
             l.append("Log lines processed: {}/{}, {} %".format(p.line_count, p.lines_total,
                                                                ceil(100 * p.line_count / p.lines_total)))
             progress = p.line_count / p.lines_total
@@ -119,12 +125,12 @@ class Informer:
             if len(r) < progress:
                 r += " " * (progress - len(r))
             r = f"\033[7m{r[:progress]}\033[0m" + r[progress:]
-        sys.stdout.write("\n" + r + "\n")
+        stdout.write("\n" + r + "\n")
         if p.whois_stats:
-            print("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in p.whois_stats.items())
-                  + f"; {len(p.ranges)} prefixes discovered")
+            print_s("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in p.whois_stats.items())
+                    + f"; {len(p.ranges)} prefixes discovered")
 
-        print("\nSample:\n" + "".join(p.sample[:4]))  # show first 3rd lines
+        print_s("\nSample:\n" + "".join(p.sample[:4]))  # show first 3rd lines
 
         if p.is_formatted:  # show how would the result be alike
             full_rows, rows = p.get_sample_values()
@@ -133,13 +139,13 @@ class Informer:
             if rows and len(first_line_length) <= get_terminal_size()[1]:
                 # print big and nice table because we do not care about the dialect and terminal is wide enough
                 # we do not display dialect change in the big preview
-                print("\033[0;36mPreview:\033[0m")
+                print_s("\033[0;36mPreview:\033[0m")
                 header = [f.get(True, line_chosen=se["header"] is not False) for f in p.fields]
-                print(tabulate(rows, headers=header))
+                print_s(tabulate(rows, headers=header))
             else:
                 # print the rows in the same way so that they optically match the Sample above
-                print("\033[0;36mCompact preview:\033[0m")
-                cw = writer(sys.stdout, dialect=se["dialect"] or p.dialect)
+                print_s("\033[0;36mCompact preview:\033[0m")
+                cw = writer(stdout, dialect=se["dialect"] or p.dialect)
                 if se["header"] is not False and p.has_header:
                     cw.writerow([f.get() for f in p.fields])
                 for r in full_rows:
@@ -147,47 +153,47 @@ class Informer:
 
         output = Config.get("output")
         if output:
-            print(f"Output file specified: {output}")
+            print_s(f"Output file specified: {output}")
 
         if p.aggregation:  # an aggregation has finished
-            print("\n")
+            print_s("\n")
             if len(p.aggregation) == 1:
-                print(self.get_aggregation(next(iter(p.aggregation.values())), color=True, limit=8))
+                print_s(self.get_aggregation(next(iter(p.aggregation.values())), color=True, limit=8))
             else:
-                print("Aggregating in split files...")
+                print_s("Aggregating in split files...")
 
         if p.is_analyzed:
             if p.saved_to_disk is False:
-                print("\n** Processing completed, results were not saved to a file yet.")
-                print(tabulate(p.stdout_sample, headers="firstrow" if p.has_header else ()))
+                print_s("\n** Processing completed, results were not saved to a file yet.")
+                print_s(tabulate(p.stdout_sample, headers="firstrow" if p.has_header else ()))
             elif p.saved_to_disk:
-                print(f"\n** Processing completed: Result file in {p.target_file}")
+                print_s(f"\n** Processing completed: Result file in {p.target_file}")
             else:
                 abroad, local, non_deliverable, totals = map(p.stats.get, (
                     'abroad', 'local', 'non_deliverable', 'totals'))
 
-                print(f"** Processing completed: {totals} result files in {Config.get_cache_dir()}")
+                print_s(f"** Processing completed: {totals} result files in {Config.get_cache_dir()}")
                 # local = Contacts.count_mails(self.attachments.keys(), abusemails_only=True)
                 # abroad = Contacts.count_mails(self.attachments.keys(), abroads_only=True)
                 if totals == non_deliverable:
-                    print("* It seems no file is meant to serve as an e-mail attachment.")
+                    print_s("* It seems no file is meant to serve as an e-mail attachment.")
                 else:
                     if local[0] + abroad[0] == 0:
-                        print(f"Already sent all {abroad[1]} abroad e-mails and {local[1]} local e-mails")
+                        print_s(f"Already sent all {abroad[1]} abroad e-mails and {local[1]} local e-mails")
                     elif local[1] + abroad[1] > 1:
-                        print(f"Already sent {abroad[1]}/{sum(abroad)} abroad e-mails and {local[1]}/{sum(local)} local e-mails")
+                        print_s(f"Already sent {abroad[1]}/{sum(abroad)} abroad e-mails and {local[1]}/{sum(local)} local e-mails")
                     else:
-                        print(f"* {abroad[0]} files seem to be attachments for abroad e-mails\n* {local[0]} for local e-mails")
+                        print_s(f"* {abroad[0]} files seem to be attachments for abroad e-mails\n* {local[0]} for local e-mails")
                     if non_deliverable:
-                        print(f"* {non_deliverable} files undeliverable")
+                        print_s(f"* {non_deliverable} files undeliverable")
 
                 if Config.get('testing'):
-                    print(
+                    print_s(
                         "\n*** TESTING MOD - mails will be send to mail {} ***\n (For turning off testing mode set `testing = False` in config.ini.)".format(
                             Config.get('testing_mail')))
 
             stat = self.get_stats_phrase()
-            print("\n Statistics overview:\n" + stat)
+            print_s("\n Statistics overview:\n" + stat)
             if Config.get("write_statistics") and not p.stdin:
                 # we write statistics.txt only if we're sourcing from a file, not from stdin
                 # XX move this to parser.run_analysis and _resolve_again or to Processor – do not rewrite it every time here!
@@ -196,9 +202,9 @@ class Informer:
             """
             XX
             if parser.abuseReg.stat("records", False):
-                print("Couldn't find {} abusemails for {}× IP.".format(parser.reg["local"].stat("records", False), parser.reg["local"].stat("ips", False)))
+                print_s("Couldn't find {} abusemails for {}× IP.".format(parser.reg["local"].stat("records", False), parser.reg["local"].stat("ips", False)))
             if parser.countryReg.stat("records", False):
-                print("Couldn't find {} csirtmails for {}× IP.".format(parser.reg["abroad"].stat("records", False), parser.reg["abroad"].stat("ips", False)))
+                print_s("Couldn't find {} csirtmails for {}× IP.".format(parser.reg["abroad"].stat("records", False), parser.reg["abroad"].stat("ips", False)))
             """
 
         if full:
@@ -209,10 +215,10 @@ class Informer:
                 for prefix, o in p.ranges.items():
                     prefix, location, incident, asn, netname, country, abusemail, timestamp = o
                     rows.append((prefix, location, incident or "-", asn or "-", netname or "-"))
-                print("\n\n** Whois information overview **\n",
-                      tabulate(rows, headers=("prefix", "location", "contact", "asn", "netname")))
+                print_s("\n\n** Whois information overview **\n",
+                        tabulate(rows, headers=("prefix", "location", "contact", "asn", "netname")))
             else:
-                print("No whois information available.")
+                print_s("No whois information available.")
 
             if p.is_split:
                 rows = []
@@ -222,11 +228,23 @@ class Informer:
                                  {True: "✓", False: "error", None: "no"}[o.sent],
                                  humanize.naturalsize(o.path.stat().st_size),
                                  ))
-                print("\n\n** Generated files overview **\n", tabulate(rows, headers=("file", "deliverable", "sent", "size")))
+                print_s("\n\n** Generated files overview **\n", tabulate(rows, headers=("file", "deliverable", "sent", "size")))
             # else:
-            #     print("Files overview not needed – everything have been processed into a single file.")
+            #     print_s("Files overview not needed – everything have been processed into a single file.")
 
-            print("\n\nPress Enter to continue...")
+            print_s("\n\nPress Enter to continue...")
+
+        # atomic print out
+        if clear and not Config.get("daemon", get=bool):
+            sys.stderr.write("\x1b[2J\x1b[H")
+            sys.stderr.flush()
+            # os.system('cls' if os.name == 'nt' else 'clear')
+        # sys.stderr.write("\x1b[2J\x1b[H") # clears gnome-terminal
+        # print_s(chr(27) + "[2J")
+        self.stdout.write(stdout.getvalue())
+        if self.queue:  # what has been printed out during processing stays on the screen
+            self.stdout.write("".join(self.queue))
+            # XX if random true, pops out an element so that it wont stay forever
 
     def get_aggregation(self, data, color=False, limit=None):
         form = lambda v, fmt: f"\033[{fmt}m{v}\033[0m" if color else v
@@ -315,3 +333,57 @@ class Informer:
         else:
             # bytes / average number of characters on line in sample
             return ceil(size / (len("".join(self.parser.sample)) / len(self.parser.sample)) / 1000000) * 1000000, size
+
+    def start(self):
+        q = self.queue
+
+        class queue_stdout(StringIO):
+            def write(self, s):
+                if q and not q[-1].endswith("\n"):
+                    q[-1] += s
+                else:
+                    q.append(s)
+                sys.__stdout__.write(s)
+                sys.__stdout__.flush()
+
+        self.stdout = sys.stdout
+        sys.stdout = queue_stdout()
+
+        Thread(target=self._stats, daemon=True).start()
+
+    def stop(self):
+        if sys.stdout is not self.stdout:
+            self.queue.clear()
+            sys.stdout = self.stdout
+        self.stats_stop.set()
+
+    def pause(self):
+        self.stats_stop._flag = 1
+
+    def release(self):
+        self.stats_stop._flag = False
+
+    def _stats(self):
+        parser = self.parser
+        last_count = 0
+        speed = 1  # speed of refresh
+        while True:
+            if self.stats_stop._flag is True:
+                return
+            if self.stats_stop._flag is not 1 and last_count != parser.line_count:  # do not refresh when stuck (ex: pdb debugging)
+                v = (parser.line_count - last_count) / speed  # current velocity (lines / second) since last time
+                if v == 0:
+                    speed = 1  # refresh in 1 sec
+                else:
+                    # faster we process, slower we display (to not waste CPU with displaying)
+                    # 10^2 lines/s = 1 s, 10^3 ~ 2, 10^4 ~ 3...
+                    speed = log(v ** 2, 100) - 1
+                    if speed < 0.3:  # but if going too slow, we will not refresh in such a quick interval
+                        speed = 0.3
+
+                parser.velocity = round(v) if v > 1 else round(v, 3)
+                last_count = parser.line_count
+
+                self.sout_info()
+                Whois.quota.check_over()
+            sleep(speed)
