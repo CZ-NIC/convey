@@ -608,7 +608,13 @@ class Controller:
 
         # main menu
         self.start_debugger = False
+        session = None
         while True:
+            if session and hasattr(session, "process"):
+                # session.prompt keybinding asked processing
+                # (we cannot reprocess from keybinding due to the deadlock if an input had been encountered,
+                # no clear way to call a prompt within another prompt)
+                self.process()
             self.parser = self.wrapper.parser  # may be changed by reprocessing
             self.parser.informer.sout_info()
 
@@ -649,6 +655,7 @@ class Controller:
                 session = PromptSession()
 
                 def refresh():
+                    # exiting the app makes the main menu redraw again
                     session.app.exit(session.layout.current_buffer.text or "refresh")
 
                 @bindings.add('right')  # select column
@@ -681,7 +688,8 @@ class Controller:
                     for f in self.parser.fields:
                         if f.is_selected:
                             self.parser.settings["aggregate"] = f.col_i, [[Aggregate.count, f.col_i]]
-                            self.process()
+                            self.parser.is_processable = True
+                            session.process = True
                             break
                     refresh()
 

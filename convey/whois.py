@@ -152,7 +152,7 @@ class Whois:
         """ Forces to load abusemail for an IP.
         We try first omit -r flag and then add -B flag.
 
-        XXX -B flag disabled (at least temporarily). Document.
+        XX -B flag disabled (at least temporarily). Document.
 
         XX Note that we try only RIPE server because it's the only one that has flags -r and -B.
         If ARIN abusemail is not found, we have no help yet. I dont know if that ever happens.
@@ -163,7 +163,7 @@ class Whois:
         """
         self._exec(server="ripe (no -r)", server_url="whois.ripe.net")  # no -r flag
         self.get_abusemail(True)
-        # XXX
+        # XX
         # if self.abusemail == Config.UNKNOWN_NAME:
         #     self._exec(server="ripe (-B flag)", server_url="whois.ripe.net -B")  # with -B flag
         #     self.get_abusemail(True)
