@@ -124,19 +124,22 @@ class Identifier:
     def get_sample(source_file):
         sample = []
         first_line = ""
+        is_pandoc = False
         with open(source_file, 'r') as csv_file:
             for i, row in enumerate(csv_file):
                 if i == 0:
                     first_line = row
+                if i == 1 and not row.replace("-", "").replace(" ", "").strip():
+                    is_pandoc = True
+                    continue
                 sample.append(row)
                 if i == 8:  # sniffer needs 7+ lines to determine dialect, not only 3 (/mnt/csirt-rook/2015/06_08_Ramnit/zdroj), I dont know why
                     break
-        return first_line.strip(), sample
+        return first_line.strip(), sample, is_pandoc
         # csvfile.seek(0)
         # csvfile.close()
 
-    @staticmethod
-    def guess_dialect(sample):
+    def guess_dialect(self, sample):
         sniffer = Sniffer()
         sample_text = "".join(sample)
         try:
@@ -162,7 +165,7 @@ class Identifier:
                 has_header = False
 
             try:
-                s = sample[1]  # we dont take header (there is no empty column for sure)
+                s = sample[1]  # we do not take header (there is no empty column for sure)
             except IndexError:  # there is a single line in the file
                 s = sample[0]
             delimiter = ""
@@ -175,6 +178,9 @@ class Identifier:
                     if s.find(dl) > -1:
                         delimiter = dl
                         break
+                else:
+                    if self.parser.is_pandoc and s.count(" ") > 1:
+                        delimiter = " "
             dialect = csv.unix_dialect
             if delimiter:
                 dialect.delimiter = delimiter
@@ -210,7 +216,7 @@ class Identifier:
         else:  # we have many values and the first one could be header, let's omit it
             s = self.parser.sample[1:]
 
-        for row in reader(s, dialect=self.parser.dialect) if self.parser.dialect else [s]:
+        for row in reader(s, skipinitialspace=self.parser.is_pandoc, dialect=self.parser.dialect) if self.parser.dialect else [s]:
             for i, val in enumerate(row):
                 try:
                     samples[i].append(val)

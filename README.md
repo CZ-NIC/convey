@@ -9,7 +9,7 @@ Any input is accepted:
 * if a **single value** input is detected, all **meaningful information** is fetched
 * multiline **base64**/**quoted_printable** string gets decoded
 * **log/XLS/XLSX/ODS file** converted to CSV 
-* **CSV file** (any delimiter, header or whatever) performs one or more actions
+* **CSV file** (any delimiter, header or [pandoc](https://pandoc.org/MANUAL.html#tables) table format) performs one or more actions
     1) **Pick, delete or sort columns** (if only some columns are needed)
     2) **Add a column** (computes one field from another – see below)
     3) **Filter** (keep/discard rows with specific values, no duplicates)    

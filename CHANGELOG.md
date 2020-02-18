@@ -4,6 +4,7 @@
 * CHANGED:
     * --delete-whois-cache renamed to --whois-delete
 * webservice uwsgi file (HTTPS support)
+* able to parse pandoc simple table format (headers underlined with ---------) and a lot of spaces between columns 
 * types
     * csirt_contact now may be derived from tld
 * dialog

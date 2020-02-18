@@ -693,6 +693,13 @@ class Controller:
                             break
                     refresh()
 
+                # @bindings.add('escape', 'n')  # alt-n to rename header
+                # def _(_):
+                #     for f in self.parser.fields:
+                #         if f.is_selected:
+                #             break
+                #     refresh()
+
                 options = {'key_bindings': bindings,
                            "bottom_toolbar": HTML("Ctrl+<b>←/→</b> arrows for column manipulation,"
                                                   " <b>Delete</b> for exclusion,"

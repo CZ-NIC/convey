@@ -40,6 +40,7 @@ class Parser:
         self.is_repeating = False
         self.dialect = None  # CSV dialect
         self.has_header = None  # CSV has header
+        self.is_pandoc = False  # pandoc table format (second line to be skipped, a lot of spaces)
         self.header: str = ""  # if CSV has header, it's here so that Processor can take it
         self.sample: List[str] = []  # lines  of the original file, including first line - possible header
         self.sample_parsed: List[List[str]] = []  # values of the prepared output (ex re-sorted), always excluding header
@@ -98,7 +99,7 @@ class Parser:
             self.set_stdin(stdin)
         elif source_file:  # we're analysing a file on disk
             self.lines_total, self.size = self.informer.source_file_len(self.source_file)
-            self.first_line, self.sample = self.identifier.get_sample(self.source_file)
+            self.first_line, self.sample, self.is_pandoc = self.identifier.get_sample(self.source_file)
         self.set_types(types)
         # otherwise we are running a webservice which has no stdin nor source_file
 
@@ -185,6 +186,8 @@ class Parser:
             uncertain = False
 
             l = []
+            if self.is_pandoc:
+                l.append("Pandoc table format detected (header were underlined by -------)")
             if Config.get("delimiter", "CSV"):
                 self.dialect.delimiter = Config.get("delimiter", "CSV")
                 l.append(f"Delimiter character set: '{self.dialect.delimiter}'")
@@ -225,7 +228,7 @@ class Parser:
                 self.dialect.quoting = csv.QUOTE_NONE if not self.dialect.quotechar else csv.QUOTE_MINIMAL
                 if not is_yes("Header " + ("" if self.has_header else "not found; ok?")):
                     self.has_header = not self.has_header
-            self.first_line_fields = csv.reader([self.first_line], dialect=self.dialect).__next__()
+            self.first_line_fields = csv.reader([self.first_line], skipinitialspace=self.is_pandoc, dialect=self.dialect).__next__()
             self.reset_settings()
         except Cancelled:
             print("Cancelled.")
@@ -422,7 +425,7 @@ class Parser:
         self.aggregation = defaultdict(
             dict)  # self.aggregation[location file][grouped row][order in aggregation settings] = [sum generator, count]
         self.sample_parsed = [x for x in
-                              csv.reader(self.sample[slice(1 if self.has_header else 0, None)], dialect=self.dialect)]
+                              csv.reader(self.sample[slice(1 if self.has_header else 0, None)], skipinitialspace=self.is_pandoc, dialect=self.dialect)]
         self.add_field([Field(f) for f in self.first_line_fields])
         self.identifier.identify_fields()
 

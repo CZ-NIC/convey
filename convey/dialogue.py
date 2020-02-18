@@ -10,6 +10,7 @@ except ExecutableNotFound:
     print("\nError importing dialog library. Try installing: `sudo apt install dialog`.")
     quit()
 
+
 # monkey patch Dialog class so that it skips the dialog in case there is a single value
 def skippable_menu(self, *args, skippable=True, **kwargs):
     """

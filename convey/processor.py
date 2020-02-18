@@ -99,9 +99,11 @@ class Processor:
             if parser.external_stdout:
                 settings["target_file"] = 2
             # with open(file, "r") as sourceF:
-            reader = csvreader(source_stream, dialect=parser.dialect)
+            reader = csvreader(source_stream, skipinitialspace=parser.is_pandoc, dialect=parser.dialect)
             if parser.has_header:  # skip header
                 reader.__next__()
+                if parser.is_pandoc:  # second line is just first line underlining
+                    reader.__next__()
 
             # prepare thread processing
             threads = []

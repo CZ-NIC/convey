@@ -304,7 +304,7 @@ class Wrapper:
          """
         re_ip_with_port = re.compile("((\d{1,3}\.){4})(\d+)")
         re_log_line = re.compile(r"([^\s]*)\sIP\s([^\s]*)\s>\s([^\s:]*)")
-        _, sample = Identifier(None).get_sample(self.file)
+        _, sample, _ = Identifier(None).get_sample(self.file)
         if sample and re_log_line.match(sample[0]):
 
             if is_yes("This seems like a log file. Do you wish to transform it to CSV first?"):
