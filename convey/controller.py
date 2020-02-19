@@ -157,153 +157,75 @@ class Controller:
         epilog = "To launch a web service see README.md."
         column_help = "COLUMN is ID of the column (1, 2, 3...), the exact column name, field type name or its usual name."
         parser = argparse.ArgumentParser(description="Data conversion swiss knife", formatter_class=SmartFormatter, epilog=epilog)
-        parser.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
-                                                             "In nothing is given, user will input data through stdin.")
-        parser.add_argument('--debug', help="On error, enter a pdb session",
-                            action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('--testing', help="Do not be afraid, e-mail messages will not be sent."
-                                              " They will get forwarded to the testing e-mail"
-                                              " (and e-mails in Cc will not be sent at all)",
-                            action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('-F', '--fresh', help="Do not attempt to load any previous settings / results."
-                                                  " Do not load convey's global WHOIS cache."
-                                                  " (But merge WHOIS results in there afterwards.)", action="store_true")
-        parser.add_argument('-R', '--reprocess', help="Do not attempt to load any previous settings / results."
-                                                      " But load convey's global WHOIS cache.", action="store_true")
-        parser.add_argument('-v', '--verbose', help="Sets the verbosity to see DEBUG messages.", action="store_true")
-        parser.add_argument('-q', '--quiet', help="R|Sets the verbosity to see WARNINGs and ERRORs only."
-                                                  " Prints out the least information possible."
-                                                  "\n(Ex: if checking single value outputs a single word, prints out just that.)",
-                            action="store_true")
-        parser.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions. "
-                                                "Will not send e-mails unless --send is on too.",
-                            action="store_true")
-        parser.add_argument('-H', '--headless',
-                            help="Launch program in a headless mode which imposes --yes and --quiet. No menu is shown.",
-                            action="store_true")
-        parser.add_argument('--send', help="Automatically send e-mails when split.",
-                            action=BlankTrueString, nargs="?", metavar="blank/smtp/otrs")
-        parser.add_argument('--send-test', help="Display e-mail message that would be generated for given e-mail.",
-                            nargs=2, metavar=("E-MAIL", "TEMPLATE_FILE"))
-        parser.add_argument('--jinja', help="Process e-mail messages with jinja2 templating system",
-                            action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('--attach-files', help="Split files are added as e-mail attachments",
-                            action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('--file', help="Treat <file_or_input> parameter as a file, never as an input",
-                            action="store_true")
-        parser.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
-                            action="store_true")
-        parser.add_argument('-o', '--output', help="Save output to this file."
-                                                   " If left blank, pass output to STDOUT."
-                                                   " If omitted, a filename will be produced automatically."
-                                                   " May be combined with --headless.",
-                            action=BlankTrueString, nargs="?", metavar="blank/FILENAME")
-        parser.add_argument('--delimiter', help="Treat file as having this delimiter. For tab use either \\t or tab.")
-        parser.add_argument('--quote-char', help="Treat file as having this quoting character")
-        parser.add_argument('--header', help="Treat file as having header", action="store_true")
-        parser.add_argument('--no-header', help="Treat file as not having header", action="store_true")
-        parser.add_argument('--delimiter-output', help="Output delimiter. For tab use either \\t or tab.", metavar="DELIMITER")
-        parser.add_argument('--quote-char-output', help="Output quoting char", metavar="QUOTE_CHAR")
-        parser.add_argument('--header-output', help="If false, header is omitted when processing..",
-                            action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('-d', '--delete', help="Delete a column. You may comma separate multiple columns." + column_help,
-                            metavar="COLUMN,[COLUMN]")
-        parser.add_argument('-f', '--field',
-                            help="R|Compute field."
-                                 "\n* FIELD is a field type (see below) that may be appended with a [CUSTOM] in square brackets."
-                                 "\n* " + column_help +
-                                 "\n* SOURCE_TYPE is either field type or usual field type. "
-                                 "That way, you may specify processing method."
-                                 "\n* CUSTOM is any string dependent on the new FIELD type (if not provided, will be asked it for)."
-                                 "\nEx: --field tld[gTLD]  # would add TLD from probably a hostname, filtered by CUSTOM=gTLD"
-                                 "\nEx: --field netname,ip  # would add netname column from any IP column"
-                                 "\n    (Note the comma without space behind 'netname'.)"
-                                 "\n\nComputable fields: " + "".join("\n* " + t.doc() for t in Types.get_computable_types()) +
-                                 "\n\nThis flag May be used multiple times.",
-                            action=FieldVisibleAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
-        parser.add_argument('-fe', '--field-excluded', help="The same as field but its column will not be added to the output.",
-                            action=FieldExcludedAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
-        parser.add_argument('-t', '--type', help="R|Determine column type(s)."
-                                                 "\nEx: --type country,,phone"
-                                                 " # 1st column is country, 2nd unspecified, 3rd is phone",
-                            metavar="[TYPE],...")
-        parser.add_argument('--split', help="Split by this COLUMN.",
-                            metavar="COLUMN")
-        parser.add_argument('-s', '--sort', help="List of columns.",
-                            metavar="COLUMN,...")
-        parser.add_argument('-u', '--unique', help="Cast unique filter on this COLUMN.",
-                            metavar="COLUMN,VALUE")
-        parser.add_argument('-ef', '--exclude-filter', help="Filter include this COLUMN by a VALUE.",
-                            metavar="COLUMN,VALUE")
-        parser.add_argument('-if', '--include-filter', help="Filter include this COLUMN by a VALUE.",
-                            metavar="COLUMN,VALUE")
-        parser.add_argument('-a', '--aggregate', help="R|Aggregate"
-                                                      "\nEx: --aggregate 2,sum # will sum the second column"
-                                                      "\nEx: --aggregate 2,sum,3,avg # will sum the second column and average the third"
-                                                      "\nEx: --aggregate 2,sum,1 # will sum the second column grouped by the first"
-                                                      "\nEx: --aggregate 1,count # will count the grouped items in the 1st column"
-                                                      " (count will automatically set grouping column to the same)"
-                                                      f"\n\nAvailable functions: {aggregate_functions_str}",
-                            metavar="[COLUMN, FUNCTION], ..., [group-by-COLUMN]")
-        csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
-                     ("otrs_token", "OTRS token")]
-        for flag in csv_flags:
-            parser.add_argument('--' + flag[0], help=flag[1])
+
+
+        group = parser.add_argument_group("Input/Output")
+        group.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
+                                                            "In nothing is given, user will input data through stdin.")
+        group.add_argument('--file', help="Treat <file_or_input> parameter as a file, never as an input",
+                           action="store_true")
+        group.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
+                           action="store_true")
+        group.add_argument('-o', '--output', help="Save output to this file."
+                                                  " If left blank, pass output to STDOUT."
+                                                  " If omitted, a filename will be produced automatically."
+                                                  " May be combined with --headless.",
+                           action=BlankTrueString, nargs="?", metavar="blank/FILENAME")
+        group.add_argument('-S', '--single-query', help="Consider the input as a single value, not a CSV.",
+                           action="store_true")
+        group.add_argument('--single-detect', help="Consider the input as a single value, not a CSV,"
+                                                   " and just print out possible types of the input."
+                           , action="store_true")
+        group.add_argument('-C', '--csv-processing', help="Consider the input as a CSV, not a single.", action="store_true")
+
+        group = parser.add_argument_group("CLI experience")
+        group.add_argument('--debug', help="On error, enter a pdb session",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
+        group.add_argument('-v', '--verbose', help="Sets the verbosity to see DEBUG messages.", action="store_true")
+        group.add_argument('-q', '--quiet', help="R|Sets the verbosity to see WARNINGs and ERRORs only."
+                                                 " Prints out the least information possible."
+                                                 "\n(Ex: if checking single value outputs a single word, prints out just that.)",
+                           action="store_true")
+        group.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions. "
+                                               "Will not send e-mails unless --send is on too.",
+                           action="store_true")
+        group.add_argument('-H', '--headless',
+                           help="Launch program in a headless mode which imposes --yes and --quiet. No menu is shown.",
+                           action="store_true")
+        group.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
+
+
+
         parser.add_argument('--csirt-incident', action="store_true",
                             help="Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country"
                                  " or csirt contact for foreign countries) and send everything by OTRS."
                                  " You set local countries in config.ini, currently set to"
                                  f" '{Config.get('local_country', 'FIELDS')}'")
-        parser.add_argument('--whois', help="R|Allowing Whois module: Leave blank for True or put true/on/1 or false/off/0.",
-                            action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('--nmap', help="R|Allowing NMAP module: Leave blank for True or put true/on/1 or false/off/0.",
-                            action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('--dig', help="R|Allowing DNS DIG module: Leave blank for True or put true/on/1 or false/off/0.",
-                            action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('--web', help="R|Allowing Web module: Leave blank for True or put true/on/1 or false/off/0."
-                                          "\nWhen single value input contains a web page, we could fetch it and add"
-                                          " status (HTTP code) and text fields. Text is just mere text, no tags, style,"
-                                          " script, or head. ",
-                            action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('--disable-external', help="R|Disable external function registered in config.ini to be imported.",
-                            action="store_true", default=False)
-        parser.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
-        parser.add_argument('--config', help="R|Open a config file and exit."
-                                             "\n File: config (default)/uwsgi/template/template_abroad"
-                                             "\n Mode: 1 terminal / 2 GUI / 3 try both (default)",
-                            nargs='*', metavar=("FILE", "MODE"))
-        parser.add_argument('--user-agent', help="Change user agent to be used when scraping a URL")
-        parser.add_argument('-S', '--single-query', help="Consider the input as a single value, not a CSV.",
-                            action="store_true")
-        parser.add_argument('--single-detect', help="Consider the input as a single value, not a CSV,"
-                                                    " and just print out possible types of the input."
-                            , action="store_true")
-        parser.add_argument('-C', '--csv-processing', help="Consider the input as a CSV, not a single.", action="store_true")
-        parser.add_argument('--multiple-hostname-ip', help="Hostname can be resolved into multiple IP addresses."
-                                                           " Duplicate row for each.",
-                            action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('--multiple-cidr-ip', help="CIDR can be resolved into multiple IP addresses."
-                                                       " Duplicate row for each.",
-                            action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('--whois-ttl', help="How many seconds will a WHOIS answer cache will be considered fresh.",
-                            type=int, metavar="SECONDS")
-        parser.add_argument('--whois-delete', help="Delete convey's global WHOIS cache.", action="store_true")
-        parser.add_argument('--whois-delete-unknown', help="Delete convey's global WHOIS cache.", action="store_true")
-        parser.add_argument('--whois-reprocessable-unknown', help="Make unknown lines reprocessable while single file processing,"
-                                                                  " do not leave unknown cells empty.", action="store_true")
-        parser.add_argument('--whois-cache', help="Use whois cache.", action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('--show-uml', help="R|Show UML of fields and methods and exit."
-                                               " Methods that are currently disabled via flags or config file are grayed out."
-                                               "\n * FLAGs:"
-                                               "\n    * +1 to gray out disabled fields/methods"
-                                               "\n    * +2 to include usual field names",
-                            type=int, const=1, nargs='?')
-        parser.add_argument('--threads', help="Set the thread processing number.",
-                            action=BlankTrueString, nargs="?", metavar="blank/false/auto/INT")
-        parser.add_argument('--get-autocompletion', help="Get bash autocompletion.", action="store_true")
-        parser.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
-                            action=BlankTrue, nargs="?", metavar="blank/false")
-        parser.add_argument('--version', help=f"Show the version number (which is currently {__version__}).", action="store_true")
+
+        group = parser.add_argument_group("Environment")
+        group.add_argument('--config', help="R|Open a config file and exit."
+                                            "\n File: config (default)/uwsgi/template/template_abroad"
+                                            "\n Mode: 1 terminal / 2 GUI / 3 try both (default)",
+                           nargs='*', metavar=("FILE", "MODE"))
+        group.add_argument('--show-uml', help="R|Show UML of fields and methods and exit."
+                                              " Methods that are currently disabled via flags or config file are grayed out."
+                                              "\n * FLAGs:"
+                                              "\n    * +1 to gray out disabled fields/methods"
+                                              "\n    * +2 to include usual field names",
+                           type=int, const=1, nargs='?')
+        group.add_argument('--get-autocompletion', help="Get bash autocompletion.", action="store_true")
+        group.add_argument('--version', help=f"Show the version number (which is currently {__version__}).", action="store_true")
+
+        group = parser.add_argument_group("Processing")
+        group.add_argument('--threads', help="Set the thread processing number.",
+                           action=BlankTrueString, nargs="?", metavar="blank/false/auto/INT")
+        group.add_argument('-F', '--fresh', help="Do not attempt to load any previous settings / results."
+                                                 " Do not load convey's global WHOIS cache."
+                                                 " (But merge WHOIS results in there afterwards.)", action="store_true")
+        group.add_argument('-R', '--reprocess', help="Do not attempt to load any previous settings / results."
+                                                     " But load convey's global WHOIS cache.", action="store_true")
+
         parser.add_argument('--server', help=f"Launches simple web server", action="store_true")
         parser.add_argument('--daemon', help=f"R|Run a UNIX socket daemon to speed up single query requests."
                                              "\n  * 1/true/on – allow using the daemon"
@@ -314,6 +236,112 @@ class Controller:
                                              "\n  * restart – restart the daemon and continue"
                                              "\n  * server – run the server in current process (I.E. for debugging)",
                             action=BlankTrue, nargs="?", metavar="start/restart/stop/status/server")
+
+        group = parser.add_argument_group("CSV dialect")
+        group.add_argument('--delimiter', help="Treat file as having this delimiter. For tab use either \\t or tab.")
+        group.add_argument('--quote-char', help="Treat file as having this quoting character")
+        group.add_argument('--header', help="Treat file as having header", action="store_true")
+        group.add_argument('--no-header', help="Treat file as not having header", action="store_true")
+        group.add_argument('--delimiter-output', help="Output delimiter. For tab use either \\t or tab.", metavar="DELIMITER")
+        group.add_argument('--quote-char-output', help="Output quoting char", metavar="QUOTE_CHAR")
+        group.add_argument('--header-output', help="If false, header is omitted when processing..",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
+
+        group = parser.add_argument_group("Actions")
+        group.add_argument('-d', '--delete', help="Delete a column. You may comma separate multiple columns." + column_help,
+                           metavar="COLUMN,[COLUMN]")
+        group.add_argument('-f', '--field',
+                           help="R|Compute field."
+                                "\n* FIELD is a field type (see below) that may be appended with a [CUSTOM] in square brackets."
+                                "\n* " + column_help +
+                                "\n* SOURCE_TYPE is either field type or usual field type. "
+                                "That way, you may specify processing method."
+                                "\n* CUSTOM is any string dependent on the new FIELD type (if not provided, will be asked it for)."
+                                "\nEx: --field tld[gTLD]  # would add TLD from probably a hostname, filtered by CUSTOM=gTLD"
+                                "\nEx: --field netname,ip  # would add netname column from any IP column"
+                                "\n    (Note the comma without space behind 'netname'.)"
+                                "\n\nComputable fields: " + "".join("\n* " + t.doc() for t in Types.get_computable_types()) +
+                                "\n\nThis flag May be used multiple times.",
+                           action=FieldVisibleAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
+        group.add_argument('-fe', '--field-excluded', help="The same as field but its column will not be added to the output.",
+                           action=FieldExcludedAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
+        group.add_argument('-t', '--type', help="R|Determine column type(s)."
+                                                "\nEx: --type country,,phone"
+                                                " # 1st column is country, 2nd unspecified, 3rd is phone",
+                           metavar="[TYPE],...")
+        group.add_argument('--split', help="Split by this COLUMN.",
+                           metavar="COLUMN")
+        group.add_argument('-s', '--sort', help="List of columns.",
+                           metavar="COLUMN,...")
+        group.add_argument('-u', '--unique', help="Cast unique filter on this COLUMN.",
+                           metavar="COLUMN,VALUE")
+        group.add_argument('-ef', '--exclude-filter', help="Filter include this COLUMN by a VALUE.",
+                           metavar="COLUMN,VALUE")
+        group.add_argument('-if', '--include-filter', help="Filter include this COLUMN by a VALUE.",
+                           metavar="COLUMN,VALUE")
+        group.add_argument('-a', '--aggregate', help="R|Aggregate"
+                                                     "\nEx: --aggregate 2,sum # will sum the second column"
+                                                     "\nEx: --aggregate 2,sum,3,avg # will sum the second column and average the third"
+                                                     "\nEx: --aggregate 2,sum,1 # will sum the second column grouped by the first"
+                                                     "\nEx: --aggregate 1,count # will count the grouped items in the 1st column"
+                                                     " (count will automatically set grouping column to the same)"
+                                                     f"\n\nAvailable functions: {aggregate_functions_str}",
+                           metavar="[COLUMN, FUNCTION], ..., [group-by-COLUMN]")
+
+        group = parser.add_argument_group("Enabling modules")
+        group.add_argument('--whois', help="R|Allowing Whois module: Leave blank for True or put true/on/1 or false/off/0.",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
+        group.add_argument('--nmap', help="R|Allowing NMAP module: Leave blank for True or put true/on/1 or false/off/0.",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
+        group.add_argument('--dig', help="R|Allowing DNS DIG module: Leave blank for True or put true/on/1 or false/off/0.",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
+        group.add_argument('--web', help="R|Allowing Web module: Leave blank for True or put true/on/1 or false/off/0."
+                                         "\nWhen single value input contains a web page, we could fetch it and add"
+                                         " status (HTTP code) and text fields. Text is just mere text, no tags, style,"
+                                         " script, or head. ",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
+
+        group = parser.add_argument_group("Field computing options")
+        group.add_argument('--disable-external', help="R|Disable external function registered in config.ini to be imported.",
+                           action="store_true", default=False)
+        group.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
+        group.add_argument('--user-agent', help="Change user agent to be used when scraping a URL")
+        group.add_argument('--multiple-hostname-ip', help="Hostname can be resolved into multiple IP addresses."
+                                                          " Duplicate row for each.",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
+        group.add_argument('--multiple-cidr-ip', help="CIDR can be resolved into multiple IP addresses."
+                                                      " Duplicate row for each.",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
+
+        group = parser.add_argument_group("WHOIS module options")
+        group.add_argument('--whois-ttl', help="How many seconds will a WHOIS answer cache will be considered fresh.",
+                           type=int, metavar="SECONDS")
+        group.add_argument('--whois-delete', help="Delete convey's global WHOIS cache.", action="store_true")
+        group.add_argument('--whois-delete-unknown', help="Delete convey's global WHOIS cache.", action="store_true")
+        group.add_argument('--whois-reprocessable-unknown', help="Make unknown lines reprocessable while single file processing,"
+                                                                 " do not leave unknown cells empty.", action="store_true")
+        group.add_argument('--whois-cache', help="Use whois cache.", action=BlankTrue, nargs="?", metavar="blank/false")
+
+        group = parser.add_argument_group("Sending options")
+        group.add_argument('--send', help="Automatically send e-mails when split.",
+                           action=BlankTrueString, nargs="?", metavar="blank/smtp/otrs")
+        group.add_argument('--send-test', help="Display e-mail message that would be generated for given e-mail.",
+                           nargs=2, metavar=("E-MAIL", "TEMPLATE_FILE"))
+        group.add_argument('--jinja', help="Process e-mail messages with jinja2 templating system",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
+        group.add_argument('--attach-files', help="Split files are added as e-mail attachments",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
+        group.add_argument('--testing', help="Do not be afraid, e-mail messages will not be sent."
+                                             " They will get forwarded to the testing e-mail"
+                                             " (and e-mails in Cc will not be sent at all)",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
+
+        group = parser.add_argument_group("OTRS")
+        csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
+                     ("otrs_token", "OTRS token")]
+        for flag in csv_flags:
+            group.add_argument('--' + flag[0], help=flag[1])
+
         self.args = args = parser.parse_args()
         see_menu = True
         is_daemon = None
@@ -981,8 +1009,8 @@ class Controller:
 
     def choose_settings(self):
         """ Remove some of the processing settings """
-        actions = [] # description
-        discard = [] # lambda to remove the setting
+        actions = []  # description
+        discard = []  # lambda to remove the setting
         st = self.parser.settings
         fields = self.parser.fields
 

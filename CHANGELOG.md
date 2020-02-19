@@ -6,6 +6,7 @@
 * webservice uwsgi file (HTTPS support)
 * able to parse pandoc simple table format (headers underlined with ---------) and a lot of spaces between columns
 * local_country is empty by default (you do not have to be a national CSIRT to use this program)
+* program help flags grouped
 * types
     * csirt_contact now may be derived from tld
 * dialog
