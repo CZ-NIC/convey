@@ -89,6 +89,7 @@ class MailDraft:
                 self.edit_text()
 
     def jinja(self, attachment: "Attachment"):
+
         def print_attachment():
             """ Prints the attachment contents and prevent it to be attached.
                 # XX may have header=False parameter to skip header.
@@ -127,7 +128,7 @@ class MailDraft:
                                                    row=row,
                                                    joined=joined,
                                                    amount=amount,
-                                                   print_attachment=print_attachment)
+                                                   attachment=print_attachment)
         except exceptions.TemplateError as e:
             print(f"Template error: {e}")
             return False

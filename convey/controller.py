@@ -677,7 +677,7 @@ class Controller:
                 menu.add("show all details", lambda: (self.parser.informer.sout_info(full=True), input()), key="d")
             else:
                 menu.add("show all details (process first)")
-            menu.add("reset...", self.reset_menu, key="r")
+            menu.add("redo...", self.redo_menu, key="r")
             menu.add("config...", self.config_menu, key="c")
             menu.add("exit", self.close, key="x")
 
@@ -1051,7 +1051,7 @@ class Controller:
                 # when removing an aggregation settings, we check if it was the last one to get rid of the setting altogether
                 del st["aggregate"]
 
-    def reset_menu(self):
+    def redo_menu(self):
         menu = Menu(title="What should be reprocessed?", fullscreen=True)
         menu.add("Delete some processing settings", self.choose_settings)
         menu.add("Delete all processing settings", self.parser.reset_settings)

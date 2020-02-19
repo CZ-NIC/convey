@@ -2,7 +2,8 @@
 
 ## 1.4 (unreleased)
 * CHANGED:
-    * --delete-whois-cache renamed to --whois-delete
+    * --delete-whois-cache renamed to --whois-delete   
+    * template function `{{ print_attachment() }}` renamed to `{{ attachment() }}` 
 * webservice uwsgi file (HTTPS support)
 * able to parse pandoc simple table format (headers underlined with ---------) and a lot of spaces between columns
 * local_country is empty by default (you do not have to be a national CSIRT to use this program)
@@ -18,6 +19,7 @@
     * displays what is happening if WHOIS cache is being loaded/saved longer than 1 s
     * atomic thread safe information printing – no more blinking and shuffled info; few records stay on the screen when information refresh
     * statistics info reworded 
+    * reset menu renamed to redo
 * flags
     * --whois-delete-unknown
     * --whois-reprocessable-unknown 

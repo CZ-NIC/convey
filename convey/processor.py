@@ -295,7 +295,7 @@ class Processor:
                         # if we received empty list, row is invalid
                         # ex: missing IP of a hostname
                         if not fields[i]:
-                            raise RuntimeWarning(f"Column {i + 1} invalid")
+                            raise RuntimeWarning(f"Column {i + 1} cannot be determined and the row was marked as invalid")
                         fields[i] *= row_count // len(fields[i])
                     it = zip(*fields)
                     fields = it.__next__()  # now we are sure fields has only scalar values

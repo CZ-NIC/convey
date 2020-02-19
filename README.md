@@ -408,16 +408,17 @@ In the template, you may specify any e-mail header, such as `Reply-To`, `Cc` or 
 Message is processed with [Jinja2](https://jinja.palletsprojects.com/en/2.10.x/) templating system by default.
 
 Few instruments are included to treat the attachment contents:
-* **row()** – Generate attachment contents fields row by row. Header skipped. 
-* **print_attachment()** – Prints the attachment contents and prevent it to be attached.
+* **attachment()** – Prints the attachment contents and prevent it to be attached.
     ```jinja2
     You will find our findings below.
     
-    {{ print_attachment() }}
+    {{ attachment }}
     ```
+* **row()** – Generate attachment contents fields row by row. Header skipped. 
 * **amount(count=2)** – Check if the attachment has at least `count` number of lines. Header is not counted. Useful when deciding whether the are single row in the result or multiple.
 * **joined(column: int, delimiter=", ")** – Return a column joined by delimiter
 * **first_row** – Access first line fields
+
     Example:
     ```jinja2
     {% if amount() %}
@@ -590,7 +591,7 @@ Main menu - how the file should be processed?
 p) process ←←←←←
 ~) send (split first)
 ~) show all details (process first)
-r) reset...
+r) redo...
 c) config...
 x) exit
 ?  

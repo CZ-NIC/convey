@@ -397,7 +397,8 @@ class Informer:
         for tick in count():
             if self.stats_stop._flag is True:
                 return
-            if self.stats_stop._flag is not 1 and last_count != parser.line_count:  # do not refresh when stuck (ex: pdb debugging)
+            # do not refresh when stuck (ex: pdb debugging) (as a side effect, clock does not run on the screen)
+            if self.stats_stop._flag is not 1 and last_count != parser.line_count:
                 v = (parser.line_count - last_count) / speed  # current velocity (lines / second) since last time
                 if tick < 20:  # in the beginning, refresh quickly; great look & lower performance
                     speed = 0.2
