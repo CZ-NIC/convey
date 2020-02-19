@@ -82,7 +82,7 @@ class Parser:
         self.selected: List[int] = []  # list of selected fields col_i that may be in/excluded and moved in the menu
 
         # load CSV
-        self.source_file = source_file or self.invent_file_str()
+        self.source_file : Path = source_file or self.invent_file_str()
         self.stdin = []
         # When accepting input from stdin and not saving the output into a file
         #   or when setting this to True,

@@ -243,6 +243,8 @@ class Processor:
                     # set that a mail with this attachment have not yet been sent
                     self.parser.attachments.append(Attachment(f))
 
+        inf.write_statistics()
+
     def _close_descriptors(self):
         """ Descriptors have to be closed (flushed) """
         for f in self.descriptors.values():

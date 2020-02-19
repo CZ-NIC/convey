@@ -195,11 +195,6 @@ class Informer:
             stat = self.get_stats_phrase()
             if stat:
                 print_s("\n Statistics overview:\n" + stat)
-                if Config.get("write_statistics") and not p.stdin:
-                    # we write statistics.txt only if we're sourcing from a file, not from stdin
-                    # XX move this to parser.run_analysis and _resolve_again or to Processor – do not rewrite it every time here!
-                    with open(Path(Path(p.source_file).parent, "statistics.txt"), "w") as f:
-                        f.write(stat)
             """
             XX
             if parser.abuseReg.stat("records", False):
@@ -419,3 +414,11 @@ class Informer:
                 self.sout_info()
                 Whois.quota.check_over()
             sleep(speed)
+
+    def write_statistics(self):
+        if Config.get("write_statistics") and not self.parser.stdin:
+            # we write statistics.txt only if we're sourcing from a file, not from stdin
+            # XX move this to parser.run_analysis and _resolve_again or to Processor – do not rewrite it every time here!
+            stat = self.get_stats_phrase()
+            if stat:
+                Path(self.parser.source_file.parent, "statistics.txt").write_text(stat)
