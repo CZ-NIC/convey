@@ -289,6 +289,9 @@ class Controller:
                             type=int, metavar="SECONDS")
         parser.add_argument('--whois-delete', help="Delete convey's global WHOIS cache.", action="store_true")
         parser.add_argument('--whois-delete-unknown', help="Delete convey's global WHOIS cache.", action="store_true")
+        parser.add_argument('--whois-reprocessable-unknown', help="Make unknown lines reprocessable while single file processing,"
+                                                                  " do not leave unknown cells empty.", action="store_true")
+        parser.add_argument('--whois-cache', help="Use whois cache.", action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--show-uml', help="R|Show UML of fields and methods and exit."
                                                " Methods that are currently disabled via flags or config file are grayed out."
                                                "\n * FLAGs:"
@@ -422,7 +425,7 @@ class Controller:
                     args.output = None
                 for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
                              "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl", "disable_external", "debug", "testing",
-                             "attach_files", "jinja", "whois_delete_unknown"]:
+                             "attach_files", "jinja", "whois_delete_unknown", "whois_reprocessable_unknown", "whois_cache"]:
                     if getattr(args, flag) is not None:
                         Config.set(flag, getattr(args, flag))
                 if args.headless or args.send_test:

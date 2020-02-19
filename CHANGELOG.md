@@ -18,7 +18,9 @@
     * atomic thread safe information printing – no more blinking and shuffled info; few records stay on the screen when information refresh
     * statistics info reworded 
 * flags
-    * --whois-delete-unknown 
+    * --whois-delete-unknown
+    * --whois-reprocessable-unknown 
+    * --whois-cache
 * internal
     * OTRS no more appends ".txt" to the attachment name
     * web scraping bug of suspicious form-tag without name attribute present

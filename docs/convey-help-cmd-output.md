@@ -22,6 +22,7 @@ usage: convey [-h] [--debug [blank/false]] [--testing [blank/false]] [-F] [-R]
               [--single-detect] [-C] [--multiple-hostname-ip [blank/false]]
               [--multiple-cidr-ip [blank/false]] [--whois-ttl SECONDS]
               [--whois-delete] [--whois-delete-unknown]
+              [--whois-reprocessable-unknown] [--whois-cache [blank/false]]
               [--show-uml [SHOW_UML]] [--threads [blank/false/auto/INT]]
               [--get-autocompletion] [--compute-preview [blank/false]]
               [--version] [--server]
@@ -190,7 +191,7 @@ optional arguments:
                         contact (whois abuse mail for local country or csirt
                         contact for foreign countries) and send everything by
                         OTRS. You set local countries in config.ini, currently
-                        set to: cz
+                        set to 'cz'
   --whois [blank/false]
                         Allowing Whois module: Leave blank for True or put true/on/1 or false/off/0.
   --nmap [blank/false]  Allowing NMAP module: Leave blank for True or put true/on/1 or false/off/0.
@@ -221,6 +222,11 @@ optional arguments:
   --whois-delete        Delete convey's global WHOIS cache.
   --whois-delete-unknown
                         Delete convey's global WHOIS cache.
+  --whois-reprocessable-unknown
+                        Make unknown lines reprocessable while single file
+                        processing, do not leave unknown cells empty.
+  --whois-cache [blank/false]
+                        Use whois cache.
   --show-uml [SHOW_UML]
                         Show UML of fields and methods and exit. Methods that are currently disabled via flags or config file are grayed out.
                          * FLAGs:

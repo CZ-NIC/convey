@@ -44,6 +44,10 @@ class Quota:
         pass
 
 
+class UnknownValue(LookupError):
+    pass
+
+
 class Whois:
     slow_mode: bool
     unknown_mode: bool
@@ -77,15 +81,17 @@ class Whois:
          self.get stores tuple: prefix, location, mail, asn, netname, country, ttl
         """
         self.ip = ip
+        print(ip) # XXXX
+        #import ipdb; ipdb.set_trace()
         self.whois_response = []
         prefix = self.cache_load()  # try load prefix from earlier WHOIS responses
         if prefix:
-            if (self.ttl != -1 and self.get[7] + self.ttl < time()) \
-                    or (Whois.unknown_mode and not self.get[6]):
+            if (self.ttl != -1 and self.get[7] + self.ttl < time()) or (Whois.unknown_mode and not self.get[6]):
                 # the TTL is too old, we cannot guarantee IP stayed in the same prefix, let's get rid of the old results
                 # OR we are in unknown_mode which means we want abusemail. If not here, maybe another IP claimed
                 # a range superset without abuse e-mail. Delete this possible superset
-                # We do not have to call now `self.get = None; del self.ip_seen[ip]` if there is no need to be thread safe.
+                # We do not have to call now `self.get = None; del self.ip_seen[ip]` if there is no need to be thread safe,
+                #   these lines will be called at the function end.
                 del self.ranges[prefix]
             else:
                 self.count_stats()
@@ -99,7 +105,7 @@ class Whois:
             sleep(7)
         get = self.analyze()  # prefix, location, mail, asn, netname, country...
         if self.see:
-            print(get[2])
+            print(get[2] or "no incident contact.")
         prefix = get[0]
         if not prefix:
             logger.info(f"No prefix found for IP {ip}")
@@ -128,6 +134,7 @@ class Whois:
     def count_stats(self):
         self.csvstats["ip_unique"].add(self.ip)
         mail = self.get[6]
+        contact = self.get[2]
         reg = self.get[1]
         known = "known" if mail else "unknown"
         self.csvstats[f"ip_{reg}_{known}"].add(self.ip)
@@ -136,19 +143,23 @@ class Whois:
         if mail:
             self.csvstats[f"abusemail_{reg}"].add(mail)
 
-        if self.get[1] == "abroad":
+        if reg == "abroad":
             country = self.get[5]
             if country in Contacts.country2mail:
                 known = "known"
             elif mail:
                 known = "unofficial"
-                self.csvstats[f"abusemail_{known}"].add(mail)
-                self.csvstats[f"prefix_csirtmail_{known}"].add(self.get[0])
+                self.csvstats[f"abusemail_{known}"].add(mail)  # subset of abusemail_abroad
+                self.csvstats[f"prefix_csirtmail_{known}"].add(self.get[0])  # subset of prefix_abroad_un/known
             else:  # we do not track the amount of unknown IP addresses that should be delivered to countries
-                return
+                known = None
 
-            self.csvstats[f"ip_csirtmail_{known}"].add(self.ip)
-            self.csvstats[f"csirtmail_{known}"].add(country)
+            if known:
+                self.csvstats[f"ip_csirtmail_{known}"].add(self.ip)
+                self.csvstats[f"csirtmail_{known}"].add(country)
+
+        if not mail and Config.get("whois_reprocessable_unknown", "FIELDS", get=bool):
+            raise UnknownValue
 
     def resolve_unknown_mail(self):
         """ Forces to load abusemail for an IP.
@@ -348,9 +359,12 @@ class Whois:
         local = Config.get("local_country", "FIELDS")
         if local and country not in local:
             mail = Contacts.country2mail[country] if country in Contacts.country2mail else ab
-            return prefix, "abroad", Config.ABROAD_PREFIX + mail, asn, netname, country, ab, int(time())
+            get1 = "abroad"
+            get2 = Config.ABROAD_PREFIX + mail if mail else ""
         else:
-            return prefix, "local", ab, asn, netname, country, ab, int(time())
+            get1 = "local"
+            get2 = ab
+        return prefix, get1, get2, asn, netname, country, ab, int(time())
 
     def _load_country_from_addresses(self):
         # let's try to find country in the non-standardised address field

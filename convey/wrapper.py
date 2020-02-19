@@ -67,7 +67,7 @@ class Wrapper:
         self.file = file = None
         self.stdin = stdin = None
         self.types = types
-        self.fresh = fresh
+        self.whois_not_loaded = fresh
         self.last_hash = None
         try:
             case = int(Config.get("file_or_input"))
@@ -118,10 +118,10 @@ class Wrapper:
             quit()
 
         self.assure_cache_file(file)
-        if Path(self.cache_file).is_file() and not (fresh or reprocess):
+        if self.cache_file.is_file() and not (fresh or reprocess):
             logger.info(f"File {self.file} has already been processed.")
             try:  # try to depickle
-                self.parser = jsonpickle.decode(open(self.cache_file, "r").read(), keys=True)
+                self.parser = jsonpickle.decode(self.cache_file.read_text(), keys=True)
             except:
                 print(traceback.format_exc())
                 if not Config.error_caught():
@@ -174,7 +174,7 @@ class Wrapper:
     def load_whois_cache(self):
         """ restore whois cache and remove expired results """
         p = Path(config_dir, WHOIS_CACHE)
-        if p.exists():
+        if Config.get("whois_cache", "FIELDS", get=bool) and p.exists():
             event = lazy_print("... loading big WHOIS cache ...")  # XX if it's long, postpone via a thread that would block analysis
             ip_seen, ranges = jsonpickle.decode(p.read_text(), keys=True)
             ranges = {IPRange(k[0], k[1]): v for k, v in ranges.items()
@@ -259,12 +259,13 @@ class Wrapper:
 
         # save cache file
         if self.cache_file:  # cache_file does not exist typically if reading from STDIN
-            if self.parser.ranges:
+            if self.parser.ranges and Config.get("whois_cache", "FIELDS", get=bool):
                 # we extract whois info from self.parser and save it apart for every convey instance
-                if self.fresh:  # if we wanted a fresh result, global whois cache was not used and we have to merge it
+                if self.whois_not_loaded:  # if we wanted a fresh result, global whois cache was not used and we have to merge it
                     ip_seen, ranges = self.load_whois_cache()
                     ip_seen = {**ip_seen, **self.parser.ip_seen}
                     ranges = {**ranges, **self.parser.ranges}
+                    self.whois_not_loaded = False
                 else:
                     ip_seen, ranges = self.parser.ip_seen, self.parser.ranges
                 if self._whois_changed(ranges, ip_seen):
@@ -289,8 +290,8 @@ class Wrapper:
                         Path(config_dir, WHOIS_CACHE).write_text(encoded)
                     finally:
                         event.set()
-            with open(self.cache_file, "w") as output:  # save cache
-                output.write(string)
+            self.cache_file.write_text(string)  # save cache
+
 
     def clear(self):
         self.check_xls() or self.check_ods() or self.check_log()

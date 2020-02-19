@@ -15,7 +15,7 @@ from .config import Config
 from .contacts import Attachment
 from .dialogue import ask
 from .types import Web
-from .whois import Quota
+from .whois import Quota, UnknownValue
 
 logger = logging.getLogger(__name__)
 
@@ -331,6 +331,7 @@ class Processor:
             if type(settings["split"]) == int:
                 location = fields[settings["split"]].replace("/", "-")  # split ('/' is a forbidden char in linux file names)
                 if not location:
+                    parser.unknown_lines_count += 1
                     location = Config.UNKNOWN_NAME
                     chosen_fields = line  # reset to the original line (location will be reprocessed)
             else:
@@ -372,6 +373,15 @@ class Processor:
             parser.queued_lines_count += 1
             location = Config.QUEUED_NAME
             chosen_fields = line  # reset the original line (location will be reprocessed)
+        except UnknownValue:  # `whois_reprocessable_unknown` is True
+            # we do want to reprocess such lines at the end no matter single or split processing
+            # (When split processing, this behaviour is obligatory,
+            # such lines will be marked unknowns above when determining file location)
+            parser.unknown_lines_count += 1
+            location = Config.UNKNOWN_NAME
+            chosen_fields = line  # reset the original line (location will be reprocessed)
+        except BdbQuit:  # prevent BdbQuit to be caught by general Exception below
+            raise
         except Exception as e:
             if Config.is_debug():
                 traceback.print_exc()

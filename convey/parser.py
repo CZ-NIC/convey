@@ -5,6 +5,7 @@ import logging
 import re
 import subprocess
 import time
+from bdb import BdbQuit
 from collections import defaultdict
 from itertools import zip_longest
 from json import dumps
@@ -24,7 +25,7 @@ from .informer import Informer
 from .mail_draft import MailDraft
 from .processor import Processor
 from .types import Types, Type, Web, TypeGroup, Checker
-from .whois import Whois
+from .whois import Whois, Quota, UnknownValue
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,9 @@ class Parser:
         self.ip_count_guess = None
         self.ip_count = None
         self.attachments = []  # files created if splitting
-        self.queued_lines_count = self.invalid_lines_count = 0
+        self.queued_lines_count: int
+        self.invalid_lines_count: int
+        self.unknown_lines_count: int
         self.line_count = 0
         self.time_start = self.time_end = None
         # when called from another program we communicate through this stream rather than through a file
@@ -439,7 +442,7 @@ class Parser:
         """
         self.stats = defaultdict(set)
         Attachment.reset(self.stats)
-        self.queued_lines_count = self.invalid_lines_count = 0
+        self.queued_lines_count = self.invalid_lines_count = self.unknown_lines_count = 0
         # self.aggregation[location file][grouped row][order in aggregation settings] = [sum generator, count]
         self.aggregation = defaultdict(dict)
 
@@ -527,7 +530,7 @@ class Parser:
         if self.invalid_lines_count:
             self.resolve_invalid()
 
-        if self.stats["prefix_local_unknown"] or self.stats["prefix_abroad_unknown"]:
+        if self.unknown_lines_count:
             self.resolve_unknown()
 
         if self.queued_lines_count and Config.get("lacnic_quota_resolve_immediately", "FIELDS") is not False:
@@ -568,7 +571,9 @@ class Parser:
             except Exception:
                 print("Can't guess IP count.")
 
-    def _resolve_again(self, path, basename, slow_mode=False, unknown_mode=False):
+    def _resolve_again(self, path, basename, var, key, reprocess_method, slow_mode=False, unknown_mode=False):
+        count = getattr(self, var)  # ex: `count = self.invalid_lines_count`
+        setattr(self, var, 0)
         self.reset_whois(assure_init=True, slow_mode=slow_mode, unknown_mode=unknown_mode)
         temp = str(path) + ".running.tmp"
         try:
@@ -591,16 +596,35 @@ class Parser:
         self.lines_total, self.size = lines_total, size
         self._reset_output()
         self.informer.sout_info()
-        return True
+
+        if getattr(self, var):
+            solved = count - getattr(self, var)
+            print(f"\nNo {key} row resolved." if solved == 0 else f"\nOnly {solved}/{count} {key} rows were resolved.")
+            reprocess_method()
 
     def stat(self, key):
         """ self.stats reader shorthand (no need to call len(...))"""
         return len(self.stats[key])
 
     def resolve_unknown(self):
-        """ Process all prefixes with unknown abusemails. """
+        """ Process all prefixes with unknown abusemails.
 
-        if not self.stats["ip_local_unknown"] and not self.stats["ip_abroad_unknown"]:
+        When split processing, unknown file is always generated; when single file processing,
+        it is generated only if whois_reprocessable_unknown is True, otherwise cells remain empty
+
+        It is not trivial to determine which IPs are really marked as unknowns.
+        If we are splitting by abusemail, this may do. But if we are splitting by incident-contact,
+        some of the IP with unknown abusemails are deliverable through csirtmail.
+        Whois module does statistics but is not able to determine whether we use abusemail or incident-contact.
+
+        That is the reason we are saying 'up to': "There are ... lines with up to ... IPs".
+        """
+
+        # (self.is_split or Config.get("whois_reprocessable_unknown", "FIELDS", get=bool)) \
+        #    and (self.stats["prefix_local_unknown"] or self.stats["prefix_abroad_unknown"]):
+
+        if not self.unknown_lines_count:
+            # self.stats["ip_local_unknown"] and not self.stats["ip_abroad_unknown"]:
             input("No unknown abusemails. Press Enter to continue...")
             return
 
@@ -609,17 +633,18 @@ class Parser:
             l.append(f"{self.stat('ip_local_unknown')} IPs in {self.stat('prefix_local_unknown')} unknown prefixes")
         if self.stats["ip_abroad_unknown"]:
             l.append(f"{self.stat('ip_abroad_unknown')} IPs in {self.stat('prefix_abroad_unknown')} unknown abroad prefixes")
-        s = f"There are {' and '.join(l)}. Should I proceed additional search" \
+        s = f"There are {self.unknown_lines_count} lines with up to {' and '.join(l)}. Should I proceed additional search" \
             f" for these {self.stat('ip_local_unknown')+self.stat('ip_abroad_unknown')} IPs?"
         if not is_yes(s):
             return
 
         path = Path(Config.get_cache_dir(), Config.UNKNOWN_NAME)
         [self.stats[f"{a}_{b}_unknown"].clear() for a in ("ip", "prefix") for b in ("local", "abroad")]  # reset the stats matrix
-        res = self._resolve_again(path, Config.UNKNOWN_NAME, unknown_mode=True)
+        # res = self._resolve_again(path, Config.UNKNOWN_NAME, unknown_mode=True)
+        self._resolve_again(path, Config.UNKNOWN_NAME, "unknown_lines_count", "unknown", self.resolve_unknown, unknown_mode=True)
         Whois.unknown_mode = False
-        if res is False:
-            return False
+        # if res is False:
+        #     return False
 
     def resolve_queued(self, force=False):
         count = self.queued_lines_count
@@ -642,20 +667,22 @@ class Parser:
                 return
             print(" over!")
 
-        self.queued_lines_count = 0
-        Whois.queued_ips = set()
         path = Path(Config.get_cache_dir(), Config.QUEUED_NAME)
-        res = self._resolve_again(path, Config.QUEUED_NAME, slow_mode=True)
-        if res is False:
-            return False
-        if self.queued_lines_count:
-            solved = count - self.queued_lines_count
-            if solved == 0:
-                s = "No queued row resolved."
-            else:
-                s = f"Only {solved}/{count} queued rows were resolved."
-            print("\n" + s)
-            self.resolve_queued()
+        Whois.queued_ips.clear()
+
+        self._resolve_again(path, Config.QUEUED_NAME, "queued_lines_count", "queued", self.resolve_queued, slow_mode=True)
+        # self.queued_lines_count = 0
+        # res = self._resolve_again(path, Config.QUEUED_NAME, slow_mode=True)
+        # if res is False:
+        #     return False
+        # if self.queued_lines_count:
+        #     solved = count - self.queued_lines_count
+        #     if solved == 0:
+        #         s = "No queued row resolved."
+        #     else:
+        #         s = f"Only {solved}/{count} queued rows were resolved."
+        #     print("\n" + s)
+        #     self.resolve_queued()
 
     def resolve_invalid(self):
         """ Process all invalid rows. """
@@ -666,8 +693,8 @@ class Parser:
             return
 
         path = Path(Config.get_cache_dir(), Config.INVALID_NAME)
+        print("There are {0} invalid rows".format(self.invalid_lines_count))
         while True:
-            print("There are {0} invalid rows".format(self.invalid_lines_count))
             try:
                 with open(path, 'r') as f:
                     for i, row in enumerate(f):
@@ -691,18 +718,19 @@ class Parser:
                 print("Opening the editor...")
                 subprocess.Popen(['xdg-open', path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        invalids = self.invalid_lines_count
-        self.invalid_lines_count = 0
-        if self._resolve_again(path, Config.INVALID_NAME) is False:
-            return False
-        if self.invalid_lines_count:
-            solved = invalids - self.invalid_lines_count
-            if solved == 0:
-                s = "No invalid row resolved."
-            else:
-                s = f"Only {solved}/{invalids} invalid rows were resolved."
-            print("\n" + s)
-            self.resolve_invalid()
+        self._resolve_again(path, Config.INVALID_NAME, "invalid_lines_count", "invalid", self.resolve_invalid)
+        # invalids = self.invalid_lines_count
+        # self.invalid_lines_count = 0
+        # if self._resolve_again(path, Config.INVALID_NAME) is False:
+        #     return False
+        # if self.invalid_lines_count:
+        #     solved = invalids - self.invalid_lines_count
+        #     if solved == 0:
+        #         s = "No invalid row resolved."
+        #     else:
+        #         s = f"Only {solved}/{invalids} invalid rows were resolved."
+        #     print("\n" + s)
+        #     self.resolve_invalid()
 
     def resort(self, chosens=[]):
         """
@@ -959,6 +987,12 @@ class Field:
                         c = [y for x in (l(v) for v in c) for y in (x if type(x) is list else [x])]
                     else:
                         c = l(c)
+            except Quota.QuotaExceeded:
+                c = "QUOTA EXCEEDED"
+            except UnknownValue:
+                c = "UNKNOWN"
+            except BdbQuit:
+                raise
             except Exception:
                 c = "INVALID"
         else:

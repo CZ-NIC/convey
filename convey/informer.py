@@ -282,7 +282,7 @@ class Informer:
         ip_unique = st("ip_unique")
         abusemail_local = st("abusemail_local")
         abusemail_abroad = st("abusemail_abroad")
-        abusemail_unofficial = st("abusemail_unofficial")
+        abusemail_unofficial = st("abusemail_unofficial")  # subset of abusemail_abroad
         ip_local_unknown = st("ip_local_unknown")
         ip_local_known = st("ip_local_known")
         ip_abroad_known = st("ip_abroad_known")
@@ -310,6 +310,7 @@ class Informer:
         # * 445 e-mail addresses (38454 IP in 784 prefixes, unknown contact for 84 IP in 5 prefixes)
         # * 6848 abroad e-mail addresses (34515 IP in 84 prefixes, unknown contact for 84 in 4 prefixes)
 
+        # interesting if using incident-contact field
         if ip_csirtmail_known or ip_csirtmail_unofficial:
             s = s2 = ""
             if ip_csirtmail_known:
@@ -319,6 +320,7 @@ class Informer:
                      f" in {csirtmail_unofficial} countries ({ip_csirtmail_unofficial} IP in {prefix_csirtmail_unofficial} prefixes)"
             res.append(f"deliverable to {csirtmail_known} national/governmental CSIRTs {s}{s2}")
 
+        # interesting if using either incident-contact or abusemail
         if ip_local_known or ip_local_unknown:
             l = []
             if ip_local_known:
@@ -327,6 +329,7 @@ class Informer:
                 l.append(f"unknown contact for {ip_local_unknown} IP in {prefix_local_unknown} prefixes")
             res.append(f"{abusemail_local} e-mail addresses ({', '.join(l)})")
 
+        # interesting if using abusemail
         if ip_abroad_known or ip_abroad_unknown:
             l = []
             if ip_abroad_known:
