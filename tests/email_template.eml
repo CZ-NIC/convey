@@ -5,5 +5,5 @@ We send you {% if amount() %}lots of colours: {{ joined(1) }}{% else %}single co
 
 {% if amount() %}
 Here is the complete list of the multirow file.
-{{ print_attachment() }}
+{{ attachment() }}
 {% endif %}

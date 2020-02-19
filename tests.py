@@ -15,9 +15,9 @@ class Convey:
         if filename:
             if not Path(filename).exists():
                 raise FileNotFoundError(filename)
-            self.cmd.extend(["--file", filename])
+            self.cmd.extend(("--file", filename))
         if not whois:
-            self.cmd.append("--fresh")
+            self.cmd.extend(("--whois-cache", "false"))
 
     def __call__(self, cmd, see=False):
         cmd = [*self.cmd, *shlex.split(cmd)]
@@ -64,7 +64,7 @@ class TestTemplate(TestCase):
         self.assertIn('Subject: My cool dynamic template demonstrating a long amount of lines!', lines)
         self.assertIn('We send you lots of colours: red, green, yellow.', lines)
         self.assertIn('foo,green,first.example.com,example@example.com', lines)
-        # attachment must not be present because we called print_attachment() in the template
+        # attachment must not be present because we called attachment() in the template
         self.assertNotIn('Attachment:', lines[0])
 
         lines = convey(cmd.format(mail="wikipedia.com@example.com"))
