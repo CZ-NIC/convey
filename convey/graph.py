@@ -32,10 +32,9 @@ class Graph:
         OR
             {"node": distance to target, ...} (lower is better, sorted from lower)
 
-            ignore_private = True - do not return private notes within results (ex. whois)
             :param target: Type
             :type start: Type
-            :type ignore_private: bool
+            :type ignore_private: bool True - do not return private notes within results (ex. whois). Not applicable with `start`.
         """
         visited = {target: 0}
         tree = {}

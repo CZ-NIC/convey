@@ -235,14 +235,10 @@ class Processor:
             self._close_descriptors()
 
         if self.parser.is_split:
-            attch = set()
-            for at in self.parser.attachments:
-                attch.add(at.path)
-            for f in self.files_created:
-                if f not in attch and f != Config.INVALID_NAME:
-                    # set that a mail with this attachment have not yet been sent
-                    self.parser.attachments.append(Attachment(f))
-
+            # set that a mail with this attachment have not yet been sent
+            self.parser.attachments.extend(Attachment(f) for f in self.files_created
+                                           if f not in {at.path for at in self.parser.attachments}  # not existing yet
+                                           and f not in (Config.INVALID_NAME, Config.UNKNOWN_NAME, Config.QUEUED_NAME))
         inf.write_statistics()
 
     def _close_descriptors(self):

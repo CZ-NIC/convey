@@ -62,9 +62,7 @@ class Attachment:
     def get_all(cls, abroad=None, sent=None, limit=float("inf"), threedots=False):
         o: Attachment
         for i, o in enumerate(cls.parser.attachments):
-            if o.filename in [Config.UNKNOWN_NAME, Config.INVALID_NAME]:
-                continue
-            elif sent is not None and sent is not bool(o.sent):  # we want to filter either sent or not-sent attachments only
+            if sent is not None and sent is not bool(o.sent):  # we want to filter either sent or not-sent attachments only
                 continue
             if abroad is not None and any((abroad and not o.abroad, not abroad and o.abroad)):
                 # filtering abroad/local attachments only

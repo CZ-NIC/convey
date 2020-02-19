@@ -36,6 +36,7 @@
     * fix Python3.6: disabled logging messages from daemon (threw errors)
     * fix: processing velocity info (lines / s) showed garbage since threads implemented    
     * fix: aggregate via Alt+a from main menu + any after-processing dialog (like resolve unknowns) caused the terminal to freeze (cannot use input() while another prompt toolkit session is active)
+    * CLI better source_type determining
 
 ## 1.3.1 (2020-01-31)
 * thread processing

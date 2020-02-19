@@ -265,6 +265,8 @@ class Identifier:
     def get_fitting_source_i(self, target_type, try_hard=False):
         """ Get list of source_i that may be of such a field type that new_field would be computed effectively.
             Note there is no fitting column for TypeGroup.custom, if you try_hard, you receive first column as a plaintext.
+
+            Sorted by relevance.
         """
         possible_cols = {}
         if target_type.group != TypeGroup.custom:
@@ -307,23 +309,38 @@ class Identifier:
                 task.insert(0, column_candidate)  # this was not COLUMN but SOURCE_TYPE or CUSTOM, COLUMN remains empty
         if source_col_i is None:  # get a column whose field could be fitting for that target_tape or any column as a plaintext
             try:
-                source_col_i = self.get_fitting_source_i(target_type, True)[0]
+                source_col_candidates = [self.parser.fields[i] for i in self.get_fitting_source_i(target_type, True)]
+                source_col_i = source_col_candidates[0].col_i
             except IndexError:
                 pass
+
 
         # determining source_type
         source_type_candidate = task.pop(0) if len(task) else None
         if source_type_candidate:  # determine SOURCE_TYPE
             source_type = Types.find_type(source_type_candidate)
-            if not source_type:
-                if target_type.group == TypeGroup.custom:
-                    # this was not SOURCE_TYPE but CUSTOM, for custom fields, SOURCE_TYPE may be implicitly plaintext
-                    #   (if preprocessing ex: from base64 to plaintext is not needed)
-                    task.insert(0, source_type_candidate)
-                    # source_type = Types.plaintext
-                else:
-                    print(f"Cannot determine new field from {source_type_candidate}")
-                    quit()
+            if source_type:
+                # We have to choose the right column - if there are some source_col_candidates it means the column
+                # was not determined exactly, we are just guessing. Get the one of the candidates whose type is nearest
+                # to the demanded source_type.
+                # Usecase: `--field incident-contact,source_ip`, when having only `hostname` between columns.
+                # This will check there is no source_ip amongst columns and corrects `source_type = hostname`
+                # instead of letting it be `source_type = source_ip` which would fail when resolving hostname.
+                l = [x for x in
+                     ((len(graph.dijkstra(field.type, start=source_type)), field.col_i, field.type)
+                      for field in source_col_candidates)
+                     if x[0] is not False]
+                if l:
+                    best_candidate = sorted(l)[0]
+                    source_type = best_candidate[2]
+            elif target_type.group == TypeGroup.custom:
+                # this was not SOURCE_TYPE but CUSTOM, for custom fields, SOURCE_TYPE may be implicitly plaintext
+                #   (if preprocessing ex: from base64 to plaintext is not needed)
+                task.insert(0, source_type_candidate)
+                # source_type = Types.plaintext
+            else:
+                print(f"Cannot determine new field from {source_type_candidate}")
+                quit()
 
         # determining missing info
         if source_col_i is not None and not source_type:
@@ -338,12 +355,9 @@ class Identifier:
                 quit()
         if source_type and source_col_i is None:
             # searching for a fitting type amongst existing columns
-            # for col in self.
-            possibles = {}  # [source col i] = score (bigger is better)
-            for i, t in enumerate(self.parser.fields):
-                if source_type in t.possible_types:
-                    possibles[i] = t.possible_types[source_type]
-
+            # [source col i] = score (bigger is better)
+            possibles = {i: t.possible_types[source_type] for i, t in enumerate(self.parser.fields)
+                         if source_type in t.possible_types}
             try:
                 source_col_i = sorted(possibles, key=possibles.get, reverse=True)[0]
             except IndexError:

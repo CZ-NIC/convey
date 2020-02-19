@@ -81,8 +81,6 @@ class Whois:
          self.get stores tuple: prefix, location, mail, asn, netname, country, ttl
         """
         self.ip = ip
-        print(ip) # XXXX
-        #import ipdb; ipdb.set_trace()
         self.whois_response = []
         prefix = self.cache_load()  # try load prefix from earlier WHOIS responses
         if prefix:
