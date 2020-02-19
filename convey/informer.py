@@ -193,12 +193,13 @@ class Informer:
                             Config.get('testing_mail')))
 
             stat = self.get_stats_phrase()
-            print_s("\n Statistics overview:\n" + stat)
-            if Config.get("write_statistics") and not p.stdin:
-                # we write statistics.txt only if we're sourcing from a file, not from stdin
-                # XX move this to parser.run_analysis and _resolve_again or to Processor – do not rewrite it every time here!
-                with open(Path(Path(p.source_file).parent, "statistics.txt"), "w") as f:
-                    f.write(stat)
+            if stat:
+                print_s("\n Statistics overview:\n" + stat)
+                if Config.get("write_statistics") and not p.stdin:
+                    # we write statistics.txt only if we're sourcing from a file, not from stdin
+                    # XX move this to parser.run_analysis and _resolve_again or to Processor – do not rewrite it every time here!
+                    with open(Path(Path(p.source_file).parent, "statistics.txt"), "w") as f:
+                        f.write(stat)
             """
             XX
             if parser.abuseReg.stat("records", False):
@@ -281,42 +282,70 @@ class Informer:
 
     def get_stats_phrase(self, generate=False):
         """ Prints phrase "Totally {} of unique IPs in {} countries...": """
-        st = self.parser.stats
+        st = self.parser.stat
 
-        ips_unique = len(st["ipsUnique"])
-        isp_cz_found = len(st["ispCzFound"])
-        ips_cz_missing = len(st["ipsCzMissing"])
-        ips_cz_found = len(st["ipsCzFound"])
-        ips_world_missing = len(st["ipsWorldMissing"])
-        ips_world_found = len(st["ipsWorldFound"])
-        countries_missing = len(st["countriesMissing"])
-        countries_found = len(st["countriesFound"])
+        ip_unique = st("ip_unique")
+        abusemail_local = st("abusemail_local")
+        abusemail_abroad = st("abusemail_abroad")
+        abusemail_unofficial = st("abusemail_unofficial")
+        ip_local_unknown = st("ip_local_unknown")
+        ip_local_known = st("ip_local_known")
+        ip_abroad_known = st("ip_abroad_known")
+        ip_abroad_unknown = st("ip_abroad_unknown")
+        prefix_local_known = st("prefix_local_known")
+        prefix_local_unknown = st("prefix_local_unknown")
+        prefix_abroad_known = st("prefix_abroad_known")
+        prefix_abroad_unknown = st("prefix_abroad_unknown")
+        prefix_csirtmail_unofficial = st("prefix_csirtmail_unofficial")
+        ip_csirtmail_unofficial = st("ip_csirtmail_unofficial")
+        ip_csirtmail_known = st("ip_csirtmail_known")
+        csirtmail_unofficial = st("csirtmail_unofficial")
+        csirtmail_known = st("csirtmail_known")
 
         """         XX
         invalidLines = self.parser.invalidReg.stat()
         """
 
-        if ips_unique > 0:
-            res = "Totally {} of unique IPs".format(ips_unique)
-        else:
-            res = "No IP addresses"
-        if ips_world_found or countries_found:
-            res += "; information for {} countries".format(countries_found) \
-                   + " ({} unique IPs)".format(ips_world_found)
-        if ips_world_missing or countries_missing:
-            res += ", no contact for {} countries without national/goverment CSIRT".format(countries_missing) \
-                   + " ({} unique IPs)".format(ips_world_missing)
-        if ips_cz_found or isp_cz_found:
-            res += "; {} unique local IPs".format(ips_cz_found) \
-                   + " distributed for {} ISP".format(isp_cz_found)
-        if ips_cz_missing:
-            res += " (for {} unique local IPs ISP not found).".format(ips_cz_missing)
+        res = []
+        if ip_unique > 0:
+            res.append(f"Totally {ip_unique} of unique IPs")
 
+        # * deliverable to 67 national/governmental CSIRTs (116490 IPs),
+        #       no official contact for 554 abroad e-mail addreses of 107 countries (1615 IP in 45 prefixes)
+        # * 445 e-mail addresses (38454 IP in 784 prefixes, unknown contact for 84 IP in 5 prefixes)
+        # * 6848 abroad e-mail addresses (34515 IP in 84 prefixes, unknown contact for 84 in 4 prefixes)
+
+        if ip_csirtmail_known or ip_csirtmail_unofficial:
+            s = s2 = ""
+            if ip_csirtmail_known:
+                s = f"({ip_csirtmail_known} IP)"
+            if ip_csirtmail_unofficial:
+                s2 = f", no official contact for {abusemail_unofficial} abroad e-mail addresses" \
+                     f" in {csirtmail_unofficial} countries ({ip_csirtmail_unofficial} IP in {prefix_csirtmail_unofficial} prefixes)"
+            res.append(f"deliverable to {csirtmail_known} national/governmental CSIRTs {s}{s2}")
+
+        if ip_local_known or ip_local_unknown:
+            l = []
+            if ip_local_known:
+                l.append(f"{ip_local_known} IP in {prefix_local_known} prefixes")
+            if ip_local_unknown:
+                l.append(f"unknown contact for {ip_local_unknown} IP in {prefix_local_unknown} prefixes")
+            res.append(f"{abusemail_local} e-mail addresses ({', '.join(l)})")
+
+        if ip_abroad_known or ip_abroad_unknown:
+            l = []
+            if ip_abroad_known:
+                l.append(f"{ip_abroad_known} IP in {prefix_abroad_known} prefixes")
+            if ip_abroad_unknown:
+                l.append(f"unknown contact for {ip_abroad_unknown} IP in {prefix_abroad_unknown} prefixes")
+            res.append(f"{abusemail_abroad} abroad e-mail addresses ({', '.join(l)})")
+
+        r = "; ".join(res) + "." if res else ""            
         """ XX
         if invalidLines:
             res += "\nThere were {} invalid lines in {} file.".format(invalidLines, self.parser.invalidReg.getPath())"""
 
-        return res
+        return r
 
     def source_file_len(self, source_file):
         """ When a source file is reasonably small (100 MB), count the lines by `wc -l`. Otherwise, guess a value.

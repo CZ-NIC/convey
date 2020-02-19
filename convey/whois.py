@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 rirs = ["whois.ripe.netf", "whois.arin.net", "whois.lacnic.net", "whois.apnic.net", "whois.afrinic.net"]
 whole_space = IPRange('0.0.0.0', '255.255.255.255')
 
+
 class Quota:
     def __init__(self):
         self._time = None
@@ -48,7 +49,7 @@ class Whois:
     unknown_mode: bool
     quota: Quota
     queued_ips: set
-    see:int
+    see: int
 
     @classmethod
     def init(cls, stats, ranges, ip_seen, csvstats, slow_mode=False, unknown_mode=False):
@@ -79,7 +80,7 @@ class Whois:
         self.whois_response = []
         prefix = self.cache_load()  # try load prefix from earlier WHOIS responses
         if prefix:
-            if (self.ttl != -1 and self.get[7] + self.ttl < time())\
+            if (self.ttl != -1 and self.get[7] + self.ttl < time()) \
                     or (Whois.unknown_mode and not self.get[6]):
                 # the TTL is too old, we cannot guarantee IP stayed in the same prefix, let's get rid of the old results
                 # OR we are in unknown_mode which means we want abusemail. If not here, maybe another IP claimed
@@ -125,28 +126,29 @@ class Whois:
                 return prefix
 
     def count_stats(self):
-        self.csvstats["ipsUnique"].add(self.ip)
-        mail = self.get[2]
-        if self.get[1] == "local":
-            if not mail:
-                self.csvstats["ipsCzMissing"].add(self.ip)
-                self.csvstats["czUnknownPrefixes"].add(self.get[0])
-            else:
-                self.csvstats["ipsCzFound"].add(self.ip)
-                self.csvstats["ispCzFound"].add(mail)
-        else:
+        self.csvstats["ip_unique"].add(self.ip)
+        mail = self.get[6]
+        reg = self.get[1]
+        known = "known" if mail else "unknown"
+        self.csvstats[f"ip_{reg}_{known}"].add(self.ip)
+        self.csvstats[f"prefix_{reg}_{known}"].add(self.get[0])
+
+        if mail:
+            self.csvstats[f"abusemail_{reg}"].add(mail)
+
+        if self.get[1] == "abroad":
             country = self.get[5]
-            if country not in Contacts.country2mail:
-                # XX this info is wanted if incident-contact (abusemail OR csirtmail) being fetched. But if only abusemail needed,
-                # we do not want to know this info. A the user gets confused
-                # with "no contact for XY countries without national/goverment CSIRT" printed in informer/statistics.
-                # Moreover, if some unknown mails are found amongst these abroad records, user is not told
-                #   (see resolve_unknown / if len(self.stats["ipsCzMissing"]) < 1: )
-                self.csvstats["ipsWorldMissing"].add(self.ip)
-                self.csvstats["countriesMissing"].add(country)
-            else:
-                self.csvstats["countriesFound"].add(country)
-                self.csvstats["ipsWorldFound"].add(self.ip)
+            if country in Contacts.country2mail:
+                known = "known"
+            elif mail:
+                known = "unofficial"
+                self.csvstats[f"abusemail_{known}"].add(mail)
+                self.csvstats[f"prefix_csirtmail_{known}"].add(self.get[0])
+            else:  # we do not track the amount of unknown IP addresses that should be delivered to countries
+                return
+
+            self.csvstats[f"ip_csirtmail_{known}"].add(self.ip)
+            self.csvstats[f"csirtmail_{known}"].add(country)
 
     def resolve_unknown_mail(self):
         """ Forces to load abusemail for an IP.
@@ -343,7 +345,8 @@ class Whois:
             self.resolve_unknown_mail()
 
         ab = self.get_abusemail()
-        if country not in Config.get("local_country", "FIELDS"):
+        local = Config.get("local_country", "FIELDS")
+        if local and country not in local:
             mail = Contacts.country2mail[country] if country in Contacts.country2mail else ab
             return prefix, "abroad", Config.ABROAD_PREFIX + mail, asn, netname, country, ab, int(time())
         else:

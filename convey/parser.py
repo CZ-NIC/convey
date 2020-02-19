@@ -527,7 +527,7 @@ class Parser:
         if self.invalid_lines_count:
             self.resolve_invalid()
 
-        if self.stats["czUnknownPrefixes"]:
+        if self.stats["prefix_local_unknown"] or self.stats["prefix_abroad_unknown"]:
             self.resolve_unknown()
 
         if self.queued_lines_count and Config.get("lacnic_quota_resolve_immediately", "FIELDS") is not False:
@@ -593,21 +593,29 @@ class Parser:
         self.informer.sout_info()
         return True
 
+    def stat(self, key):
+        """ self.stats reader shorthand (no need to call len(...))"""
+        return len(self.stats[key])
+
     def resolve_unknown(self):
         """ Process all prefixes with unknown abusemails. """
 
-        if len(self.stats["ipsCzMissing"]) < 1:  # XXX unknown file length should be checked instead, see count_stats
+        if not self.stats["ip_local_unknown"] and not self.stats["ip_abroad_unknown"]:
             input("No unknown abusemails. Press Enter to continue...")
             return
 
-        s = "There are {0} IPs in {1} unknown prefixes. Should I proceed additional search for these {1} items?".format(
-            len(self.stats["ipsCzMissing"]), len(self.stats["czUnknownPrefixes"]))
+        l = []
+        if self.stats["ip_local_unknown"]:
+            l.append(f"{self.stat('ip_local_unknown')} IPs in {self.stat('prefix_local_unknown')} unknown prefixes")
+        if self.stats["ip_abroad_unknown"]:
+            l.append(f"{self.stat('ip_abroad_unknown')} IPs in {self.stat('prefix_abroad_unknown')} unknown abroad prefixes")
+        s = f"There are {' and '.join(l)}. Should I proceed additional search" \
+            f" for these {self.stat('ip_local_unknown')+self.stat('ip_abroad_unknown')} IPs?"
         if not is_yes(s):
             return
 
         path = Path(Config.get_cache_dir(), Config.UNKNOWN_NAME)
-        self.stats["ipsCzMissing"] = set()
-        self.stats["czUnknownPrefixes"] = set()
+        [self.stats[f"{a}_{b}_unknown"].clear() for a in ("ip", "prefix") for b in ("local", "abroad")]  # reset the stats matrix
         res = self._resolve_again(path, Config.UNKNOWN_NAME, unknown_mode=True)
         Whois.unknown_mode = False
         if res is False:

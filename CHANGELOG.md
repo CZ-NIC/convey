@@ -4,7 +4,8 @@
 * CHANGED:
     * --delete-whois-cache renamed to --whois-delete
 * webservice uwsgi file (HTTPS support)
-* able to parse pandoc simple table format (headers underlined with ---------) and a lot of spaces between columns 
+* able to parse pandoc simple table format (headers underlined with ---------) and a lot of spaces between columns
+* local_country is empty by default (you do not have to be a national CSIRT to use this program)
 * types
     * csirt_contact now may be derived from tld
 * dialog
@@ -14,7 +15,8 @@
     * --config now can edit any config file, not only config.ini
     * print out settings so that it can be reprocessed via bash command (currently experimental, on file exit)
     * displays what is happening if WHOIS cache is being loaded/saved longer than 1 s
-    * atomic thread safe information printing – no more blinking and shuffled info; few records stay on the screen when information refresh 
+    * atomic thread safe information printing – no more blinking and shuffled info; few records stay on the screen when information refresh
+    * statistics info reworded 
 * flags
     * --whois-delete-unknown 
 * internal

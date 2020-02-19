@@ -175,7 +175,7 @@ class Wrapper:
         """ restore whois cache and remove expired results """
         p = Path(config_dir, WHOIS_CACHE)
         if p.exists():
-            event = lazy_print("... loading big WHOIS cache ...")
+            event = lazy_print("... loading big WHOIS cache ...")  # XX if it's long, postpone via a thread that would block analysis
             ip_seen, ranges = jsonpickle.decode(p.read_text(), keys=True)
             ranges = {IPRange(k[0], k[1]): v for k, v in ranges.items()
                       if v[7] + Config.get("whois_ttl", "FIELDS", int) >= time()}

@@ -252,8 +252,8 @@ class Controller:
         parser.add_argument('--csirt-incident', action="store_true",
                             help="Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country"
                                  " or csirt contact for foreign countries) and send everything by OTRS."
-                                 " You set local countries in config.ini, currently set to:"
-                                 f" {Config.get('local_country', 'FIELDS')}")
+                                 " You set local countries in config.ini, currently set to"
+                                 f" '{Config.get('local_country', 'FIELDS')}'")
         parser.add_argument('--whois', help="R|Allowing Whois module: Leave blank for True or put true/on/1 or false/off/0.",
                             action=BlankTrue, nargs="?", metavar="blank/false")
         parser.add_argument('--nmap', help="R|Allowing NMAP module: Leave blank for True or put true/on/1 or false/off/0.",
@@ -798,9 +798,6 @@ class Controller:
                     return True
                 return False
 
-            # XX Note:
-            #   st["local"][0] should be equal if just split by computed column! = self.parser.stats["ispCzFound"]:
-            #   st["abroad"][0] == self.parser.stats["countriesFound"]:
             seen_local = display_recipients(False, "  *** E-mail template ***")
             seen_abroad = display_recipients(True, "  *** Abroad template ***")
 
