@@ -25,9 +25,10 @@ from .config import Config, get_terminal_size, console_handler, edit, get_path
 from .contacts import Contacts, Attachment
 from .decorators import PickBase, PickMethod, PickInput
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask, ask_number, is_yes
+from .field import Field
 from .ipc import socket_file, recv, send, daemon_pid
 from .mail_sender import MailSenderOtrs, MailSenderSmtp
-from .parser import Parser, Field
+from .parser import Parser
 from .types import Types, TypeGroup, types, Type, graph, methods, Aggregate, get_module_from_path
 from .wizzard import Preview, bottom_plain_style
 from .wrapper import Wrapper
@@ -855,7 +856,7 @@ class Controller:
                 menu = Menu("\n".join(info), callbacks=False, fullscreen=False, skippable=False)
 
                 if seen_local or seen_abroad:
-                    menu.add(f"Send all e-mails ({limitable(sum_)}) via {method_s}", key="1", default=not everything_sent)
+                    menu.add(f"Send all e-mails ({limitable(sum_)}) via {method_s}", key="1")
                 if seen_local and seen_abroad:
                     menu.add(f"Send local e-mails ({limitable(st['local'][0])})", key="2")
                     menu.add(f"Send abroad e-mails ({limitable(st['abroad'][0])})", key="3")
@@ -866,7 +867,7 @@ class Controller:
                 menu.add(f"Limit sending amount{t} to...", key="l")
                 menu.add("Edit template...", key="e")
                 menu.add("Choose recipients...", key="r")
-                menu.add("Send test e-mail...", key="t")
+                menu.add("Send test e-mail...", key="t", default=not everything_sent)
                 menu.add("Print e-mails to a file...", key="p")
                 menu.add(f"Attach files (toggle): {Config.get('attach_files', 'SMTP', get=bool)}", key="a")
                 menu.add("Go back...", key="x", default=everything_sent)
@@ -911,7 +912,7 @@ class Controller:
             elif option == "a":
                 Config.set("attach_files", not Config.get('attach_files', 'SMTP', get=bool))
             elif option in ["test", "t", "r", "p"]:
-                attachments = list(Attachment.get_all())
+                attachments = sorted(list(Attachment.get_all()), key=lambda x: x.mail.lower())
                 if option == "p":
                     with NamedTemporaryFile(mode="w+") as f:
                         try:

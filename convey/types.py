@@ -374,7 +374,6 @@ class Web:
             cls.store_html = cls.store_text = True
         if Config.get("user_agent", "FIELDS"):
             cls.headers = {"User-Agent": Config.get("user_agent", "FIELDS")}
-        cls.timeout = Config.get("web_timeout", "FIELDS", get=int)
 
     def __init__(self, url):
         if url in self.cache:
@@ -385,7 +384,7 @@ class Web:
         while True:
             try:
                 logger.debug(f"Scrapping connection to {current_url}")
-                response = requests.get(current_url, timeout=self.timeout, headers=self.headers,
+                response = requests.get(current_url, timeout=Config.get("web_timeout", "FIELDS", get=int), headers=self.headers,
                                         allow_redirects=False, verify=False)
             except IOError as e:
                 if isinstance(e, requests.exceptions.HTTPError):
@@ -446,7 +445,7 @@ class Web:
 
 def dig(rr):
     def dig_query(query):
-        logger.debug(f"Digging {rr} of {query}")
+        print_atomic(f"Digging {rr} of {query}")
         if rr == "SPF":
             t = "TXT"
         elif rr == "DMARC":
@@ -702,8 +701,6 @@ class Types:
             except bdb.BdbQuit:
                 raise
             except Exception as e:
-                import ipdb;
-                ipdb.set_trace()
                 s = f"Cannot import custom file from path: {path}"
                 input(s + ". Press any key...")
                 logger.warning(s)
@@ -755,7 +752,8 @@ class Types:
             return methods[start, target]
         except KeyError:
             if (start, target) in methods_deleted:
-                raise PermissionError(f"Disabled path at {start} – {target}. Launch --config to enable it.")
+                print(f"Disabled path at {start} – {target}. Launch --config to enable it.")
+                quit()
             else:
                 raise LookupError
 
