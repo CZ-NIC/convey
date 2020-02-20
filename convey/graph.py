@@ -28,12 +28,12 @@ class Graph:
     def dijkstra(self, target, start=None, ignore_private=False):
         """
         Performs Dijkstra's algorithm and returns
-            [start node, ... , target node] (if start specified)
+            [start node, ... , target node] or False (if start specified)
         OR
             {"node": distance to target, ...} (lower is better, sorted from lower)
 
             :param target: Type
-            :type start: Type
+            :type start: [] or False if no path exists
             :type ignore_private: bool True - do not return private notes within results (ex. whois). Not applicable with `start`.
         """
         visited = {target: 0}

@@ -18,6 +18,7 @@ from urllib.parse import unquote, quote, urlparse, urlsplit, urljoin
 
 import dateutil.parser
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 from chardet import detect
 from netaddr import IPRange, IPNetwork
@@ -30,10 +31,12 @@ from .contacts import Contacts
 from .decorators import PickBase
 from .graph import Graph
 from .infodicts import is_phone, phone_country, address_country, country_codes
-from .utils import timeout
+from .utils import timeout, print_atomic
 from .whois import Whois
 
 logger = logging.getLogger(__name__)
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # seen due to web module requests.get(verify=False)
 
 reIpWithPort = re.compile("((\d{1,3}\.){4})(\d+)")
 reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")
@@ -363,26 +366,27 @@ class Web:
     headers = {}
 
     @classmethod
-    def init(cls, fields: List = None):
-        if fields:
-            cls.store_html = Types.html in [f.type for f in fields]
-            cls.store_text = Types.text in [f.type for f in fields]
+    def init(cls, used_types: List = None):
+        if used_types:
+            cls.store_html = Types.html in used_types
+            cls.store_text = Types.text in used_types
         else:
             cls.store_html = cls.store_text = True
         if Config.get("user_agent", "FIELDS"):
             cls.headers = {"User-Agent": Config.get("user_agent", "FIELDS")}
+        cls.timeout = Config.get("web_timeout", "FIELDS", get=int)
 
     def __init__(self, url):
         if url in self.cache:
             self.get = self.cache[url]
             return
-        logger.info(f"Scrapping {url}...")
         redirects = []
         current_url = url
         while True:
             try:
                 logger.debug(f"Scrapping connection to {current_url}")
-                response = requests.get(current_url, timeout=3, headers=self.headers, allow_redirects=False)
+                response = requests.get(current_url, timeout=self.timeout, headers=self.headers,
+                                        allow_redirects=False, verify=False)
             except IOError as e:
                 if isinstance(e, requests.exceptions.HTTPError):
                     s = 0
@@ -395,6 +399,7 @@ class Web:
                 else:
                     s = e
                 self.cache[url] = self.get = str(s), None, None, redirects, None, None, None
+                print_atomic(f"Scrapping {url} failed: {e}")
                 break
             if response.headers.get("Location"):
                 current_url = urljoin(current_url, response.headers.get("Location"))
@@ -421,18 +426,22 @@ class Web:
                     #   XX maybe there is a better idea what to print out
                     form_names = [s.attrs.get("name", str(s)) for s in soup(("input", "select", "textarea"))]
                 else:
-                    form_names = text = None
+                    form_names = None
+                    text = ""
                 # for res in response.history[1:]:
                 #     redirects += f"REDIRECT {res.status_code} → {res.url}\n" + text
                 #     redirects.append(res.url)
+
+                print_atomic(f"Scrapped {url} ({len(response.text)} bytes)")
                 self.cache[url] = self.get = response.status_code, text.strip(), response.text if self.store_html else None, \
                                              redirects, \
                                              response.headers.get('X-Frame-Options', None), \
                                              response.headers.get('Content-Security-Policy', None), \
                                              form_names
-                if current_url == url:
-                    break
-                url = current_url
+                break
+                # if current_url == url:
+                #     break
+                # url = current_url
 
 
 def dig(rr):
@@ -683,7 +692,6 @@ class Types:
             module = get_module_from_path(path)
             Types.import_method(module, method_name, path, name=field_name)
 
-
         for path in (x.strip() for x in Config.get("external_fields", "EXTERNAL", get=str).split(",") if x.strip()):
             # noinspection PyBroadException
             try:
@@ -694,7 +702,8 @@ class Types:
             except bdb.BdbQuit:
                 raise
             except Exception as e:
-                import ipdb; ipdb.set_trace()
+                import ipdb;
+                ipdb.set_trace()
                 s = f"Cannot import custom file from path: {path}"
                 input(s + ". Press any key...")
                 logger.warning(s)
@@ -739,6 +748,16 @@ class Types:
             if possible:
                 source_type = possible
         return source_type
+
+    @staticmethod
+    def get_method(start: Type, target: Type):
+        try:
+            return methods[start, target]
+        except KeyError:
+            if (start, target) in methods_deleted:
+                raise PermissionError(f"Disabled path at {start} – {target}. Launch --config to enable it.")
+            else:
+                raise LookupError
 
     whois = Type("whois", TypeGroup.whois, "ask whois servers", is_private=True)
     web = Type("web", TypeGroup.web, "scrape web contents", is_private=True)

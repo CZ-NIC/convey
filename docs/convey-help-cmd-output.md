@@ -20,8 +20,8 @@ usage: convey [-h] [--file] [-i] [-o [blank/FILENAME]] [-S] [--single-detect]
               [--dig [blank/false]] [--web [blank/false]] [--disable-external]
               [--json] [--user-agent USER_AGENT]
               [--multiple-hostname-ip [blank/false]]
-              [--multiple-cidr-ip [blank/false]] [--whois-ttl SECONDS]
-              [--whois-delete] [--whois-delete-unknown]
+              [--multiple-cidr-ip [blank/false]] [--web-timeout SECONDS]
+              [--whois-ttl SECONDS] [--whois-delete] [--whois-delete-unknown]
               [--whois-reprocessable-unknown] [--whois-cache [blank/false]]
               [--send [blank/smtp/otrs]] [--send-test E-MAIL TEMPLATE_FILE]
               [--jinja [blank/false]] [--attach-files [blank/false]]
@@ -235,6 +235,8 @@ Field computing options:
   --multiple-cidr-ip [blank/false]
                         CIDR can be resolved into multiple IP addresses.
                         Duplicate row for each.
+  --web-timeout SECONDS
+                        Timeout used when scraping a URL
 
 WHOIS module options:
   --whois-ttl SECONDS   How many seconds will a WHOIS answer cache will be

@@ -1,11 +1,21 @@
 # The file is not sourced from __init__ like decorators.py (where we hunt every ms)
 # so there is no problem if put here many functions that would cause a bottleneck
 import logging
-from threading import Thread, Event
+import sys
+from threading import Thread, Event, current_thread
 from time import sleep
 from typing import Callable
 
 logger = logging.getLogger(__name__)
+
+
+def print_atomic(s):
+    """ print not atomic, \n trailed when threading
+        If in thread, prints its name.
+    """
+    n = current_thread().name
+    t = "" if n == "MainThread" else "/" + n + "/ "
+    sys.stdout.write(t + s + "\n")
 
 
 def timeout(seconds: int, function: Callable, *args, **kwargs):

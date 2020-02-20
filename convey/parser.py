@@ -83,6 +83,7 @@ class Parser:
         self.refresh()
         self._reset(reset_header=False)
         self.selected: List[int] = []  # list of selected fields col_i that may be in/excluded and moved in the menu
+        self.files_created = set()  # files created with this parser, will not be rewritten but appended to if reprocessing lines
 
         # load CSV
         self.source_file : Path = source_file or self.invent_file_str()
@@ -585,8 +586,8 @@ class Parser:
         self._reset_output()
         lines_total, size = self.lines_total, self.size
         self.lines_total, self.size = self.informer.source_file_len(temp)
-        if basename in self.processor.files_created:
-            self.processor.files_created.remove(basename)  # this file exists no more, if recreated, include header
+        if basename in self.files_created:
+            self.files_created.remove(basename)  # this file exists no more, if recreated, include header
         dialect_tmp = self.dialect
         self.dialect = self.settings["dialect"]
         # XX missing start time reset here
@@ -785,7 +786,8 @@ class Parser:
             for field, cell in zip_longest(self.fields, line):
                 if cell is None:
                     cell = field.compute_preview(line)
-                row.append((cell, field))
+                # suppress new lines in preview; however while processing, new lines are printed and this may render the CSV unloadable
+                row.append((cell.replace("\n", r"\n"), field))
 
             # check if current line is filtered out
             line_chosen = True
@@ -829,7 +831,7 @@ class Parser:
     def __setstate__(self, state):
         self.__dict__.update(state)
         self.informer = Informer(self)
-        self.processor = Processor(self)
+        self.processor = Processor(self, rewrite=False)
 
         # input CSV dialect
         self.dialect = csv.unix_dialect()
@@ -974,10 +976,15 @@ class Field:
 
     def compute_preview(self, source_line):
         if Config.get("compute_preview") and self.source_field:
-            c = source_line[self.source_field.col_i]
+            try:
+                c = source_line[self.source_field.col_i]
+            except IndexError:
+                # Needed for this complicated case:
+                # convey "http://example.com" --web --field code,"x" --field text,code,url --field reg_m,text
+                return "NOT COMPUTED YET"
             if c is None:
                 # source column has not yet been resolved because of column resorting
-                # (note this will not a problem when processing)
+                # (note this will not pose a problem when processing)
                 return "..."
             # noinspection PyBroadException
             try:

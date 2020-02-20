@@ -10,6 +10,7 @@
 * program help flags grouped
 * types
     * csirt_contact now may be derived from tld
+    * web module now ignores invalid HTTPS certificates
 * dialog
     * edit default e-mail templates from config submenu
     * delimiter now may contain tab character, input by "\t" or "tab"
@@ -24,6 +25,7 @@
     * --whois-delete-unknown
     * --whois-reprocessable-unknown 
     * --whois-cache
+    * --web-timeout
 * internal
     * OTRS no more appends ".txt" to the attachment name
     * web scraping bug of suspicious form-tag without name attribute present
@@ -39,6 +41,8 @@
     * fix: processing velocity info (lines / s) showed garbage since threads implemented    
     * fix: aggregate via Alt+a from main menu + any after-processing dialog (like resolve unknowns) caused the terminal to freeze (cannot use input() while another prompt toolkit session is active)
     * CLI better source_type determining
+    * web module boosts and fixes
+    * fix: when reprocessing (ex: invalid lines) after loading, file will get cleared no more
 
 ## 1.3.1 (2020-01-31)
 * thread processing

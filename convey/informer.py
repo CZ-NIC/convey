@@ -35,6 +35,9 @@ class Informer:
 
         stdout = StringIO()
 
+        if clear and not Config.get("daemon", get=bool):
+            stdout.write("\x1b[2J\x1b[H")
+
         def print_s(s):
             stdout.write(s + "\n")
 
@@ -231,12 +234,6 @@ class Informer:
             print_s("\n\nPress Enter to continue...")
 
         # atomic print out
-        if clear and not Config.get("daemon", get=bool):
-            sys.stderr.write("\x1b[2J\x1b[H")
-            sys.stderr.flush()
-            # os.system('cls' if os.name == 'nt' else 'clear')
-        # sys.stderr.write("\x1b[2J\x1b[H") # clears gnome-terminal
-        # print_s(chr(27) + "[2J")
         self.stdout.write(stdout.getvalue())
         if self.queue:  # what has been printed out during processing stays on the screen
             self.stdout.write("".join(self.queue))

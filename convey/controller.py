@@ -312,6 +312,7 @@ class Controller:
         group.add_argument('--multiple-cidr-ip', help="CIDR can be resolved into multiple IP addresses."
                                                       " Duplicate row for each.",
                            action=BlankTrue, nargs="?", metavar="blank/false")
+        group.add_argument('--web-timeout', help="Timeout used when scraping a URL", type=int, metavar="SECONDS")
 
         group = parser.add_argument_group("WHOIS module options")
         group.add_argument('--whois-ttl', help="How many seconds will a WHOIS answer cache will be considered fresh.",
@@ -452,8 +453,9 @@ class Controller:
                     # --output=True means no output will be produced in favour of stdout
                     args.output = None
                 for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
-                             "multiple_hostname_ip", "multiple_cidr_ip", "whois_ttl", "disable_external", "debug", "testing",
-                             "attach_files", "jinja", "whois_delete_unknown", "whois_reprocessable_unknown", "whois_cache"]:
+                             "multiple_hostname_ip", "multiple_cidr_ip", "web_timeout", "whois_ttl", "disable_external", "debug",
+                             "testing", "attach_files", "jinja",
+                             "whois_delete_unknown", "whois_reprocessable_unknown", "whois_cache"]:
                     if getattr(args, flag) is not None:
                         Config.set(flag, getattr(args, flag))
                 if args.headless or args.send_test:

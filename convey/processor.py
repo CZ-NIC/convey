@@ -37,7 +37,7 @@ class Processor:
         """
         self.parser = parser
         if rewrite:
-            self.files_created = set()
+            parser.files_created.clear()
 
         self.unique_sets = defaultdict(set)
         self.descriptors_max = 1000  # XX should be given by the system, ex 1024
@@ -84,7 +84,7 @@ class Processor:
         # if settings["header"] is not False:
         #     settings["header"] = parser.has_header
 
-        Web.init(self.parser.get_computed_fields())
+        Web.init([f.type for f in self.parser.get_computed_fields()])
 
         # start file processing
         try:
@@ -120,18 +120,20 @@ class Processor:
             if thread_count:
                 q = Queue(maxsize=thread_count + 2)
 
-                def x(i):
+                def x():
                     while True:
                         m = q.get()
-                        parser.line_count += 1
                         if m is False:  # kill signal received
                             q.task_done()
                             return
+                        parser.line_count += 1
                         self.process_line(parser, m, settings)
                         q.task_done()
 
                 for index in range(thread_count):
-                    t = Thread(target=x, args=(index,), daemon=True)
+                    t = Thread(target=x, daemon=True)
+                    # prepend zeroes; 10 threads ~ 01..10, 100 threads ~ 001..100
+                    t.name = "0" * (len(str(thread_count)) - len(str(index + 1))) + str(index + 1)
                     t.start()
                     threads.append(t)
 
@@ -236,7 +238,7 @@ class Processor:
 
         if self.parser.is_split:
             # set that a mail with this attachment have not yet been sent
-            self.parser.attachments.extend(Attachment(f) for f in self.files_created
+            self.parser.attachments.extend(Attachment(f) for f in parser.files_created
                                            if f not in {at.path for at in self.parser.attachments}  # not existing yet
                                            and f not in (Config.INVALID_NAME, Config.UNKNOWN_NAME, Config.QUEUED_NAME))
         inf.write_statistics()
@@ -393,12 +395,12 @@ class Processor:
 
         if not location:
             return
-        elif location in self.files_created:
+        elif location in parser.files_created:
             method = "a"
         else:
             method = "w"
             # print("File created", location, parser.delimiter.join(chosen_fields))
-            self.files_created.add(location)
+            parser.files_created.add(location)
 
         # choose the right file descriptor for saving
         # (we do not close descriptors immediately, if needed we close the one the least used)

@@ -10,7 +10,7 @@ from statistics import mean
 
 from .config import Config
 from .decorators import PickBase
-from .types import Types, graph, methods, TypeGroup, Type, methods_deleted, get_module_from_path
+from .types import Types, graph, TypeGroup, Type, get_module_from_path
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class Identifier:
                 except Exception as exception:
                     code = "\n  ".join(e.split("\n"))
                     logger.error(f"Statement failed with {exception}.\n  x = '{x}'; {code}")
-                    if not Config.error_caught():  # XX ipdb cant be quit with q here
+                    if not Config.error_caught():  # XX ipdb cannot quit with q here
                         input("We consider 'x' unchanged...")
                     return x
                 x = l["x"]
@@ -90,7 +90,7 @@ class Identifier:
         if not path:
             return []
         for i in range(len(path) - 1):
-            lambda_ = methods[path[i], path[i + 1]]
+            lambda_ = Types.get_method(path[i], path[i + 1])
             if isinstance(lambda_, PickBase):
                 # either the fields was added (has custom:List)
                 # or is being computed in run_single_query() through get_computable_fields that makes us sure PickBase has a default
@@ -293,6 +293,7 @@ class Identifier:
         """
         source_col_i = None
         source_type = None
+        source_col_candidates = ()
         task = list(task)
 
         if Config.is_debug():
@@ -326,13 +327,22 @@ class Identifier:
                 # Usecase: `--field incident-contact,source_ip`, when having only `hostname` between columns.
                 # This will check there is no source_ip amongst columns and corrects `source_type = hostname`
                 # instead of letting it be `source_type = source_ip` which would fail when resolving hostname.
-                l = [x for x in
-                     ((len(graph.dijkstra(field.type, start=source_type)), field.col_i, field.type)
-                      for field in source_col_candidates)
-                     if x[0] is not False]
-                if l:
-                    best_candidate = sorted(l)[0]
-                    source_type = best_candidate[2]
+
+                # XX as of Python3.8, replace the next statement with this
+                # try:
+                #     best_candidate = min((len(path), field.col_i, field.type) for field in source_col_candidates
+                #                             if (path:=graph.dijkstra(field.type, start=source_type) is not False))
+                #     source_type = best_candidate[2]
+                # except ValueError:
+                #     pass
+
+                best_candidate = None
+                for field in source_col_candidates:
+                    path = graph.dijkstra(field.type, start=source_type)
+                    if path:
+                        best_candidate = min((len(path), field.col_i, field.type), best_candidate or (float('INF'),))
+                        source_type = best_candidate[2]
+
             elif target_type.group == TypeGroup.custom:
                 # this was not SOURCE_TYPE but CUSTOM, for custom fields, SOURCE_TYPE may be implicitly plaintext
                 #   (if preprocessing ex: from base64 to plaintext is not needed)
@@ -385,15 +395,11 @@ class Identifier:
         if path is False:
             print(f"No suitable path from '{f.name}' treated as '{source_type}' to '{target_type}'")
             quit()
-        for i in range(len(path) - 1):
-            t = (path[i], path[i + 1])
-            if t not in methods:
-                if t in methods_deleted:
-                    print(f"Disabled path at " + ", ".join([str(t_) for t_ in t]) + ". Launch --config to enable it.")
-                else:
-                    print(f"Path from '{f.name}' treated as '{source_type}' to '{target_type}' blocked at " +
-                          ", ".join([str(t_) for t_ in t]))
-                quit()
+        for i in range(len(path) - 1):  # assure there is a valid method
+            try:
+                Types.get_method(path[i], path[i + 1])
+            except LookupError:
+                print(f"Path from '{f.name}' treated as '{source_type}' to '{target_type}' blocked at {path[i]} – {path[i + 1]}")
 
         if Config.is_debug():
             print(f"Preparing type {target_type} of field={f}, source_type={source_type}, custom={task}, path={path}")
