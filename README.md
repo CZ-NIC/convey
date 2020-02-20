@@ -412,7 +412,7 @@ Few instruments are included to treat the attachment contents:
     ```jinja2
     You will find our findings below.
     
-    {{ attachment }}
+    {{ attachment() }}
     ```
 * **row()** – Generate attachment contents fields row by row. Header skipped. 
 * **amount(count=2)** – Check if the attachment has at least `count` number of lines. Header is not counted. Useful when deciding whether the are single row in the result or multiple.
