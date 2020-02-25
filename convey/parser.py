@@ -16,8 +16,8 @@ from typing import List
 
 from tabulate import tabulate
 
+from .attachment import Contacts, Attachment
 from .config import Config, get_terminal_size
-from .contacts import Contacts, Attachment
 from .dialogue import Cancelled, is_yes, ask
 from .field import Field
 from .identifier import Identifier
@@ -79,7 +79,8 @@ class Parser:
         self.is_single_query = False  # CSV processing vs single_query check usage
         self.ranges = {}  # XX should be refactored as part of Whois
         self.ip_seen = {}  # XX should be refactored as part of Whois
-        self.aggregation = defaultdict(dict)  # [location file][grouped row][order in aggregation settings] = [sum generator, count]
+        # set by processor [location file][grouped row][order in aggregation settings] = [sum generator, count]
+        self.aggregation = defaultdict(dict)
         self.refresh()
         self._reset(reset_header=False)
         self.selected: List[int] = []  # list of selected fields col_i that may be in/excluded and moved in the menu

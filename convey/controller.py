@@ -21,8 +21,8 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
 from validate_email import validate_email
 
+from .attachment import Contacts, Attachment
 from .config import Config, get_terminal_size, console_handler, edit, get_path
-from .contacts import Contacts, Attachment
 from .decorators import PickBase, PickMethod, PickInput
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask, ask_number, is_yes
 from .field import Field
@@ -1037,6 +1037,7 @@ class Controller:
             elif type_ == "aggregate":
                 actions.extend(f"{fn.__name__}({fields[col].name})" for fn, col in items[1])
                 discard.extend((st[type_][1].pop, i) for i, _ in enumerate(items[1]))
+                self.parser.aggregation.clear()  # remove possible aggregation results
 
         if not actions:
             input("No processing settings found. Hit Enter...")

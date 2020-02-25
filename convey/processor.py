@@ -11,8 +11,8 @@ from queue import Queue, Empty
 from threading import Thread, Lock
 from typing import Dict
 
+from .attachment import Attachment
 from .config import Config
-from .contacts import Attachment
 from .dialogue import ask
 from .types import Web
 from .whois import Quota, UnknownValue

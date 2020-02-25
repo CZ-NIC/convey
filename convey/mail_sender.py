@@ -10,8 +10,8 @@ from socket import gaierror
 from envelope import envelope
 from validate_email import validate_email
 
+from .attachment import Attachment
 from .config import Config
-from .contacts import Attachment
 
 re_title = re.compile('<title>([^<]*)</title>')
 logger = logging.getLogger(__name__)

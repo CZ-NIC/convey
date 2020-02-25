@@ -46,6 +46,7 @@
     * fix: when reprocessing (ex: invalid lines) after loading, file will get cleared no more
     * fix: CIDR when WHOIS returns directly CIDR instead of prefix. Currently, we do not guarantee prefix will be in the form "... - ...", it may has directly CIDR form if WHOIS tells us so
     * fix 1.3.6: file name duplicate when reprocessing
+    * fix: aggregation can be disabled even if processed before
 
 ## 1.3.1 (2020-01-31)
 * thread processing
