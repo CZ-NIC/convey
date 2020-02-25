@@ -238,8 +238,9 @@ class Processor:
 
         if self.parser.is_split:
             # set that a mail with this attachment have not yet been sent
+            existing = {a.filename for a in self.parser.attachments}
             self.parser.attachments.extend(Attachment(f) for f in parser.files_created
-                                           if f not in {at.path for at in self.parser.attachments}  # not existing yet
+                                           if f not in existing  # not existing yet
                                            and f not in (Config.INVALID_NAME, Config.UNKNOWN_NAME, Config.QUEUED_NAME))
         inf.write_statistics()
 

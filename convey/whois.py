@@ -173,7 +173,7 @@ class Whois:
 
         """
         self._exec(server="ripe (no -r)", server_url="whois.ripe.net")  # no -r flag
-        self.get_abusemail(True)
+        return self.get_abusemail()
         # XX
         # if self.abusemail == Config.UNKNOWN_NAME:
         #     self._exec(server="ripe (-B flag)", server_url="whois.ripe.net -B")  # with -B flag
@@ -350,10 +350,10 @@ class Whois:
         asn = self._match_response(r'\norigin(.*)\d+', last_word=True)
         netname = self._match_response([r'netname:\s*([^\s]*)', r'network:network-name:\s*([^\s]*)'])
 
-        if Whois.unknown_mode and not self.get_abusemail():
-            self.resolve_unknown_mail()
-
         ab = self.get_abusemail()
+        if Whois.unknown_mode and not ab:
+            ab = self.resolve_unknown_mail()
+
         local = Config.get("local_country", "FIELDS")
         if local and country not in local:
             mail = Contacts.country2mail[country] if country in Contacts.country2mail else ab
@@ -375,22 +375,14 @@ class Whois:
 
     reAbuse = re.compile('[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}')
 
-    def get_abusemail(self, force_load=False):
+    def get_abusemail(self):
         """ Loads abusemail from last whois response OR from whois json api. """
-        if hasattr(self, "abusemail") and not force_load:
-            return self.abusemail
-        self.abusemail = ""
         match = self.reAbuse.search(self._match_response(['% abuse contact for.*',
                                                           'orgabuseemail.*',
                                                           'abuse-mailbox.*',
                                                           "e-mail:.*"  # whois 179.50.80.0/21
                                                           ]))
-        if match:
-            self.abusemail = match.group(0)
-
-        # if not self.abusemail:
-        #    self.abusemail = Config.UNKNOWN_NAME
-        return self.abusemail
+        return match.group(0) if match else ""
 
     regRe = re.compile(r"using server (.*)\.")
 

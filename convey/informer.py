@@ -5,7 +5,7 @@ from csv import writer
 from datetime import datetime
 from io import StringIO
 from itertools import cycle, count
-from math import ceil, log
+from math import ceil, log10
 from pathlib import Path
 from threading import Event, Thread
 from time import sleep
@@ -405,7 +405,7 @@ class Informer:
                     # faster we process, slower we display (to not waste CPU with displaying)
                     # 10^2 lines/s = 1 s, 10^3 ~ 2, 10^4 ~ 3...
                     # But to make the transition more smoothly, make the avg with the last speed (which is weighted 3 times)
-                    speed = (log(v ** 2, 100) - 1 + speed * 3) / 4
+                    speed = (log10(v) - 1 + speed * 3) / 4
                     if speed < 0.3:  # but if going too slow, we will not refresh in such a quick interval
                         speed = 0.3
 

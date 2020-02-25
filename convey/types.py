@@ -319,6 +319,10 @@ class Checker:
 
     @staticmethod
     def prefix_cidr(val):
+        if "/" in val:
+            # currently, we do not guarantee prefix will be in the form "... - ...",
+            # it may has directly CIDR form if WHOIS tells us so
+            return val
         return IPRange(*val.split("-")).cidrs()
 
     @staticmethod
