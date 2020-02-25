@@ -97,7 +97,7 @@ class Config:
     QUEUED_NAME = ".queues_lines.tmp"
     INVALID_NAME = ".invalidlines.tmp"
     UNKNOWN_NAME = "unknown"
-    ABROAD_PREFIX = "abroad:"
+    ABROAD_MARK = "@@"
     PROJECT_SITE = "https://github.com/CZ-NIC/convey/"
     verbosity: int = logging.INFO  # standard python3 logging level int
 

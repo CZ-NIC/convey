@@ -179,7 +179,7 @@ Some of the field types we are able to compute:
 * **csirt-contact** – e-mail address corresponding with country code, taken from your personal contacts_abroad CSV in the format `country,abusemail`. Path to this file has to be specified in `config.ini » contacts_abroad`
 * **external** – you specify method in a custom .py file that receives the field and generates the value for you, see below
 * **hostname** – domain from url
-* **incident-contact** – if the IP comes from local country (specified in `config.ini » local_country`) the field gets *abusemail*, otherwise we get *country*. When splitting by this field, convey is subsequently able to send the split files to local abuse and foreign csirt contacts 
+* **incident-contact** – if the IP comes from local country (specified in `config.ini » local_country`) the field gets *abusemail*, otherwise we get *country@@mail* where *mail* is either *abusemail* or abroad country e-mail. When splitting by this field, convey is subsequently able to send the split files to local abuse and foreign csirt contacts.
 * **ip** – translated from url
 * **netname** – got from whois
 * **prefix** – got from whois

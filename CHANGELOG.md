@@ -47,6 +47,7 @@
     * fix: CIDR when WHOIS returns directly CIDR instead of prefix. Currently, we do not guarantee prefix will be in the form "... - ...", it may has directly CIDR form if WHOIS tells us so
     * fix 1.3.6: file name duplicate when reprocessing
     * fix: aggregation can be disabled even if processed before
+    * NTFS compatible abroad attachment names. Instead of a colon we use double at-sign to delimit country code from the chosen e-mail when splitting by an incident-contact field.
 
 ## 1.3.1 (2020-01-31)
 * thread processing

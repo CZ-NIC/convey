@@ -15,7 +15,7 @@ class Attachment:
     abroad: bool  # True => abroad e-mail is in Contacts dict, False => e-mail is file name, None => undeliverable (no e-mail)
 
     def __init__(self, filename):
-        self.abroad = filename.startswith(Config.ABROAD_PREFIX)
+        self.abroad = Config.ABROAD_MARK in filename
         self._sent = None
         self.filename = filename
         self.attach = True  # whether the file contents should be added as an e-mail attachment
@@ -78,7 +78,7 @@ class Attachment:
     @property
     def mail(self):
         if self.abroad:
-            return self.filename[len(Config.ABROAD_PREFIX):]
+            return self.filename[self.filename.index(Config.ABROAD_MARK) + 2:]
         return self.filename
 
     @property

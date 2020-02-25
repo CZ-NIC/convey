@@ -358,7 +358,7 @@ class Whois:
         if local and country not in local:
             mail = Contacts.country2mail[country] if country in Contacts.country2mail else ab
             get1 = "abroad"
-            get2 = Config.ABROAD_PREFIX + mail if mail else ""
+            get2 = f"{country}{Config.ABROAD_MARK}{mail}" if mail else ""
         else:
             get1 = "local"
             get2 = ab
