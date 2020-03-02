@@ -5,7 +5,7 @@ from urllib import parse
 from convey.config import Config
 from convey.controller import Controller
 from convey.parser import Parser
-from convey.types import Types, TypeGroup
+from convey.types import Types, TypeGroup, Web
 
 Types.refresh()
 TypeGroup.init()
@@ -33,6 +33,10 @@ def application(env, start_response):
             response = '{"error": "no input"}'
         else:
             try:
+                if "clear" in argument:
+                    if argument["clear"] == "web":
+                        Web.cache.clear()
+
                 res = parser.set_stdin([argument["q"]]).set_types(argument["type"]).prepare()
                 if "field" in argument:  # XXX should this be sanitized?
                     target_type = controller.add_new_column(argument["field"], True)

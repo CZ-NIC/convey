@@ -4,7 +4,9 @@
 * CHANGED:
     * --delete-whois-cache renamed to --whois-delete   
     * template function `{{ print_attachment() }}` renamed to `{{ attachment() }}` 
-* webservice uwsgi file (HTTPS support)
+* webservice
+    * uwsgi file (HTTPS support)
+    * clear=web parameter
 * able to parse pandoc simple table format (headers underlined with ---------) and a lot of spaces between columns
 * local_country is empty by default (you do not have to be a national CSIRT to use this program)
 * program help flags grouped

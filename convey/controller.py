@@ -159,7 +159,6 @@ class Controller:
         column_help = "COLUMN is ID of the column (1, 2, 3...), the exact column name, field type name or its usual name."
         parser = argparse.ArgumentParser(description="Data conversion swiss knife", formatter_class=SmartFormatter, epilog=epilog)
 
-
         group = parser.add_argument_group("Input/Output")
         group.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
                                                             "In nothing is given, user will input data through stdin.")
@@ -195,8 +194,6 @@ class Controller:
                            action="store_true")
         group.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
                            action=BlankTrue, nargs="?", metavar="blank/false")
-
-
 
         parser.add_argument('--csirt-incident', action="store_true",
                             help="Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country"

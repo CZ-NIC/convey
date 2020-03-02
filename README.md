@@ -318,7 +318,7 @@ $ convey file.csv --field time_time --yes  # the default `format` `%H:%M` will b
 ```
 
 ## Web service
-When launched as a web service, three parameters are available:
+When launched as a web service, several parameters are available:
 * `q` – search query
 * `type` – same as `--type` CLI flag
 * `field` – same as `--field` CLI flag.
@@ -327,6 +327,7 @@ When launched as a web service, three parameters are available:
     > *FIELD[[CUSTOM]],[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]*
                                                                              
     Ex: `reg_s,l,L` performs regular substitution of *'l'* by *'L'*
+* `clear=web` – clears web scrapping module cache
 
 Quick deployment may be realized by a single command:
 ```bash
