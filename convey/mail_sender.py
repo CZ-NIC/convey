@@ -66,7 +66,8 @@ class MailSender(ABC):
                 status = "interrupted"
                 total_count += len([x for x in mails])
                 break
-            except:
+            except Exception as e:
+                logger.error(e)
                 # if something fails (attachment FileNotFoundError, any other error),
                 # we want tag the previously sent e-mails so that they will not be resend next time
                 pass
@@ -152,20 +153,23 @@ class MailSenderOtrs(MailSender):
     def _check_record(record, lineno):
         valid = ('CONTACTS' in record)
         if not valid:
-            print(str(sys.stderr) + " Line {}: Record missing CONTACTS field ".format(lineno))
+            print(" Line {}: Record missing CONTACTS field ".format(lineno))
         return valid
 
     @staticmethod
     def _check_response(response):
         response = response.decode("UTF-8")
         if Config.is_testing():
-            logger.info(str(sys.stderr) + " Response length:\n " + str(len(response)))
+            logger.info(" Response length:\n " + str(len(response)))
 
         mo = re_title.search(response)
         if not mo:
-            logger.warning(str(sys.stderr) + " Unrecognized response")
+            logger.warning(" Unrecognized response")
             logger.error(response)
             return False
+
+        if Config.is_debug():
+            logger.info("Got response\n" + response)
 
         title = mo.group(1)
         if b'P\xc5\x99edat - Tiket -  OTRS'.decode("utf-8") in title or 'Forward - Ticket -  OTRS' in title:
@@ -176,15 +180,15 @@ class MailSenderOtrs(MailSender):
             return True
 
         elif title == 'Login - OTRS':
-            logger.warning(str(sys.stderr) + "\n\n *** Not logged in or wrong session cookie ***")
+            logger.warning("\n\n *** Not logged in or wrong session cookie ***")
             return False
 
         elif title in ('Fatal Error - Frontend -  OTRS', 'Fatal Error - Rozhraní -  OTRS'):
-            logger.warning(str(sys.stderr) + "\n\n *** Bad CSRF token ***")
+            logger.warning("\n\n *** Bad CSRF token ***")
             return False
 
         else:
-            logger.warning(str(sys.stderr) + " Unrecognized response: " + title)
+            logger.warning(" Unrecognized response: " + title)
             logger.error(response)
             return False
 
@@ -230,9 +234,9 @@ class MailSenderOtrs(MailSender):
             ("Action", "AgentTicketForward"),
             ("Subaction", "SendEmail"),
             ("TicketID", str(self.parser.otrs_id)),
-            ("Email", getaddresses([e._sender])[0][1]),
+            ("Email", getaddresses([e._from])[0][1]),  # XXX needs Envelope 1.0.0
             # XX delete this option and rename the other: Config.get("email_from", "SMTP")),
-            ("From", assure_str(e._sender)),  # XX XConfig.get("email_from_name", "SMTP")
+            ("From", assure_str(e._from)),  # XX XConfig.get("email_from_name", "SMTP")
             ("To", assure_str(e._to)),  # mails can be delimited by comma or semicolon
             ("Subject", e._subject),
             ("Body", e._message),
@@ -241,7 +245,7 @@ class MailSenderOtrs(MailSender):
             ("ChallengeToken", self.parser.otrs_token),
         )
 
-        try:
+        try:  # XX convert "try" to if m := Config.get("signkeyid", "OTRS"):
             fields += ("SignKeyID", Config.get("signkeyid", "OTRS")),
         except KeyError:
             pass

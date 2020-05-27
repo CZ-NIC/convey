@@ -212,8 +212,10 @@ class Processor:
                         t = open(Path(Config.get_cache_dir(), location), "w")
                         if len(self.parser.aggregation) > 1:
                             print("\nSplit location: " + location)
-                    v = inf.get_aggregation(data)
-                    t.write(v)
+                    header, rows = inf.get_aggregation(data, nice=False)
+                    w = csvwriter(t, dialect=settings["dialect"])
+                    w.writerow(header)
+                    [w.writerow(r) for r in rows]
         finally:
             inf.stop()
             if not stdin:

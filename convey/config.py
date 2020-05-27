@@ -364,8 +364,13 @@ def edit(path="config", mode=3, restart_when_done=False, blocking=False):
     if mode & 2:
         # we cannot use xdg-open because template.eml would probably launch an e-mail client
         # app = Popen(['xdg-open', path], stdout=PIPE, stderr=PIPE)
-        editor = run(["xdg-mime", "query", "default", "text/plain"], stdout=PIPE).stdout.split()[0]  # run: blocking, output
-        app = Popen(["gtk-launch", editor, path], stdout=PIPE, stderr=PIPE)  # Popen: non blocking
+        try:
+            editor = run(["xdg-mime", "query", "default", "text/plain"], stdout=PIPE).stdout.split()[0]  # run: blocking, output
+            app = Popen(["gtk-launch", editor, path], stdout=PIPE, stderr=PIPE)  # Popen: non blocking
+        except FileNotFoundError:
+            library = "xdg-mime"
+            input(f"Install {library} by `sudo apt install {library}`. Hit Enter to launch CLI editor.")
+            call(["editor", path])  # call: blocking, no output
     elif mode & 1:
         call(["editor", path])  # call: blocking, no output
         gui = False

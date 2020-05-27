@@ -103,8 +103,8 @@ class Parser:
         if stdin:  # we're analysing an input text
             self.set_stdin(stdin)
         elif source_file:  # we're analysing a file on disk
-            self.lines_total, self.size = self.informer.source_file_len(self.source_file)
             self.first_line, self.sample, self.is_pandoc = self.identifier.get_sample(self.source_file)
+            self.lines_total, self.size = self.informer.source_file_len(self.source_file)
         self.set_types(types)
         # otherwise we are running a webservice which has no stdin nor source_file
 
@@ -361,6 +361,9 @@ class Parser:
         for field, methods in fields:
             if type(field) is Type:
                 val = self.first_line
+            elif not self.sample_parsed[0]:
+                print(f"No field to compute {field} from.")
+                return
             else:
                 val = self.sample_parsed[0][field.source_field.col_i]
             try:

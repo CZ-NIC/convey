@@ -214,7 +214,7 @@ class Informer:
                 for prefix, o in p.ranges.items():
                     prefix, location, incident, asn, netname, country, abusemail, timestamp = o
                     rows.append((prefix, location, incident or "-", asn or "-", netname or "-"))
-                print_s("\n\n** Whois information overview **\n",
+                print_s("\n\n** Whois information overview **\n" +
                         tabulate(rows, headers=("prefix", "location", "contact", "asn", "netname")))
             else:
                 print_s("No whois information available.")
@@ -227,7 +227,7 @@ class Informer:
                                  {True: "✓", False: "error", None: "no"}[o.sent],
                                  humanize.naturalsize(o.path.stat().st_size),
                                  ))
-                print_s("\n\n** Generated files overview **\n", tabulate(rows, headers=("file", "deliverable", "sent", "size")))
+                print_s("\n\n** Generated files overview **\n" + tabulate(rows, headers=("file", "deliverable", "sent", "size")))
             # else:
             #     print_s("Files overview not needed – everything have been processed into a single file.")
 
@@ -239,7 +239,15 @@ class Informer:
             self.stdout.write("".join(self.queue))
             # XX if random true, pops out an element so that it wont stay forever
 
-    def get_aggregation(self, data, color=False, limit=None):
+    def get_aggregation(self, data, color=False, limit=None, nice=True):
+        """
+
+        @param data:
+        @param color:
+        @param limit:
+        @param nice: If true, tabulated result returned, else we get (header, rows) tuple.
+        @return:
+        """
         form = lambda v, fmt: f"\033[{fmt}m{v}\033[0m" if color else v
         header = []
         grouping = self.parser.settings["aggregate"][0] is not None
@@ -270,7 +278,7 @@ class Informer:
             if grouping:
                 rows[-1].insert(0, form("total" if grouped_el is None else grouped_el, 36))
         # floatfmt - display numbers longers than 15 as the scientific 1e+15, not numbers bigger than a million only
-        return tabulate(rows, header, floatfmt=".15g")
+        return tabulate(rows, header, floatfmt=".15g") if nice else (header, rows)
 
     def get_stats_phrase(self, generate=False):
         """ Prints phrase "Totally {} of unique IPs in {} countries...": """

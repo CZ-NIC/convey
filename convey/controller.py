@@ -316,7 +316,8 @@ class Controller:
         group.add_argument('--whois-ttl', help="How many seconds will a WHOIS answer cache will be considered fresh.",
                            type=int, metavar="SECONDS")
         group.add_argument('--whois-delete', help="Delete convey's global WHOIS cache.", action="store_true")
-        group.add_argument('--whois-delete-unknown', help="Delete convey's global WHOIS cache.", action="store_true")
+        group.add_argument('--whois-delete-unknown', help="Delete unknown prefixes from convey's global WHOIS cache.",
+                           action="store_true")
         group.add_argument('--whois-reprocessable-unknown', help="Make unknown lines reprocessable while single file processing,"
                                                                  " do not leave unknown cells empty.", action="store_true")
         group.add_argument('--whois-cache', help="Use whois cache.", action=BlankTrue, nargs="?", metavar="blank/false")
@@ -1325,6 +1326,7 @@ class Controller:
                 fields = self.parser.fields
 
                 for type_, items in st.items():
+                    # XXX code does not return its custom part
                     if not items and items is not 0:
                         continue
                     if type_ == "split":
@@ -1337,7 +1339,7 @@ class Controller:
                     elif type_ == "unique":
                         l.extend(f"--unique {fields[f].name}" for f in items)
                     elif type_ == "aggregate":
-                        # XXX does not work well
+                        # XXX does not work well - at least, they are printed out opposite way
                         l.append(f"--aggregate {items[0]}," + ",".join(f"{fn.__name__},{fields[col].name}" for fn, col in items[1]))
                 if l:
                     print(f" Settings cached:\n convey {self.parser.source_file} " + " ".join(l) + "\n")

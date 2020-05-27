@@ -3,7 +3,8 @@
 ## 1.4 (unreleased)
 * CHANGED:
     * --delete-whois-cache renamed to --whois-delete   
-    * template function `{{ print_attachment() }}` renamed to `{{ attachment() }}` 
+    * template function `{{ print_attachment() }}` renamed to `{{ attachment() }}`
+    * aggregated results will provide valid CSV, not fancy but hardly parsable table 
 * webservice
     * uwsgi file (HTTPS support)
     * clear=web parameter
