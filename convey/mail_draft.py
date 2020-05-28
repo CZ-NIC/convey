@@ -1,10 +1,12 @@
 """ Mail management data structure """
+import binascii
+from base64 import b64decode
 from pathlib import Path
 
 from colorama import Fore
-from envelope import envelope
 from jinja2 import Template, exceptions
 
+from envelope import envelope
 from .config import Config, get_path, edit
 
 
@@ -25,10 +27,32 @@ class MailDraft:
             s += "\n..."
         return Fore.CYAN + s + Fore.RESET
 
+    @staticmethod
+    def _decode_text(t):
+        base64_text = "data:text/plain;base64,"
+        if t.startswith(base64_text):
+            try:
+                return b64decode(t[len(base64_text):]).decode("utf-8")
+            except binascii.Error:
+                raise RuntimeError("Cannot decode text and create e-mail template: {t}")
+        return t
+
     def edit_text(self, blocking=True):
-        """ Opens file for mail text to GUI editing. Created from the template if had not existed before. """
+        """ Opens file for mail text to GUI editing. Created from the template if had not existed before.
+            If --subject or --body flags are merged into the template if used.
+        """
         if not Path(self.mail_file).is_file():
-            Path(self.mail_file).write_text(Path(self.template_file).read_text())
+            t = Path(self.template_file).read_text()
+            subject = Config.get("subject")
+            body = Config.get("body")
+            if subject or body:
+                e = envelope.load(t).date(False)
+                if subject:
+                    e.subject(self._decode_text(subject))
+                if body:
+                    e.message(self._decode_text(body).replace(r"\n", "\n"))
+                t = str(e)
+            Path(self.mail_file).write_text(t)
 
         edit(self.mail_file, mode=2, blocking=blocking)
 

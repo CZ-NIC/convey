@@ -335,6 +335,10 @@ class Controller:
                                              " They will get forwarded to the testing e-mail"
                                              " (and e-mails in Cc will not be sent at all)",
                            action=BlankTrue, nargs="?", metavar="blank/false")
+        group.add_argument('--subject', help="E-mail subject used if no template has been created yet."
+                                             " May be in BASE64 if started with \"data:text/plain;base64,\"", metavar="SUBJECT")
+        group.add_argument('--body', help="E-mail body text used if no template has been created yet."
+                                          " May be in BASE64 if started with \"data:text/plain;base64,\"", metavar="TEXT")
 
         group = parser.add_argument_group("OTRS")
         csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
@@ -453,7 +457,7 @@ class Controller:
                     args.output = None
                 for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
                              "multiple_hostname_ip", "multiple_cidr_ip", "web_timeout", "whois_ttl", "disable_external", "debug",
-                             "testing", "attach_files", "jinja",
+                             "testing", "attach_files", "jinja", "subject", "body",
                              "whois_delete_unknown", "whois_reprocessable_unknown", "whois_cache"]:
                     if getattr(args, flag) is not None:
                         Config.set(flag, getattr(args, flag))

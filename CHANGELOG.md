@@ -24,12 +24,13 @@
     * atomic thread safe information printing – no more blinking and shuffled info; few records stay on the screen when information refresh
     * statistics info reworded 
     * reset menu renamed to redo
-    * sending menu – testing is the default option (you do not want to send all by mistake too early) and attachments are sorted alphabetically 
+    * sending menu – testing is the default option (you do not want to send all by mistake too early) and attachments are sorted alphabetically
 * flags
     * --whois-delete-unknown
     * --whois-reprocessable-unknown 
     * --whois-cache
     * --web-timeout
+    * --subject, --body (even with BASE64)
 * internal
     * OTRS no more appends ".txt" to the attachment name
     * web scraping bug of suspicious form-tag without name attribute present
