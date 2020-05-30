@@ -6,7 +6,7 @@ from pathlib import Path
 from colorama import Fore
 from jinja2 import Template, exceptions
 
-from envelope import envelope
+from envelope import Envelope
 from .config import Config, get_path, edit
 
 
@@ -46,7 +46,7 @@ class MailDraft:
             subject = Config.get("subject")
             body = Config.get("body")
             if subject or body:
-                e = envelope.load(t).date(False)
+                e = Envelope.load(t).date(False)
                 if subject:
                     e.subject(self._decode_text(subject))
                 if body:
@@ -56,7 +56,7 @@ class MailDraft:
 
         edit(self.mail_file, mode=2, blocking=blocking)
 
-    def get_envelope(self, attachment: "Attachment" = None) -> envelope:
+    def get_envelope(self, attachment: "Attachment" = None) -> Envelope:
         def _get_envelope():
             """ The format of the mail template is:
                     Header: value
@@ -77,7 +77,7 @@ class MailDraft:
                 if self.jinja(attachment) is False:
                     return "Wrong jinja2 template."
 
-            e = (envelope
+            e = (Envelope
                  .load(self.text)
                  .signature("auto"))
 
@@ -106,7 +106,7 @@ class MailDraft:
 
         while True:
             e = _get_envelope()
-            if isinstance(e, envelope):
+            if isinstance(e, Envelope):
                 return e
             else:  # user fill GUI file, saves it and we get back to the method
                 print(e)

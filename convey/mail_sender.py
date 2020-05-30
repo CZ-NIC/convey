@@ -7,9 +7,9 @@ from abc import abstractmethod, ABC
 from email.utils import getaddresses
 from socket import gaierror
 
-from envelope import envelope
 from validate_email import validate_email
 
+from envelope import Envelope
 from .attachment import Attachment
 from .config import Config
 
@@ -41,7 +41,7 @@ class MailSender(ABC):
             return False
         for attachment in mails:
             attachment: Attachment
-            e: envelope = attachment.get_envelope()
+            e: Envelope = attachment.get_envelope()
 
             if e.message().strip() == "" or e.subject().strip() == "":
                 # program flow should never allow lead us here
@@ -226,7 +226,7 @@ class MailSenderOtrs(MailSender):
                 force = True
                 continue
 
-    def process(self, e: envelope):
+    def process(self, e: Envelope):
         def assure_str(c):
             return c if type(c) is str else ";".join(c)
 
@@ -234,7 +234,7 @@ class MailSenderOtrs(MailSender):
             ("Action", "AgentTicketForward"),
             ("Subaction", "SendEmail"),
             ("TicketID", str(self.parser.otrs_id)),
-            ("Email", getaddresses([e._from])[0][1]),  # XXX needs Envelope 1.0.0
+            ("Email", getaddresses([e._from])[0][1]),  # XX with Envelope 1.1 allows reading e.from()
             # XX delete this option and rename the other: Config.get("email_from", "SMTP")),
             ("From", assure_str(e._from)),  # XX XConfig.get("email_from_name", "SMTP")
             ("To", assure_str(e._to)),  # mails can be delimited by comma or semicolon
@@ -309,6 +309,6 @@ class MailSenderSmtp(MailSender):
     def stop(self):
         self.smtp.quit()
 
-    def process(self, e: envelope):
+    def process(self, e: Envelope):
         e.smtp(self.smtp)
         return bool(e.send(True))
