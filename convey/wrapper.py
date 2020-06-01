@@ -83,7 +83,8 @@ class Wrapper:
             stdin = file_or_input.split("\n") if file_or_input else read_stdin()
         elif force_file:
             file = file_or_input if file_or_input else choose_file()
-        elif file_or_input and Path(file_or_input).is_file():
+        elif file_or_input and len(file_or_input) < 256 and Path(file_or_input).is_file():
+            # if longer than 255, it is most probably not a file but input
             file = file_or_input
         elif file_or_input:
             stdin = file_or_input.split("\n")
