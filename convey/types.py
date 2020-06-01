@@ -425,9 +425,20 @@ class Web:
                     [s.extract() for s in soup(["style", "script", "head"])]  # remove tags with low probability of content
                     text = re.sub(r'\n\s*\n', '\n', soup.text)  # reduce multiple new lines to singles
                     text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ', text)  # reduce multiple spaces (not new lines) to singles
-                    # if the form tag like <input> has no attribute "name", print out its whole string representation
-                    #   XX maybe there is a better idea what to print out
-                    form_names = [s.attrs.get("name", str(s)) for s in soup(("input", "select", "textarea"))]
+
+                    # if the form tag like <input> or <select> has no attribute "name", print out its tag name and value or options
+                    def get_info(el):
+                        """ This element has no "name" attribute """
+                        n = el.name
+                        r = [n]
+                        if n == "select":
+                            for opt in el.find_all("option"):
+                                r.append(opt.attrs.get("value", "") + ":" + opt.text)
+                        else:
+                            r.append(el.attrs.get("value", ""))
+                        return " ".join(r)
+
+                    form_names = [s.attrs.get("name", get_info(s)) for s in soup(("input", "select", "textarea"))]
                 else:
                     form_names = None
                     text = ""

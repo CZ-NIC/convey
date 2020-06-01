@@ -14,6 +14,7 @@
 * types
     * csirt_contact now may be derived from tld
     * web module now ignores invalid HTTPS certificates
+    * form_names prints out more information about tags without `name` attribute
 * dialog
     * edit default e-mail templates from config submenu
     * delimiter now may contain tab character, input by "\t" or "tab"
