@@ -21,6 +21,7 @@ except PermissionError:
 except FileNotFoundError:  # FileNotFoundError emitted when we are in a directory whose inode exists no more
     print("Current working directory doesn't exist.")
     quit()
+# XXX when you hit tab when writing `python3 -m [LETTER].[TAB]` into terminal, convey.log gets created :( Let's move basicConfig to __main__? Will that work even after another file imports a Pick* decorator?
 logging.basicConfig(level=logging.INFO, handlers=handlers)
 
 __all__ = ["PickMethod", "PickInput"]

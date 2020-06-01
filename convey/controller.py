@@ -110,8 +110,9 @@ class BlankTrue(argparse.Action):
         elif not allow_string \
                 and (type(self.metavar) is not list or values.lower() not in self.metavar) \
                 and (len(self.metavar.split("/")) < 2 or values.lower() not in self.metavar.split("/")):
-            print(allow_string, "*****")
-            raise ValueError(f"Unrecognised value {values} of {self.dest}")
+            print(f"Unrecognised value '{values}' of '{self.dest}'. Allowed values are 0/1/BLANK."
+                             f" Should the value be considered a positional parameter, move '{self.dest}' behind.")
+            exit()
         setattr(namespace, self.dest, values)
 
 

@@ -25,6 +25,7 @@
     * statistics info reworded 
     * reset menu renamed to redo
     * sending menu – testing is the default option (you do not want to send all by mistake too early) and attachments are sorted alphabetically
+    * positional vs keyword arguments order resilience
 * flags
     * --whois-delete-unknown
     * --whois-reprocessable-unknown 
