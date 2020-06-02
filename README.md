@@ -303,6 +303,7 @@ If you need a direct user entry before each processing, import `PickInput` and m
 
 ```python3
 from convey import PickInput
+import dateutil
 
 @PickInput
 def time_format(val, format="%H:%M"):

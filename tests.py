@@ -47,6 +47,7 @@ class TestFilter(TestCase):
         self.assertEqual(2, len(convey("--field base64,1 --exclude-filter base64,Zm9v")))
         self.assertEqual(2, len(convey("--field base64,1 --unique base64")))
 
+
 class TestDialect(TestCase):
     def test_dialect(self):
         convey = Convey("tests/filter.csv")
@@ -76,6 +77,22 @@ class TestTemplate(TestCase):
         lines = convey(cmd.format(mail="wikipedia.com@example.com"))
         # even though there is header in the file, we should still get single value
         self.assertIn('We send you single colour: orange.', lines)
+
+
+class TestExternals(TestCase):
+    def test_pick_input(self):
+        convey = Convey()
+        lines = convey("--field external,tests/external_pick_base.py,time_format --input '2016-08-08 12:00'")
+        self.assertEqual(lines, ['12:00'])
+
+    def test_pick_method(self):
+        convey = Convey()
+        # method "all" (default one) is used and "1" passes
+        self.assertEqual(convey("--field external,tests/external_pick_base.py,PickMethodTest --input '1'"), ["1"])
+        # method "filtered" is used and "a" passes
+        self.assertEqual(convey("--field external,tests/external_pick_base.py,PickMethodTest,filtered --input 'a'"), ["a"])
+        # method "filtered" is used which excludes "1"
+        self.assertNotEqual(convey("--field external,tests/external_pick_base.py,PickMethodTest,filtered --input '1'"), ["1"])
 
 
 if __name__ == '__main__':

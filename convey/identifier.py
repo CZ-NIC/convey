@@ -98,11 +98,14 @@ class Identifier:
             elif not hasattr(lambda_, "__call__"):  # the field is invisible, see help text for Types; may be False, None or True
                 continue
             lambdas.append(lambda_)
-
+        logger.error("Inlcuding")
         if target.group == TypeGroup.custom:
             if target == Types.external:
                 try:
-                    lambdas += [getattr(get_module_from_path(custom[0]), custom[1])]  # (module path, method name).
+                    lambda_ = getattr(get_module_from_path(custom[0]), custom[1])  # (module path, method name)
+                    if isinstance(lambda_, PickBase):
+                        lambda_ = lambda_.get_lambda(custom.pop(2) if len(custom) > 2 else None)
+                    lambdas.append(lambda_)
                 except IndexError:
                     raise ValueError(f"You must specify which method should be used in {custom[0]}")
                 except AttributeError:

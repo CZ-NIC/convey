@@ -54,6 +54,7 @@
     * fix 1.3.6: file name duplicate when reprocessing
     * fix: aggregation can be disabled even if processed before
     * NTFS compatible abroad attachment names. Instead of a colon we use double at-sign to delimit country code from the chosen e-mail when splitting by an incident-contact field.
+    * fix: PickBase used from CLI through --external
 
 ## 1.3.1 (2020-01-31)
 * thread processing
