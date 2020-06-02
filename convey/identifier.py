@@ -98,7 +98,7 @@ class Identifier:
             elif not hasattr(lambda_, "__call__"):  # the field is invisible, see help text for Types; may be False, None or True
                 continue
             lambdas.append(lambda_)
-        logger.error("Inlcuding")
+
         if target.group == TypeGroup.custom:
             if target == Types.external:
                 try:

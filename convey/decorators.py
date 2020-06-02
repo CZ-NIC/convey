@@ -1,3 +1,4 @@
+# Note: as this file is loaded before config.py initializing logging, we cannot use logger here
 from abc import ABC, abstractmethod
 from typing import Callable
 

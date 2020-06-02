@@ -14,6 +14,30 @@ from urllib.parse import quote
 
 from appdirs import user_config_dir
 
+# setup logging
+# This cannot be in __init__.py so that we cannot reliably use logger in __init__.py, __main__.py and decorators.py.
+# The reason is __init__.py gets launched when generic Python autocompletion searches for includable modules.
+# If user would hit tab when writing `python3 -m [LETTER].[TAB]` into terminal, empty convey.log would have been created in the dir.
+handlers = []
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter('%(message)s'))
+console_handler.setLevel(logging.INFO)
+handlers.append(console_handler)
+try:
+    file_handler = logging.FileHandler("convey.log")
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    file_handler.setLevel(logging.WARNING)
+    handlers.append(file_handler)
+except PermissionError:
+    file_handler = None
+    print("Cannot create convey.log here at " + str(os.path.abspath(".")) + " – change directory please.")
+    quit()
+except FileNotFoundError:  # FileNotFoundError emitted when we are in a directory whose inode exists no more
+    print("Current working directory doesn't exist.")
+    quit()
+logging.basicConfig(level=logging.INFO, handlers=handlers)
+
+# class init
 logger = logging.getLogger(__name__)
 Path.lexists = lambda self: self.is_symlink() or self.exists()  # not yet exist https://bugs.python.org/issue34137
 default_path = Path(Path(__file__).resolve().parent, "defaults")  # path to the 'defaults' folder with templates
@@ -311,7 +335,7 @@ class Config:
         url = f"https://github.com/CZ-NIC/convey/issues/new?title={quote(title)}&body={quote(body)}"
         if len(url) > 2000:
             # strip possible ending percent (because double percent would not work)
-            url = url[:1987].rstrip("%") + "%7D%60%60%60" # add newline and 3× backtick
+            url = url[:1987].rstrip("%") + "%7D%60%60%60"  # add newline and 3× backtick
         webbrowser.open(url)
         input(f"\nPlease submit a Github issue at {url}"
               "\nTrying to open issue tracker in a browser...")

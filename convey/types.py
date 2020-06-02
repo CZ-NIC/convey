@@ -25,10 +25,9 @@ from netaddr import IPRange, IPNetwork
 from pint import UnitRegistry
 from validate_email import validate_email
 
-from convey import PickMethod, PickInput  # XXX ? why not local import?
 from .attachment import Contacts
 from .config import Config
-from .decorators import PickBase
+from .decorators import PickBase, PickMethod, PickInput
 from .graph import Graph
 from .infodicts import is_phone, phone_country, address_country, country_codes
 from .utils import timeout, print_atomic
