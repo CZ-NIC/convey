@@ -104,12 +104,25 @@ class MailSenderOtrs(MailSender):
         Return an appropriate http.client.HTTPResponse object.
         """
 
-        # import ssl; ssl._create_default_https_context = ssl._create_unverified_context  # XX once upon a day (10.2.2017), the certificate stopped working or whatever. This is an ugly solution - i think we may delete this line in few weeks
+        # if not Config.get("otrs_check_ssl", "OTRS", get=bool):
+        # import ssl
+        # ssl._create_default_https_context = ssl._create_unverified_context  # XX once upon a day (10.2.2017), the certificate stopped working or whatever. This is an ugly solution - i think we may delete this line in few weeks
+        # context = ssl._create_unverified_context()
+        # context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        # context.options &= ~ssl.OP_NO_TLSv1
 
         content_type, body = self._encode_multipart_formdata(fields, files)
         body = bytes(body, "UTF-8")
-        protocol = host.split(':')[0]
-        h = http.client.HTTPSConnection(host)
+        if "://" not in host:
+            protocol = "https"
+        else:
+            protocol, host = host.split("://", 1)
+        if protocol == "http":
+            h = http.client.HTTPConnection(host)
+        elif protocol == "https":
+            h = http.client.HTTPSConnection(host)
+        else:
+            raise ValueError(f"Unknown protocol in the host {host}")
         if Config.is_debug():
             h.debuglevel = 100
         h.putrequest('POST', selector)

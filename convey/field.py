@@ -163,7 +163,12 @@ class Field:
         # add a newly computed value to source_parsed
         for _ in range(self.col_i - len(source_line) + 1):  # source_line is shorter than we need - fill the missing cols with Nones
             source_line.append(None)
-        if type(c) is list and len(c) == 1:
-            c = c[0]
+        if type(c) is list:
+            if len(c) == 1:
+                # XX add comment when does this happen
+                # Can we receive multiple values? Should not we join them?
+                c = c[0]
+            elif len(c) == 0:
+                c = "NOTHING"
         source_line[self.col_i] = c
         return c

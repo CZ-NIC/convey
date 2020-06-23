@@ -1079,6 +1079,7 @@ class Controller:
                 :type target_type: Type
                 :type add: bool if the column should be added to the table; None ask
                 :type custom: List
+                :raise Cancelled
                 :return Field
         """
         if custom is None:
@@ -1111,12 +1112,12 @@ class Controller:
                     title = f"Choose the right method\n\nNo known method for making {target_type} from column {source_field} because the column type wasn't identified. How should I treat the column?{s}"
                     code, source_type = dialog.menu(title, choices=choices)
                     if code == "cancel":
-                        return
+                        raise Cancelled("... cancelled")
                     source_type = getattr(Types, source_type)
                 else:
                     dialog.msgbox("No known method for making {}. Raise your usecase as an issue at {}.".format(target_type,
                                                                                                                 Config.PROJECT_SITE))
-                    return
+                    raise Cancelled("... cancelled")
             clear()
 
         if not custom:
@@ -1138,26 +1139,26 @@ class Controller:
                                                                 height=max(get_terminal_size()[0] - 20, 10))
                                 except DialogError as e:
                                     input("Unable launch file dialog. Please post an issue to the Github! Hit any key...")
-                                    return
+                                    raise Cancelled("... cancelled")
 
                             if code != "ok" or not path:
-                                return
+                                raise Cancelled("... cancelled")
                             module = get_module_from_path(path)
                             if module:
                                 # inspect the .py file, extract methods and let the user choose one
                                 code, method_name = dialog.menu(f"What method should be used in the file {path}?",
                                                                 choices=[(x, "") for x in dir(module) if not x.startswith("_")])
                                 if code == "cancel":
-                                    return
+                                    raise Cancelled("... cancelled")
 
                                 custom = path, method_name
                                 break
                             else:
                                 dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
                     if not custom:
-                        return
+                        raise Cancelled("... cancelled")
             except Cancelled:
-                return
+                raise Cancelled("... cancelled")
             path = graph.dijkstra(target_type, start=source_type, ignore_private=True)
             for i in range(len(path) - 1):
                 m = methods[path[i], path[i + 1]]
@@ -1169,7 +1170,7 @@ class Controller:
                         m: PickMethod
                         code, c = dialog.menu(f"Choose subtype", choices=m.get_options())
                         if code == "cancel":
-                            return
+                            raise Cancelled("... cancelled")
                     elif type(m) is PickInput:
                         m: PickInput
                         c = Preview(source_field, source_type, target_type).pick_input(m)
