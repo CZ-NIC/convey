@@ -54,7 +54,7 @@ class MailSender(ABC):
                 continue
 
             for address in e._to:  # XX this may fail when we put multiple To: addresses in the template header
-                if not validate_email(address):
+                if not validate_email(address, check_mx=False):
                     logger.error("Erroneous e-mail: {}".format(address))
                     continue
 

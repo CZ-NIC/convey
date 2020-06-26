@@ -972,7 +972,9 @@ class Controller:
                     attachment.sent = old_sent
                 elif option == "r":
                     # choose recipient list
-                    choices = [(o.mail, o.get_draft_name() + ("" if validate_email(o.mail) else " (invalid)"), not o.sent)
+                    choices = [(o.mail,
+                                o.get_draft_name() + ("" if validate_email(o.mail, check_mx=False) else " (invalid)"),
+                                not o.sent)
                                for o in attachments]
                     code, tags = Dialog(autowidgetsize=True).checklist("Toggle e-mails to be send", choices=choices)
                     if code != 'ok':

@@ -37,6 +37,9 @@ except FileNotFoundError:  # FileNotFoundError emitted when we are in a director
     quit()
 logging.basicConfig(level=logging.INFO, handlers=handlers)
 
+# mute noisy module (prints warning every time a validation fails which fails permanently when determining data type)
+logging.getLogger('validate_email').setLevel(logging.ERROR)
+
 # class init
 logger = logging.getLogger(__name__)
 Path.lexists = lambda self: self.is_symlink() or self.exists()  # not yet exist https://bugs.python.org/issue34137

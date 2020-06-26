@@ -11,7 +11,7 @@ netaddr
 jsonpickle
 ipdb
 pythondialog
-validate_email
+py3-validate-email
 tabulate
 appdirs
 humanize
