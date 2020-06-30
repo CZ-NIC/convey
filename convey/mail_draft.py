@@ -81,7 +81,7 @@ class MailDraft:
                  .load(self.text)
                  .signature("auto"))
 
-            if not e._sender:  # XX this should be a publicly exposed method (and internal ._sender may change to ._from in the future)
+            if not e.from_():
                 e.from_(Config.get("email_from_name", "SMTP"))
             if not e.message() or not e.message().strip():
                 return "Missing body text. Try writing 'Subject: text', followed by a newline a text."
@@ -96,7 +96,7 @@ class MailDraft:
                     intended_to = attachment.mail
                     e.to(Config.get('testing_mail'))
                     e.message(f"This is testing mail only from Convey."
-                              f" Don't be afraid, it was not delivered to: {intended_to}\r\n{e._message}")
+                              f" Don't be afraid, it was not delivered to: {intended_to}\r\n{e.message()}")
                 else:
                     e.to(attachment.mail)
                     if attachment.cc:

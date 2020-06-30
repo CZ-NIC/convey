@@ -53,7 +53,7 @@ class MailSender(ABC):
                 print(f"Message for {attachment.mail} already sent, skipping!")
                 continue
 
-            for address in e._to:  # XX this may fail when we put multiple To: addresses in the template header
+            for address in e.to():
                 if not validate_email(address, check_mx=False):
                     logger.error("Erroneous e-mail: {}".format(address))
                     continue
@@ -247,12 +247,12 @@ class MailSenderOtrs(MailSender):
             ("Action", "AgentTicketForward"),
             ("Subaction", "SendEmail"),
             ("TicketID", str(self.parser.otrs_id)),
-            ("Email", getaddresses([e._from])[0][1]),  # XX with Envelope 1.1 allows reading e.from()
+            ("Email", getaddresses([e.from_()])[0][1]),  # XX replace with `e.from_(address=True)` in the future
             # XX delete this option and rename the other: Config.get("email_from", "SMTP")),
-            ("From", assure_str(e._from)),  # XX XConfig.get("email_from_name", "SMTP")
-            ("To", assure_str(e._to)),  # mails can be delimited by comma or semicolon
-            ("Subject", e._subject),
-            ("Body", e._message),
+            ("From", assure_str(e.from_())),
+            ("To", assure_str(e.to())),  # mails can be delimited by comma or semicolon
+            ("Subject", e.subject()),
+            ("Body", e.message()),
             ("ArticleTypeID", "1"),  # mail-external
             ("ComposeStateID", "4"),  # open
             ("ChallengeToken", self.parser.otrs_token),
@@ -263,14 +263,14 @@ class MailSenderOtrs(MailSender):
         except KeyError:
             pass
 
-        if e._cc:
-            fields += ("Cc", assure_str(e._cc)),
+        if e.cc():
+            fields += ("Cc", assure_str(e.cc())),
 
-        if e._bcc:  # XX not sure if working
-            fields += ("Bcc", assure_str(e._bcc)),
+        if e.bcc():  # XX not sure if working
+            fields += ("Bcc", assure_str(e.bcc())),
 
         attachment_contents = ""
-        if self.parser.attachment_name and len(e._attachments):
+        if self.parser.attachment_name and len(e._attachments):  # XX read from a public version
             attachment_contents = e._attachments[0][0].read_text()
         if attachment_contents:
             files = (("FileUpload", self.parser.attachment_name, attachment_contents),)
