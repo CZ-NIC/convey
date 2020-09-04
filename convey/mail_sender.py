@@ -4,7 +4,6 @@ import re
 import smtplib
 import sys
 from abc import abstractmethod, ABC
-from email.utils import getaddresses
 from socket import gaierror
 
 from validate_email import validate_email
@@ -241,14 +240,13 @@ class MailSenderOtrs(MailSender):
 
     def process(self, e: Envelope):
         def assure_str(c):
-            return c if type(c) is str else ";".join(c)
+            return c if isinstance(c, str) else ";".join(c)
 
         fields = (
             ("Action", "AgentTicketForward"),
             ("Subaction", "SendEmail"),
             ("TicketID", str(self.parser.otrs_id)),
-            ("Email", getaddresses([e.from_()])[0][1]),  # XX replace with `e.from_(address=True)` in the future
-            # XX delete this option and rename the other: Config.get("email_from", "SMTP")),
+            ("Email", e.from_().address),
             ("From", assure_str(e.from_())),
             ("To", assure_str(e.to())),  # mails can be delimited by comma or semicolon
             ("Subject", e.subject()),
@@ -270,8 +268,8 @@ class MailSenderOtrs(MailSender):
             fields += ("Bcc", assure_str(e.bcc())),
 
         attachment_contents = ""
-        if self.parser.attachment_name and len(e._attachments):  # XX read from a public version
-            attachment_contents = e._attachments[0][0].read_text()
+        if self.parser.attachment_name and len(e.attachments()):
+            attachment_contents = str(e.attachments()[0])
         if attachment_contents:
             files = (("FileUpload", self.parser.attachment_name, attachment_contents),)
         else:
@@ -294,12 +292,11 @@ class MailSenderOtrs(MailSender):
                                        fields=fields,
                                        files=files,
                                        cookies=cookies)
-        except Exception as e:
+        except Exception:
             import traceback
             print(traceback.format_exc())
-            print(
-                "\nE-mail couldn't be send to the host {}{} with the fields {}. Are you allowed to send from this e-mail etc?".format(
-                    host, selector, fields))
+            print(f"\nE-mail could not be send to the host {host}{selector} with the fields {fields}."
+                  f" Are you allowed to send from this e-mail etc?")
             input("Program now ends.")
             quit()
         if not res or not self._check_response(res.read()):
