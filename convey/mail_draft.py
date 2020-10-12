@@ -32,9 +32,9 @@ class MailDraft:
         base64_text = "data:text/plain;base64,"
         if t.startswith(base64_text):
             try:
-                return b64decode(t[len(base64_text):]).decode("utf-8")
+                return b64decode(t[len(base64_text):]).decode("utf-8", "ignore")
             except binascii.Error:
-                raise RuntimeError("Cannot decode text and create e-mail template: {t}")
+                raise RuntimeError(f"Cannot decode text and create e-mail template: {t}")
         return t
 
     def edit_text(self, blocking=True):

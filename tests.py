@@ -1,6 +1,7 @@
 import logging
 import shlex
 import sys
+from base64 import b64encode
 from pathlib import Path
 from subprocess import run, PIPE
 from unittest import TestCase, main
@@ -56,6 +57,15 @@ class TestDialect(TestCase):
         self.assertNotIn("foo|red|second.example.com", convey("--delimiter-output '|' --header-output false --header"))
 
 
+class TestFields(TestCase):
+    def test_base64(self):
+        """ Base64 detection should work even if encoded with another charset """
+        s = "Žluťoučký kůň pěl ďábelské ódy."
+        encoded = b64encode(s.encode("iso-8859-2"))
+        convey = Convey()
+        self.assertIn(s, convey("-f charset,,,iso-8859-2 " + encoded.decode("utf-8")))
+
+
 class TestTemplate(TestCase):
     def test_dynamic_template(self):
         convey = Convey("tests/filter.csv")
@@ -66,12 +76,12 @@ class TestTemplate(TestCase):
         self.assertIn('We send you lots of colours: red, green, yellow.', lines)
         self.assertIn('foo,green,first.example.com,example@example.com', lines)
         # attachment must not be present because we called attachment() in the template
-        self.assertNotIn('Attachment:', lines[0])
+        self.assertNotIn('Attachment', lines[0])
 
         lines = convey(cmd.format(mail="wikipedia.com@example.com"))
         self.assertIn('Subject: My cool dynamic template demonstrating a short amount of lines!', lines)
         self.assertIn('We send you single colour: orange.', lines)
-        self.assertIn('Attachment:', lines[0])
+        self.assertIn('Attachment filter.csv (text/csv):', lines[0])
 
         cmd += " --header"  # we force first row to be a header
         lines = convey(cmd.format(mail="wikipedia.com@example.com"))

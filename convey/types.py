@@ -167,7 +167,7 @@ class Checker:
                 because otherwise any ASCII input would be considered as base64, even when well readable at first sight
             2. There must be at least single letter, port number would be mistaken for base64 fields """
         try:
-            return b64decode(x).decode("UTF-8") and re.search(r"[A-Za-z]+", x)
+            return b64decode(x) and re.search(r"[A-Za-z]+", x)
         except (UnicodeDecodeError, ValueError):
             return None
 
