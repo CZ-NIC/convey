@@ -10,18 +10,22 @@ logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 
 
 class Convey:
-    def __init__(self, filename=None, whois=False):
-        # XX travis will not work will daemon=true
-        self.cmd = ["./convey.py", "--output", "--reprocess", "--headless", "--daemon", "false"]
+    def __init__(self, *args, filename=None, whois=False):
+        # XX travis will not work will daemon=true (which imposes slow testing)
+        self.cmd = ["./convey.py", "--output", "--reprocess", "--headless"]# XXX, "--daemon", "false"]
         if filename:
             if not Path(filename).exists():
                 raise FileNotFoundError(filename)
             self.cmd.extend(("--file", filename))
         if not whois:
             self.cmd.extend(("--whois-cache", "false"))
+        if args:
+            self.cmd.extend(args)
 
-    def __call__(self, cmd, see=False):
+    def __call__(self, cmd="", text=None, see=False):
         cmd = [*self.cmd, *shlex.split(cmd)]
+        if text:
+            cmd.extend(("--input", text))
         if see:
             print(" ".join(cmd))
         # run: blocking, output
@@ -58,12 +62,20 @@ class TestDialect(TestCase):
 
 
 class TestFields(TestCase):
+
     def test_base64(self):
         """ Base64 detection should work even if encoded with another charset """
         s = "Žluťoučký kůň pěl ďábelské ódy."
         encoded = b64encode(s.encode("iso-8859-2"))
         convey = Convey()
         self.assertIn(s, convey("-f charset,,,iso-8859-2 " + encoded.decode("utf-8")))
+
+    def test_phone_detection(self):
+        """ Various phone formats must pass. """
+        c = Convey("--single-detect")
+        self.assertIn("timestamp", c("2020-02-29", see=True))  # date value must not be confused with the phone regex
+        for phone in ("+420123456789", "+1-541-754-3010", "1-541-754-3010", "001-541-754-3010", "+49-89-636-4801"):
+            self.assertIn("phone", c(phone), phone)
 
 
 class TestTemplate(TestCase):

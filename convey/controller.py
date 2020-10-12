@@ -490,6 +490,8 @@ class Controller:
                     Config.set("single_query", False)
                 if args.single_query or args.single_detect:
                     Config.set("single_query", True)
+                    if args.single_detect:
+                        Config.set("single_detect", True)
                 Config.set("adding-new-fields", bool(new_fields))
                 self.wrapper = Wrapper(args.file_or_input, args.file, args.input,
                                        args.type, args.fresh, args.reprocess,

@@ -6,7 +6,7 @@ phone_reg = re.compile(r"(\+|00)?\d[\d\-()]{7,12}\d$")
 phone_dial = re.compile("[+(]?(\d{0,6})")  # any prefix like `+420` or `(089)`, then up to 6 digits (there is no longer prefix)
 
 
-def is_phone(val):
+def phone_regex_match(val):
     val = val.replace(" ", "")
     return bool(phone_reg.match(val))
 

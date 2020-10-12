@@ -173,6 +173,8 @@ class Parser:
                         if not detection:
                             # we are adding new fields - there is a reason to continue single processing
                             logger.info("Input value seems to be plaintext.")
+                        elif Config.is_quiet() and Config.get("single_detect", get=bool):
+                            print(detection)  # print out detection even if we are quiet because explicitly asked for
                         else:
                             logger.info(f"Input value {detection}\n")
                         self.is_single_query = True

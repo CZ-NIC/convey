@@ -29,7 +29,7 @@ from .attachment import Contacts
 from .config import Config
 from .decorators import PickBase, PickMethod, PickInput
 from .graph import Graph
-from .infodicts import is_phone, phone_country, address_country, country_codes
+from .infodicts import phone_regex_match, phone_country, address_country, country_codes
 from .utils import timeout, print_atomic
 from .whois import Whois
 
@@ -244,6 +244,10 @@ class Checker:
                 return l
         except (ValueError, AttributeError):
             return ""
+
+    @classmethod
+    def is_phone(cls, val):
+        return phone_regex_match(val) and not cls.is_timestamp(val)
 
     @staticmethod
     def is_timestamp(val):
@@ -810,7 +814,7 @@ class Types:
     bytes = Type("bytes", TypeGroup.general, is_private=True)
     charset = Type("charset", TypeGroup.general)
     country_name = Type("country_name", TypeGroup.general)  # XX not identifiable, user has to be told somehow there is such method
-    phone = Type("phone", TypeGroup.general, "telephone number", ["telephone", "tel"], is_phone)
+    phone = Type("phone", TypeGroup.general, "telephone number", ["telephone", "tel"], Checker.is_phone)
 
     unit = Type("unit", TypeGroup.general, "any physical quantity", [], Checker.is_unit)
     timestamp = Type("timestamp", TypeGroup.general, "time or date", ["time"], Checker.is_timestamp)
