@@ -25,9 +25,9 @@ usage: convey [-h] [--file] [-i] [-o [blank/FILENAME]] [-S] [--single-detect]
               [--whois-reprocessable-unknown] [--whois-cache [blank/false]]
               [--send [blank/smtp/otrs]] [--send-test E-MAIL TEMPLATE_FILE]
               [--jinja [blank/false]] [--attach-files [blank/false]]
-              [--testing [blank/false]] [--otrs_id OTRS_ID]
-              [--otrs_num OTRS_NUM] [--otrs_cookie OTRS_COOKIE]
-              [--otrs_token OTRS_TOKEN]
+              [--testing [blank/false]] [--subject SUBJECT] [--body TEXT]
+              [--otrs_id OTRS_ID] [--otrs_num OTRS_NUM]
+              [--otrs_cookie OTRS_COOKIE] [--otrs_token OTRS_TOKEN]
               [file_or_input]
 
 Data conversion swiss knife
@@ -92,7 +92,7 @@ Environment:
                             * +1 to gray out disabled fields/methods
                             * +2 to include usual field names
   --get-autocompletion  Get bash autocompletion.
-  --version             Show the version number (which is currently 1.2).
+  --version             Show the version number (which is currently unknown).
 
 Processing:
   --threads [blank/false/auto/INT]
@@ -243,7 +243,8 @@ WHOIS module options:
                         considered fresh.
   --whois-delete        Delete convey's global WHOIS cache.
   --whois-delete-unknown
-                        Delete convey's global WHOIS cache.
+                        Delete unknown prefixes from convey's global WHOIS
+                        cache.
   --whois-reprocessable-unknown
                         Make unknown lines reprocessable while single file
                         processing, do not leave unknown cells empty.
@@ -264,6 +265,12 @@ Sending options:
                         Do not be afraid, e-mail messages will not be sent.
                         They will get forwarded to the testing e-mail (and
                         e-mails in Cc will not be sent at all)
+  --subject SUBJECT     E-mail subject used if no template has been created
+                        yet. May be in BASE64 if started with
+                        "data:text/plain;base64,"
+  --body TEXT           E-mail body text used if no template has been created
+                        yet. May be in BASE64 if started with
+                        "data:text/plain;base64,"
 
 OTRS:
   --otrs_id OTRS_ID     Ticket id
