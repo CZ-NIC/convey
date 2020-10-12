@@ -6,13 +6,18 @@ from threading import Thread, Event, current_thread
 from time import sleep
 from typing import Callable
 
+from .config import Config
+
 logger = logging.getLogger(__name__)
 
 
 def print_atomic(s):
     """ print not atomic, \n trailed when threading
         If in thread, prints its name.
+        If quiet, no output is given.
     """
+    if Config.is_quiet():
+        return
     n = current_thread().name
     t = "" if n == "MainThread" else "/" + n + "/ "
     sys.stdout.write(t + s + "\n")
