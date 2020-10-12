@@ -397,12 +397,13 @@ def edit(path="config", mode=3, restart_when_done=False, blocking=False):
         except FileNotFoundError:
             library = "xdg-mime"
             input(f"Install {library} by `sudo apt install {library}`. Hit Enter to launch CLI editor.")
-            call(["editor", path])  # call: blocking, no output
+            gui = False
     elif mode & 1:
-        call(["editor", path])  # call: blocking, no output
         gui = False
 
-    if mode & 3 == 3:
+    if not gui:
+        call(["editor", path])  # call: blocking, no output
+    elif mode & 3 == 3:
         for _ in range(10):  # lets wait a second to be sure GUI app started
             sleep(0.1)
             p = app.poll()
