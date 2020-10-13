@@ -135,7 +135,8 @@ class Checker:
     def hostname_ips(val):
         if val not in Checker.hostname_ips_cache:
             try:
-                Checker.hostname_ips_cache[val] = list({addr[4][0] for addr in timeout(15, socket.getaddrinfo, val, None)})
+                Checker.hostname_ips_cache[val] = list(
+                    {addr[4][0] for addr in timeout(15, socket.getaddrinfo, val, None)})
             except (TimeoutError, OSError) as e:
                 Checker.hostname_ips_cache[val] = []
         return Checker.hostname_ips_cache[val]
@@ -163,18 +164,30 @@ class Checker:
 
     @staticmethod
     def is_base64(x):
-        """ 1. We consider base64-endocded only such strings that could be decoded to UTF-8
-                because otherwise any ASCII input would be considered as base64, even when well readable at first sight
-            2. There must be at least single letter, port number would be mistaken for base64 fields """
+        """ We prefer as base64-encoded only such strings that could be decoded to UTF-8.
+            Because otherwise nearly any ASCII input with the correct padding
+            would be considered as base64 (ex: port number), even when well readable at first sight.
+            If not UTF-8 decodable, we check the minimal length and penalize.
+        """
+        if not re.match(r"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$", x):
+            return False
+
         try:
-            return b64decode(x) and re.search(r"[A-Za-z]+", x)
+            return bool(b64decode(x).decode("UTF-8"))
         except (UnicodeDecodeError, ValueError):
-            return None
+            try:
+                if len(x) > 10 and b64decode(x):
+                    # if the string is long enough, we admit it can be encoded in another charset
+                    return -0.5
+            except (UnicodeDecodeError, ValueError):
+                pass
 
     @staticmethod
     def is_quopri(x):
         try:
-            return decodestring(x).decode("UTF-8") != x
+            # When 'rmx1u2916Gv9IGv58iBw7Gwg7+FiZWxza+kg82R5Lg==' is decoded, only last '=' is stripped out.
+            decoded = decodestring(x).decode("UTF-8").rstrip("=")
+            return decoded and decoded != x.rstrip("=")
         except (UnicodeDecodeError, ValueError):
             return False
 
@@ -391,7 +404,8 @@ class Web:
         while True:
             try:
                 logger.debug(f"Scrapping connection to {current_url}")
-                response = requests.get(current_url, timeout=Config.get("web_timeout", "FIELDS", get=int), headers=self.headers,
+                response = requests.get(current_url, timeout=Config.get("web_timeout", "FIELDS", get=int),
+                                        headers=self.headers,
                                         allow_redirects=False, verify=False)
             except IOError as e:
                 if isinstance(e, requests.exceptions.HTTPError):
@@ -425,9 +439,11 @@ class Web:
                             redirects.append(current_url)
                             continue
                     # prepare content to be shortened
-                    [s.extract() for s in soup(["style", "script", "head"])]  # remove tags with low probability of content
+                    [s.extract() for s in
+                     soup(["style", "script", "head"])]  # remove tags with low probability of content
                     text = re.sub(r'\n\s*\n', '\n', soup.text)  # reduce multiple new lines to singles
-                    text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ', text)  # reduce multiple spaces (not new lines) to singles
+                    text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ',
+                                  text)  # reduce multiple spaces (not new lines) to singles
 
                     # if the form tag like <input> or <select> has no attribute "name", print out its tag name and value or options
                     def get_info(el):
@@ -450,11 +466,12 @@ class Web:
                 #     redirects.append(res.url)
 
                 print_atomic(f"Scrapped {url} ({len(response.text)} bytes)")
-                self.cache[url] = self.get = response.status_code, text.strip(), response.text if self.store_html else None, \
-                                             redirects, \
-                                             response.headers.get('X-Frame-Options', None), \
-                                             response.headers.get('Content-Security-Policy', None), \
-                                             form_names
+                self.cache[
+                    url] = self.get = response.status_code, text.strip(), response.text if self.store_html else None, \
+                                      redirects, \
+                                      response.headers.get('X-Frame-Options', None), \
+                                      response.headers.get('Content-Security-Policy', None), \
+                                      form_names
                 break
                 # if current_url == url:
                 #     break
@@ -552,13 +569,15 @@ class Type:
     A field type Convey is able to identify or compute
     """
 
-    def __init__(self, name, group=TypeGroup.general, description="", usual_names=[], identify_method=None, is_private=False,
+    def __init__(self, name, group=TypeGroup.general, description="", usual_names=[], identify_method=None,
+                 is_private=False,
                  from_message=None, usual_must_match=False):
         """
         :param name: Key name
         :param description: Help text
         :param usual_names: Names this column usually has (ex: source_ip for an IP column). List of str, lowercase, no spaces.
-        :param identify_method: Lambda used to identify a value may be of this field type
+        :param identify_method: Lambda used to identify a value conforms this field type (return true).
+            If float is returned, this should be added to the score (ex: malus when we are not sure this is a base64 string).
         :param is_private: User cannot add the field type (ex: whois, user can extend only netname which is accessed through it).
         """
         self.name = name
@@ -662,9 +681,12 @@ class Type:
         # guess field type by few values
         hits = 0
         for val in samples:
-            if self.identify_method(val):
-                # print("Match")
+            sc = self.identify_method(val)
+            if sc:
                 hits += 1
+                if isinstance(sc, float):
+                    score += sc
+
         try:
             percent = hits / len(samples)
         except ZeroDivisionError:
@@ -813,7 +835,8 @@ class Types:
     date = Type("date", TypeGroup.general)
     bytes = Type("bytes", TypeGroup.general, is_private=True)
     charset = Type("charset", TypeGroup.general)
-    country_name = Type("country_name", TypeGroup.general)  # XX not identifiable, user has to be told somehow there is such method
+    country_name = Type("country_name",
+                        TypeGroup.general)  # XX not identifiable, user has to be told somehow there is such method
     phone = Type("phone", TypeGroup.general, "telephone number", ["telephone", "tel"], Checker.is_phone)
 
     unit = Type("unit", TypeGroup.general, "any physical quantity", [], Checker.is_unit)
@@ -823,19 +846,22 @@ class Types:
                      ["sourceipaddress", "source", "src"], is_ip, usual_must_match=True)
     destination_ip = Type("destination_ip", TypeGroup.general, "valid destination IP address",
                           ["destinationipaddress", "destination", "dest", "dst"], is_ip, usual_must_match=True)
-    port = Type("port", TypeGroup.general, "port", ["port", "prt"], lambda x: re.match("\d{1,5}", x), usual_must_match=True)
+    port = Type("port", TypeGroup.general, "port", ["port", "prt"], lambda x: re.match("\d{1,5}", x),
+                usual_must_match=True)
     cidr = Type("cidr", TypeGroup.general, "CIDR 127.0.0.1/32", ["cidr"], Checker.check_cidr)
     port_ip = Type("port_ip", TypeGroup.general, "IP in the form 1.2.3.4.port", [], reIpWithPort.match)
     any_ip = Type("any_ip", TypeGroup.general, "IP in the form 'any text 1.2.3.4 any text'", [],
                   lambda x: reAnyIp.search(x) and not is_ip(x))
-    hostname = Type("hostname", TypeGroup.general, "2nd or 3rd domain name", ["fqdn", "hostname", "domain"], reFqdn.match)
+    hostname = Type("hostname", TypeGroup.general, "2nd or 3rd domain name", ["fqdn", "hostname", "domain"],
+                    reFqdn.match)
     email = Type("email", TypeGroup.general, "E-mail address", ["mail"], lambda e: validate_email(e, check_mx=False))
     url = Type("url", TypeGroup.general, "URL starting with http/https", ["url", "uri", "location"],
                lambda s: reUrl.match(s) and "[.]" not in s)  # input "example[.]com" would be admitted as a valid URL)
     asn = Type("asn", TypeGroup.whois, "Autonomous system number", ["as", "asn", "asnumber"],
                lambda x: re.search('AS\d+', x) is not None)
     base64 = Type("base64", TypeGroup.general, "Text encoded with Base64", ["base64"], Checker.is_base64)
-    quoted_printable = Type("quoted_printable", TypeGroup.general, "Text encoded as quotedprintable", [], Checker.is_quopri)
+    quoted_printable = Type("quoted_printable", TypeGroup.general, "Text encoded as quotedprintable", [],
+                            Checker.is_quopri)
     urlencode = Type("urlencode", TypeGroup.general, "Text encoded with urlencode", ["urlencode"], Checker.is_urlencode)
     wrong_url = Type("wrong_url", TypeGroup.general, "Deactivated URL", [], Checker.check_wrong_url)
     plaintext = Type("plaintext", TypeGroup.general, "Plain text", ["plaintext", "text"], lambda x: False)
@@ -893,13 +919,15 @@ class Types:
                 return True
             return False
 
-        for enabled, ((start, target), m) in [(True, f) for f in methods.items()] + [(False, f) for f in methods_deleted.items()]:
+        for enabled, ((start, target), m) in [(True, f) for f in methods.items()] + [(False, f) for f in
+                                                                                     methods_deleted.items()]:
             loop.append((enabled, start, target, m))
             existing_edges.add((start, target))
         # for enabled, ((start, target), m) in [(True, f) for f in methods.items()] + [(False, f) for f in methods_deleted.items()]:
         for enabled, start, target, m in loop:
             disable_s = "" if enabled else formatting_disabled
-            if start.group != target.group and target.group.name != target and target.group in [TypeGroup.dns, TypeGroup.nmap,
+            if start.group != target.group and target.group.name != target and target.group in [TypeGroup.dns,
+                                                                                                TypeGroup.nmap,
                                                                                                 TypeGroup.custom]:
                 # Every type that goes to ex: `dns`, continues to all `dns` subtypes. We want `hostname -> spf` to go through `dns`.
                 # This is not the case of the group `whois` - this group has explicitly stated the path in methods,
@@ -973,7 +1001,8 @@ class Types:
             (t.port_ip, t.port): port_ip_port,
             (t.url, t.hostname): url_hostname,
             (t.url, t.port): url_port,
-            (t.hostname, t.ip): Checker.hostname_ips if Config.get("multiple_hostname_ip", "FIELDS") else Checker.hostname_ip,
+            (t.hostname, t.ip): Checker.hostname_ips if Config.get("multiple_hostname_ip",
+                                                                   "FIELDS") else Checker.hostname_ip,
             # (t.url, t.ip): Whois.url2ip,
             (t.ip, t.whois): Whois,
             # (t.asn, t.whois): Whois, # XX can be easily allowed, however Whois object will huff there is no IP prefix range
@@ -984,7 +1013,8 @@ class Types:
             (t.whois, t.abusemail): lambda x: x.get[6],
             (t.whois, t.country): lambda x: x.get[5],
             (t.whois, t.netname): lambda x: x.get[4],
-            (t.whois, t.csirt_contact): lambda x: Contacts.country2mail[x.get[5]] if x.get[5] in Contacts.country2mail else "-",
+            (t.whois, t.csirt_contact): lambda x: Contacts.country2mail[x.get[5]] if x.get[
+                                                                                         5] in Contacts.country2mail else "-",
             (t.whois, t.incident_contact): lambda x: x.get[2],
             (t.plaintext, t.bytes): lambda x: x.encode("UTF-8"),
             (t.bytes, t.plaintext): Checker.bytes_plaintext,
@@ -1002,7 +1032,7 @@ class Types:
             (t.reg, t.reg_m): None,
             (t.wrong_url, t.url): wrong_url_2_url,
             (t.hostname, t.url): lambda x: "http://" + x,
-            #X (t.ip, t.url): lambda x: "http://" + x,
+            # X (t.ip, t.url): lambda x: "http://" + x,
             (t.ip, t.hostname): lambda x: socket.gethostbyaddr(x)[0],
             (t.url, t.web): Web,
             (t.web, t.http_status): lambda x: x.get[0],

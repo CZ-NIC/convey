@@ -468,7 +468,7 @@ class Controller:
                     see_menu = False
                 Config.init_verbosity(args.yes, 30 if args.quiet else (10 if args.verbose else None), is_daemon)
                 if is_daemon:
-                    logger.debug("This result is from the daemon.")
+                    logger.debug("This result comes from the daemon.")
                 Types.refresh()  # reload Types for the second time so that the methods reflect CLI flags
                 TypeGroup.init()
                 if args.show_uml is not None:

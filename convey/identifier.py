@@ -242,6 +242,7 @@ class Identifier:
 
             if possible_types:  # sort by biggest score - biggest probability the column is of this type
                 field.possible_types = {k: v for k, v in sorted(possible_types.items(), key=lambda k: k[1], reverse=True)}
+            logger.debug(f"Possible type of the field '{field}': {possible_types}")
         return True
 
     def get_fitting_type(self, source_field_i, target_field, try_plaintext=False):

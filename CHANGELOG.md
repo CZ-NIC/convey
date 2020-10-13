@@ -15,7 +15,7 @@
     * csirt_contact now may be derived from tld
     * web module now ignores invalid HTTPS certificates
     * form_names prints out more information about tags without `name` attribute
-    * base64 no more limited to UTF-8
+    * base64 no more limited to UTF-8, better detection
     * phone formats not confused with dates
     * ip -> url conversion generates a proper PTR hostname  
 * dialog

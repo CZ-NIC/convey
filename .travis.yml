@@ -9,5 +9,6 @@ before_install:
   - sudo apt install dialog
 script:
   #- ./convey.py --output --reprocess --headless --file tests/filter.csv --exclude-filter 1,foo --daemon false
+  - cd tests
   - python3 tests.py
   #- echo "foo" | ./convey.py --output --reprocess --headless --include-filter 1,foo --daemon false

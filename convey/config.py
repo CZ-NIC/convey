@@ -39,6 +39,7 @@ logging.basicConfig(level=logging.INFO, handlers=handlers)
 
 # mute noisy module (prints warning every time a validation fails which fails permanently when determining data type)
 logging.getLogger('validate_email').setLevel(logging.ERROR)
+logging.getLogger('filelock').setLevel(logging.WARNING)
 
 # class init
 logger = logging.getLogger(__name__)

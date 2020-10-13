@@ -17,12 +17,13 @@ if sys.version_info[0:2] < (3, 6):
 
 def main():
     if not sys.stdin.isatty():
-        # this is not a terminal - we may already receiving something through a pipe
+        # this is not a terminal - we may already nr receiving something through a pipe
         # load it immediately and not in the wrapper because daemon could suck the pipe of the instance
         # however sys.stdin.read() is a blocking operation so that we stuck in a pipe without stdin
         #    ex: running tests from the IDE or launching subprocess.run("convey ...")
         # As a compromise we check current sys.argv if there is an input token or not.
-        # Note that this way we still get stuck when launching with an implicit input `subprocess.run("convey file.csv")`,
+        # Note that this way we still get stuck when
+        # launching with an implicit input `subprocess.run("convey file.csv")`,
         # we have to explicitly state `subprocess.run("convey --file file.csv")`
         if not any(x in sys.argv for x in ['-i', '--input', '-f', '--file']):
             sys.argv.extend(["--input", sys.stdin.read().rstrip()])
