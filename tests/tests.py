@@ -105,12 +105,16 @@ class TestFields(TestCase):
         for phone in ("+420123456789", "+1-541-754-3010", "1-541-754-3010", "001-541-754-3010", "+49-89-636-4801"):
             self.assertIn("phone", c(phone), phone)
 
+    def test_pint(self):
+        """ Test unit conversion works """
+        c = Convey()
+        self.assertIn("unit", c("--single-detect", text="1 kg"))
+        self.assertIn("2.6792288807189983 troy_pound", c("-f unit[troy_pound]", text="1 kg"))
+
 
 class TestTemplate(TestCase):
     def test_dynamic_template(self):
         convey = Convey("filter.csv")
-        cmd = "--field code,3,'x='\\''example@example.com'\\'' if '\\''example.com'\\'' in x else x+'\\''@example.com'\\'''" \
-              " --split code --send-test {mail} 'email_template.eml' --headless"
         cmd = """--field code,3,'x="example@example.com" if "example.com" in x else x+"@example.com"'""" \
               " --split code --send-test {mail} 'email_template.eml' --headless"
         lines = convey(cmd.format(mail="example@example.com"))
@@ -138,13 +142,18 @@ class TestExternals(TestCase):
         self.assertEqual(lines, ['12:00'])
 
     def test_pick_method(self):
-        convey = Convey()
+        convey = Convey(debug=True)
         # method "all" (default one) is used and "1" passes
-        self.assertEqual(convey("--field external,external_pick_base.py,PickMethodTest --input '1'"), ["1"])
+        self.assertEqual(["1"], convey("--field external,external_pick_base.py,PickMethodTest --input '1'"))
         # method "filtered" is used and "a" passes
-        self.assertEqual(convey("--field external,external_pick_base.py,PickMethodTest,filtered --input 'a'"), ["a"])
+        self.assertEqual(["a"], convey("--field external,external_pick_base.py,PickMethodTest,filtered --input 'a'"))
         # method "filtered" is used which excludes "1"
-        self.assertNotEqual(convey("--field external,external_pick_base.py,PickMethodTest,filtered --input '1'"), ["1"])
+        self.assertNotEqual(["1"], convey("--field external,external_pick_base.py,PickMethodTest,filtered --input '1'"))
+
+        # XXXX does not work, error when resolving path Unit -> Plaintext -> External. Identifier.get_methods_from
+        # `lambda_ = lambda_.get_lambda(custom.pop(0) if custom is not None else None)`
+        #       -> get_module_from_path(custom[0], ...) does not contain a path
+        # self.assertEqual(["a"], convey("--field external,external_pick_base.py,PickMethodTest --input 'mm'"))
 
 
 if __name__ == '__main__':

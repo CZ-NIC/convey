@@ -2,7 +2,7 @@ ezodf
 xlrd
 jinja2
 colorama
-pint<0.10
+pint
 chardet
 envelope>=1.2.7
 python-dateutil
@@ -16,6 +16,6 @@ tabulate
 appdirs
 humanize
 beautifulsoup4
-prompt_toolkit>=2,<3
+prompt_toolkit
 pygments
 lxml

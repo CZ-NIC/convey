@@ -237,6 +237,9 @@ class Checker:
     # noinspection PyBroadException
     @staticmethod
     def is_unit(val):
+        if len(val) == 1:
+            # we want prevent "a" being considered a time unit ("a" == "1 year" according to pint 0.16.1)
+            return False
         try:
             e = pint.parse_expression(val)
             return e and pint.get_compatible_units(e)
