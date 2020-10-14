@@ -142,7 +142,7 @@ class TestExternals(TestCase):
         self.assertEqual(lines, ['12:00'])
 
     def test_pick_method(self):
-        convey = Convey(debug=True)
+        convey = Convey()
         # method "all" (default one) is used and "1" passes
         self.assertEqual(["1"], convey("--field external,external_pick_base.py,PickMethodTest --input '1'"))
         # method "filtered" is used and "a" passes

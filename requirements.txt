@@ -8,7 +8,7 @@ envelope>=1.2.7
 python-dateutil
 requests
 netaddr
-jsonpickle
+jsonpickle>1.4
 ipdb
 pythondialog
 py3-validate-email
