@@ -167,7 +167,8 @@ class Wrapper:
     def assure_cache_file(self, file):
         self.file = Path(file).resolve()
         info = self.file.stat()
-        hash_ = str(hash(info.st_size + round(info.st_mtime)))
+        hash_ = str(hash(info.st_size + round(info.st_mtime)))  # XXX use st_size only?
+
         # cache-file with source file metadata
         Config.set_cache_dir(Path(self.file.parent, self.file.name + "_convey" + hash_))
         self.cache_file = Path(Config.get_cache_dir(), self.file.name + ".cache")
@@ -176,7 +177,8 @@ class Wrapper:
         """ restore whois cache and remove expired results """
         p = Path(config_dir, WHOIS_CACHE)
         if Config.get("whois_cache", "FIELDS", get=bool) and p.exists():
-            event = lazy_print("... loading big WHOIS cache ...")  # XX if it's long, postpone via a thread that would block analysis
+            # XX if it's long, postpone via a thread that would block analysis
+            event = lazy_print("... loading big WHOIS cache ...")
             ip_seen, ranges = jsonpickle.decode(p.read_text(), keys=True)
             ranges = {IPRange(k[0], k[1]): v for k, v in ranges.items()
                       if v[7] + Config.get("whois_ttl", "FIELDS", int) >= time()}
@@ -206,7 +208,8 @@ class Wrapper:
     # Store
     def save(self, last_chance=False):
         # chance to save the original file to the disk if reading from STDIN
-        if not self.cache_file and ((self.parser.stdout is not True and self.parser.stdout) or self.parser.is_formatted):
+        if not self.cache_file and \
+                ((self.parser.stdout is not True and self.parser.stdout) or self.parser.is_formatted):
             # * cache_file does not exist = we have not written anything on the disk
             # * target_file exist = there is a destination to write (when splitting, no target_file specified)
             #       XX which may be changed because it is usual to preserve file
@@ -292,7 +295,6 @@ class Wrapper:
                     finally:
                         event.set()
             self.cache_file.write_text(string)  # save cache
-
 
     def clear(self):
         self.check_xls() or self.check_ods() or self.check_log()

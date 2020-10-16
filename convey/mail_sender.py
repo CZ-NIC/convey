@@ -225,11 +225,9 @@ class MailSenderOtrs(MailSender):
                 self.parser.otrs_cookie = self.ask_value(self.parser.otrs_cookie, "cookie")
                 self.parser.otrs_token = self.ask_value(self.parser.otrs_token, "token")
                 self.parser.attachment_name = self.ask_value(self.parser.attachment_name, "attachment name")
-                # if self.parser.attachment_name[-4:] != ".txt":
-                #     self.parser.attachment_name += ".txt"
 
             sys.stdout.write(
-                "Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachment_name = {}.\nWas that correct? [y]/n ".format(
+                "Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachment_name = {}\nWas that correct? [y]/n ".format(
                     self.parser.otrs_id, self.parser.otrs_num, self.parser.otrs_cookie, self.parser.otrs_token,
                     self.parser.attachment_name))
             if input().lower() in ("y", ""):

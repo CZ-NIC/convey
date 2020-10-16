@@ -44,7 +44,8 @@ class Parser:
         self.is_pandoc = False  # pandoc table format (second line to be skipped, a lot of spaces)
         self.header: str = ""  # if CSV has header, it's here so that Processor can take it
         self.sample: List[str] = []  # lines  of the original file, including first line - possible header
-        self.sample_parsed: List[List[str]] = []  # values of the prepared output (ex re-sorted), always excluding header
+        self.sample_parsed: List[
+            List[str]] = []  # values of the prepared output (ex re-sorted), always excluding header
         self.fields: List[Field] = []  # CSV columns that will be generated to an output
         self.first_line_fields: List[str] = []  # CSV columns (equal to header if used) in the original file
         self.types = []  # field types of the columns as given by the user
@@ -63,7 +64,9 @@ class Parser:
         self.otrs_id = Config.get("ticketid", "OTRS")
         self.otrs_token = False
         self.otrs_num = Config.get("ticketnum", "OTRS")
-        self.attachment_name = (source_file.name if source_file else "attachment")
+        self.attachment_name = (source_file.name if source_file else "attachment.csv")
+        if not Path(self.attachment_name).suffix:
+            self.attachment_name += ".csv"
         self.ip_count_guess = None
         self.ip_count = None
         self.attachments = []  # files created if splitting
@@ -198,7 +201,8 @@ class Parser:
             if Config.get("delimiter", "CSV"):
                 self.dialect.delimiter = Config.get("delimiter", "CSV")
                 l.append(f"Delimiter character set: '{self.dialect.delimiter}'")
-                self.dialect.delimiter = self.dialect.delimiter.replace(r"\t", "\t").replace("TAB", "\t").replace("tab", "\t")
+                self.dialect.delimiter = self.dialect.delimiter.replace(r"\t", "\t").replace("TAB", "\t").replace("tab",
+                                                                                                                  "\t")
             else:
                 uncertain = True
                 s = "proposed" if seems_single else "found"
@@ -224,18 +228,21 @@ class Parser:
 
             if uncertain and not is_yes("\nCould you confirm this?"):
                 while True:
-                    s = "What is delimiter " + (f"(default '{self.dialect.delimiter}')" if self.dialect.delimiter else "") + ": "
+                    s = "What is delimiter " + (
+                        f"(default '{self.dialect.delimiter}')" if self.dialect.delimiter else "") + ": "
                     self.dialect.delimiter = input(s) or self.dialect.delimiter
                     if len(self.dialect.delimiter) != 1:
                         print("Delimiter must be a 1-character string. Invent one (like ',').")
                         continue
-                    s = "What is quoting char " + (f"(default '{self.dialect.quotechar}')" if self.dialect.quotechar else "") + ": "
+                    s = "What is quoting char " + (
+                        f"(default '{self.dialect.quotechar}')" if self.dialect.quotechar else "") + ": "
                     self.dialect.quotechar = input(s) or self.dialect.quotechar
                     break
                 self.dialect.quoting = csv.QUOTE_NONE if not self.dialect.quotechar else csv.QUOTE_MINIMAL
                 if not is_yes("Header " + ("" if self.has_header else "not found; ok?")):
                     self.has_header = not self.has_header
-            self.first_line_fields = csv.reader([self.first_line], skipinitialspace=self.is_pandoc, dialect=self.dialect).__next__()
+            self.first_line_fields = csv.reader([self.first_line], skipinitialspace=self.is_pandoc,
+                                                dialect=self.dialect).__next__()
             self.reset_settings()
         except Cancelled:
             print("Cancelled.")
@@ -390,7 +397,8 @@ class Parser:
 
         # prepare json to return (useful in a web service)
         if "csirt-contact" in data and data["csirt-contact"] == "-":
-            data["csirt-contact"] = ""  # empty value instead of a dash, stored in CsvGuesses-method-("whois", "csirt-contact")
+            data[
+                "csirt-contact"] = ""  # empty value instead of a dash, stored in CsvGuesses-method-("whois", "csirt-contact")
 
         # output in text, json or file
         if Config.get("output"):
@@ -426,7 +434,8 @@ class Parser:
                 self.whois_stats = defaultdict(int)
                 self.ranges = {}
                 self.ip_seen = {}
-        Whois.init(self.whois_stats, self.ranges, self.ip_seen, self.stats, slow_mode=slow_mode, unknown_mode=unknown_mode)
+        Whois.init(self.whois_stats, self.ranges, self.ip_seen, self.stats, slow_mode=slow_mode,
+                   unknown_mode=unknown_mode)
 
     def reset_settings(self):
         self.settings = defaultdict(list)
@@ -435,7 +444,8 @@ class Parser:
         self.aggregation = defaultdict(
             dict)  # self.aggregation[location file][grouped row][order in aggregation settings] = [sum generator, count]
         self.sample_parsed = [x for x in
-                              csv.reader(self.sample[slice(1 if self.has_header else 0, None)], skipinitialspace=self.is_pandoc,
+                              csv.reader(self.sample[slice(1 if self.has_header else 0, None)],
+                                         skipinitialspace=self.is_pandoc,
                                          dialect=self.dialect)]
         self.add_field([Field(f) for f in self.first_line_fields])
         self.identifier.identify_fields()
@@ -640,16 +650,19 @@ class Parser:
         if self.stats["ip_local_unknown"]:
             l.append(f"{self.stat('ip_local_unknown')} IPs in {self.stat('prefix_local_unknown')} unknown prefixes")
         if self.stats["ip_abroad_unknown"]:
-            l.append(f"{self.stat('ip_abroad_unknown')} IPs in {self.stat('prefix_abroad_unknown')} unknown abroad prefixes")
+            l.append(
+                f"{self.stat('ip_abroad_unknown')} IPs in {self.stat('prefix_abroad_unknown')} unknown abroad prefixes")
         s = f"There are {self.unknown_lines_count} lines with up to {' and '.join(l)}. Should I proceed additional search" \
             f" for these {self.stat('ip_local_unknown') + self.stat('ip_abroad_unknown')} IPs?"
         if not is_yes(s):
             return
 
         path = Path(Config.get_cache_dir(), Config.UNKNOWN_NAME)
-        [self.stats[f"{a}_{b}_unknown"].clear() for a in ("ip", "prefix") for b in ("local", "abroad")]  # reset the stats matrix
+        [self.stats[f"{a}_{b}_unknown"].clear() for a in ("ip", "prefix") for b in
+         ("local", "abroad")]  # reset the stats matrix
         # res = self._resolve_again(path, Config.UNKNOWN_NAME, unknown_mode=True)
-        self._resolve_again(path, Config.UNKNOWN_NAME, "unknown_lines_count", "unknown", self.resolve_unknown, unknown_mode=True)
+        self._resolve_again(path, Config.UNKNOWN_NAME, "unknown_lines_count", "unknown", self.resolve_unknown,
+                            unknown_mode=True)
         Whois.unknown_mode = False
         # if res is False:
         #     return False
@@ -678,7 +691,8 @@ class Parser:
         path = Path(Config.get_cache_dir(), Config.QUEUED_NAME)
         Whois.queued_ips.clear()
 
-        self._resolve_again(path, Config.QUEUED_NAME, "queued_lines_count", "queued", self.resolve_queued, slow_mode=True)
+        self._resolve_again(path, Config.QUEUED_NAME, "queued_lines_count", "queued", self.resolve_queued,
+                            slow_mode=True)
         # self.queued_lines_count = 0
         # res = self._resolve_again(path, Config.QUEUED_NAME, slow_mode=True)
         # if res is False:
@@ -710,7 +724,8 @@ class Parser:
                         if i > 5:
                             break
             except FileNotFoundError:
-                input("File {} not found, maybe resolving was run in the past and failed. Please rerun again.".format(path))
+                input("File {} not found, maybe resolving was run in the past and failed. Please rerun again.".format(
+                    path))
                 return False
             if Config.get("yes", get=bool):
                 res = "n"
@@ -791,14 +806,20 @@ class Parser:
         for line in self.sample_parsed:
             row = []
             for field, cell in zip_longest(self.fields, line):
+                if field is None:
+                    # when lines have different length, field may be none
+                    # XX should the processing be stopped?
+                    field = Field("plaintext")
                 if cell is None:
                     cell = field.compute_preview(line)
-                # suppress new lines in preview; however while processing, new lines are printed and this may render the CSV unloadable
+                # suppress new lines in preview; however while processing,
+                # new lines are printed and this may render the CSV unloadable
                 row.append((cell.replace("\n", r"\n"), field))
 
             # check if current line is filtered out
             line_chosen = True
-            for include, col_i, val in settings["filter"]:  # (include, col, value), ex: [(True, 23, "passed-value"), ...]
+            for include, col_i, val in settings["filter"]:
+                # (include, col, value), ex: [(True, 23, "passed-value"), ...]
                 if (ne if include else eq)(val, row[col_i][0]):
                     line_chosen = False
 
