@@ -4,9 +4,9 @@ from base64 import b64decode
 from pathlib import Path
 
 from colorama import Fore
+from envelope import Envelope
 from jinja2 import Template, exceptions
 
-from envelope import Envelope
 from .config import Config, get_path, edit
 
 
@@ -50,7 +50,15 @@ class MailDraft:
                 if subject:
                     e.subject(self._decode_text(subject))
                 if body:
-                    e.message(self._decode_text(body).replace(r"\n", "\n"))
+                    # reset loaded message from the template
+                    # to prevent the situation when template message is considered a text/plain alternative
+                    # and `--body` message is considered as a text/html alternative.
+                    # XX envelope might have method to delete message, like
+                    #  .message(False), .message(""), .message(text, alternative="replace")
+                    e.message("", alternative="auto") \
+                        .message("", alternative="plain") \
+                        .message("", alternative="html") \
+                        .message(self._decode_text(body).replace(r"\n", "\n"))
                 t = str(e)
             Path(self.mail_file).write_text(t)
 
@@ -70,7 +78,7 @@ class MailDraft:
             except FileNotFoundError:
                 self.text = None
 
-            if not self.text:  # user didn't fill files in GUI
+            if not self.text:  # user did not fill files in GUI
                 return "Empty body text."
 
             if attachment and Config.get("jinja", "SMTP", get=bool):
@@ -108,7 +116,7 @@ class MailDraft:
             e = _get_envelope()
             if isinstance(e, Envelope):
                 return e
-            else:  # user fill GUI file, saves it and we get back to the method
+            else:  # user fills GUI file, saves it and we get back to the method
                 print(e)
                 self.edit_text()
 
