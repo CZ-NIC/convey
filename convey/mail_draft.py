@@ -103,8 +103,14 @@ class MailDraft:
                     e.recipients(clear=True)
                     intended_to = attachment.mail
                     e.to(Config.get('testing_mail'))
-                    e.message(f"This is testing mail only from Convey."
-                              f" Don't be afraid, it was not delivered to: {intended_to}\r\n{e.message()}")
+                    # XX envelope might have method to delete message, like
+                    #  .message(False), .message(""), .message(text, alternative="replace")
+                    m = e.message()
+                    e.message("", alternative="auto") \
+                        .message("", alternative="plain") \
+                        .message("", alternative="html") \
+                        .message(f"This is testing mail only from Convey."
+                                 f" Don't be afraid, it was not delivered to: {intended_to}\r\n{m}")
                 else:
                     e.to(attachment.mail)
                     if attachment.cc:

@@ -4,7 +4,7 @@ jinja2
 colorama
 pint
 chardet
-envelope>=1.2.7
+envelope>=1.3.2
 python-dateutil
 requests
 netaddr
