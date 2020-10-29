@@ -134,6 +134,11 @@ class TestTemplate(TestCase):
         # even though there is header in the file, we should still get single value
         self.assertIn('We send you single colour: orange.', lines)
 
+    # XX we should test body, subject, references flag
+    # def test_body_flag(self):
+    #     convey = Convey("filter.csv")
+    #     cmd = """--body "body text" """
+
 
 class TestExternals(TestCase):
     def test_pick_input(self):

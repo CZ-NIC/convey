@@ -1,6 +1,7 @@
 """ Mail management data structure """
 import binascii
 import logging
+import re
 from base64 import b64decode
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from jinja2 import Template, exceptions
 from .config import Config, get_path, edit
 
 logger = logging.getLogger(__name__)
+
 
 class MailDraft:
     def __init__(self, filename):
@@ -91,7 +93,22 @@ class MailDraft:
                     references = f"<{references}>"
                 e.header("Reference", references)
                 e.bcc(Config.get("email_from_name", "SMTP"))
-            self.mail_file.write_text(str(e))
+
+            # When a HTML is piped through --body flag, Content-Transfer-Encoding might change to ex: quoted-printable.
+            # However when editing, we do not want to see quoted-printable garbage but plain text.
+            # So, we
+            # 1) fetch the headers (except Content-Transfer-Encoding)
+            # 2) insert blank line (between headers and the body)
+            # 3) fetch the body while stripping out all <br> tags at the line ends
+            #       (they should be re-inserted by envelope automatically and the readability increases)
+            # XX test should be added
+            no_br_end = re.compile("<br\s?/?>$")
+            eml_text = [line for line in str(e)[:str(e).index("\n\n")].splitlines()
+                        if not line.startswith("Content-Transfer-Encoding")] +\
+                       [""] +\
+                       [no_br_end.sub("", line) for line in e.message().splitlines()]
+
+            self.mail_file.write_text("\n".join(eml_text))
 
         self.file_assured = True
         return just_created
