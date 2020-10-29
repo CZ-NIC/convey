@@ -104,7 +104,7 @@ def get_path(file):
                 #  – user just might have deleted EML templates and they would not be happy to see their config.ini wiped
                 if not Path(config_dir, Path(filename).name).exists():
                     copy(str(filename), config_dir)
-            file = "{}/{}".format(config_dir, file)
+            file = Path(f"{config_dir}/{file}")
         except Exception as e:
             print(e)
             print("Error creating program file {}. Exiting.".format(file))

@@ -1,5 +1,6 @@
 """ Mail management data structure """
 import binascii
+import logging
 from base64 import b64decode
 from pathlib import Path
 
@@ -9,12 +10,14 @@ from jinja2 import Template, exceptions
 
 from .config import Config, get_path, edit
 
+logger = logging.getLogger(__name__)
 
 class MailDraft:
     def __init__(self, filename):
         self.text = False
         self.template_file = get_path(filename)
         self.mail_file = Path(Config.get_cache_dir(), filename)
+        self.file_assured = False  # we tried to load the e-mail text from the template and with the use of CLI flags
 
     @classmethod
     def init(cls, parser):
@@ -38,93 +41,125 @@ class MailDraft:
         return t
 
     def edit_text(self, blocking=True):
-        """ Opens file for mail text to GUI editing. Created from the template if had not existed before.
-            If --subject or --body flags are merged into the template if used.
+        """ Opens file for mail text to GUI editing.
+            Create the e-mail file from the template if had not existed before.
+            If --subject, --body and --reference flags are used, they get re-merged into the template.
         """
-        if not Path(self.mail_file).is_file():
-            t = Path(self.template_file).read_text()
-            subject = Config.get("subject")
-            body = Config.get("body")
-            if subject or body:
-                e = Envelope.load(t).date(False)
-                if subject:
-                    e.subject(self._decode_text(subject))
-                if body:
-                    # reset loaded message from the template
-                    # to prevent the situation when template message is considered a text/plain alternative
-                    # and `--body` message is considered as a text/html alternative.
-                    # XX envelope might have method to delete message, like
-                    #  .message(False), .message(""), .message(text, alternative="replace")
-                    e.message("", alternative="auto") \
-                        .message("", alternative="plain") \
-                        .message("", alternative="html") \
-                        .message(self._decode_text(body).replace(r"\n", "\n"))
-                t = str(e)
-            Path(self.mail_file).write_text(t)
-
+        self._assure_file()
         edit(self.mail_file, mode=2, blocking=blocking)
 
-    def get_envelope(self, attachment: "Attachment" = None) -> Envelope:
-        def _get_envelope():
-            """ The format of the mail template is:
-                    Header: value
-                    Another-header: value
-                    Subject: value
-
-                    Body text begins after space.
+    def _assure_file(self):
+        """ Create the e-mail file from the template if had not existed before.
+            If --subject, --body and --reference flags are used, they get re-merged into the template.
+            :rtype: bool True if the e-mail file was newly created.
             """
+        if self.file_assured:
+            return False
+
+        just_created = False
+
+        # enrich e-mail text using the template
+        if not self.mail_file.is_file():
+            # t = Path(self.template_file).read_text()
             try:
-                self.text = Path(self.mail_file).read_text()
+                self.mail_file.write_text(self.template_file.read_text())
+                logger.info(f"Writing from template {self.template_file}")
+                just_created = True
             except FileNotFoundError:
-                self.text = None
+                logger.warning(f"Template file {self.template_file} not found")
 
-            if not self.text:  # user did not fill files in GUI
-                return "Empty body text."
+        # enrich e-mail text using the CLI variables `body`, `subject`, `references`
+        subject = Config.get("subject")
+        body = Config.get("body")
+        references = Config.get("references")
+        if subject or body or references:
+            e = Envelope.load(self.mail_file).date(False)
+            if subject:
+                e.subject(self._decode_text(subject))
+            if body:
+                # reset loaded message from the template
+                # to prevent the situation when template message is considered a text/plain alternative
+                # and `--body` message is considered as a text/html alternative.
+                # XX envelope might have method to delete message, like
+                #  .message(False), .message(""), .message(text, alternative="replace")
+                e.message("", alternative="auto") \
+                    .message("", alternative="plain") \
+                    .message("", alternative="html") \
+                    .message(self._decode_text(body).replace(r"\n", "\n"))
+            if references:
+                if not (references.startswith("<") and references.endswith(">")):
+                    references = f"<{references}>"
+                e.header("Reference", references)
+                e.bcc(Config.get("email_from_name", "SMTP"))
+            self.mail_file.write_text(str(e))
 
-            if attachment and Config.get("jinja", "SMTP", get=bool):
-                if self.jinja(attachment) is False:
-                    return "Wrong jinja2 template."
+        self.file_assured = True
+        return just_created
 
-            e = (Envelope
-                 .load(self.text)
-                 .signature("auto"))
+    def _make_envelope(self, attachment):
+        """ The format of the mail template is:
+                Header: value
+                Another-header: value
+                Subject: value
 
-            if not e.from_():
-                e.from_(Config.get("email_from_name", "SMTP"))
-            if not e.message() or not e.message().strip():
-                return "Missing body text. Try writing 'Subject: text', followed by a newline a text."
-            if not e.subject():
-                return "Missing subject. Try writing 'Subject: text', followed by a newline."
-            if attachment:
-                if attachment.path and attachment.attach and Config.get('attach_files', 'SMTP', get=bool):
-                    e.attach(attachment.path, "text/csv", attachment.parser.attachment_name)
+                Body text begins after space.
+        """
+        try:
+            self.text = self.mail_file.read_text()
+        except FileNotFoundError:
+            self.text = None
 
-                if Config.is_testing():
-                    e.recipients(clear=True)
-                    intended_to = attachment.mail
-                    e.to(Config.get('testing_mail'))
-                    # XX envelope might have method to delete message, like
-                    #  .message(False), .message(""), .message(text, alternative="replace")
-                    m = e.message()
-                    e.message("", alternative="auto") \
-                        .message("", alternative="plain") \
-                        .message("", alternative="html") \
-                        .message(f"This is testing mail only from Convey."
-                                 f" Don't be afraid, it was not delivered to: {intended_to}\r\n{m}")
-                else:
-                    e.to(attachment.mail)
-                    if attachment.cc:
-                        e.cc(attachment.cc)
+        if not self.text:  # user did not fill files in GUI
+            return "Empty body text."
 
-            return e
+        if attachment and Config.get("jinja", "SMTP", get=bool):
+            if self.jinja(attachment) is False:
+                return "Wrong jinja2 template."
 
+        e = (Envelope
+             .load(self.text)
+             .signature("auto"))
+
+        if not e.from_():
+            e.from_(Config.get("email_from_name", "SMTP"))
+        if not e.message() or not e.message().strip():
+            return "Missing body text. Try writing 'Subject: text', followed by a newline and a text."
+        if not e.subject():
+            return "Missing subject. Try writing 'Subject: text', followed by a newline."
+        if attachment:
+            if attachment.path and attachment.attach and Config.get('attach_files', 'SMTP', get=bool):
+                e.attach(attachment.path, "text/csv", attachment.parser.attachment_name)
+
+            if Config.is_testing():
+                e.recipients(clear=True)
+                intended_to = attachment.mail
+                e.to(Config.get('testing_mail'))
+                # XX envelope might have method to delete message, like
+                #  .message(False), .message(""), .message(text, alternative="replace")
+                m = e.message()
+                e.message("", alternative="auto") \
+                    .message("", alternative="plain") \
+                    .message("", alternative="html") \
+                    .message(f"This is testing mail only from Convey."
+                             f" Don't be afraid, it was not delivered to: {intended_to}\r\n{m}")
+            else:
+                e.to(attachment.mail)
+                if attachment.cc:
+                    e.cc(attachment.cc)
+
+        return e
+
+    def get_envelope(self, attachment: "Attachment" = None) -> Envelope:
         while True:
-            e = _get_envelope()
+            just_created = self._assure_file()
+            e = self._make_envelope(attachment)
             if isinstance(e, Envelope):
-                return e
-            else:  # user fills GUI file, saves it and we get back to the method
-                print(e)
-                self.edit_text()
+                if not just_created:  # even if Envelope is well generated, we invoke editing
+                    return e
+                e = "Editing just created file"
+            # user fills GUI file, saves it and we get back to the method
+            print(e)
+            self.edit_text()
 
     def jinja(self, attachment: "Attachment"):
 

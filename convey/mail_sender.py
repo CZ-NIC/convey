@@ -31,14 +31,16 @@ class MailSender(ABC):
         pass
 
     def send_list(self, mails):
-        """ Send a bunch of e-mail messages """
+        """ Send a bunch of e-mail messages 
+        :type mails: Union[list, generator]
+        """
         sent_mails = 0
         total_count = 0
         status = None
 
         if self.start() is False:
             return False
-        for attachment in mails:
+        for attachment in iter(mails):  # make sure mails are generator to correctly count total_count
             attachment: Attachment
             e: Envelope = attachment.get_envelope()
 
@@ -63,7 +65,7 @@ class MailSender(ABC):
                 status = self.process(e)
             except KeyboardInterrupt:
                 status = "interrupted"
-                total_count += len([x for x in mails])
+                total_count += len(list(mails))
                 break
             except Exception as e:
                 logger.error(e)
@@ -292,11 +294,12 @@ class MailSenderOtrs(MailSender):
                                        cookies=cookies)
         except Exception:
             import traceback
-            print(traceback.format_exc())
-            print(f"\nE-mail could not be send to the host {host}{selector} with the fields {fields}."
+            logger.error(traceback.format_exc())
+            logger.error(f"\nE-mail could not be send to the host {host}{selector} with the fields {fields}."
                   f" Are you allowed to send from this e-mail etc?")
-            input("Program now ends.")
-            quit()
+            # input("Program now ends.")
+            # quit()
+            raise
         if not res or not self._check_response(res.read()):
             print("Sending failure, see convey.log.")
             return False

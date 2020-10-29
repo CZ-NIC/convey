@@ -111,7 +111,7 @@ class BlankTrue(argparse.Action):
                 and (type(self.metavar) is not list or values.lower() not in self.metavar) \
                 and (len(self.metavar.split("/")) < 2 or values.lower() not in self.metavar.split("/")):
             print(f"Unrecognised value '{values}' of '{self.dest}'. Allowed values are 0/1/BLANK."
-                             f" Should the value be considered a positional parameter, move '{self.dest}' behind.")
+                  f" Should the value be considered a positional parameter, move '{self.dest}' behind.")
             exit()
         setattr(namespace, self.dest, values)
 
@@ -158,7 +158,8 @@ class Controller:
         Types.refresh()  # load types so that we can print out computable types in the help text
         epilog = "To launch a web service see README.md."
         column_help = "COLUMN is ID of the column (1, 2, 3...), the exact column name, field type name or its usual name."
-        parser = argparse.ArgumentParser(description="Data conversion swiss knife", formatter_class=SmartFormatter, epilog=epilog)
+        parser = argparse.ArgumentParser(description="Data conversion swiss knife", formatter_class=SmartFormatter,
+                                         epilog=epilog)
 
         group = parser.add_argument_group("Input/Output")
         group.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
@@ -177,7 +178,8 @@ class Controller:
         group.add_argument('--single-detect', help="Consider the input as a single value, not a CSV,"
                                                    " and just print out possible types of the input."
                            , action="store_true")
-        group.add_argument('-C', '--csv-processing', help="Consider the input as a CSV, not a single.", action="store_true")
+        group.add_argument('-C', '--csv-processing', help="Consider the input as a CSV, not a single.",
+                           action="store_true")
 
         group = parser.add_argument_group("CLI experience")
         group.add_argument('--debug', help="On error, enter a pdb session",
@@ -214,7 +216,8 @@ class Controller:
                                               "\n    * +2 to include usual field names",
                            type=int, const=1, nargs='?')
         group.add_argument('--get-autocompletion', help="Get bash autocompletion.", action="store_true")
-        group.add_argument('--version', help=f"Show the version number (which is currently {__version__}).", action="store_true")
+        group.add_argument('--version', help=f"Show the version number (which is currently {__version__}).",
+                           action="store_true")
 
         group = parser.add_argument_group("Processing")
         group.add_argument('--threads', help="Set the thread processing number.",
@@ -241,13 +244,15 @@ class Controller:
         group.add_argument('--quote-char', help="Treat file as having this quoting character")
         group.add_argument('--header', help="Treat file as having header", action="store_true")
         group.add_argument('--no-header', help="Treat file as not having header", action="store_true")
-        group.add_argument('--delimiter-output', help="Output delimiter. For tab use either \\t or tab.", metavar="DELIMITER")
+        group.add_argument('--delimiter-output', help="Output delimiter. For tab use either \\t or tab.",
+                           metavar="DELIMITER")
         group.add_argument('--quote-char-output', help="Output quoting char", metavar="QUOTE_CHAR")
         group.add_argument('--header-output', help="If false, header is omitted when processing..",
                            action=BlankTrue, nargs="?", metavar="blank/false")
 
         group = parser.add_argument_group("Actions")
-        group.add_argument('-d', '--delete', help="Delete a column. You may comma separate multiple columns." + column_help,
+        group.add_argument('-d', '--delete',
+                           help="Delete a column. You may comma separate multiple columns." + column_help,
                            metavar="COLUMN,[COLUMN]")
         group.add_argument('-f', '--field',
                            help="R|Compute field."
@@ -259,10 +264,12 @@ class Controller:
                                 "\nEx: --field tld[gTLD]  # would add TLD from probably a hostname, filtered by CUSTOM=gTLD"
                                 "\nEx: --field netname,ip  # would add netname column from any IP column"
                                 "\n    (Note the comma without space behind 'netname'.)"
-                                "\n\nComputable fields: " + "".join("\n* " + t.doc() for t in Types.get_computable_types()) +
+                                "\n\nComputable fields: " + "".join(
+                               "\n* " + t.doc() for t in Types.get_computable_types()) +
                                 "\n\nThis flag May be used multiple times.",
                            action=FieldVisibleAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
-        group.add_argument('-fe', '--field-excluded', help="The same as field but its column will not be added to the output.",
+        group.add_argument('-fe', '--field-excluded',
+                           help="The same as field but its column will not be added to the output.",
                            action=FieldExcludedAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
         group.add_argument('-t', '--type', help="R|Determine column type(s)."
                                                 "\nEx: --type country,,phone"
@@ -288,11 +295,14 @@ class Controller:
                            metavar="[COLUMN, FUNCTION], ..., [group-by-COLUMN]")
 
         group = parser.add_argument_group("Enabling modules")
-        group.add_argument('--whois', help="R|Allowing Whois module: Leave blank for True or put true/on/1 or false/off/0.",
+        group.add_argument('--whois',
+                           help="R|Allowing Whois module: Leave blank for True or put true/on/1 or false/off/0.",
                            action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('--nmap', help="R|Allowing NMAP module: Leave blank for True or put true/on/1 or false/off/0.",
+        group.add_argument('--nmap',
+                           help="R|Allowing NMAP module: Leave blank for True or put true/on/1 or false/off/0.",
                            action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('--dig', help="R|Allowing DNS DIG module: Leave blank for True or put true/on/1 or false/off/0.",
+        group.add_argument('--dig',
+                           help="R|Allowing DNS DIG module: Leave blank for True or put true/on/1 or false/off/0.",
                            action=BlankTrue, nargs="?", metavar="blank/false")
         group.add_argument('--web', help="R|Allowing Web module: Leave blank for True or put true/on/1 or false/off/0."
                                          "\nWhen single value input contains a web page, we could fetch it and add"
@@ -301,9 +311,11 @@ class Controller:
                            action=BlankTrue, nargs="?", metavar="blank/false")
 
         group = parser.add_argument_group("Field computing options")
-        group.add_argument('--disable-external', help="R|Disable external function registered in config.ini to be imported.",
+        group.add_argument('--disable-external',
+                           help="R|Disable external function registered in config.ini to be imported.",
                            action="store_true", default=False)
-        group.add_argument('--json', help="When checking single value, prefer JSON output rather than text.", action="store_true")
+        group.add_argument('--json', help="When checking single value, prefer JSON output rather than text.",
+                           action="store_true")
         group.add_argument('--user-agent', help="Change user agent to be used when scraping a URL")
         group.add_argument('--multiple-hostname-ip', help="Hostname can be resolved into multiple IP addresses."
                                                           " Duplicate row for each.",
@@ -319,8 +331,9 @@ class Controller:
         group.add_argument('--whois-delete', help="Delete convey's global WHOIS cache.", action="store_true")
         group.add_argument('--whois-delete-unknown', help="Delete unknown prefixes from convey's global WHOIS cache.",
                            action="store_true")
-        group.add_argument('--whois-reprocessable-unknown', help="Make unknown lines reprocessable while single file processing,"
-                                                                 " do not leave unknown cells empty.", action="store_true")
+        group.add_argument('--whois-reprocessable-unknown',
+                           help="Make unknown lines reprocessable while single file processing,"
+                                " do not leave unknown cells empty.", action="store_true")
         group.add_argument('--whois-cache', help="Use whois cache.", action=BlankTrue, nargs="?", metavar="blank/false")
 
         group = parser.add_argument_group("Sending options")
@@ -336,10 +349,16 @@ class Controller:
                                              " They will get forwarded to the testing e-mail"
                                              " (and e-mails in Cc will not be sent at all)",
                            action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('--subject', help="E-mail subject used if no template has been created yet."
-                                             " May be in BASE64 if started with \"data:text/plain;base64,\"", metavar="SUBJECT")
-        group.add_argument('--body', help="E-mail body text used if no template has been created yet."
-                                          " May be in BASE64 if started with \"data:text/plain;base64,\"", metavar="TEXT")
+        group.add_argument('--subject',
+                           help="E-mail subject."
+                                " May be in BASE64 if started with \"data:text/plain;base64,\"", metavar="SUBJECT")
+        group.add_argument('--body',
+                           help="E-mail body text."
+                                " May be in BASE64 if started with \"data:text/plain;base64,\"", metavar="TEXT")
+        group.add_argument('--references',
+                           help="E-mail references header (to send message within a thread)."
+                                " If used, Bcc header with the `email_from_name` is added to the e-mail template.",
+                           metavar="MESSAGE_ID")
 
         group = parser.add_argument_group("OTRS")
         csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
@@ -360,7 +379,8 @@ class Controller:
         if args.daemon is not None and control_daemon(args.daemon) == "server":
             # XX :( after a thousand requests, we start to slow down. Memory leak must be somewhere
             is_daemon = True
-            Config.set("daemonize", False)  # do not restart daemon when killed, there must be a reason this daemon was killed
+            Config.set("daemonize",
+                       False)  # do not restart daemon when killed, there must be a reason this daemon was killed
             if Path(socket_file).exists():
                 Path(socket_file).unlink()
 
@@ -380,7 +400,8 @@ class Controller:
             if sys.version_info >= (3, 7):  # XX remove when dropped Python 3.6 support.
                 # In 3.6, logging message from the daemon will not work.
                 console_handler.setStream(sys.stdout)
-            PromptSession.__init__ = lambda _, *ar, **kw: (_ for _ in ()).throw(ConnectionAbortedError('Prompt raised.'))
+            PromptSession.__init__ = lambda _, *ar, **kw: (_ for _ in ()).throw(
+                ConnectionAbortedError('Prompt raised.'))
 
         if not is_daemon and not sys.stdin.isatty():  # piping to the process, no terminal
             try:
@@ -399,7 +420,8 @@ class Controller:
                     return input(ar[1] if len(ar) > 1 else kw["message"] if "message" in kw else "?")
 
                 def safe_prompt(*ar, **kw):
-                    print("This is just an emergency input mode because convey interactivity works bad when piping into.")
+                    print(
+                        "This is just an emergency input mode because convey interactivity works bad when piping into.")
                     PromptSession.prompt = safe_prompt_2
                     return safe_prompt_2(*ar, **kw)
 
@@ -456,9 +478,11 @@ class Controller:
                 if args.output is True:
                     # --output=True means no output will be produced in favour of stdout
                     args.output = None
-                for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview", "user_agent",
-                             "multiple_hostname_ip", "multiple_cidr_ip", "web_timeout", "whois_ttl", "disable_external", "debug",
-                             "testing", "attach_files", "jinja", "subject", "body",
+                for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview",
+                             "user_agent",
+                             "multiple_hostname_ip", "multiple_cidr_ip", "web_timeout", "whois_ttl", "disable_external",
+                             "debug",
+                             "testing", "attach_files", "jinja", "subject", "body", "references",
                              "whois_delete_unknown", "whois_reprocessable_unknown", "whois_cache"]:
                     if getattr(args, flag) is not None:
                         Config.set(flag, getattr(args, flag))
@@ -544,7 +568,8 @@ class Controller:
                             column, fn = params[i:i + 2]
                             fn = getattr(Aggregate, fn, None)
                             if not fn:
-                                logger.error(f"Unknown aggregate function {fn}. Possible functions are: {aggregate_functions_str}")
+                                logger.error(
+                                    f"Unknown aggregate function {fn}. Possible functions are: {aggregate_functions_str}")
                             column = get_column_i(column, "to be aggregated with")
                             l.append([fn, column])
 
@@ -841,8 +866,9 @@ class Controller:
             seen_abroad = display_recipients(True, "  *** Abroad template ***")
 
             if Config.is_testing():
-                info.append(f"\n\n\n*** TESTING MOD - mails will be sent to the address: {Config.get('testing_mail')} ***"
-                            f"\n (For turning off testing mode set `testing = False` in config.ini.)")
+                info.append(
+                    f"\n\n\n*** TESTING MOD - mails will be sent to the address: {Config.get('testing_mail')} ***"
+                    f"\n (For turning off testing mode set `testing = False` in config.ini.)")
             info.append("*" * 50)
             sum_ = st['local'][0] + st['abroad'][0]
             everything_sent = False
@@ -921,7 +947,8 @@ class Controller:
                 if option == "p":
                     with NamedTemporaryFile(mode="w+") as f:
                         try:
-                            print(f"The messages are being temporarily generated to the file (stop by Ctrl+C): {f.name}")
+                            print(
+                                f"The messages are being temporarily generated to the file (stop by Ctrl+C): {f.name}")
                             for attachment in attachments:
                                 print(".", end="")
                                 sys.stdout.flush()
@@ -955,7 +982,8 @@ class Controller:
                     t = Config.get("testing_mail")
                     t = f" – type in or hit Enter to use {t}" if t else ""
                     try:
-                        t = ask(Fore.YELLOW + f"Testing e-mail address to be sent to{t} (Ctrl+C to go back): " + Fore.RESET).strip()
+                        t = ask(
+                            Fore.YELLOW + f"Testing e-mail address to be sent to{t} (Ctrl+C to go back): " + Fore.RESET).strip()
                     except KeyboardInterrupt:
                         continue
                     if not t:
@@ -1052,10 +1080,12 @@ class Controller:
 
         # Build dialog
         choices = [(str(i + 1), v, False) for i, v in enumerate(actions)]
-        ret, values = Dialog(autowidgetsize=True).checklist("What processing settings should be discarded?", choices=choices)
+        ret, values = Dialog(autowidgetsize=True).checklist("What processing settings should be discarded?",
+                                                            choices=choices)
         if ret == "ok":
             # these processing settings should be removed
-            for v in values[::-1]:  # we reverse the list, we need to pop bigger indices first without shifting lower indices
+            for v in values[
+                     ::-1]:  # we reverse the list, we need to pop bigger indices first without shifting lower indices
                 fn, v = discard[int(v) - 1]
                 fn(v)
             if st["aggregate"] and not st["aggregate"][1]:
@@ -1075,7 +1105,8 @@ class Controller:
         menu.add("Rework whole file again", self.wrapper.clear)
         menu.sout()
 
-    def source_new_column(self, target_type, add=None, source_field: Field = None, source_type: Type = None, custom: list = None):
+    def source_new_column(self, target_type, add=None, source_field: Field = None, source_type: Type = None,
+                          custom: list = None):
         """ We know what Field the new column should be of, now determine how we should extend it:
             Summarize what order has the source field and what type the source field should be considered alike.
                 :type source_field: Field
@@ -1119,8 +1150,9 @@ class Controller:
                         raise Cancelled("... cancelled")
                     source_type = getattr(Types, source_type)
                 else:
-                    dialog.msgbox("No known method for making {}. Raise your usecase as an issue at {}.".format(target_type,
-                                                                                                                Config.PROJECT_SITE))
+                    dialog.msgbox(
+                        "No known method for making {}. Raise your usecase as an issue at {}.".format(target_type,
+                                                                                                      Config.PROJECT_SITE))
                     raise Cancelled("... cancelled")
             clear()
 
@@ -1142,7 +1174,8 @@ class Controller:
                                     code, path = dialog.fselect(str(Path.cwd()), title=title,
                                                                 height=max(get_terminal_size()[0] - 20, 10))
                                 except DialogError as e:
-                                    input("Unable launch file dialog. Please post an issue to the Github! Hit any key...")
+                                    input(
+                                        "Unable launch file dialog. Please post an issue to the Github! Hit any key...")
                                     raise Cancelled("... cancelled")
 
                             if code != "ok" or not path:
@@ -1151,7 +1184,8 @@ class Controller:
                             if module:
                                 # inspect the .py file, extract methods and let the user choose one
                                 code, method_name = dialog.menu(f"What method should be used in the file {path}?",
-                                                                choices=[(x, "") for x in dir(module) if not x.startswith("_")])
+                                                                choices=[(x, "") for x in dir(module) if
+                                                                         not x.startswith("_")])
                                 if code == "cancel":
                                     raise Cancelled("... cancelled")
 
@@ -1350,7 +1384,8 @@ class Controller:
                         l.extend(f"--unique {fields[f].name}" for f in items)
                     elif type_ == "aggregate":
                         # XXX does not work well - at least, they are printed out opposite way
-                        l.append(f"--aggregate {items[0]}," + ",".join(f"{fn.__name__},{fields[col].name}" for fn, col in items[1]))
+                        l.append(f"--aggregate {items[0]}," + ",".join(
+                            f"{fn.__name__},{fields[col].name}" for fn, col in items[1]))
                 if l:
                     print(f" Settings cached:\n convey {self.parser.source_file} " + " ".join(l) + "\n")
 
