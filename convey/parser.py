@@ -345,12 +345,17 @@ class Parser:
 
         # get fields and their methods to be computed
         fields = [(f, f.get_methods()) for f in self.fields if f.is_new]  # get new fields only
+        if fields and not any(1 for f in fields if f[0].is_chosen):
+            print("All fields are excluded. Do not know what to display.")
+            return
+
         custom_fields = True
         if not fields:  # transform the field by all known means
             custom_fields = False
             if self.fields[0].type.is_plaintext_derivable:
                 # Ex: when input is quoted_printable, we want plaintext only,
-                # not plaintext re-encoded in base64 by default. (It's easy to specify that we want base64 by `--field base64`)
+                # not plaintext re-encoded in base64 by default.
+                # (It is easy to specify that we want base64 by `--field base64`)
                 types = [Types.plaintext]
             else:  # loop all existing methods
                 types = Types.get_computable_types(ignore_custom=True)
@@ -397,8 +402,8 @@ class Parser:
 
         # prepare json to return (useful in a web service)
         if "csirt-contact" in data and data["csirt-contact"] == "-":
-            data[
-                "csirt-contact"] = ""  # empty value instead of a dash, stored in CsvGuesses-method-("whois", "csirt-contact")
+            # empty value instead of a dash, stored in CsvGuesses-method-("whois", "csirt-contact")
+            data["csirt-contact"] = ""
 
         # output in text, json or file
         if Config.get("output"):
