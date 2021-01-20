@@ -15,6 +15,7 @@ from .config import Config
 re_title = re.compile('<title>([^<]*)</title>')
 logger = logging.getLogger(__name__)
 
+OTRS_VERSION = 6
 
 class MailSender(ABC):
     def __init__(self, parser):
@@ -92,7 +93,7 @@ class MailSender(ABC):
 
         print("\nSent: {}/{} mails.".format(sent_mails, total_count))
         if sent_mails != total_count:
-            print("Couldn't send all abroad mails. (Details in convey.log.)")
+            print("Could not send all abroad mails. (Details in convey.log.)")
 
 
 class MailSenderOtrs(MailSender):
@@ -186,28 +187,24 @@ class MailSenderOtrs(MailSender):
             logger.info("Got response\n" + response)
 
         title = mo.group(1)
-        if b'P\xc5\x99edat - Tiket -  OTRS'.decode("utf-8") in title or 'Forward - Ticket -  OTRS' in title:
-            # XX r with caron make nb-python fail.
-            # XX we are not sure sending successed. Ex: if we do not include "To" recipient, we land on the same page
+        if 'Předat - Tiket - ' in title or 'Forward - Ticket - ' in title:
+            # XX we are not sure sending succeeded. Ex: if we do not include "To" recipient, we land on the same page
             #   but no message will be send because the page will just state recipient is missing.
-            #   However, this is not a priority, this mostly works.
+            #   However, this is not a priority, this mostly works. You can always use SMTP via --references flag.
             return True
 
         elif title == 'Login - OTRS':
             logger.warning("\n\n *** Not logged in or wrong session cookie ***")
-            return False
-
         elif title in ('Fatal Error - Frontend -  OTRS', 'Fatal Error - Rozhraní -  OTRS'):
             logger.warning("\n\n *** Bad CSRF token ***")
-            return False
-
         else:
             logger.warning(" Unrecognized response: " + title)
             logger.error(response)
-            return False
+        return False
 
-    def ask_value(self, value, description=""):
-        sys.stdout.write('Change {} ({})? [s]kip or paste it: '.format(description, value))
+    @staticmethod
+    def ask_value(value, description=""):
+        sys.stdout.write(f'Change {description} ({value})? [s]kip or paste it: ')
         t = input()
         if not t or t.lower() == "s":
             if not value:
@@ -220,18 +217,19 @@ class MailSenderOtrs(MailSender):
         """ Check and update by dialog OTRS credentials """
         force = False
         while True:
-            if (
-                    force or not self.parser.otrs_id or not self.parser.otrs_num or not self.parser.otrs_cookie or not self.parser.otrs_token or not self.parser.attachment_name):
+            if (force
+                    or not self.parser.otrs_id or not self.parser.otrs_num
+                    or not self.parser.otrs_cookie or not self.parser.otrs_token or not self.parser.attachment_name):
                 self.parser.otrs_id = self.ask_value(self.parser.otrs_id, "ticket url-id")
                 self.parser.otrs_num = self.ask_value(self.parser.otrs_num, "ticket long-num")
                 self.parser.otrs_cookie = self.ask_value(self.parser.otrs_cookie, "cookie")
                 self.parser.otrs_token = self.ask_value(self.parser.otrs_token, "token")
                 self.parser.attachment_name = self.ask_value(self.parser.attachment_name, "attachment name")
 
-            sys.stdout.write(
-                "Ticket id = {}, ticket num = {}, cookie = {}, token = {}, attachment_name = {}\nWas that correct? [y]/n ".format(
-                    self.parser.otrs_id, self.parser.otrs_num, self.parser.otrs_cookie, self.parser.otrs_token,
-                    self.parser.attachment_name))
+            sys.stdout.write(f"Ticket id = {self.parser.otrs_id}, ticket num = {self.parser.otrs_num},"
+                             f" cookie = {self.parser.otrs_cookie}, token = {self.parser.otrs_token},"
+                             f" attachment_name = {self.parser.attachment_name}"
+                             f"\nWas that correct? [y]/n ")
             if input().lower() in ("y", ""):
                 return True
             else:
@@ -257,14 +255,18 @@ class MailSenderOtrs(MailSender):
         )
 
         try:  # XX convert "try" to if m := Config.get("signkeyid", "OTRS"):
-            fields += ("SignKeyID", Config.get("signkeyid", "OTRS")),
+            if OTRS_VERSION == 6:
+                s = Config.get("signkeyid", "OTRS").replace("Detached", "Sign") # XXX to replace muzu dat pryc, staci default, rict csirtmasterum
+                fields += ("EmailSecurityOptions", s),
+            else:
+                fields += ("SignKeyID", Config.get("signkeyid", "OTRS")),
         except KeyError:
             pass
 
         if e.cc():
             fields += ("Cc", assure_str(e.cc())),
 
-        if e.bcc():  # XX not sure if working
+        if e.bcc():
             fields += ("Bcc", assure_str(e.bcc())),
 
         attachment_contents = ""
@@ -275,7 +277,12 @@ class MailSenderOtrs(MailSender):
         else:
             files = ()
 
-        cookies = (('Cookie', 'Session=%s' % self.parser.otrs_cookie),)
+        # OTRS3 Session
+        # OTRS6 OTRSAgentInterface
+        if OTRS_VERSION == 6:
+            cookies = (('Cookie', f'OTRSAgentInterface={self.parser.otrs_cookie}'),)
+        else:
+            cookies = (('Cookie', 'Session=%s' % self.parser.otrs_cookie),)
 
         if Config.is_testing():
             print(" **** Testing info:")

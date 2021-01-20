@@ -353,7 +353,7 @@ class Controller:
                            help="E-mail subject."
                                 " May be in BASE64 if started with \"data:text/plain;base64,\"", metavar="SUBJECT")
         group.add_argument('--body',
-                           help="E-mail body text."
+                           help="E-mail body text (or HTML)."
                                 " May be in BASE64 if started with \"data:text/plain;base64,\"", metavar="TEXT")
         group.add_argument('--references',
                            help="E-mail references header (to send message within a thread)."
@@ -361,8 +361,8 @@ class Controller:
                            metavar="MESSAGE_ID")
 
         group = parser.add_argument_group("OTRS")
-        csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRS cookie"),
-                     ("otrs_token", "OTRS token")]
+        csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRSAgentInterface cookie"),
+                     ("otrs_token", "OTRS challenge token")]
         for flag in csv_flags:
             group.add_argument('--' + flag[0], help=flag[1])
 
@@ -1058,7 +1058,7 @@ class Controller:
 
         # Build processing settings list
         for type_, items in st.items():
-            if not items and items is not 0:
+            if not items and items != 0:
                 continue
             if type_ == "split":
                 actions.append(f"split by {fields[items]}")
@@ -1371,7 +1371,7 @@ class Controller:
 
                 for type_, items in st.items():
                     # XXX code does not return its custom part
-                    if not items and items is not 0:
+                    if not items and items != 0:
                         continue
                     if type_ == "split":
                         l.append(f"--split {fields[items]}")

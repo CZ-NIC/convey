@@ -1,7 +1,6 @@
 """ Mail management data structure """
 import binascii
 import logging
-import re
 from base64 import b64decode
 from pathlib import Path
 
@@ -11,7 +10,15 @@ from jinja2 import Template, exceptions
 
 from .config import Config, get_path, edit
 
+PLAIN_DELIMITER = "\n"
+
+HTML_DELIMITER = "<br>\n"
+
 logger = logging.getLogger(__name__)
+
+
+def is_html(s):
+    return any(x in s for x in ("<br", "<p"))
 
 
 class MailDraft:
@@ -84,10 +91,22 @@ class MailDraft:
                 # and `--body` message is considered as a text/html alternative.
                 # XX envelope might have method to delete message, like
                 #  .message(False), .message(""), .message(text, alternative="replace")
+                # We rather join template with the current message.
+                template_message = e.message()
+                message = self._decode_text(body).replace(r"\n", PLAIN_DELIMITER)
+                if template_message:
+                    # add / remove HTML from the template message
+                    if is_html(template_message) and not is_html(message):
+                        template_message = template_message.replace("<br>", PLAIN_DELIMITER)
+                    elif not is_html(template_message) and is_html(message):
+                        template_message = template_message.replace(PLAIN_DELIMITER, HTML_DELIMITER)
+                    delimiter = HTML_DELIMITER if is_html(message) else PLAIN_DELIMITER
+                    message = template_message + delimiter * 2 + message
+
                 e.message("", alternative="auto") \
                     .message("", alternative="plain") \
                     .message("", alternative="html") \
-                    .message(self._decode_text(body).replace(r"\n", "\n"))
+                    .message(message)
             if references:
                 if not (references.startswith("<") and references.endswith(">")):
                     references = f"<{references}>"
@@ -96,19 +115,24 @@ class MailDraft:
 
             # When a HTML is piped through --body flag, Content-Transfer-Encoding might change to ex: quoted-printable.
             # However when editing, we do not want to see quoted-printable garbage but plain text.
+            # XX test should be added
+            headers = [f"{k}: {v}" for k, v in e.as_message().items() if k.lower() != "content-transfer-encoding"]
+            self.mail_file.write_text(PLAIN_DELIMITER.join((*headers, "", e.message())))
+
+            # XDEPRECATED
             # So, we
             # 1) fetch the headers (except Content-Transfer-Encoding)
             # 2) insert blank line (between headers and the body)
             # 3) fetch the body while stripping out all <br> tags at the line ends
             #       (they should be re-inserted by envelope automatically and the readability increases)
             # XX test should be added
-            no_br_end = re.compile("<br\s?/?>$")
-            eml_text = [line for line in str(e)[:str(e).index("\n\n")].splitlines()
-                        if not line.startswith("Content-Transfer-Encoding")] +\
-                       [""] +\
-                       [no_br_end.sub("", line) for line in e.message().splitlines()]
-
-            self.mail_file.write_text("\n".join(eml_text))
+            # no_br_end = re.compile("<br\s?/?>$")
+            # eml_text = [line for line in str(e)[:str(e).index("\n\n")].splitlines()
+            #             if not line.startswith("Content-Transfer-Encoding")] +\
+            #            [""] +\
+            #            [no_br_end.sub("", line) for line in e.message().splitlines()]
+            #
+            # self.mail_file.write_text(PLAIN_DELIMITER.join(eml_text))
 
         self.file_assured = True
         return just_created

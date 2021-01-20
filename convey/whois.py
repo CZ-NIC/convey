@@ -388,7 +388,7 @@ class Whois:
 
     def _exec(self, server, server_url=None):
         """ Query whois server """
-        if server is "general":
+        if server == "general":
             cmd = ["whois", "--verbose", self.ip]
         else:
             if not server_url:

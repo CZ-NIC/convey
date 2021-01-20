@@ -4,7 +4,8 @@
 * CHANGED:
     * --delete-whois-cache renamed to --whois-delete   
     * template function `{{ print_attachment() }}` renamed to `{{ attachment() }}`
-    * aggregated results will provide valid CSV, not fancy but hardly parsable table 
+    * aggregated results will provide valid CSV, not fancy but hardly parsable table
+    * sending works with SMTP or OTRS6 (OTRS3 is deprecated now)
 * webservice
     * uwsgi file (HTTPS support)
     * clear=web parameter
@@ -36,6 +37,7 @@
     * --whois-cache
     * --web-timeout
     * --subject, --body (even with BASE64), --references
+      * when using --body flag, combine the text with the template 
 * internal
     * OTRS no more appends ".txt" to the attachment name
     * web scraping bug of suspicious form-tag without name attribute present
