@@ -256,8 +256,7 @@ class MailSenderOtrs(MailSender):
 
         try:  # XX convert "try" to if m := Config.get("signkeyid", "OTRS"):
             if OTRS_VERSION == 6:
-                s = Config.get("signkeyid", "OTRS").replace("Detached", "Sign") # XXX to replace muzu dat pryc, staci default, rict csirtmasterum
-                fields += ("EmailSecurityOptions", s),
+                fields += ("EmailSecurityOptions", Config.get("signkeyid", "OTRS")),
             else:
                 fields += ("SignKeyID", Config.get("signkeyid", "OTRS")),
         except KeyError:

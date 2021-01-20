@@ -203,9 +203,9 @@ class Processor:
             # after processing changes
             if settings["aggregate"]:  # write aggregation results now because we skipped it in process_line when aggregating
                 for location, data in self.parser.aggregation.items():
-                    if location is 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
+                    if location == 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
                         t = parser.external_stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
-                    elif location is 1:  # this is a sign we output csv data to stdout
+                    elif location == 1:  # this is a sign we output csv data to stdout
                         t = io.StringIO()
                         self.descriptors[1] = t, None  # put the aggregated data to the place we would attend them
                     else:
@@ -416,10 +416,10 @@ class Processor:
                 self.descriptors_count -= 1
             # print("Opening", location)
 
-            if location is 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
+            if location == 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
                 t = w = parser.external_stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
             else:
-                if location is 1:  # this is a sign we output csv data to stdout
+                if location == 1:  # this is a sign we output csv data to stdout
                     t = io.StringIO()
                 else:
                     t = open(Path(Config.get_cache_dir(), location), method)

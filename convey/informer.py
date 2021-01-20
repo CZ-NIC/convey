@@ -63,7 +63,7 @@ class Informer:
                                              for include, f, val in se["filter"]]))
         if se["unique"]:
             l.append("Unique col: " + ", ".join([p.fields[f].name for f in se["unique"]]))
-        if se["split"] or se["split"] is 0:
+        if se["split"] or se["split"] == 0:
             l.append("Split by: {}".format(p.fields[se["split"]]))
         if se["aggregate"]:
             # settings["aggregate"] = column to be grouped, [(sum, column to be summed)]
@@ -403,7 +403,7 @@ class Informer:
             if self.stats_stop._flag is True:
                 return
             # do not refresh when stuck (ex: pdb debugging) (as a side effect, clock does not run on the screen)
-            if self.stats_stop._flag is not 1 and last_count != parser.line_count:
+            if self.stats_stop._flag != 1 and last_count != parser.line_count:
                 v = (parser.line_count - last_count) / speed  # current velocity (lines / second) since last time
                 if tick < 20:  # in the beginning, refresh quickly; great look & lower performance
                     speed = 0.2

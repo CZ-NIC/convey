@@ -63,6 +63,7 @@
     * fix: empty `convey.log` is no more created in the directory when writing `python3 -m [LETTER].[TAB]` into terminal
     * unmaintained library validate_email replaced by py3-validate-email
     * working with current prompt_toolkit and ipython
+    * resolve Python3.8 warnings
 
 ## 1.3.1 (2020-01-31)
 * thread processing
