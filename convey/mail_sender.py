@@ -240,6 +240,12 @@ class MailSenderOtrs(MailSender):
         def assure_str(c):
             return c if isinstance(c, str) else ";".join(c)
 
+        # body must be HTML because OTRS treats it as such
+        # (we might do a convey option to determine whether OTRS treats a text as plain or html)
+        message = e.message()
+        if not any(x for x in ("<br", "<b>", "<i>", "<p", "<img") if x in message):
+            message = e.message().replace("\n", "<br>\n")
+
         fields = (
             ("Action", "AgentTicketForward"),
             ("Subaction", "SendEmail"),
@@ -248,7 +254,7 @@ class MailSenderOtrs(MailSender):
             ("From", assure_str(e.from_())),
             ("To", assure_str(e.to())),  # mails can be delimited by comma or semicolon
             ("Subject", e.subject()),
-            ("Body", e.message()),
+            ("Body", message),
             ("ArticleTypeID", "1"),  # mail-external
             ("ComposeStateID", "4"),  # open
             ("ChallengeToken", self.parser.otrs_token),

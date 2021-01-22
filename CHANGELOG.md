@@ -123,7 +123,7 @@
     - tests
 * sending: huge improvement of the interface
     - SMTP sending uses the envelope library
-    - jinja templates, including helper instruments: print_attachment, amount, row, joined, first_row     
+    - jinja templates, including helper instruments: print_attachment, amount, row, joined, first_row
 
 ## 1.2 (2019-11-13)
 * web service

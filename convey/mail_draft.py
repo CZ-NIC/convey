@@ -171,22 +171,22 @@ class MailDraft:
             if attachment.path and attachment.attach and Config.get('attach_files', 'SMTP', get=bool):
                 e.attach(attachment.path, "text/csv", attachment.parser.attachment_name)
 
-            if Config.is_testing():
-                e.recipients(clear=True)
-                intended_to = attachment.mail
-                e.to(Config.get('testing_mail'))
-                # XX envelope might have method to delete message, like
-                #  .message(False), .message(""), .message(text, alternative="replace")
-                m = e.message()
-                e.message("", alternative="auto") \
-                    .message("", alternative="plain") \
-                    .message("", alternative="html") \
-                    .message(f"This is testing mail only from Convey."
-                             f" Don't be afraid, it was not delivered to: {intended_to}\r\n{m}")
-            else:
-                e.to(attachment.mail)
-                if attachment.cc:
-                    e.cc(attachment.cc)
+            e.to(attachment.mail)
+            if attachment.cc:
+                e.cc(attachment.cc)
+
+        if Config.is_testing():
+            e.recipients(clear=True)
+            intended_to = attachment.mail
+            e.to(Config.get('testing_mail'))
+            # XX envelope might have method to delete message, like
+            #  .message(False), .message(""), .message(text, alternative="replace")
+            m = e.message()
+            e.message("", alternative="auto") \
+                .message("", alternative="plain") \
+                .message("", alternative="html") \
+                .message(f"This is testing mail only from Convey."
+                         f" Don't be afraid, it was not delivered to: {intended_to}\r\n{m}")
 
         return e
 
