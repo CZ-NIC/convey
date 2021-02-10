@@ -177,7 +177,7 @@ class MailDraft:
 
         if Config.is_testing():
             e.recipients(clear=True)
-            intended_to = attachment.mail
+            intended_to = attachment.mail if attachment else None
             e.to(Config.get('testing_mail'))
             # XX envelope might have method to delete message, like
             #  .message(False), .message(""), .message(text, alternative="replace")

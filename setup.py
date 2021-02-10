@@ -15,7 +15,7 @@ if p.exists():
 
 setup(
     name='convey',
-    version="1.3.9",
+    version="1.3.10",
     packages=['convey'],
     author='Edvard Rejthar',
     author_email='edvard.rejthar@nic.cz',
