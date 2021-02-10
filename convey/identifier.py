@@ -7,6 +7,7 @@ from copy import copy
 from csv import Sniffer
 from difflib import SequenceMatcher
 from statistics import mean
+from typing import Tuple, List
 
 from .config import Config
 from .decorators import PickBase
@@ -285,7 +286,7 @@ class Identifier:
             possible_cols = [0]
         return list(possible_cols)
 
-    def get_fitting_source(self, target_type: Type, *task):
+    def get_fitting_source(self, target_type: Type, *task) -> Tuple["Field", Type, List]:
         """
         For a new field, we need source column and its field type to compute new field from.
         :rtype: source_field: Field, source_type: Type, custom: List[str]
@@ -297,7 +298,7 @@ class Identifier:
         """
         source_col_i = None
         source_type = None
-        source_col_candidates = ()
+        source_col_candidates: List["Field"] = []
         task = list(task)
 
         if Config.is_debug():
@@ -319,7 +320,6 @@ class Identifier:
             except IndexError:
                 pass
 
-
         # determining source_type
         source_type_candidate = task.pop(0) if len(task) else None
         if source_type_candidate:  # determine SOURCE_TYPE
@@ -328,21 +328,29 @@ class Identifier:
                 # We have to choose the right column - if there are some source_col_candidates it means the column
                 # was not determined exactly, we are just guessing. Get the one of the candidates whose type is nearest
                 # to the demanded source_type.
-                # Usecase: `--field incident-contact,source_ip`, when having only `hostname` between columns.
-                # This will check there is no source_ip amongst columns and corrects `source_type = hostname`
-                # instead of letting it be `source_type = source_ip` which would fail when resolving hostname.
+                # Usecase:
+                #   * command: `--field incident_contact,source_ip`
+                #   * columns: we have only `hostname` (or only `any_ip`) amongst columns.
+                #   * This will check there is no source_ip amongst columns
+                #       and instead of letting it be `source_type = source_ip` which would fail when resolving hostname:
+                #   * either corrects `source_type = hostname` (source_ip -> ip -> hostname)
+                #   * or corrects `source_type = any_ip` (any_ip -> source_ip)
 
                 # XX as of Python3.8, replace the next statement with this
                 # try:
                 #     best_candidate = min((len(path), field.col_i, field.type) for field in source_col_candidates
-                #                             if (path:=graph.dijkstra(field.type, start=source_type) is not False))
+                #                             if (path:=(graph.dijkstra(field.type, start=source_type) \
+                #                             or graph.dijkstra(source_type, start=field.type)) is not False))
                 #     source_type = best_candidate[2]
                 # except ValueError:
                 #     pass
 
+                # XX we might rather have a method: Type("source_ip").get_converted() returning Type("ip")
+                source_type = Type("ip") if source_type in (Type("source_ip"), Type("destination")) else source_type
                 best_candidate = None
                 for field in source_col_candidates:
-                    path = graph.dijkstra(field.type, start=source_type)
+                    path = graph.dijkstra(field.type, start=source_type)\
+                            or graph.dijkstra(source_type, start=field.type)
                     if path:
                         best_candidate = min((len(path), field.col_i, field.type), best_candidate or (float('INF'),))
                         source_type = best_candidate[2]

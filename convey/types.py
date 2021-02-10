@@ -712,7 +712,7 @@ class Types:
     """
 
     @staticmethod
-    def refresh(TEST=0):
+    def refresh():
         """ refreshes methods and import custom methods from files """
         methods.clear()
         methods.update(Types._get_methods())

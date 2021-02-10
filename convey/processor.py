@@ -386,7 +386,8 @@ class Processor:
         except Exception as e:
             if Config.is_debug():
                 traceback.print_exc()
-                # cannot post_mortem from here, I could not quit; looped here again there, catching BdbQuit ignored
+                # cannot post_mortem from here, I could not quit (apart os._exit);
+                # looped here again there, catching BdbQuit ignored
                 Config.get_debugger().set_trace()
             elif isinstance(e, RuntimeWarning):
                 logger.warning(f"Invalid line: {e} on line {line}")
