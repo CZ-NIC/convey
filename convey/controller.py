@@ -700,10 +700,10 @@ class Controller:
             else:
                 menu.add("process  (choose some actions)")
             if self.parser.is_analyzed and self.parser.is_split:
-                if self.parser.is_processable:
-                    menu.add("send (process first)")
+                if self.parser.is_processed:
+                    menu.add("send...", self.send_menu, key="s", default=not self.parser.is_processable)
                 else:
-                    menu.add("send...", self.send_menu, key="s", default=True)
+                    menu.add("send (process first)")
             else:
                 menu.add("send (split first)")
             if self.parser.is_analyzed:

@@ -31,13 +31,14 @@ logger = logging.getLogger(__name__)
 
 
 class Parser:
-    is_split: bool
-    is_analyzed: bool
+    is_split: bool  # has already been split into many files (or we are just about to start file processing)
+    is_analyzed: bool  # has already been analyzed
+    is_processable: bool  # there are known actions we are ready to perform
+    is_processed: bool  # has already been processed
     attachments: List[Attachment]
 
     def __init__(self, source_file: Path = False, stdin=None, types=None, prepare=True):
         self.is_formatted = False
-        self.is_processable = False
         self.is_repeating = False
         self.dialect = None  # CSV dialect
         self.has_header = None  # CSV has header
@@ -486,6 +487,7 @@ class Parser:
         self.is_analyzed = False
         self.is_split = False
         self.is_processable = False
+        self.is_processed = False
         self.attachments.clear()
         self.reset_whois(hard=hard)
 
@@ -549,6 +551,7 @@ class Parser:
         self.time_end = datetime.datetime.now().replace(microsecond=0)
         self.lines_total = self.line_count  # if we guessed the total of lines, fix the guess now
         self.is_analyzed = True
+        self.is_processed = True
         self.informer.sout_info()
         if self.invalid_lines_count:
             self.resolve_invalid()
