@@ -40,7 +40,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # seen due 
 reIpWithPort = re.compile("((\d{1,3}\.){4})(\d+)")
 reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")
 reFqdn = re.compile(
-    "(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)")  # Xtoo long, infinite loop: ^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+){1,63}\.))+){1,255}$
+    "(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-_]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)")  # Xtoo long, infinite loop: ^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+){1,63}\.))+){1,255}$
 reUrl = re.compile('[htps]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
 
 # reBase64 = re.compile('^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$')
@@ -268,19 +268,22 @@ class Checker:
 
     @staticmethod
     def is_timestamp(val):
+        # identify straight textual representation (ex: 2021-02-12), easily parsable by not-fuzzy `dateutil`
         try:
             o = dateutil.parser.parse(val)
             reference = datetime.now()
             if not (o.second == o.minute == o.hour == 0 and o.day == reference.day and o.month == reference.month):
                 # if parser accepts a plain number, ex: 1920,
                 # it thinks this is a year without time (assigns midnight) and without date (assigns current date)
-                # We try to skip such result.
+                # -> 1920-05-05 00:00 (on 5th May) – we try to skip such result.
+                # If does not match, it seems this is a valid timestamp and we hereby return True.
                 return True
         except ValueError:
-            pass
+            pass  # val is a random textual representation or a UNIX time
         except OverflowError:
             return False
 
+        # identify random textual representation of a timestamp or a Unix time
         try:
             o = Checker.parse_timestamp(val)
             if 2100 > o.year > 1900 and not (o.second == o.minute == o.hour == 0 and o.day == o.month == 1):
@@ -295,6 +298,13 @@ class Checker:
 
     @staticmethod
     def parse_timestamp(val):
+        # UNIX time
+        try:
+            return datetime.fromtimestamp(float(val))
+        except ValueError:
+            pass  # val is not a number
+
+        # random textual representation of a timestamp
         try:
             return dateutil.parser.parse(val, fuzzy=True, default=Checker.default_datetime)
         except OverflowError:

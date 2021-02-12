@@ -2,6 +2,7 @@ import logging
 import shlex
 import sys
 from base64 import b64encode
+from datetime import datetime
 from pathlib import Path
 from subprocess import run, PIPE
 from unittest import TestCase, main
@@ -55,6 +56,9 @@ class Convey:
             # colorama put this reset string at the end. I am not able to reproduce it in bash, only in Python piping.
             lines = lines[:-1]
         return lines
+
+
+convey = Convey()
 
 
 class TestFilter(TestCase):
@@ -118,6 +122,26 @@ class TestFields(TestCase):
         self.assertEqual("http://185.33.144.243/main_content/",
                          c("-f url", text="hxxp://185.33.144[.]243/main_content/")[0])
         self.assertEqual("http://80.211.218.7/fb/", c("-f url", text="80.211.218.7/fb/")[0])
+
+    def test_hostname(self):
+        self.assertIn("hostname", convey("--single-detect", text="_spf.google.com"))
+
+    def test_timestamp(self):
+        self.assertIn("timestamp", convey("--single-detect", text="26. 03. 1999"))
+        time = datetime.now()
+        self.assertIn("timestamp", convey("--single-detect", text=str(time)))
+        self.assertIn("timestamp", convey("--single-detect", text=str(int(time.timestamp()))))
+
+        distant_future = datetime.fromisoformat("3000-01-01")  # it is less probable distant dates are dates
+        self.assertIn("timestamp", convey("--single-detect", text=str(distant_future)))
+        self.assertIn("phone", convey("--single-detect", text=str(int(distant_future.timestamp()))))
+        # there is no path to datetype date from a phone
+        self.assertIn("No suitable column found for field 'date'",
+                      convey("-S -f date", text=str(distant_future.timestamp())))
+        # however, is is possible to get a date if specified
+        self.assertIn("3000-01-01", convey("-t timestamp -f date", text=str(int(distant_future.timestamp()))))
+        # works for float numbers too
+        self.assertIn("3000-01-01", convey("-t timestamp -f date", text=str(distant_future.timestamp())))
 
 
 class TestTemplate(TestCase):

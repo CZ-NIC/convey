@@ -64,6 +64,8 @@ class Field:
     def type(self, val):
         self._type = val
         if val:
+            # for all not newly-added fields,
+            # self.possible_types are re-build in identifier.identify_fields
             self.possible_types[val] = 100
 
     def color(self, v, shorten=False, line_chosen=True):

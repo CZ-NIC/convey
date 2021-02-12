@@ -239,7 +239,11 @@ class Identifier:
                 score = type_.check_conformity(samples[i], self.parser.has_header, field)
                 if score:
                     possible_types[type_] = score
-                # print("hits", hits)
+            # Use with Python3.8
+            # possible_types = {type_: score for type_ in Types.get_guessable_types()
+            #                   if (score := type_.check_conformity(samples[i], self.parser.has_header, field))}
+            if field.type:
+                possible_types[field.type] = 100
 
             if possible_types:  # sort by biggest score - biggest probability the column is of this type
                 field.possible_types = {k: v for k, v in sorted(possible_types.items(), key=lambda k: k[1], reverse=True)}

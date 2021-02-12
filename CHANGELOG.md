@@ -20,6 +20,7 @@
     * phone formats not confused with dates
     * ip -> url conversion generates a proper PTR hostname
     * wrong_url protocol case insensitive (accepts "hXXp")
+    * Unix time is reasonably recognized as a timestamp
 * dialog
     * edit default e-mail templates from config submenu
     * delimiter now may contain tab character, input by "\t" or "tab"
