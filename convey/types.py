@@ -215,8 +215,9 @@ class Checker:
             return False
         s = wrong_url_2_url(wrong, make=False)
         s2 = wrong_url_2_url(wrong, make=True)
+        netloc = urlparse(s2).netloc
         # Xm = reUrl.match(s2)
-        if reFqdn.match(s) or reFqdn.match(urlparse(s2).netloc):  # X(m and m.span(0)[1] == len(s2) and "." in s2):
+        if reFqdn.match(s) or reFqdn.match(netloc) or is_ip(netloc):  # X(m and m.span(0)[1] == len(s2) and "." in s2):
             # Xwe impose full match
             # Xstring created from "x"*100 would be submitted for a valid URL
             return True
@@ -350,8 +351,8 @@ class Checker:
 
 
 def wrong_url_2_url(s, make=True):
-    s = s.replace("hxxp", "http", 1).replace("[.]", ".").replace("(.)", ".").replace("[:]", ":")
-    if make and not s.startswith("http"):
+    s = re.sub("^hxxp", 'http', s, flags=re.I).replace("[.]", ".").replace("(.)", ".").replace("[:]", ":")
+    if make and not s.lower().startswith("http"):
         s = "http://" + s
     return s
 

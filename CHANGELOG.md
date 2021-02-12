@@ -18,7 +18,8 @@
     * form_names prints out more information about tags without `name` attribute
     * base64 no more limited to UTF-8, better detection
     * phone formats not confused with dates
-    * ip -> url conversion generates a proper PTR hostname  
+    * ip -> url conversion generates a proper PTR hostname
+    * wrong_url protocol case insensitive (accepts "hXXp")
 * dialog
     * edit default e-mail templates from config submenu
     * delimiter now may contain tab character, input by "\t" or "tab"

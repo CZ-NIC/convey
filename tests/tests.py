@@ -111,6 +111,14 @@ class TestFields(TestCase):
         self.assertIn("unit", c("--single-detect", text="1 kg"))
         self.assertIn("2.6792288807189983 troy_pound", c("-f unit[troy_pound]", text="1 kg"))
 
+    def test_wrong_url(self):
+        c = Convey()
+        self.assertEqual("http://example.com", c("-f url", text="hXXp://example.com")[0])
+        self.assertEqual("https://an.eXAmple.com", c("-f url", text="hxxps://an[.]eXAmple[.]com")[0])
+        self.assertEqual("http://185.33.144.243/main_content/",
+                         c("-f url", text="hxxp://185.33.144[.]243/main_content/")[0])
+        self.assertEqual("http://80.211.218.7/fb/", c("-f url", text="80.211.218.7/fb/")[0])
+
 
 class TestTemplate(TestCase):
     def test_dynamic_template(self):
