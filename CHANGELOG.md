@@ -42,6 +42,8 @@
     * --subject, --body (even with BASE64), --references
       * when using --body flag, combine the text with the template
     * selecting column by negative numbers to match the last added column (`--field tld,-1`)
+    * while splitting --output left blank prints out the file contents to the STDOUT after the processing
+    * fix: possible to split by a mere type (exact column ID/name not needed)
 * internal
     * OTRS no more appends ".txt" to the attachment name
     * web scraping bug of suspicious form-tag without name attribute present

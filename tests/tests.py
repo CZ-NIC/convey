@@ -110,6 +110,10 @@ class TestColumns(TestAbstract):
         self.assertEqual('foo,green,first.example.com,com,comA', c("-f tld,-1 -f code,-1,'x+=\"A\"'")[1])
         self.assertEqual('foo,green,first.example.com,com,first.example.comA', c("-f tld,-1 -f code,-2,'x+=\"A\"'")[1])
 
+    def test_split(self):
+        lines = Convey()("--split email", "one@example.com\nsecond@example.com")
+        [self.assertIn(s, lines) for s in
+         ('* Saved to second@example.com', '"second@example.com"', '* Saved to one@example.com', '"one@example.com"')]
 
 
 class TestFields(TestCase):
@@ -161,8 +165,8 @@ class TestFields(TestCase):
         self.assertIn("timestamp", convey("--single-detect", text=str(int(time.timestamp()))))
 
         # as of Python3.7 use:
-        #distant_future = datetime.fromisoformat("3000-01-01")  # it is less probable distant dates are dates
-        distant_future = datetime.fromtimestamp(32503676400.0)
+        # distant_future = datetime.fromisoformat("3000-01-01")  # it is less probable distant dates are dates
+        distant_future = datetime.fromtimestamp(32503680000.0)
 
         self.assertIn("timestamp", convey("--single-detect", text=str(distant_future)))
         self.assertIn("phone", convey("--single-detect", text=str(int(distant_future.timestamp()))))
@@ -180,7 +184,7 @@ class TestFields(TestCase):
 
 class TestTemplate(TestCase):
     def test_dynamic_template(self):
-        convey = Convey("filter.csv")
+        convey = Convey("--output", "False", filename="filter.csv")
         cmd = """--field code,3,'x="example@example.com" if "example.com" in x else x+"@example.com"'""" \
               " --split code --send-test {mail} 'email_template.eml' --headless"
         lines = convey(cmd.format(mail="example@example.com"))

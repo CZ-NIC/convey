@@ -96,6 +96,8 @@ class Parser:
         # When accepting input from stdin and not saving the output into a file
         #   or when setting this to True,
         #   the output will be here.
+        # Config.get("output") - the file we should save to
+        # Config.get("stdout") - stdout used
         self.stdout = Config.get("stdout")
         self.stdout_sample = None
         self.target_file = None

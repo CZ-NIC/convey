@@ -244,6 +244,18 @@ class Processor:
             self.parser.attachments.extend(Attachment(f) for f in parser.files_created
                                            if f not in existing  # not existing yet
                                            and f not in (Config.INVALID_NAME, Config.UNKNOWN_NAME, Config.QUEUED_NAME))
+
+            if self.parser.is_split and self.parser.stdout is True:
+                # Even though the --output True flag was on, nothing was printed out
+                # as the contents were saved to the files while being split.
+                # Print the files to the screen at least ex post.
+                # XX --output [file] does nothing while splitting. In parser.prepare_target_file, we set
+                #   self.is_split = True
+                #   self.target_file = None
+                # We may (a) print out a warning when setting target_file to None if Config.get("output") specified,
+                # (b) set the target_file nevertheless and join the contents from split files here.
+                [[print(x) for x in (f"* Saved to {a.path.name}", "", a.path.read_text())]
+                 for a in self.parser.attachments]
         inf.write_statistics()
 
     def _close_descriptors(self):

@@ -471,7 +471,8 @@ class Controller:
                     quit()
                 Config.set("stdout", args.output is True or None)
                 if args.output is True:
-                    # --output=True means no output will be produced in favour of stdout
+                    # --output=True → no output file in favour of stdout (Config.get("stdout") -> parser.stdout set)
+                    # --output=FILE → an output file generated (Config.get("output") -> parser.target_file set)
                     args.output = None
                 for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview",
                              "user_agent",
