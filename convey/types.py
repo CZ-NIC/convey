@@ -268,10 +268,21 @@ class Checker:
 
     @staticmethod
     def is_timestamp(val):
+        reference = datetime.now()
+
+        # identify UNIX time
+        try:
+            o = datetime.fromtimestamp(float(val))
+        except ValueError:
+            pass  # val is not a number, try different methods
+        else:
+            # consider only nowadays timestamp a timestamp
+            # prevent "12345" to be considered as a timestamp from the beginning of the Unix epoch (1970)
+            return reference.year - 5 < o.year < reference.year + 1
+
         # identify straight textual representation (ex: 2021-02-12), easily parsable by not-fuzzy `dateutil`
         try:
             o = dateutil.parser.parse(val)
-            reference = datetime.now()
             if not (o.second == o.minute == o.hour == 0 and o.day == reference.day and o.month == reference.month):
                 # if parser accepts a plain number, ex: 1920,
                 # it thinks this is a year without time (assigns midnight) and without date (assigns current date)
@@ -283,7 +294,7 @@ class Checker:
         except OverflowError:
             return False
 
-        # identify random textual representation of a timestamp or a Unix time
+        # identify random textual representation of a timestamp
         try:
             o = Checker.parse_timestamp(val)
             if 2100 > o.year > 1900 and not (o.second == o.minute == o.hour == 0 and o.day == o.month == 1):

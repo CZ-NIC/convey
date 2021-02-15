@@ -143,6 +143,9 @@ class TestFields(TestCase):
         # works for float numbers too
         self.assertIn("3000-01-01", convey("-t timestamp -f date", text=str(distant_future.timestamp())))
 
+        # short number is not considered a timestamp from the beginning of the Unix epoch (1970)
+        self.assertEqual([], convey("--single-detect", text="12345"))
+
 
 class TestTemplate(TestCase):
     def test_dynamic_template(self):

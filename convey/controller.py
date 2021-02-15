@@ -198,12 +198,6 @@ class Controller:
         group.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
                            action=BlankTrue, nargs="?", metavar="blank/false")
 
-        parser.add_argument('--csirt-incident', action="store_true",
-                            help="Macro that lets you split CSV by fetched incident-contact (whois abuse mail for local country"
-                                 " or csirt contact for foreign countries) and send everything by OTRS."
-                                 " You set local countries in config.ini, currently set to"
-                                 f" '{Config.get('local_country', 'FIELDS')}'")
-
         group = parser.add_argument_group("Environment")
         group.add_argument('--config', help="R|Open a config file and exit."
                                             "\n File: config (default)/uwsgi/template/template_abroad"
@@ -625,14 +619,6 @@ class Controller:
                     # However, this is such a small change, we will not turning parser.is_processable on.
                     self.parser.settings["header"] = args.header_output
 
-                # start csirt-incident macro XX deprecated
-                if args.csirt_incident and not self.parser.is_analyzed:
-                    self.parser.settings["split"] = len(self.parser.fields)
-                    self.source_new_column(Types.incident_contact, add=False)
-                    self.parser.is_processable = True
-                    self.process()
-                    self.parser.is_processable = False
-
                 if self.parser.is_processable and Config.get("yes"):
                     self.process()
 
@@ -806,13 +792,7 @@ class Controller:
 
     def send_menu(self, method="smtp", test_attachment=None, send_now=False):
         # choose method SMTP/OTRS
-        if self.args.csirt_incident:
-            if Config.get("otrs_enabled", "OTRS"):
-                method = "otrs"
-            else:
-                print("You are using csirt-incident macro but otrs_enabled key is set to False in config.ini. Exiting.")
-                quit()
-        elif Config.get("otrs_enabled", "OTRS") and self.args.otrs_id:
+        if Config.get("otrs_enabled", "OTRS") and self.args.otrs_id:
             method = "otrs"
         elif Config.get("otrs_enabled", "OTRS") and not Config.get("yes"):
             menu = Menu(title="What sending method do we want to use?", callbacks=False, fullscreen=True)

@@ -6,6 +6,7 @@
     * template function `{{ print_attachment() }}` renamed to `{{ attachment() }}`
     * aggregated results will provide valid CSV, not fancy but hardly parsable table
     * sending works with SMTP or OTRS6 (OTRS3 is deprecated now)
+    * removed --csirt-incident macro (easily replaced by other CLI flags)
 * webservice
     * uwsgi file (HTTPS support)
     * clear=web parameter
