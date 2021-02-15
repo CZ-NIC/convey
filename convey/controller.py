@@ -157,7 +157,8 @@ class Controller:
             Config.set("disable_external", True)
         Types.refresh()  # load types so that we can print out computable types in the help text
         epilog = "To launch a web service see README.md."
-        column_help = "COLUMN is ID of the column (1, 2, 3...), the exact column name, field type name or its usual name."
+        column_help = "COLUMN is ID of the column (1, 2, 3...), position from the right (-1, ...)," \
+                      " the exact column name, field type name or its usual name."
         parser = argparse.ArgumentParser(description="Data conversion swiss knife", formatter_class=SmartFormatter,
                                          epilog=epilog)
 

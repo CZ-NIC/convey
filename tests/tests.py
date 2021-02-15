@@ -5,6 +5,7 @@ from base64 import b64encode
 from datetime import datetime
 from pathlib import Path
 from subprocess import run, PIPE
+from typing import Union, List
 from unittest import TestCase, main
 
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
@@ -61,6 +62,15 @@ class Convey:
 convey = Convey()
 
 
+class TestAbstract(TestCase):
+    def check(self, check: Union[List, str], cmd: str = "", text=None, filename=None, debug=None):
+        o = Convey(filename=filename, text=text, debug=debug)(cmd)
+        if isinstance(check, list):
+            self.assertEqual(check, o)
+        else:
+            self.assertEqual(check, o[0])
+
+
 class TestFilter(TestCase):
     def test_filter(self):
         convey = Convey("filter.csv")
@@ -82,6 +92,24 @@ class TestDialect(TestCase):
         self.assertIn("foo|red|second.example.com", convey("--delimiter-output '|'"))
         self.assertIn("foo|red|second.example.com", convey("--delimiter-output '|' --header-output false"))
         self.assertNotIn("foo|red|second.example.com", convey("--delimiter-output '|' --header-output false --header"))
+
+
+class TestColumns(TestAbstract):
+    def test_column_selection(self):
+        """ Allows specify index (even negative) """
+
+        self.check("com", "-f tld,-1", "one.com")
+        self.check('"one.com","com"', "-f tld,-1 -C", "one.com")
+        self.check("com", "-f tld,1", "one.com")
+        self.check("Column ID 2 does not exist. We have these so far: one.com", "-f tld,2", "one.com")
+        self.check('two.cz,one.com,com', "-f tld,2 -C", "two.cz,one.com")
+
+        c = Convey(filename="filter.csv")
+        self.assertEqual('foo,green,first.example.com,com', c("-f tld,-1")[1])
+        self.assertEqual('foo,green,first.example.com,com', c("-f tld,3")[1])
+        self.assertEqual('foo,green,first.example.com,com,comA', c("-f tld,-1 -f code,-1,'x+=\"A\"'")[1])
+        self.assertEqual('foo,green,first.example.com,com,first.example.comA', c("-f tld,-1 -f code,-2,'x+=\"A\"'")[1])
+
 
 
 class TestFields(TestCase):
@@ -132,7 +160,10 @@ class TestFields(TestCase):
         self.assertIn("timestamp", convey("--single-detect", text=str(time)))
         self.assertIn("timestamp", convey("--single-detect", text=str(int(time.timestamp()))))
 
-        distant_future = datetime.fromisoformat("3000-01-01")  # it is less probable distant dates are dates
+        # as of Python3.7 use:
+        #distant_future = datetime.fromisoformat("3000-01-01")  # it is less probable distant dates are dates
+        distant_future = datetime.fromtimestamp(32503676400.0)
+
         self.assertIn("timestamp", convey("--single-detect", text=str(distant_future)))
         self.assertIn("phone", convey("--single-detect", text=str(int(distant_future.timestamp()))))
         # there is no path to datetype date from a phone

@@ -2,9 +2,8 @@ This is the output of the `--help` command.
 ```
 usage: convey [-h] [--file] [-i] [-o [blank/FILENAME]] [-S] [--single-detect]
               [-C] [--debug [blank/false]] [-v] [-q] [-y] [-H]
-              [--compute-preview [blank/false]] [--csirt-incident]
-              [--config [FILE [MODE ...]]] [--show-uml [SHOW_UML]]
-              [--get-autocompletion] [--version]
+              [--compute-preview [blank/false]] [--config [FILE [MODE ...]]]
+              [--show-uml [SHOW_UML]] [--get-autocompletion] [--version]
               [--threads [blank/false/auto/INT]] [-F] [-R] [--server]
               [--daemon [start/restart/stop/status/server]]
               [--delimiter DELIMITER] [--quote-char QUOTE_CHAR] [--header]
@@ -35,11 +34,6 @@ Data conversion swiss knife
 
 optional arguments:
   -h, --help            show this help message and exit
-  --csirt-incident      Macro that lets you split CSV by fetched incident-
-                        contact (whois abuse mail for local country or csirt
-                        contact for foreign countries) and send everything by
-                        OTRS. You set local countries in config.ini, currently
-                        set to 'cz'
   --server              Launches simple web server
   --daemon [start/restart/stop/status/server]
                         Run a UNIX socket daemon to speed up single query requests.
@@ -122,12 +116,13 @@ CSV dialect:
 Actions:
   -d COLUMN,[COLUMN], --delete COLUMN,[COLUMN]
                         Delete a column. You may comma separate multiple
-                        columns.COLUMN is ID of the column (1, 2, 3...), the
-                        exact column name, field type name or its usual name.
+                        columns.COLUMN is ID of the column (1, 2, 3...),
+                        position from the right (-1, ...), the exact column
+                        name, field type name or its usual name.
   -f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM], --field FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]
                         Compute field.
                         * FIELD is a field type (see below) that may be appended with a [CUSTOM] in square brackets.
-                        * COLUMN is ID of the column (1, 2, 3...), the exact column name, field type name or its usual name.
+                        * COLUMN is ID of the column (1, 2, 3...), position from the right (-1, ...), the exact column name, field type name or its usual name.
                         * SOURCE_TYPE is either field type or usual field type. That way, you may specify processing method.
                         * CUSTOM is any string dependent on the new FIELD type (if not provided, will be asked it for).
                         Ex: --field tld[gTLD]  # would add TLD from probably a hostname, filtered by CUSTOM=gTLD
@@ -268,8 +263,8 @@ Sending options:
                         e-mails in Cc will not be sent at all)
   --subject SUBJECT     E-mail subject. May be in BASE64 if started with
                         "data:text/plain;base64,"
-  --body TEXT           E-mail body text. May be in BASE64 if started with
-                        "data:text/plain;base64,"
+  --body TEXT           E-mail body text (or HTML). May be in BASE64 if
+                        started with "data:text/plain;base64,"
   --references MESSAGE_ID
                         E-mail references header (to send message within a
                         thread). If used, Bcc header with the

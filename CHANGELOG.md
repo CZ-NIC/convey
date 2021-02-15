@@ -40,7 +40,8 @@
     * --whois-cache
     * --web-timeout
     * --subject, --body (even with BASE64), --references
-      * when using --body flag, combine the text with the template 
+      * when using --body flag, combine the text with the template
+    * selecting column by negative numbers to match the last added column (`--field tld,-1`)
 * internal
     * OTRS no more appends ".txt" to the attachment name
     * web scraping bug of suspicious form-tag without name attribute present

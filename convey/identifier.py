@@ -271,7 +271,7 @@ class Identifier:
             return Types.plaintext
         return fitting_type
 
-    def get_fitting_source_i(self, target_type, try_hard=False):
+    def get_fitting_source_i(self, target_type: Type, try_hard=False):
         """ Get list of source_i that may be of such a field type that new_field would be computed effectively.
             Note there is no fitting column for TypeGroup.custom, if you try_hard, you receive first column as a plaintext.
 
@@ -424,15 +424,17 @@ class Identifier:
     def get_column_i(self, column, check=False):
         """
         Useful for parsing user input COLUMN from the CLI args.
-        :type column: object Either column ID (ex "1" points to column index 0) or an exact column name or the field
+        :type column: object Either column ID (ex "1" points to column index 0), position from the right (-1, ...),
+                        or an exact column name or the field
         :type check: If not False and not found, error is raised and quit. If str, this string will be included in the error text.
         :rtype: int Either column_i or None if not found.
         """
         source_col_i = None
         if hasattr(column, "col_i"):
             return column.col_i
-        if column.isdigit():  # number of column
-            source_col_i = int(column) - 1
+        if re.match(r"-?\d+$", column):  # number of column
+            i = int(column)
+            source_col_i = i - 1 if i > 0 else i  # ID=1 -> col_i=0 (first column), ID=-1 -> col_i=-1 (last added)
         elif column in self.parser.first_line_fields:  # exact column name
             source_col_i = self.parser.first_line_fields.index(column)
         else:
