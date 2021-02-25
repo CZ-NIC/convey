@@ -26,7 +26,7 @@ Python3.6+ required.
   + [Usage 3 – Web service](#usage-3--web-service)
 * [Installation and first run](#installation-and-first-run)
   + [Prerequisities](#prerequisities)
-  + [Launch as a package:](#launch-as-a-package-)
+  + [Launch as a package](#launch-as-a-package)
   + [OR launch from a directory](#or-launch-from-a-directory)
   + [Bash completion](#bash-completion)
   + [Customisation](#customisation)

@@ -134,8 +134,11 @@ class Contacts:
             input()
             return {}
         else:
-            with open(file, 'r') as csvfile:
-                reader = csv.reader(csvfile)
+            with open(file, 'r') as f:
+                reader = csv.reader(f)
                 next(reader)  # skip header row
-                rows = {rows[0]: rows[1] for rows in reader}
+                try:
+                    rows = {rows[0]: rows[1] for rows in reader}
+                except IndexError:
+                    raise IndexError(f"Error while loading file {file}")
                 return rows

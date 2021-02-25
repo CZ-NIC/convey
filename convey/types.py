@@ -215,7 +215,11 @@ class Checker:
             return False
         s = wrong_url_2_url(wrong, make=False)
         s2 = wrong_url_2_url(wrong, make=True)
-        netloc = urlparse(s2).netloc
+        try:
+            netloc = urlparse(s2).netloc
+        except ValueError:
+            # ex: s2='http://[07/Feb/2021:00:32:43 -0500] "GET /wp-json/wp/v2/posts HTTP/1.1" 200 1912'
+            return False
         # Xm = reUrl.match(s2)
         if reFqdn.match(s) or reFqdn.match(netloc) or is_ip(netloc):  # X(m and m.span(0)[1] == len(s2) and "." in s2):
             # Xwe impose full match
