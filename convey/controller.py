@@ -985,7 +985,7 @@ class Controller:
                 elif option == "r":
                     # choose recipient list
                     choices = [(o.mail,
-                                o.get_draft_name() + ("" if validate_email(o.mail, check_mx=False) else " (invalid)"),
+                                o.get_draft_name() + ("" if validate_email(o.mail, check_dns=False, check_smtp=False) else " (invalid)"),
                                 not o.sent)
                                for o in attachments]
                     code, tags = Dialog(autowidgetsize=True).checklist("Toggle e-mails to be send", choices=choices)
@@ -1375,9 +1375,7 @@ class Controller:
         exit(0)
 
     def get_autocompletion(self, parser):
-        actions = []
-        for action in parser._actions:
-            actions.extend(action.option_strings)
+        actions = [x for action in parser._actions for x in action.option_strings]
 
         a = ["#!/usr/bin/env bash",
              "# bash completion for convey",

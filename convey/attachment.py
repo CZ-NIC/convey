@@ -22,7 +22,7 @@ class Attachment:
 
         st = self.parser.stats
 
-        if validate_email(self.mail, check_mx=False):
+        if validate_email(self.mail, check_dns=False, check_smtp=False):
             st[self.get_draft_name()][int(bool(self.sent))] += 1
         else:
             st["non_deliverable"] += 1

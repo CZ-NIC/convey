@@ -883,7 +883,7 @@ class Types:
                   lambda x: reAnyIp.search(x) and not is_ip(x))
     hostname = Type("hostname", TypeGroup.general, "2nd or 3rd domain name", ["fqdn", "hostname", "domain"],
                     reFqdn.match)
-    email = Type("email", TypeGroup.general, "E-mail address", ["mail"], lambda e: validate_email(e, check_mx=False))
+    email = Type("email", TypeGroup.general, "E-mail address", ["mail"], lambda e: validate_email(e, check_dns=False, check_smtp=False))
     url = Type("url", TypeGroup.general, "URL starting with http/https", ["url", "uri", "location"],
                lambda s: reUrl.match(s) and "[.]" not in s)  # input "example[.]com" would be admitted as a valid URL)
     asn = Type("asn", TypeGroup.whois, "Autonomous system number", ["as", "asn", "asnumber"],

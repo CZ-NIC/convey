@@ -4,14 +4,14 @@ jinja2
 colorama
 pint
 chardet
-envelope>=1.5
+envelope>=1.5.3
 python-dateutil
 requests
 netaddr
 jsonpickle>1.4
 ipdb
 pythondialog
-py3-validate-email
+py3-validate-email>=1.0.0
 tabulate
 appdirs
 humanize

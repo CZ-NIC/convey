@@ -56,7 +56,7 @@ class MailSender(ABC):
                 continue
 
             for address in e.to():
-                if not validate_email(address, check_mx=False):
+                if not validate_email(address, check_dns=False, check_smtp=False):
                     logger.error("Erroneous e-mail: {}".format(address))
                     continue
 
