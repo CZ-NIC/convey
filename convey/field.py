@@ -172,5 +172,7 @@ class Field:
                 c = c[0]
             elif len(c) == 0:
                 c = "NOTHING"
+        if c is None:
+            c = "NOTHING"
         source_line[self.col_i] = c
         return c
