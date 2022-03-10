@@ -7,7 +7,7 @@ from time import time, sleep
 
 from netaddr import IPRange, IPNetwork
 
-from .attachment import Contacts
+from .contacts import Contacts
 from .config import Config, subprocess_env
 from .infodicts import address_country_lowered
 

@@ -1,13 +1,11 @@
-import csv
-import re
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Dict
 
 from validate_email import validate_email
 
-from .config import Config, get_path
-from .mail_draft import MailDraft
+from .config import Config
+from .contacts import Contacts
+from .types import Types
 
 
 class Attachment:
@@ -40,7 +38,8 @@ class Attachment:
     @sent.setter
     def sent(self, value):
         if self._sent != value:
-            if bool(self._sent) != bool(value):  # no effect if sent status chagnes from None (not tried) to False (not succeeded)
+            # no effect if sent status changes from None (not tried) to False (not succeeded)
+            if bool(self._sent) != bool(value):
                 r = self.parser.stats[self.get_draft_name()]
                 # exchange the count from the not-sent to sent or vice verse
                 r[int(value is not True)] -= 1
@@ -62,7 +61,8 @@ class Attachment:
     def get_all(cls, abroad=None, sent=None, limit=float("inf"), threedots=False):
         o: Attachment
         for i, o in enumerate(cls.parser.attachments):
-            if sent is not None and sent is not bool(o.sent):  # we want to filter either sent or not-sent attachments only
+            # we want to filter either sent or not-sent attachments only
+            if sent is not None and sent is not bool(o.sent):
                 continue
             if abroad is not None and any((abroad and not o.abroad, not abroad and o.abroad)):
                 # filtering abroad/local attachments only
@@ -83,12 +83,10 @@ class Attachment:
 
     @property
     def cc(self):
-        """ Return cc header from Contacts. This has nothing in common with possible Cc header in the mail_draft! """
-        cc = ""
-        for domain in Contacts.get_domains(self.mail):
-            if domain in Contacts.mail2cc:
-                cc += Contacts.mail2cc[domain] + ";"
-        return cc
+        """ Return cc header from Contacts.
+            This has nothing in common with possible Cc header in the mail_draft template!
+        """
+        return Types.get_method(Types.abusemail, Types.cc_contact)(self.mail)
 
     def get_draft_name(self):
         return "abroad" if self.abroad else "local"
@@ -98,47 +96,3 @@ class Attachment:
 
     def get_envelope(self):
         return self.get_draft().get_envelope(self)
-
-
-class Contacts:
-    mail2cc: Dict[str, str]
-    country2mail: Dict[str, str]
-    mail_draft: Dict[str, MailDraft]
-
-    @classmethod
-    def init(cls):
-        """
-        Refreshes list of abusemails (for Cc of the mails in the results) (config key contacts_cc)
-        and csirtmails (country contact) (config key contacts_abroad)
-        """
-        cls.mail_draft = {"local": MailDraft(Config.get("mail_template")),
-                          "abroad": MailDraft(Config.get("mail_template_abroad"))}
-        cls.mail2cc = cls._update("contacts_cc")
-        cls.country2mail = cls._update("contacts_abroad")
-
-    @staticmethod
-    def get_domains(mail: str):
-        """ mail = mail@example.com;mail2@example2.com -> [example.com, example2.com] """
-        try:
-            # return set(re.findall("@([\w.]+)", mail))
-            return set([x[0] for x in re.findall("@(([A-Za-z0-9-]{1,63}\.)+[A-Za-z]{2,6})", mail)])
-        except AttributeError:
-            return []
-
-    @staticmethod
-    def _update(key: Dict[str, str]) -> object:
-        """ Update info from an external CSV file. """
-        file = get_path(Config.get(key))
-        if not Path(file).is_file():  # file with contacts
-            print("(Contacts file {} not found on path {}.) ".format(key, file))
-            input()
-            return {}
-        else:
-            with open(file, 'r') as f:
-                reader = csv.reader(f)
-                next(reader)  # skip header row
-                try:
-                    rows = {rows[0]: rows[1] for rows in reader}
-                except IndexError:
-                    raise IndexError(f"Error while loading file {file}")
-                return rows

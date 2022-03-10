@@ -25,8 +25,8 @@ from netaddr import IPRange, IPNetwork
 from pint import UnitRegistry
 from validate_email import validate_email
 
-from .attachment import Contacts
 from .config import Config
+from .contacts import Contacts
 from .decorators import PickBase, PickMethod, PickInput
 from .graph import Graph
 from .infodicts import phone_regex_match, phone_country, address_country, country_codes
@@ -842,6 +842,12 @@ class Types:
                          "E-mail address corresponding with country code, taken from your personal contacts_abroad CSV"
                          " in the format `country,abusemail`. See config.ini/contacts_abroad")
     incident_contact = Type("incident_contact", TypeGroup.whois)
+    cc_contact = Type("cc_contact", TypeGroup.whois,
+                      "E-mail address corresponding with the abusemail, taken from your personal contacts_cc CSV"
+                      " in the format `domain,cc;cc` (mails delimited by a semicolon). See config.ini/contacts_cc."
+                      " Note:  when sending an e-mail to a csirt_contact, the e-mail template fills Cc header"
+                      " from the csirt_contact through contacts_cc.csv too. So you may end up with another Cc field"
+                      " than in cc_contact.")
     text = Type("text", TypeGroup.web)
     http_status = Type("http_status", TypeGroup.web, "HTTP response status. If 0 or negative, request failed.")
     html = Type("html", TypeGroup.web)
@@ -883,7 +889,8 @@ class Types:
                   lambda x: reAnyIp.search(x) and not is_ip(x))
     hostname = Type("hostname", TypeGroup.general, "2nd or 3rd domain name", ["fqdn", "hostname", "domain"],
                     reFqdn.match)
-    email = Type("email", TypeGroup.general, "E-mail address", ["mail"], lambda e: validate_email(e, check_dns=False, check_smtp=False))
+    email = Type("email", TypeGroup.general, "E-mail address", ["mail"],
+                 lambda e: validate_email(e, check_dns=False, check_smtp=False))
     url = Type("url", TypeGroup.general, "URL starting with http/https", ["url", "uri", "location"],
                lambda s: reUrl.match(s) and "[.]" not in s)  # input "example[.]com" would be admitted as a valid URL)
     asn = Type("asn", TypeGroup.whois, "Autonomous system number", ["as", "asn", "asnumber"],
@@ -1042,9 +1049,12 @@ class Types:
             (t.whois, t.abusemail): lambda x: x.get[6],
             (t.whois, t.country): lambda x: x.get[5],
             (t.whois, t.netname): lambda x: x.get[4],
-            (t.whois, t.csirt_contact): lambda x: Contacts.country2mail[x.get[5]] if x.get[
-                                                                                         5] in Contacts.country2mail else "-",
+            (t.whois, t.csirt_contact):
+                lambda x: Contacts.country2mail[x.get[5]] if x.get[5] in Contacts.country2mail else "-",
             (t.whois, t.incident_contact): lambda x: x.get[2],
+            (t.abusemail, t.cc_contact): lambda x: "; ".join(
+                Contacts.mail2cc[domain] for domain in Contacts.get_domains(x) if domain in Contacts.mail2cc
+            ),
             (t.plaintext, t.bytes): lambda x: x.encode("UTF-8"),
             (t.bytes, t.plaintext): Checker.bytes_plaintext,
             (t.bytes, t.base64): lambda x: b64encode(x).decode("UTF-8"),

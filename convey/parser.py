@@ -16,7 +16,8 @@ from typing import List
 
 from tabulate import tabulate
 
-from .attachment import Contacts, Attachment
+from .attachment import Attachment
+from .contacts import Contacts
 from .config import Config, get_terminal_size
 from .dialogue import Cancelled, is_yes, ask
 from .field import Field

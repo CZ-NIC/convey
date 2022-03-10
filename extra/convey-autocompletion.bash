@@ -10,7 +10,7 @@ _convey()
   cmd=( ${COMP_WORDS[@]} )
 
   if [[ "$prev" == -f ]] || [[ "$prev" == --field ]] ||  [[ "$prev" == -fe ]] || [[ "$prev" == --field-excluded ]]; then
-        COMPREPLY=( $( compgen -W "HostnameTldExternal base64 charset cidr country_name date email first_method formatted_time hostname ip isotimestamp plaintext port quoted_printable second_method time tld unit url urlencode code external reg reg_m reg_s abusemail asn country csirt_contact incident_contact netname prefix a aaaa dmarc mx ns spf txt"  -- "$cur" ) )
+        COMPREPLY=( $( compgen -W "HostnameTldExternal base64 charset cidr country_name date email first_method formatted_time hostname ip isotimestamp plaintext port quoted_printable second_method time tld unit url urlencode code external reg reg_m reg_s abusemail asn cc_contact country csirt_contact incident_contact netname prefix a aaaa dmarc mx ns spf txt"  -- "$cur" ) )
         return 0
     fi
 

@@ -170,16 +170,17 @@ pip3 install -r requirements.txt  --user
 
 ### Computable fields
 
-Some of the field types we are able to compute:
+Some field types are directly computable:
 
 * **abusemail** – got abuse e-mail contact from whois
 * **asn** – got from whois
 * **base64** – encode/decode
+* **cc_contact** – e-mail address corresponding with the abusemail, taken from your personal contacts_cc CSV in the format `domain,cc;cc` (mails delimited by a semicolon). Path to this file has to be specified in `config.ini » contacts_cc`.
 * **country** – country code from whois
-* **csirt-contact** – e-mail address corresponding with country code, taken from your personal contacts_abroad CSV in the format `country,abusemail`. Path to this file has to be specified in `config.ini » contacts_abroad`
+* **~~csirt_contact~~** – e-mail address corresponding with country code, taken from your personal contacts_abroad CSV in the format `country,abusemail`. Path to this file has to be specified in `config.ini » contacts_abroad`
 * **external** – you specify method in a custom .py file that receives the field and generates the value for you, see below
 * **hostname** – domain from url
-* **incident-contact** – if the IP comes from local country (specified in `config.ini » local_country`) the field gets *abusemail*, otherwise we get *country@@mail* where *mail* is either *abusemail* or abroad country e-mail. When splitting by this field, convey is subsequently able to send the split files to local abuse and foreign csirt contacts.
+* **incident_contact** – if the IP comes from local country (specified in `config.ini » local_country`) the field gets *abusemail*, otherwise we get *country@@mail* where *mail* is either *abusemail* or abroad country e-mail. When splitting by this field, convey is subsequently able to send the split files to local abuse and foreign csirt contacts.
 * **ip** – translated from url
 * **netname** – got from whois
 * **prefix** – got from whois

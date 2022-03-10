@@ -87,7 +87,7 @@ Environment:
                             * +1 to gray out disabled fields/methods
                             * +2 to include usual field names
   --get-autocompletion  Get bash autocompletion.
-  --version             Show the version number (which is currently 1.3.9rc6).
+  --version             Show the version number (which is currently 1.3.14).
 
 Processing:
   --threads [blank/false/auto/INT]
@@ -158,6 +158,7 @@ Actions:
                         * reg_s
                         * abusemail (Abuse e-mail contact from whois)
                         * asn (Autonomous system number) usual names: as, asn, asnumber
+                        * cc_contact (E-mail address corresponding with the abusemail, taken from your personal contacts_cc CSV in the format `domain,cc;cc` (mails delimited by a semicolon). See config.ini/contacts_cc. Note:  when sending an e-mail to a csirt_contact, the e-mail template fills Cc header from the csirt_contact through contacts_cc.csv too. So you may end up with another Cc field than in cc_contact.)
                         * country
                         * csirt_contact (E-mail address corresponding with country code, taken from your personal contacts_abroad CSV in the format `country,abusemail`. See config.ini/contacts_abroad)
                         * incident_contact

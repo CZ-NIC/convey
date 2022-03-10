@@ -13,7 +13,6 @@ from pathlib import Path
 from sys import exit
 from tempfile import NamedTemporaryFile
 
-import pkg_resources
 from colorama import init as colorama_init, Fore
 from dialog import Dialog, DialogError
 from prompt_toolkit import PromptSession, HTML
@@ -21,8 +20,9 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
 from validate_email import validate_email
 
-from .attachment import Contacts, Attachment
+from .attachment import Attachment
 from .config import Config, get_terminal_size, console_handler, edit, get_path
+from .contacts import Contacts
 from .decorators import PickBase, PickMethod, PickInput
 from .dialogue import Cancelled, Debugged, Menu, pick_option, ask, ask_number, is_yes
 from .field import Field
@@ -37,10 +37,8 @@ logger = logging.getLogger(__name__)
 aggregate_functions = [f for f in Aggregate.__dict__ if not f.startswith("_")]
 aggregate_functions_str = "".join("\n* " + f for f in aggregate_functions)
 
-try:
-    __version__ = pkg_resources.require("convey")[0].version
-except pkg_resources.DistributionNotFound:
-    __version__ = "unknown"
+# I really do not like to have an extra file for this. Change my mind.
+__version__ = "1.3.14"  # to be changed in setup.py too
 
 
 def send_ipc(pipe, msg, refresh_stdout):
