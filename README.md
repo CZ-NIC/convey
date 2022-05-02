@@ -1,6 +1,6 @@
 # Convey
 
-[![Build Status](https://travis-ci.org/CZ-NIC/convey.svg?branch=master)](https://travis-ci.org/CZ-NIC/convey)
+[![Build Status](https://github.com/CZ-NIC/convey/actions/workflows/run-unittest.yml/badge.svg)](https://github.com/CZ-NIC/convey/actions) [![Downloads](https://pepy.tech/badge/convey)](https://pepy.tech/project/convey)
 
 Swiss knife for mutual conversion of the web related data types, like `base64` or outputs of the programs `whois`, `dig`, `curl`.
 Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.
