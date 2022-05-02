@@ -404,11 +404,6 @@ class Parser:
             if type(field) is Type or field.is_chosen:
                 append(field, val)
 
-        # prepare json to return (useful in a web service)
-        if "csirt-contact" in data and data["csirt-contact"] == "-":
-            # empty value instead of a dash, stored in CsvGuesses-method-("whois", "csirt-contact")
-            data["csirt-contact"] = ""
-
         # output in text, json or file
         if Config.get("output"):
             logger.info(f"Writing to {self.target_file}...")

@@ -1050,7 +1050,7 @@ class Types:
             (t.whois, t.country): lambda x: x.get[5],
             (t.whois, t.netname): lambda x: x.get[4],
             (t.whois, t.csirt_contact):
-                lambda x: Contacts.country2mail[x.get[5]] if x.get[5] in Contacts.country2mail else "-",
+                lambda x: Contacts.country2mail[x.get[5]] if x.get[5] in Contacts.country2mail else "",
             (t.whois, t.incident_contact): lambda x: x.get[2],
             (t.abusemail, t.cc_contact): lambda x: "; ".join(
                 Contacts.mail2cc[domain] for domain in Contacts.get_domains(x) if domain in Contacts.mail2cc
@@ -1096,7 +1096,7 @@ class Types:
             # (t.email, check legit mailbox)
             (t.country_name, t.country): address_country,
             (t.country, t.country_name): lambda x: country_codes[x],
-            (t.country, t.csirt_contact): lambda x: Contacts.country2mail[x] if x in Contacts.country2mail else "-",
+            (t.country, t.csirt_contact): lambda x: Contacts.country2mail[x] if x in Contacts.country2mail else "",
             (t.phone, t.country): phone_country,
             (t.hostname, t.tld): Checker.HostnameTld,
             (t.prefix, t.cidr): Checker.prefix_cidr,

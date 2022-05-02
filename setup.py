@@ -15,7 +15,7 @@ if p.exists():
 
 setup(
     name='convey',
-    version="1.3.14",  # to be changed in controller.py too
+    version="1.3.15",  # to be changed in controller.py too
     packages=['convey'],
     author='Edvard Rejthar',
     author_email='edvard.rejthar@nic.cz',
