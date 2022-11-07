@@ -117,6 +117,7 @@
     - multiple STDIN processing in a single session    
     - CSV flags (like --header) when processing in --yes mode
     - web relative redirect working
+    - max number of redirects is 10
 * type: form_names
 * interface
     - nicer output when processing from STDIN

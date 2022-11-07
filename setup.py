@@ -2,6 +2,8 @@ from pathlib import Path
 
 from setuptools import setup
 
+from convey import __version__
+
 # using the same libraries in requirements.txt because after many articles I didn't understand any good reason why I shouldn't
 requirements = ""
 p = Path("requirements.txt")
@@ -15,7 +17,7 @@ if p.exists():
 
 setup(
     name='convey',
-    version="1.3.15",  # to be changed in controller.py too
+    version=__version__,
     packages=['convey'],
     author='Edvard Rejthar',
     author_email='edvard.rejthar@nic.cz',

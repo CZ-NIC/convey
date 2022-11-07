@@ -225,7 +225,7 @@ class TestExternals(TestCase):
         # method "filtered" is used which excludes "1"
         self.assertNotEqual(["1"], convey("--field external,external_pick_base.py,PickMethodTest,filtered --input '1'"))
 
-        # XXXX does not work, error when resolving path Unit -> Plaintext -> External. Identifier.get_methods_from
+        # XX does not work, error when resolving path Unit -> Plaintext -> External. Identifier.get_methods_from
         # `lambda_ = lambda_.get_lambda(custom.pop(0) if custom is not None else None)`
         #       -> get_module_from_path(custom[0], ...) does not contain a path
         # self.assertEqual(["a"], convey("--field external,external_pick_base.py,PickMethodTest --input 'mm'"))

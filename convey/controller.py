@@ -38,7 +38,7 @@ aggregate_functions = [f for f in Aggregate.__dict__ if not f.startswith("_")]
 aggregate_functions_str = "".join("\n* " + f for f in aggregate_functions)
 
 # I really do not like to have an extra file for this. Change my mind.
-__version__ = "1.3.15"  # to be changed in setup.py too
+__version__ = "1.3.16"  # to be changed in setup.py too
 
 
 def send_ipc(pipe, msg, refresh_stdout):
@@ -1350,7 +1350,7 @@ class Controller:
                 fields = self.parser.fields
 
                 for type_, items in st.items():
-                    # XXX code does not return its custom part
+                    # XX code does not return its custom part
                     if not items and items != 0:
                         continue
                     if type_ == "split":
@@ -1363,7 +1363,7 @@ class Controller:
                     elif type_ == "unique":
                         l.extend(f"--unique {fields[f].name}" for f in items)
                     elif type_ == "aggregate":
-                        # XXX does not work well - at least, they are printed out opposite way
+                        # XX does not work well - at least, they are printed out opposite way
                         l.append(f"--aggregate {items[0]}," + ",".join(
                             f"{fn.__name__},{fields[col].name}" for fn, col in items[1]))
                 if l:

@@ -450,7 +450,7 @@ class Web:
                 self.cache[url] = self.get = str(s), None, None, redirects, None, None, None
                 print_atomic(f"Scrapping {url} failed: {e}")
                 break
-            if response.headers.get("Location"):
+            if response.headers.get("Location") and len(redirects) < 10:
                 current_url = urljoin(current_url, response.headers.get("Location"))
                 redirects.append(current_url)
                 continue
@@ -463,7 +463,7 @@ class Web:
                     if res:
                         wait, txt = res[0].attrs["content"].split(";")
                         m = re.search(r"http[^\"'\s]*", txt)
-                        if m:
+                        if m and len(redirects) < 10:
                             current_url = m.group(0)
                             redirects.append(current_url)
                             continue

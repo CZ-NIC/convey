@@ -167,7 +167,7 @@ class Wrapper:
     def assure_cache_file(self, file):
         self.file = Path(file).resolve()
         info = self.file.stat()
-        hash_ = str(hash(info.st_size + round(info.st_mtime)))  # XXX use st_size only?
+        hash_ = str(hash(info.st_size + round(info.st_mtime)))  # XX use st_size only?
 
         # cache-file with source file metadata
         Config.set_cache_dir(Path(self.file.parent, self.file.name + "_convey" + hash_))
@@ -376,7 +376,7 @@ class Wrapper:
                 except AttributeError:
                     pass
                 finally:
-                    # XXX however, this resets the cache of the file because we continue in the clear() method
+                    # XX however, this resets the cache of the file because we continue in the clear() method
                     #   We rather do want to directly go to the file.
                     self.assure_cache_file(target.absolute())  # changes self.file
                     return
