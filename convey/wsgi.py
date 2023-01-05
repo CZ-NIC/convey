@@ -24,9 +24,14 @@ def application(env, start_response):
     """ WSGI launcher. You may expose installed convey as a web service.
         Launch: uwsgi --http :26683 --wsgi-file wsgi.py
         Access: http://localhost:26683/?q=example.com
+
+        XX Since convey internally uses serveral other libraries, publishing web service
+        may put the system in a risk. It would be great to implement a method to rather
+        whitelist some of the functionalities by default, ex: allow only IP and hostname fields
+        that would convert to whois fields only.
     """
     headers = [('Access-Control-Allow-Origin', '*'), ('Content-Type', 'application/json')]
-    argument = defaultdict(lambda: None, parse.parse_qsl(env["QUERY_STRING"]))  # XXX should this be sanitized?
+    argument = defaultdict(lambda: None, parse.parse_qsl(env["QUERY_STRING"]))
     if "q" in argument:
         if not argument["q"].strip():
             status = '400 Bad Request'
@@ -38,7 +43,7 @@ def application(env, start_response):
                         Web.cache.clear()
 
                 res = parser.set_stdin([argument["q"]]).set_types(argument["type"]).prepare()
-                if "field" in argument:  # XXX should this be sanitized?
+                if "field" in argument:
                     target_type = controller.add_new_column(argument["field"], True)
                     if target_type in unsafe_fields:
                         raise SystemExit(f"Unsafe field '{target_type}' disabled via web")

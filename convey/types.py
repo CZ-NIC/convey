@@ -901,6 +901,7 @@ class Types:
     urlencode = Type("urlencode", TypeGroup.general, "Text encoded with urlencode", ["urlencode"], Checker.is_urlencode)
     wrong_url = Type("wrong_url", TypeGroup.general, "Deactivated URL", [], Checker.check_wrong_url)
     plaintext = Type("plaintext", TypeGroup.general, "Plain text", ["plaintext", "text"], lambda x: False)
+    path = Type("path", usual_names=["path"], identify_method = lambda x: False)
 
     @staticmethod
     def get_computable_types(ignore_custom=False):

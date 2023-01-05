@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 1.4 (unreleased)
+## 1.4 (2022-01-05)
 * CHANGED:
     * --delete-whois-cache renamed to --whois-delete   
     * template function `{{ print_attachment() }}` renamed to `{{ attachment() }}`

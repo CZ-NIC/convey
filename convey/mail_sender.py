@@ -9,6 +9,8 @@ from socket import gaierror
 from validate_email import validate_email
 
 from envelope import Envelope
+
+from .parser import Parser
 from .attachment import Attachment
 from .config import Config
 
@@ -19,7 +21,7 @@ OTRS_VERSION = 6
 
 class MailSender(ABC):
     def __init__(self, parser):
-        self.parser = parser
+        self.parser : Parser = parser
 
     def start(self):
         pass
@@ -105,8 +107,7 @@ class MailSenderOtrs(MailSender):
         files is a sequence of (name, filename, value) elements for data to be uploaded as files.
         Return an appropriate http.client.HTTPResponse object.
         """
-
-        # if not Config.get("otrs_check_ssl", "OTRS", get=bool):
+        
         # import ssl
         # ssl._create_default_https_context = ssl._create_unverified_context  # XX once upon a day (10.2.2017), the certificate stopped working or whatever. This is an ugly solution - i think we may delete this line in few weeks
         # context = ssl._create_unverified_context()

@@ -38,7 +38,7 @@ aggregate_functions = [f for f in Aggregate.__dict__ if not f.startswith("_")]
 aggregate_functions_str = "".join("\n* " + f for f in aggregate_functions)
 
 # I really do not like to have an extra file for this. Change my mind.
-__version__ = "1.3.16"  # to be changed in setup.py too
+__version__ = "1.4"  # to be changed in setup.py too
 
 
 def send_ipc(pipe, msg, refresh_stdout):

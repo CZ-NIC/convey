@@ -103,7 +103,7 @@ Could you confirm this? [y]/n
 ```
 
 ### Usage 3 – Web service
-Again, let's provide an IP to the web service, it returns JSON with WHOIS-related information and scraped HTTP content.
+Again, let's provide an IP to the [web service](#web-service), it returns JSON with WHOIS-related information and scraped HTTP content.
 ```bash
 $ convey --server  # start a UWSGI session
 ```
