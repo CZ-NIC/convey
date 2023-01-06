@@ -1,4 +1,5 @@
 import logging
+import os
 import shlex
 import sys
 from base64 import b64encode
@@ -6,10 +7,12 @@ from datetime import datetime
 from pathlib import Path
 from subprocess import run, PIPE
 from typing import Union, List
-from unittest import TestCase, main
+from unittest import TestCase, main, mock
+
+from envelope.smtp_handler import SMTPHandler
 
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
-
+os.chdir("tests")  # all mentioned resources files are in that folder
 
 class Convey:
     def __init__(self, *args, filename=None, text=None, whois=False, debug=None):
@@ -20,7 +23,7 @@ class Convey:
         self.debug = debug
 
         # XX travis will not work will daemon=true (which imposes slow testing)
-        self.cmd = ["../convey.py", "--output", "--reprocess", "--headless", "--daemon", "false"]
+        self.cmd = ["../convey.py", "--output", "--reprocess", "--headless", "--daemon", "false", "--debug", "false", "--crash-post-mortem", "false"]
         if filename is None and not text and len(args) == 1 and not args[0].startswith("-"):
             filename = args[0]
             args = None
@@ -182,7 +185,7 @@ class TestFields(TestCase):
         self.assertEqual([], convey("--single-detect", text="12345"))
 
 
-class TestTemplate(TestCase):
+class TestSending(TestCase):
     def test_dynamic_template(self):
         convey = Convey("--output", "False", filename="filter.csv")
         cmd = """--field code,3,'x="example@example.com" if "example.com" in x else x+"@example.com"'""" \
@@ -208,6 +211,40 @@ class TestTemplate(TestCase):
     # def test_body_flag(self):
     #     convey = Convey("filter.csv")
     #     cmd = """--body "body text" """
+
+    def test_send(self):    
+        BLACK = "Attachment black.gif (image/gif)"
+        WHITE = "Attachment white.gif (image/gif)"
+        COLOURS = "Attachment colours.csv (text/csv)"
+        convey = Convey("--output", "False", filename="colours.csv")
+        cmd_pattern = """-t abusemail,path --split abusemail --send-test {mail} 'bare_template.eml' """
+
+        cmd = cmd_pattern + "--attach-files False --attach-paths-from-path-column True"
+
+        # Single image is attached
+        lines = convey(cmd.format(mail="john@example.com"))
+        self.assertIn(BLACK, lines[0])
+        lines = convey(cmd.format(mail="mary@example.com"))
+        self.assertIn(WHITE, lines[0])
+
+        # Two images are attached
+        lines = convey(cmd.format(mail="jack@example.com"))
+        self.assertIn(BLACK, lines[0])
+        self.assertIn(WHITE, lines[4])
+
+        # Image cannot be attached
+        lines = convey(cmd.format(mail="hyacint@example.com"))
+        self.assertIn("Convey crashed at For security reasons, path must be readable to others: red-permission.gif", lines[0])
+
+        # Flags controlling attachments work
+        lines = convey(cmd_pattern.format(mail="john@example.com") + "--attach-files True --attach-paths-from-path-column False")
+        self.assertIn(COLOURS, lines[0])
+        lines = convey(cmd_pattern.format(mail="john@example.com") + "--attach-files True --attach-paths-from-path-column True")
+        self.assertIn(COLOURS, lines[0])
+        self.assertIn(BLACK, lines[1])
+        lines = convey(cmd_pattern.format(mail="john@example.com") + "--attach-files False --attach-paths-from-path-column False")
+        self.assertNotIn(COLOURS, lines[0])
+        self.assertNotIn(BLACK, lines[1])     
 
 
 class TestExternals(TestCase):

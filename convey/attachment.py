@@ -1,5 +1,9 @@
+from __future__ import annotations  # remove as of Python3.11
+from csv import reader as csvreader
 from pathlib import Path
+import stat
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 from validate_email import validate_email
 
@@ -7,16 +11,22 @@ from .config import Config
 from .contacts import Contacts
 from .types import Types
 
+if TYPE_CHECKING:
+    from .parser import Parser
 
 class Attachment:
-    sent: bool  # True => sent, False => error while sending, None => not yet sent
-    abroad: bool  # True => abroad e-mail is in Contacts dict, False => e-mail is file name, None => undeliverable (no e-mail)
+    sent: bool  
+    "True => sent, False => error while sending, None => not yet sent"
+    
+    abroad: bool
+    "True => abroad e-mail is in Contacts dict, False => e-mail is file name, None => undeliverable (no e-mail)"
 
     def __init__(self, filename):
         self.abroad = Config.ABROAD_MARK in filename
         self._sent = None
         self.filename = filename
-        self.attach = True  # whether the file contents should be added as an e-mail attachment
+        self.used_in_body : bool = False
+        "Whether the file contents should be added as an e-mail attachment. If set, we suppose, the attachment has been pasted to the body text via jinja template."
 
         st = self.parser.stats
 
@@ -24,11 +34,32 @@ class Attachment:
             st[self.get_draft_name()][int(bool(self.sent))] += 1
         else:
             st["non_deliverable"] += 1
-        # self.abroad = None
         st["totals"] += 1
+
+    def get_paths_from_path_column(self):
+        """ Load a column that was marked being of the path Type. Checks the file meet some security standards
+            that are quite limiting (and possibly be reduced in the future)
+            so that a crafted CSV would not pull up ~/.ssh or /etc/ files.
+
+            :raises RuntimeError if there is security concern about an attachment
+        """
+        path = next((f for f in self.parser.fields if f.type == Types.path), None)
+        
+        with self.path.open() as f:
+            reader = csvreader(f, dialect=self.parser.settings["dialect"])
+            paths = [Path(row[path.col_i]) for row in reader]
+            for path in paths:
+                if str(path) != path.name:
+                    raise RuntimeError(f"For security reasons, path must be just a file name: {path}")
+                if not path.stat().st_mode & stat.S_IROTH:
+                    raise RuntimeError(f"For security reasons, path must be readable to others: {path}")
+                if path.is_symlink():
+                    raise RuntimeError(f"For security reasons, path must not be a symlink: {path}")
+            return paths
 
     @property
     def path(self):
+        """ Path of the split CSV file (that contain rows having the same value in the split column). """
         return Path(Config.get_cache_dir(), self.filename)
 
     @property
@@ -48,7 +79,7 @@ class Attachment:
 
     @classmethod
     def init(cls, parser):
-        cls.parser = parser
+        cls.parser : Parser = parser
 
     @classmethod
     def reset(cls, stats):
@@ -59,7 +90,6 @@ class Attachment:
 
     @classmethod
     def get_all(cls, abroad=None, sent=None, limit=float("inf"), threedots=False):
-        o: Attachment
         for i, o in enumerate(cls.parser.attachments):
             # we want to filter either sent or not-sent attachments only
             if sent is not None and sent is not bool(o.sent):

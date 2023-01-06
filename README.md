@@ -57,6 +57,7 @@ Python3.6+ required.
   + [Base64 and Regular expressions](#base64-and-regular-expressions)
   + [Converting units](#converting-units)
   + [Aggregate](#aggregate)
+  + [Sending images to different recipients](#sending-images-to-different-recipients)
 * [Credits](#credits)
 
 
@@ -196,7 +197,7 @@ When obtaining a WHOIS record
 
 ### Detectable fields
 
-Some of the field types we are able to auto-detect: 
+Some of the field types are possible to be auto-detected:
 
 * **ip** – standard IPv4 / IPv6 addresses
 * **cidr** – CIDR notation, ex: 127.0.0.1/32
@@ -342,7 +343,7 @@ $ convey --server
 * If you received or [generated](https://uwsgi-docs.readthedocs.io/en/latest/HTTPS.html#https-support-from-1-3) key and certificate, you may turn on HTTPS in `uwsgi.ini` accesible by: `convey --config uwsgi`
 * Internally, flag `--server` launches `wsgi.py` with a UWSGI session.
     ```bash
-    $ uwsgi --http :26683 --http-timeout 310 --wsgi-file /home/$USER/.local/lib/python3.7/site-packages/convey/wsgi.py
+    $ uwsgi --http :26683 --http-timeout 310 --wsgi-file /home/$USER/.local/lib/python3.../site-packages/convey/wsgi.py
     ```
 
 
@@ -372,7 +373,8 @@ In the menu, you may either:
  * **Choose** which recipients in a checkbox list will receive the message. 
  * **Test** sending a message to your own address. You'll be prompted which of the messages should be delivered to you. The e-mail contents possibly modified by a dynamic template is shown just before sending.
  * **Print all e-mails** to a file to have the more granulated control over what is going to be sent.
- * **Toggle file attaching** on and off. There are use cases when you do not want the files to be sent with, the text suits fine.
+ * **Toggle file attaching** on and off. A portion of the source file related to this e-mail address might be attached. There are use cases when you do not want the files to be sent with as the body text suits fine.
+ * **Toggle paths from the path column attaching** on and off. Files mentioned in a path column and related to this e-amil address might be attached.
 
 ```bash
   *** E-mail template ***
@@ -400,6 +402,7 @@ r) Choose recipients...
 t) Send test e-mail...
 p) Print e-mails to a file...
 a) Attach files (toggle): True
+i) Attach paths from path column (toggle): False
 x) Go back...
 ? 
 ```
@@ -842,6 +845,51 @@ Split location: kettle
   sum(price)
 ------------
          602
+```
+
+### Sending images to different recipients
+Imagine you have a directory full of PNG files, containg info for respective domain administrators. 
+
+```
+example.com.png
+example.com-2.png
+wikipedia.org.png
+csirt.cz.png
+```
+
+We want to send two images to the admin of `example.com` and single one for `wikipedia.org` and `csirt.cz`. First, create a CSV having first column the domain name and second the respective image. To do so, we use the [pz](https://github.com/CZ-NIC/pz) library.
+
+```
+pip3 install pz  # install `pz` if needed
+ls *.png | pz 're.sub("-\d+$", "", Path(s).stem),s' > domains_images.csv
+```
+
+CSV domains_images.csv now looks like this:
+
+```
+example.com	example.com-2.png
+example.com	example.com.png
+wikipedia.com	wikipedia.com.png
+csirt.cz	csirt.cz.png
+```
+
+The following command will tell `convey` to add an e-mail column derived from the hostname and when sending files, attach all our images from the path column.
+
+```
+convey domains_images.csv  -t hostname,path -f abusemail --split abusemail --attach-files False  --attach-paths-from-path-column True
+```
+
+Wizzard will lead you to sending the test mail to you own address. This is the sending a testing e-mail dialog for the `wikipedia.org` domain.
+
+```
+Attachment wikipedia.com.png (image/png): PNG...
+MIME-Version: 1.0
+Subject: PNG that might interest you
+To: abuse@wikimedia.org
+Date: Fri, 06 Jan 2023 20:04:31 +0100
+
+Body text message
+Testing e-mail address to be sent to – type in or hit Enter to use your-testing-mail@example.com (Ctrl+C to go back):  
 ```
 
 ## Credits

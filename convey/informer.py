@@ -1,3 +1,4 @@
+from __future__ import annotations  # remove as of Python3.11
 import subprocess
 import sys
 from collections import deque
@@ -9,6 +10,7 @@ from math import ceil, log10
 from pathlib import Path
 from threading import Event, Thread
 from time import sleep
+from typing import TYPE_CHECKING
 
 import humanize
 from colorama import Fore
@@ -18,15 +20,19 @@ from .config import Config, get_terminal_size
 from .types import Aggregate
 from .whois import Whois
 
+if TYPE_CHECKING:
+    from .parser import Parser
+
 
 class Informer:
     """ Prints analysis data in nice manner. """
 
-    def __init__(self, parser):
+    def __init__(self, parser: Parser):
         self.parser = parser
         self.queue = deque(maxlen=10)
         self.stdout = sys.stdout
-        self.stats_stop = Event()  # if ._flag is True, ends, if is 1, pauses, if is False, runs
+        self.stats_stop = Event()
+        "if ._flag=True → ends, ._flag=1 → pauses, ._flag=False → runs"
 
     def sout_info(self, clear=True, full=False):
         """ Prints file information on the display. """

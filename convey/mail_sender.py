@@ -10,6 +10,8 @@ from validate_email import validate_email
 
 from envelope import Envelope
 
+
+from .dialogue import is_yes
 from .parser import Parser
 from .attachment import Attachment
 from .config import Config
@@ -45,7 +47,14 @@ class MailSender(ABC):
             return False
         for attachment in iter(mails):  # make sure mails are generator to correctly count total_count
             attachment: Attachment
-            e: Envelope = attachment.get_envelope()
+
+            try:
+                e: Envelope = attachment.get_envelope()
+            except RuntimeError as e:
+                # troubles with an attachment
+                total_count += 1
+                logging.error('Troubles sending the mail for %s. %s', attachment.mail, e)
+                continue
 
             if e.message().strip() == "" or e.subject().strip() == "":
                 # program flow should never allow lead us here
@@ -227,11 +236,10 @@ class MailSenderOtrs(MailSender):
                 self.parser.otrs_token = self.ask_value(self.parser.otrs_token, "token")
                 self.parser.attachment_name = self.ask_value(self.parser.attachment_name, "attachment name")
 
-            sys.stdout.write(f"Ticket id = {self.parser.otrs_id}, ticket num = {self.parser.otrs_num},"
+            if is_yes(f"Ticket id = {self.parser.otrs_id}, ticket num = {self.parser.otrs_num},"
                              f" cookie = {self.parser.otrs_cookie}, token = {self.parser.otrs_token},"
                              f" attachment_name = {self.parser.attachment_name}"
-                             f"\nWas that correct? [y]/n ")
-            if input().lower() in ("y", ""):
+                             f"\nWas that correct?"):
                 return True
             else:
                 force = True

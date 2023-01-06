@@ -396,7 +396,7 @@ def edit(path="config", mode=3, restart_when_done=False, blocking=False):
             editor = run(["xdg-mime", "query", "default", "text/plain"], stdout=PIPE).stdout.split()[0]  # run: blocking, output
             app = Popen(["gtk-launch", editor, path], stdout=PIPE, stderr=PIPE)  # Popen: non blocking
         except FileNotFoundError:
-            library = "xdg-utils gtk-launch"
+            library = "xdg-utils libgtk-3-bin"
             input(f"Install {library} by `sudo apt install {library}`. Hit Enter to launch CLI editor.")
             gui = False
     elif mode & 1:

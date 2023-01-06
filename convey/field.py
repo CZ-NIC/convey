@@ -1,17 +1,23 @@
+from __future__ import annotations  # remove as of Python3.11
 from bdb import BdbQuit
 from math import inf
+from typing import TYPE_CHECKING
 
 from .config import Config
 from .types import Type, Types
 from .whois import Quota, UnknownValue
 
+if TYPE_CHECKING:
+    from .parser import Parser
 
 class Field:
     def __init__(self, name, is_chosen=True, source_field: "Field" = None, source_type=None, new_custom=None,
-                 parser: "Parser" = None):
-        self.col_i = None  # index of the field in parser.fields
-        self.col_i_original = None  # original index before any sorting
-        self.parser = None  # ref to parser
+                 parser: Parser = None):
+        self.col_i = None
+        "index of the field in parser.fields"
+        self.col_i_original = None
+        "original index before any sorting"
+        self.parser = None
         self.name = str(name)
         self.is_chosen = is_chosen
         self.is_selected = False

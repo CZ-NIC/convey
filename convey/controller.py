@@ -38,7 +38,7 @@ aggregate_functions = [f for f in Aggregate.__dict__ if not f.startswith("_")]
 aggregate_functions_str = "".join("\n* " + f for f in aggregate_functions)
 
 # I really do not like to have an extra file for this. Change my mind.
-__version__ = "1.4"  # to be changed in setup.py too
+__version__ = "1.4.1"  # to be changed in __init__.py too
 
 
 def send_ipc(pipe, msg, refresh_stdout):
@@ -181,7 +181,9 @@ class Controller:
                            action="store_true")
 
         group = parser.add_argument_group("CLI experience")
-        group.add_argument('--debug', help="On error, enter a pdb session",
+        group.add_argument('--debug', help="Development only: increases verbosity and gets the prompt in the case of an exception.",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
+        group.add_argument('--crash-post-mortem', help="Get prompt if program crashes",
                            action=BlankTrue, nargs="?", metavar="blank/false")
         group.add_argument('-v', '--verbose', help="Sets the verbosity to see DEBUG messages.", action="store_true")
         group.add_argument('-q', '--quiet', help="R|Sets the verbosity to see WARNINGs and ERRORs only."
@@ -338,6 +340,10 @@ class Controller:
                            action=BlankTrue, nargs="?", metavar="blank/false")
         group.add_argument('--attach-files', help="Split files are added as e-mail attachments",
                            action=BlankTrue, nargs="?", metavar="blank/false")
+        group.add_argument('--attach-paths-from-path-column', help="Files from a column of the Path type are added as e-mail attachments."
+                " Note for security reasons, files must not be symlinks, be readable for others `chmod o+r`, and be in the same directory."
+                " So that a crafted CSV would not pull up ~/.ssh or /etc/ files.",
+                           action=BlankTrue, nargs="?", metavar="blank/false")
         group.add_argument('--testing', help="Do not be afraid, e-mail messages will not be sent."
                                              " They will get forwarded to the testing e-mail"
                                              " (and e-mails in Cc will not be sent at all)",
@@ -475,8 +481,8 @@ class Controller:
                 for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview",
                              "user_agent",
                              "multiple_hostname_ip", "multiple_cidr_ip", "web_timeout", "whois_ttl", "disable_external",
-                             "debug",
-                             "testing", "attach_files", "jinja", "subject", "body", "references",
+                             "debug", "crash_post_mortem",
+                             "testing", "attach_files", "attach_paths_from_path_column", "jinja", "subject", "body", "references",
                              "whois_delete_unknown", "whois_reprocessable_unknown", "whois_cache"]:
                     if getattr(args, flag) is not None:
                         Config.set(flag, getattr(args, flag))
@@ -881,6 +887,7 @@ class Controller:
                 menu.add("Send test e-mail...", key="t", default=not everything_sent)
                 menu.add("Print e-mails to a file...", key="p")
                 menu.add(f"Attach files (toggle): {Config.get('attach_files', 'SMTP', get=bool)}", key="a")
+                menu.add(f"Attach paths from path column (toggle): {Config.get('attach_paths_from_path_column', 'SMTP', get=bool)}", key="i")
                 menu.add("Go back...", key="x", default=everything_sent)
 
                 option = menu.sout()
@@ -922,6 +929,8 @@ class Controller:
                     limit = float("inf")
             elif option == "a":
                 Config.set("attach_files", not Config.get('attach_files', 'SMTP', get=bool))
+            elif option == "i":
+                Config.set("attach_paths_from_path_column", not Config.get('attach_paths_from_path_column', 'SMTP', get=bool))
             elif option in ["test", "t", "r", "p"]:
                 attachments = sorted(list(Attachment.get_all()), key=lambda x: x.mail.lower())
                 if option == "p":

@@ -1,0 +1,2 @@
+2023-01-06 18:51:07,975 - convey.mail_sender - ERROR - Erroneous e-mail: řehoř@example.com
+2023-01-06 18:53:37,927 - convey.mail_sender - WARNING - Marking as sent: jack@example.com

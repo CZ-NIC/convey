@@ -1,3 +1,4 @@
+from __future__ import annotations  # remove as of Python3.11
 import io
 import logging
 import traceback
@@ -9,13 +10,16 @@ from operator import eq, ne, mul
 from pathlib import Path
 from queue import Queue, Empty
 from threading import Thread, Lock
-from typing import Dict
+from typing import Dict, TYPE_CHECKING
 
 from .attachment import Attachment
 from .config import Config
 from .dialogue import ask
 from .types import Web
 from .whois import Quota, UnknownValue
+
+if TYPE_CHECKING:
+    from .parser import Parser
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +39,7 @@ class Processor:
 
         :type rewrite: bool Previously created files will get rewritten by default. Not wanted when we're resolving invalid lines or so.
         """
-        self.parser = parser
+        self.parser: Parser = parser
         if rewrite:
             parser.files_created.clear()
 
@@ -78,11 +82,6 @@ class Processor:
 
         if [f for f in self.parser.fields if (not f.is_chosen or f.col_i_original != f.col_i)]:
             settings["chosen_cols"] = [f.col_i_original for f in self.parser.fields if f.is_chosen]
-
-        # X if not settings["dialect"]:
-        #     settings["dialect"] = parser.dialect
-        # if settings["header"] is not False:
-        #     settings["header"] = parser.has_header
 
         Web.init([f.type for f in self.parser.get_computed_fields()])
 
@@ -263,7 +262,7 @@ class Processor:
         for f in self.descriptors.values():
             f[0].close()
 
-    def process_line(self, parser, line, settings, fields=None):
+    def process_line(self, parser: Parser, line, settings, fields=None):
         """
         Parses line – compute fields while adding, perform filters, pick or delete cols, split and write to a file.
         """

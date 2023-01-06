@@ -1,9 +1,10 @@
 This is the output of the `--help` command.
 ```
 usage: convey [-h] [--file] [-i] [-o [blank/FILENAME]] [-S] [--single-detect]
-              [-C] [--debug [blank/false]] [-v] [-q] [-y] [-H]
-              [--compute-preview [blank/false]] [--config [FILE [MODE ...]]]
-              [--show-uml [SHOW_UML]] [--get-autocompletion] [--version]
+              [-C] [--debug [blank/false]] [--crash-post-mortem [blank/false]]
+              [-v] [-q] [-y] [-H] [--compute-preview [blank/false]]
+              [--config [FILE [MODE ...]]] [--show-uml [SHOW_UML]]
+              [--get-autocompletion] [--version]
               [--threads [blank/false/auto/INT]] [-F] [-R] [--server]
               [--daemon [start/restart/stop/status/server]]
               [--delimiter DELIMITER] [--quote-char QUOTE_CHAR] [--header]
@@ -24,6 +25,7 @@ usage: convey [-h] [--file] [-i] [-o [blank/FILENAME]] [-S] [--single-detect]
               [--whois-reprocessable-unknown] [--whois-cache [blank/false]]
               [--send [blank/smtp/otrs]] [--send-test E-MAIL TEMPLATE_FILE]
               [--jinja [blank/false]] [--attach-files [blank/false]]
+              [--attach-paths-from-path-column [blank/false]]
               [--testing [blank/false]] [--subject SUBJECT] [--body TEXT]
               [--references MESSAGE_ID] [--otrs_id OTRS_ID]
               [--otrs_num OTRS_NUM] [--otrs_cookie OTRS_COOKIE]
@@ -32,7 +34,7 @@ usage: convey [-h] [--file] [-i] [-o [blank/FILENAME]] [-S] [--single-detect]
 
 Data conversion swiss knife
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   --server              Launches simple web server
   --daemon [start/restart/stop/status/server]
@@ -63,7 +65,10 @@ Input/Output:
 
 CLI experience:
   --debug [blank/false]
-                        On error, enter a pdb session
+                        Development only: increases verbosity and gets the
+                        prompt in the case of an exception.
+  --crash-post-mortem [blank/false]
+                        Get prompt if program crashes
   -v, --verbose         Sets the verbosity to see DEBUG messages.
   -q, --quiet           Sets the verbosity to see WARNINGs and ERRORs only. Prints out the least information possible.
                         (Ex: if checking single value outputs a single word, prints out just that.)
@@ -87,7 +92,8 @@ Environment:
                             * +1 to gray out disabled fields/methods
                             * +2 to include usual field names
   --get-autocompletion  Get bash autocompletion.
-  --version             Show the version number (which is currently 1.3.14).
+  --version             Show the version number (which is currently
+                        1.4.1-rc.1).
 
 Processing:
   --threads [blank/false/auto/INT]
@@ -258,6 +264,12 @@ Sending options:
                         Process e-mail messages with jinja2 templating system
   --attach-files [blank/false]
                         Split files are added as e-mail attachments
+  --attach-paths-from-path-column [blank/false]
+                        Files from a column of the Path type are added as
+                        e-mail attachments. Note for security reasons, files
+                        must not be symlinks, be readable for others `chmod
+                        o+r`, and be in the same directory. So that a crafted
+                        CSV would not pull up ~/.ssh or /etc/ files.
   --testing [blank/false]
                         Do not be afraid, e-mail messages will not be sent.
                         They will get forwarded to the testing e-mail (and

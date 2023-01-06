@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.4.1
+* types
+    * path
+* flags
+    * --attach_paths_from_path_column
+    * --crash-post-mortem
+
 ## 1.4 (2022-01-05)
 * CHANGED:
     * --delete-whois-cache renamed to --whois-delete   

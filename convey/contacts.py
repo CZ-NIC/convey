@@ -3,8 +3,8 @@ import re
 from pathlib import Path
 from typing import Dict
 
-from convey.config import Config, get_path
-from convey.mail_draft import MailDraft
+from .config import Config, get_path
+from .mail_draft import MailDraft
 
 
 class Contacts:

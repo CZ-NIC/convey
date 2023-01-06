@@ -903,6 +903,7 @@ class Types:
     plaintext = Type("plaintext", TypeGroup.general, "Plain text", ["plaintext", "text"], lambda x: False)
     path = Type("path", usual_names=["path"], identify_method = lambda x: False)
 
+
     @staticmethod
     def get_computable_types(ignore_custom=False):
         """ List of all suitable fields that we may compute from a suitable output

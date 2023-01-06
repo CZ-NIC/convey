@@ -1,4 +1,4 @@
-""" Mail management data structure """
+from __future__ import annotations  # remove as of Python3.11
 import binascii
 import logging
 from base64 import b64decode
@@ -7,8 +7,12 @@ from pathlib import Path
 from colorama import Fore
 from envelope import Envelope
 from jinja2 import Template, exceptions
+from typing import TYPE_CHECKING
 
 from .config import Config, get_path, edit
+
+if TYPE_CHECKING:
+    from .attachment import Attachment
 
 PLAIN_DELIMITER = "\n"
 
@@ -22,6 +26,7 @@ def is_html(s):
 
 
 class MailDraft:
+    """ Mail management data structure """
     def __init__(self, filename):
         self.text = False
         self.template_file = get_path(filename)
@@ -137,13 +142,15 @@ class MailDraft:
         self.file_assured = True
         return just_created
 
-    def _make_envelope(self, attachment):
+    def _make_envelope(self, attachment: Attachment):
         """ The format of the mail template is:
                 Header: value
                 Another-header: value
                 Subject: value
 
                 Body text begins after space.
+
+            :raises RuntimeError if there is security concern about an attachment
         """
         try:
             self.text = self.mail_file.read_text()
@@ -154,7 +161,7 @@ class MailDraft:
             return "Empty body text."
 
         if attachment and Config.get("jinja", "SMTP", get=bool):
-            if self.jinja(attachment) is False:
+            if self.apply_jinja(attachment) is False:
                 return "Wrong jinja2 template."
 
         e = (Envelope
@@ -168,12 +175,24 @@ class MailDraft:
         if not e.subject():
             return "Missing subject. Try writing 'Subject: text', followed by a newline."
         if attachment:
-            if attachment.path and attachment.attach and Config.get('attach_files', 'SMTP', get=bool):
-                e.attach(attachment.path, "text/csv", attachment.parser.attachment_name)
-
+            # set recipients
             e.to(attachment.mail)
             if attachment.cc:
                 e.cc(attachment.cc)
+            
+            # attach the split CSV file
+            if attachment.path and not attachment.used_in_body and Config.get('attach_files', 'SMTP', get=bool):
+                e.attach(attachment.path, "text/csv", attachment.parser.attachment_name)
+
+            # attach the paths from the path column (images, ...) in the split CSV file
+            # If there is a trouble with an attachment, 
+            if Config.get('attach_paths_from_path_column', 'SMTP', get=bool):
+                for path in attachment.get_paths_from_path_column():
+                    try:
+                        e.attach(path)
+                    except FileNotFoundError as e:
+                        return f"Cannot find the attachment: {e}"
+
 
         if Config.is_testing():
             e.recipients(clear=True)
@@ -190,7 +209,8 @@ class MailDraft:
 
         return e
 
-    def get_envelope(self, attachment: "Attachment" = None) -> Envelope:
+    def get_envelope(self, attachment: Attachment = None) -> Envelope:
+        """ :raises RuntimeError if there is security concern about an attachment """
         while True:
             just_created = self._assure_file()
             e = self._make_envelope(attachment)
@@ -202,13 +222,13 @@ class MailDraft:
             print(e)
             self.edit_text()
 
-    def jinja(self, attachment: "Attachment"):
+    def apply_jinja(self, attachment: Attachment):
 
         def print_attachment():
             """ Prints the attachment contents and prevent it to be attached.
                 # XX may have header=False parameter to skip header.
             """
-            attachment.attach = False
+            attachment.used_in_body = True
             return attachment.path.read_text()
 
         def amount(count=2):

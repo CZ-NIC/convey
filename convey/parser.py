@@ -32,25 +32,37 @@ logger = logging.getLogger(__name__)
 
 
 class Parser:
-    is_split: bool  # has already been split into many files (or we are just about to start file processing)
-    is_analyzed: bool  # has already been analyzed
-    is_processable: bool  # there are known actions we are ready to perform
-    is_processed: bool  # has already been processed
+    is_split: bool  
+    "has already been split into many files (or we are just about to start file processing)"
+    is_analyzed: bool  
+    "has already been analyzed"
+    is_processable: bool  
+    "there are known actions we are ready to perform"
+    is_processed: bool 
+    "has already been processed"
     attachments: List[Attachment]
 
     def __init__(self, source_file: Path = False, stdin=None, types=None, prepare=True):
         self.is_formatted = False
         self.is_repeating = False
-        self.dialect = None  # CSV dialect
-        self.has_header = None  # CSV has header
-        self.is_pandoc = False  # pandoc table format (second line to be skipped, a lot of spaces)
-        self.header: str = ""  # if CSV has header, it's here so that Processor can take it
-        self.sample: List[str] = []  # lines  of the original file, including first line - possible header
-        self.sample_parsed: List[
-            List[str]] = []  # values of the prepared output (ex re-sorted), always excluding header
-        self.fields: List[Field] = []  # CSV columns that will be generated to an output
-        self.first_line_fields: List[str] = []  # CSV columns (equal to header if used) in the original file
-        self.types = []  # field types of the columns as given by the user
+        self.dialect = None  
+        "CSV dialect"
+        self.has_header = None
+        "CSV has header"
+        self.is_pandoc = False
+        "pandoc table format (second line to be skipped, a lot of spaces)"
+        self.header: str = "" 
+        "if CSV has header, it's here so that Processor can take it"
+        self.sample: List[str] = []  
+        "lines  of the original file, including first line - possible header"
+        self.sample_parsed: List[List[str]] = []
+        "values of the prepared output (ex re-sorted), always excluding header"
+        self.fields: List[Field] = []  
+        "CSV columns that will be generated to an output"
+        self.first_line_fields: List[str] = []  
+        "CSV columns (equal to header if used) in the original file"
+        self.types = []  
+        "field types of the columns as given by the user"
         # settings:
         #    * "add": new_field:Field,
         #             source_col_i:int - number of field to compute from,
@@ -88,8 +100,10 @@ class Parser:
         self.aggregation = defaultdict(dict)
         self.refresh()
         self._reset(reset_header=False)
-        self.selected: List[int] = []  # list of selected fields col_i that may be in/excluded and moved in the menu
-        self.files_created = set()  # files created with this parser, will not be rewritten but appended to if reprocessing lines
+        self.selected: List[int] = [] 
+        "list of selected fields col_i that may be in/excluded and moved in the menu"
+        self.files_created = set()  
+        "files created with this parser, will not be rewritten but appended to if reprocessing lines"
 
         # load CSV
         self.source_file: Path = source_file or self.invent_file_str()
