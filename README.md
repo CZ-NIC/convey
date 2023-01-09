@@ -380,6 +380,7 @@ In the menu, you may either:
   *** E-mail template ***
 Recipient list (1/3): alice@example.com
 Already sent (2/3): bob@example.com, cilia@example.com
+Attachment: split CSV file attached
 
 Content-Type: text/plain; charset="utf-8"
 Content-Transfer-Encoding: 7bit

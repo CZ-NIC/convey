@@ -94,7 +94,6 @@ def ask(text=None):
         raise Cancelled(".. cancelled")
     if txt == "debug":
         raise Debugged("lets debug")
-        # ipdb.set_trace()
     return txt
 
 

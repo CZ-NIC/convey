@@ -1,13 +1,16 @@
 # CHANGELOG
 
-## 1.4.1
+## 1.4.2
+* fix: OTRS multiple files sending
+
+## 1.4.1 (2023-01-06)
 * types
     * path
 * flags
     * --attach_paths_from_path_column
     * --crash-post-mortem
 
-## 1.4 (2022-01-05)
+## 1.4 (2023-01-05)
 * CHANGED:
     * --delete-whois-cache renamed to --whois-delete   
     * template function `{{ print_attachment() }}` renamed to `{{ attachment() }}`

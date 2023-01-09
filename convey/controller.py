@@ -798,6 +798,7 @@ class Controller:
 
     def send_menu(self, method="smtp", test_attachment=None, send_now=False):
         # choose method SMTP/OTRS
+        # We prefer OTRS sending over SMTP because of the signing keys that an OTRS operator does not possess.
         if Config.get("otrs_enabled", "OTRS") and self.args.otrs_id:
             method = "otrs"
         elif Config.get("otrs_enabled", "OTRS") and not Config.get("yes"):
@@ -844,6 +845,9 @@ class Controller:
                     if c[1]:
                         info.append(f"Already sent ({c[1]}/{sum(c)}): "
                                     + ", ".join([o.mail for o in Attachment.get_all(abroad, True, 5, True)]))
+                    info.append(f"Attachment: " + (", ".join(filter(None, (Config.get('attach_files', 'SMTP', get=bool) and "split CSV file attached" ,
+                                                                            Config.get('attach_paths_from_path_column', 'SMTP', get=bool) and "files from the path column attached")))
+                                                                            or "nothing attached"))
                     info.append(f"\n{Contacts.mail_draft[draft].get_mail_preview()}\n")
                     return True
                 return False

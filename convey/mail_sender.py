@@ -1,10 +1,10 @@
-import http.client
 import logging
 import re
 import smtplib
 import sys
 from abc import abstractmethod, ABC
 from socket import gaierror
+from requests import get, post
 
 from validate_email import validate_email
 
@@ -23,7 +23,7 @@ OTRS_VERSION = 6
 
 class MailSender(ABC):
     def __init__(self, parser):
-        self.parser : Parser = parser
+        self.parser: Parser = parser
 
     def start(self):
         pass
@@ -81,9 +81,9 @@ class MailSender(ABC):
                 break
             except Exception as e:
                 logger.error(e)
+                Config.error_caught()
                 # if something fails (attachment FileNotFoundError, any other error),
-                # we want tag the previously sent e-mails so that they will not be resend next time
-                pass
+                # we want to tag the previously sent e-mails so that they will not be resend next time
             finally:
                 if status:
                     t = "Marking as sent" if status == "interrupted" else "Sent"
@@ -109,70 +109,64 @@ class MailSender(ABC):
 
 class MailSenderOtrs(MailSender):
 
-    def _post_multipart(self, host, selector, fields, files, cookies):
+    def _post_multipart(self, url, fields, cookies, attachments):
         """
         Post fields and files to an http host as multipart/form-data.
         fields is a sequence of (name, value) elements for regular form fields.
         files is a sequence of (name, filename, value) elements for data to be uploaded as files.
         Return an appropriate http.client.HTTPResponse object.
         """
-        
+
         # import ssl
-        # ssl._create_default_https_context = ssl._create_unverified_context  # XX once upon a day (10.2.2017), the certificate stopped working or whatever. This is an ugly solution - i think we may delete this line in few weeks
+        # # XX once upon a day (10.2.2017), the certificate stopped working or whatever. This is an ugly solution - i think we may delete this line in few weeks
+        # If this happens again, we may add a check that we are able to connect to OTRS before sending starts.
+        # ssl._create_default_https_context = ssl._create_unverified_context
         # context = ssl._create_unverified_context()
         # context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         # context.options &= ~ssl.OP_NO_TLSv1
 
-        content_type, body = self._encode_multipart_formdata(fields, files)
-        body = bytes(body, "UTF-8")
-        if "://" not in host:
-            protocol = "https"
-        else:
-            protocol, host = host.split("://", 1)
-        if protocol == "http":
-            h = http.client.HTTPConnection(host)
-        elif protocol == "https":
-            h = http.client.HTTPSConnection(host)
-        else:
-            raise ValueError(f"Unknown protocol in the host {host}")
-        if Config.is_debug():
-            h.debuglevel = 100
-        h.putrequest('POST', selector)
-        h.putheader('Content-Type', content_type)
-        h.putheader('Content-Length', str(len(body)))
-        for key, value in cookies:
-            h.putheader(key, value)
-        h.endheaders()
-        h.send(body)
-        response = h.getresponse()
-        return response
+        # if Config.is_debug():
+        # http.client.HTTPConnection.debuglevel = 1
+        # requests_log = logging.getLogger("requests.packages.urllib3")
+        # requests_log.setLevel(logging.INFO)
+        # requests_log.propagate = True
 
-    @staticmethod
-    def _encode_multipart_formdata(fields, files):
-        """
-        fields is a sequence of (name, value) elements for regular form fields.
-        files is a sequence of (name, filename, value) elements for data to be uploaded as files.
-        Return (content_type, body) ready for http.client.HTTPConnection instance
-        """
+        # upload attachments before the main request
+        if attachments:
+            # get FormID to pair attachments
+            logger.debug("Receiving FormID")
+            form_id_r = get(url,
+                            params={"ChallengeToken": self.parser.otrs_token,
+                                    "Action": "AgentTicketForward",
+                                    "TicketID": str(self.parser.otrs_id)},
+                            cookies=cookies
+                            )
 
-        BOUNDARY = '----------ThIs_Is_tHe_bouNdaRY_---$---'
-        CRLF = '\r\n'
-        l = []
-        for (key, value) in fields:
-            l.append('--' + BOUNDARY)
-            l.append('Content-Disposition: form-data; name="%s"' % key)
-            l.append('')
-            l.append(value)
-        for (key, filename, value) in files:
-            l.append('--' + BOUNDARY)
-            l.append('Content-Disposition: form-data; name="%s"; filename="%s"' % (key, filename))
-            l.append('')
-            l.append(value)
-        l.append('--' + BOUNDARY + '--')
-        l.append('')
-        body = CRLF.join(l)
-        content_type = 'multipart/form-data; boundary=%s' % BOUNDARY
-        return content_type, body
+            m = re.search(r'FormID" value="((\d|\.)*)"', form_id_r.text)
+            if m:
+                form_id = m[1]
+                for a in attachments:
+                    logger.debug("Uploading %s", a.name)
+                    post(url,
+                         params={"Action": "AjaxAttachment",
+                                 "Subaction": "Upload",
+                                 "FormID": form_id,
+                                 "ChallengeToken": self.parser.otrs_token
+                                 },
+                         cookies=cookies,
+                         files={"Files": (a.name, a.data)}
+                         )
+
+                fields["FormID"] = form_id
+            else:
+                raise RuntimeError("Cannot get the FormID, unable to upload the attachments.")
+
+        # If we have a single file, we could upload it with single request that way:
+        # `files={"FileUpload": (a.name, a.data)}``
+        logger.debug("Submitting mail")
+        r = post(url, params=fields, cookies=cookies)
+
+        return r.text
 
     @staticmethod
     def _check_record(record, lineno):
@@ -183,7 +177,6 @@ class MailSenderOtrs(MailSender):
 
     @staticmethod
     def _check_response(response):
-        response = response.decode("UTF-8")
         if Config.is_testing():
             logger.info(" Response length:\n " + str(len(response)))
 
@@ -193,8 +186,8 @@ class MailSenderOtrs(MailSender):
             logger.error(response)
             return False
 
-        if Config.is_debug():
-            logger.info("Got response\n" + response)
+        # if Config.is_debug():
+        #     logger.info("Got response\n" + response)
 
         title = mo.group(1)
         if 'Předat - Tiket - ' in title or 'Forward - Ticket - ' in title:
@@ -237,9 +230,9 @@ class MailSenderOtrs(MailSender):
                 self.parser.attachment_name = self.ask_value(self.parser.attachment_name, "attachment name")
 
             if is_yes(f"Ticket id = {self.parser.otrs_id}, ticket num = {self.parser.otrs_num},"
-                             f" cookie = {self.parser.otrs_cookie}, token = {self.parser.otrs_token},"
-                             f" attachment_name = {self.parser.attachment_name}"
-                             f"\nWas that correct?"):
+                      f" cookie = {self.parser.otrs_cookie}, token = {self.parser.otrs_token},"
+                      f" attachment_name = {self.parser.attachment_name}"
+                      f"\nWas that correct?"):
                 return True
             else:
                 force = True
@@ -255,73 +248,56 @@ class MailSenderOtrs(MailSender):
         if not any(x for x in ("<br", "<b>", "<i>", "<p", "<img") if x in message):
             message = e.message().replace("\n", "<br>\n")
 
-        fields = (
-            ("Action", "AgentTicketForward"),
-            ("Subaction", "SendEmail"),
-            ("TicketID", str(self.parser.otrs_id)),
-            ("Email", e.from_().address),
-            ("From", assure_str(e.from_())),
-            ("To", assure_str(e.to())),  # mails can be delimited by comma or semicolon
-            ("Subject", e.subject()),
-            ("Body", message),
-            ("ArticleTypeID", "1"),  # mail-external
-            ("ComposeStateID", "4"),  # open
-            ("ChallengeToken", self.parser.otrs_token),
-        )
+        fields = {
+            "Action": "AgentTicketForward",
+            "Subaction": "SendEmail",
+            "TicketID": str(self.parser.otrs_id),
+            "Email": e.from_().address,
+            "From": assure_str(e.from_()),
+            "To": assure_str(e.to()),  # mails can be delimited by comma or semicolon
+            "Subject": e.subject(),
+            "Body": message,
+            "ArticleTypeID": "1",  # mail-external
+            "ComposeStateID": "4",  # open
+            "ChallengeToken": self.parser.otrs_token,
+        }
 
-        try:  # XX convert "try" to if m := Config.get("signkeyid", "OTRS"):
+        try:  # XX as of Python3.8, convert "try" to if m := Config.get("signkeyid", "OTRS"):
             if OTRS_VERSION == 6:
-                fields += ("EmailSecurityOptions", Config.get("signkeyid", "OTRS")),
+                fields["EmailSecurityOptions"] = Config.get("signkeyid", "OTRS")
             else:
-                fields += ("SignKeyID", Config.get("signkeyid", "OTRS")),
+                fields["SignKeyID"] = Config.get("signkeyid", "OTRS")
         except KeyError:
             pass
 
         if e.cc():
-            fields += ("Cc", assure_str(e.cc())),
-
+            fields["Cc"] = assure_str(e.cc())
         if e.bcc():
-            fields += ("Bcc", assure_str(e.bcc())),
+            fields["Bcc"] = assure_str(e.bcc())
 
-        attachment_contents = ""
-        if self.parser.attachment_name and len(e.attachments()):
-            attachment_contents = str(e.attachments()[0])
-        if attachment_contents:
-            files = (("FileUpload", self.parser.attachment_name, attachment_contents),)
-        else:
-            files = ()
-
-        # OTRS3 Session
-        # OTRS6 OTRSAgentInterface
-        if OTRS_VERSION == 6:
-            cookies = (('Cookie', f'OTRSAgentInterface={self.parser.otrs_cookie}'),)
-        else:
-            cookies = (('Cookie', 'Session=%s' % self.parser.otrs_cookie),)
+        attachments = e.attachments()
+        cookies = {('OTRSAgentInterface' if OTRS_VERSION == 6 else 'Session'): self.parser.otrs_cookie}
 
         if Config.is_testing():
             print(" **** Testing info:")
             print(' ** Fields: ' + str(fields))
-            # print(' ** Files length: ', len(files))
+            print(' ** Files: ', [(a.name, len(a.data)) for a in attachments])
             print(' ** Cookies: ' + str(cookies))
-            # str(sys.stderr)
 
         host = Config.get("otrs_host", "OTRS")
-        selector = Config.get("baseuri", "OTRS")
+        url = (host if "://" in host else f"https://{host}") + Config.get("baseuri", "OTRS")
         try:
-            res = self._post_multipart(host,
-                                       selector,
+            res = self._post_multipart(url,
                                        fields=fields,
-                                       files=files,
-                                       cookies=cookies)
+                                       cookies=cookies,
+                                       attachments=e.attachments())
         except Exception:
             import traceback
             logger.error(traceback.format_exc())
-            logger.error(f"\nE-mail could not be send to the host {host}{selector} with the fields {fields}."
-                  f" Are you allowed to send from this e-mail etc?")
-            # input("Program now ends.")
-            # quit()
+            logger.error(f"\nE-mail could not be send to the host {url} with the fields {fields}."
+                         f" Are you allowed to send from this e-mail etc?")
             raise
-        if not res or not self._check_response(res.read()):
+        if not res or not self._check_response(res):
             print("Sending failure, see convey.log.")
             return False
         else:
