@@ -32,49 +32,50 @@ logger = logging.getLogger(__name__)
 
 
 class Parser:
-    is_split: bool  
+    is_split: bool
     "has already been split into many files (or we are just about to start file processing)"
-    is_analyzed: bool  
+    is_analyzed: bool
     "has already been analyzed"
-    is_processable: bool  
+    is_processable: bool
     "there are known actions we are ready to perform"
-    is_processed: bool 
+    is_processed: bool
     "has already been processed"
     attachments: List[Attachment]
 
     def __init__(self, source_file: Path = False, stdin=None, types=None, prepare=True):
         self.is_formatted = False
         self.is_repeating = False
-        self.dialect = None  
+        self.dialect = None
         "CSV dialect"
         self.has_header = None
         "CSV has header"
         self.is_pandoc = False
         "pandoc table format (second line to be skipped, a lot of spaces)"
-        self.header: str = "" 
+        self.header: str = ""
         "if CSV has header, it's here so that Processor can take it"
-        self.sample: List[str] = []  
-        "lines  of the original file, including first line - possible header"
+        self.sample: List[str] = []
+        "lines of the original file, including first line - possible header"
         self.sample_parsed: List[List[str]] = []
         "values of the prepared output (ex re-sorted), always excluding header"
-        self.fields: List[Field] = []  
+        self.fields: List[Field] = []
         "CSV columns that will be generated to an output"
-        self.first_line_fields: List[str] = []  
+        self.first_line_fields: List[str] = []
         "CSV columns (equal to header if used) in the original file"
-        self.types = []  
+        self.types = []
         "field types of the columns as given by the user"
-        # settings:
-        #    * "add": new_field:Field,
-        #             source_col_i:int - number of field to compute from,
-        #             fitting_type:Field - possible type of source ,
-        #             custom:tuple - If target is a 'custom' field, we'll receive a tuple (module path, method name).
-        #    * "dialect": always present (set in controller just after parser.prepare()), output CSV dialect
-        #    * "header": True if input CSV has header and output CSV should have it too.
-        #                False if either input CSV has not header or the output CSV should omit it.
-        #
         self.settings = defaultdict(list)
+        """settings:
+           * "add": new_field:Field,
+                    source_col_i:int - number of field to compute from,
+                    fitting_type:Field - possible type of source ,
+                    custom:tuple - If target is a 'custom' field, we'll receive a tuple (module path, method name).
+           * "dialect": always present (set in controller just after parser.prepare()), output CSV dialect
+           * "header": True if input CSV has header and output CSV should have it too.
+                       False if either input CSV has not header or the output CSV should omit it."""
+
         self.redo_invalids = Config.get("redo_invalids")
-        self.otrs_cookie = False  # OTRS attributes to be linked to CSV
+        # OTRS attributes to be linked to CSV
+        self.otrs_cookie = False
         self.otrs_id = Config.get("ticketid", "OTRS")
         self.otrs_token = False
         self.otrs_num = Config.get("ticketnum", "OTRS")
@@ -83,7 +84,8 @@ class Parser:
             self.attachment_name += ".csv"
         self.ip_count_guess = None
         self.ip_count = None
-        self.attachments = []  # files created if splitting
+        self.attachments = []
+        "files created if splitting"
         self.queued_lines_count: int
         self.invalid_lines_count: int
         self.unknown_lines_count: int
@@ -93,30 +95,32 @@ class Parser:
         # XX this is not used right now, convey is not at the moment connectable to other programs
         # see __init__.py at revision d2cf88f48409ca8cc5e229954df34836de884445
         self.external_stdout = None
-        self.is_single_query = False  # CSV processing vs single_query check usage
+        self.is_single_query = False
+        "CSV processing vs single_query check usage"
         self.ranges = {}  # XX should be refactored as part of Whois
         self.ip_seen = {}  # XX should be refactored as part of Whois
-        # set by processor [location file][grouped row][order in aggregation settings] = [sum generator, count]
         self.aggregation = defaultdict(dict)
+        "set by processor [location file][grouped row][order in aggregation settings] = [sum generator, count]"
         self.refresh()
         self._reset(reset_header=False)
-        self.selected: List[int] = [] 
+        self.selected: List[int] = []
         "list of selected fields col_i that may be in/excluded and moved in the menu"
-        self.files_created = set()  
+        self.files_created = set()
         "files created with this parser, will not be rewritten but appended to if reprocessing lines"
 
         # load CSV
         self.source_file: Path = source_file or self.invent_file_str()
         self.stdin = []
-        # When accepting input from stdin and not saving the output into a file
-        #   or when setting this to True,
-        #   the output will be here.
-        # Config.get("output") - the file we should save to
-        # Config.get("stdout") - stdout used
         self.stdout = Config.get("stdout")
+        """When accepting input from stdin and not saving the output into a file
+          or when setting this to True,
+          the output will be here.
+        Config.get("output") - the file we should save to
+        Config.get("stdout") - stdout used"""
         self.stdout_sample = None
         self.target_file = None
-        self.saved_to_disk = None  # has been saved to self.target_file
+        self.saved_to_disk = None
+        "has been saved to self.target_file"
         self.processor = Processor(self)
         self.informer = Informer(self)
         self.identifier = Identifier(self)
@@ -177,12 +181,11 @@ class Parser:
             elif not len_ or len_ > 1:
                 seems = False
 
-            if seems and Config.get("single_query") is not False:
+            if Config.get("single_query") or (seems and Config.get("single_query") is not False):
                 # identify_fields some basic parameters
                 self.add_field([Field(self.stdin[0])])  # stdin has single field
                 self.dialect = False
                 self.has_header = False
-                self.sample_parsed = [x for x in csv.reader(self.sample)]
                 if self.identifier.identify_fields(quiet=True):
                     # tell the user what type we think their input is
                     # access the detection message for the first (and supposedly only) field
@@ -207,6 +210,7 @@ class Parser:
                     return self
 
         # we are parsing a CSV file
+        self.sample_parsed = [x for x in csv.reader(self.sample)]
         self.informer.sout_info()
         try:
             # Dialog to obtain basic information about CSV - delimiter, header
@@ -390,17 +394,15 @@ class Parser:
                         fields.append((target_type, methods))
 
         method_cache = {}
+        single_query_value = "\n".join(self.stdin)
+        row = [single_query_value]
         for field, methods in fields:
             if type(field) is Type:
-                val = self.first_line
-            elif not self.sample_parsed[0]:
-                print(f"No field to compute {field} from.")
-                return
+                val = single_query_value
             else:
-                val = self.sample_parsed[0][field.source_field.col_i]
+                val = row[field.source_field.col_i]
             try:
                 for i, l in enumerate(methods):
-                    val_old = val
                     if (repr((val, methods[:i + 1]))) in method_cache:
                         val = method_cache[(repr((val, methods[:i + 1])))]
                         continue
@@ -414,7 +416,7 @@ class Parser:
                     method_cache[(repr((val, methods[:i + 1])))] = val
             except Exception as e:
                 val = str(e)
-            self.sample_parsed[0].append(val)
+            row.append(val)
             if type(field) is Type or field.is_chosen:
                 append(field, val)
 

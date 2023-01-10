@@ -11,6 +11,7 @@ from unittest import TestCase, main
 
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 os.chdir("tests")  # all mentioned resources files are in that folder
+HELLO_B64 = 'aGVsbG8='
 
 class Convey:
     def __init__(self, *args, filename=None, text=None, whois=False, debug=None):
@@ -68,7 +69,11 @@ class TestAbstract(TestCase):
     def check(self, check: Union[List, str], cmd: str = "", text=None, filename=None, debug=None):
         o = Convey(filename=filename, text=text, debug=debug)(cmd)
         if isinstance(check, list):
-            self.assertEqual(check, o)
+            self.assertListEqual(check, o)
+        elif check is None:
+            self.assertFalse(o)
+        elif not len(o):
+            raise AssertionError(f"Output too short: {o}")
         else:
             self.assertEqual(check, o[0])
 
@@ -118,7 +123,12 @@ class TestColumns(TestAbstract):
          ('* Saved to second@example.com', '"second@example.com"', '* Saved to one@example.com', '"one@example.com"')]
 
 
-class TestFields(TestCase):
+class TestFields(TestAbstract):
+
+    def test_base64_detection(self):
+        """ Base64 detection should work if majority of the possibly decoded characters are not gibberish."""
+        self.check("base64", "--single-detect", HELLO_B64)
+        self.check(None, "--single-detect", "ahojahoj")
 
     def test_base64_charset(self):
         """ Base64 detection should work even if encoded with another charset """
@@ -184,20 +194,35 @@ class TestFields(TestCase):
         self.assertEqual([], convey("--single-detect", text="12345"))
 
 
-class TestLaunching(TestCase):
+class TestLaunching(TestAbstract):
     def test_piping_in(self):
         convey = Convey()
         # just string specified, nothing else
         lines = convey(piped_text="3 kg")
         self.assertTrue(len(lines) == 1)
         self.assertTrue("'1.806642228624337e+27 dalton'" in lines[0])
-        
+
         # field base64 specified
-        HELLO = 'aGVsbG8='
-        self.assertListEqual([HELLO], convey("-f base64", piped_text="hello"))
-        self.assertListEqual(['hello'], convey(piped_text=HELLO))        
+        self.assertListEqual([HELLO_B64], convey("-f base64", piped_text="hello"))
+        self.assertListEqual(['hello'], convey(piped_text=HELLO_B64))
         self.assertListEqual([], convey(piped_text="hello"))
 
+    def test_single_query_processing(self):
+        """ Stable --single-query parsing  """
+
+        # Single field containing a comma, still must be fully converted (comma must not be mistaken for a CSV delimiter)
+        self.check("aGVsbG8sIGhlbGxv", "-f base64", "hello, hello")
+        self.check("V=C3=A1=C5=BEen=C3=A1 Ad=C3=A9lo, ra=C4=8Dte vstoupit", "-f quoted_printable", "Vážená Adélo, račte vstoupit")
+        self.check([], "",  "hello, hello")
+
+        # multiline base64 string
+        multiline = "ahoj\nahoj"
+        multiline_64 = b64encode(multiline.encode()).decode()
+        word = "ahoj"
+        word_64 = b64encode(word.encode()).decode()
+
+        self.check(multiline_64, "--single-query -f base64", multiline)
+        self.check([f'"{word}","{word_64}"']*2, "-f base64", multiline, debug=True)
 
 class TestSending(TestCase):
     def test_dynamic_template(self):
@@ -226,7 +251,7 @@ class TestSending(TestCase):
     #     convey = Convey("filter.csv")
     #     cmd = """--body "body text" """
 
-    def test_send(self):    
+    def test_send(self):
         BLACK = "Attachment black.gif (image/gif)"
         WHITE = "Attachment white.gif (image/gif)"
         COLOURS = "Attachment colours.csv (text/csv)"
@@ -258,7 +283,7 @@ class TestSending(TestCase):
         self.assertIn(BLACK, lines[1])
         lines = convey(cmd_pattern.format(mail="john@example.com") + "--attach-files False --attach-paths-from-path-column False")
         self.assertNotIn(COLOURS, lines[0])
-        self.assertNotIn(BLACK, lines[1])     
+        self.assertNotIn(BLACK, lines[1])
 
 
 class TestExternals(TestCase):

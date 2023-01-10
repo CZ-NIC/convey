@@ -173,7 +173,13 @@ class Checker:
             return False
 
         try:
-            return bool(b64decode(x).decode("UTF-8"))
+            s = b64decode(x).decode("UTF-8")
+            if s:
+                if len(re.sub(r"[^a-zA-Z0-9 ]", "", s)) / len(s) > 0.9:
+                    # Majority of characters in the decoded string must be alphanumerical
+                    # in order we think this might be a base64-encoded string.
+                    # Imagine string 'ahojahoj' which is base64-decodable but gibberish.
+                    return True
         except (UnicodeDecodeError, ValueError):
             try:
                 if len(x) > 10 and b64decode(x):

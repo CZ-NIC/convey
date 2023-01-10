@@ -3,6 +3,7 @@
 ## 1.4.2
 * fix: OTRS multiple files sending
 * fix: piping into program while specifiying fields works
+* fix: single-query processing
 
 ## 1.4.1 (2023-01-06)
 * types
@@ -13,7 +14,7 @@
 
 ## 1.4 (2023-01-05)
 * CHANGED:
-    * --delete-whois-cache renamed to --whois-delete   
+    * --delete-whois-cache renamed to --whois-delete
     * template function `{{ print_attachment() }}` renamed to `{{ attachment() }}`
     * aggregated results will provide valid CSV, not fancy but hardly parsable table
     * sending works with SMTP or OTRS6 (OTRS3 is deprecated now)
@@ -42,13 +43,13 @@
     * print out settings so that it can be reprocessed via bash command (currently experimental, on file exit)
     * displays what is happening if WHOIS cache is being loaded/saved longer than 1 s
     * atomic thread safe information printing – no more blinking and shuffled info; few records stay on the screen when information refresh
-    * statistics info reworded 
+    * statistics info reworded
     * reset menu renamed to redo
     * sending menu – testing is the default option (you do not want to send all by mistake too early) and attachments are sorted alphabetically
     * positional vs keyword arguments order resilience
 * flags
     * --whois-delete-unknown
-    * --whois-reprocessable-unknown 
+    * --whois-reprocessable-unknown
     * --whois-cache
     * --web-timeout
     * --subject, --body (even with BASE64), --references
@@ -63,12 +64,12 @@
     * fix: cache empty whois prefix (ex: of a wrongly formatted IP)
     * whois cache saved only when changed (useful when having a huge cache)
     * mitigation for another type of a wrong WHOIS response
-    * fix: reprocessing while changing dialect 
+    * fix: reprocessing while changing dialect
     * fix: catch preview exception
     * fix: threading atomic write
     * applying filter before line processing if possible (spares a lot of time, ex: skip lines before WHOIS processing)
     * fix Python3.6: disabled logging messages from daemon (threw errors)
-    * fix: processing velocity info (lines / s) showed garbage since threads implemented    
+    * fix: processing velocity info (lines / s) showed garbage since threads implemented
     * fix: aggregate via Alt+a from main menu + any after-processing dialog (like resolve unknowns) caused the terminal to freeze (cannot use input() while another prompt toolkit session is active)
     * CLI better source_type determining
     * web module boosts and fixes
@@ -91,7 +92,7 @@
     * loading dialect from a cached file bug
     * jsonpickle whois caching bug mitigated: now we are doing the serialization part ourselves
     * dependency of lxml of ezodf (which was not installed with ezodf I do not know why) added to requirements
-    * submitting to github strips URL to 2000 chars (which is a reasonable maximum that server accepts)    
+    * submitting to github strips URL to 2000 chars (which is a reasonable maximum that server accepts)
 
 ## 1.3 (2020-01-28)
 * CHANGED:
@@ -103,12 +104,12 @@
     * incident-contact field
         * for non-local countries produces now the file whose name is in the form "abroad:abusemail@example.com"
         * when non-local country is missing from contacts_abroad, it will be sent to its abusemail contact (but preserving mail_template_abroad)
-    * attachment name no more prepended with prefix "part-" 
+    * attachment name no more prepended with prefix "part-"
     * by default, produced file CSV dialect is set to standard: comma, double quotes. (This may be changed in the config.ini by letting the relevant fields in CSV section blank to let the output file have the same dialect as the input.)
 * flags
     * --aggregate – count grouped by a column, sum, etc.
     * --daemon, daemonize – since it takes around 0.75 s to start the program, notably because of the external libraries (pint, bs4, requests), when doing a single query or a headless processing (no menu involved) we may reduce this time at least ten times with a daemon)
-    * --type – specify type of the given column(s), useful when treating a column that cannot be easily detected (as country_name) 
+    * --type – specify type of the given column(s), useful when treating a column that cannot be easily detected (as country_name)
     * --output left BLANK causes output be piped to STDOUT instead of to a file.
     * --reprocess
     * --testing
@@ -125,7 +126,7 @@
     - Ctrl+C works when interrupting wizzard as expected #39
     - detect multiline quoted_printable
     - better phone format recognition
-    - multiple STDIN processing in a single session    
+    - multiple STDIN processing in a single session
     - CSV flags (like --header) when processing in --yes mode
     - web relative redirect working
     - max number of redirects is 10
@@ -149,7 +150,7 @@
 * flags:
     - CHANGED:
         - flag `--file` does not have anymore shortcut '-f'.
-        - `custom_field_modules` renamed to `external_fields`   
+        - `custom_field_modules` renamed to `external_fields`
     - both INI and CLI flags
         - delimiter flag
         - quote_char flag
@@ -178,7 +179,7 @@
     - fix: new installation should now correctly place contacts files in .config
     - fix: refresh abroad contact list e-mails when restart even if the file has been processed before
     - PyPi installer requirements fix
-* Whois module 
+* Whois module
     - won't throw error if host can't be resolved
     - huge refactoring (may lead to the behaviour when Country is taken from ARIN and Netname from AfriNIC if AfriNIC points us to ARIN that doesn't state Netname)
     - thousands of unique prefixes tried, many uses cases handled
@@ -212,7 +213,7 @@
     - when more than 9 options, you can use letters as shortcuts
     - main screen shows colorized result, preferable in the form of table if the terminal is wide enough
     - new 'code' field type for writing arbitrary code
-    - when not in debug mode, a GitHub issue is filled out automatically at crash 
+    - when not in debug mode, a GitHub issue is filled out automatically at crash
     - autoopen_editor opens when analysis starts but now only if splitting by a column
     - Config file startup integrity check: missing items and sections may be inserted automatically after an upgrade
     - column sorting/picking in the main menu
@@ -224,7 +225,7 @@
     - web: text, http_status, html, redirects, x_frame_options, csp
     - port, ports
     - urlencode, quoted_printable
-    - charset, bytes    
+    - charset, bytes
     - timestamp, isotimestamp, time, date, formatted_time
     - phone, unit
 

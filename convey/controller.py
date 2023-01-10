@@ -12,6 +12,7 @@ from io import StringIO
 from pathlib import Path
 from sys import exit
 from tempfile import NamedTemporaryFile
+from typing import Any, List, Tuple
 
 from colorama import init as colorama_init, Fore
 from dialog import Dialog, DialogError
@@ -121,7 +122,8 @@ class BlankTrueString(BlankTrue):
         super().__call__(*args, **kwargs, allow_string=True)
 
 
-new_fields = []
+new_fields : List[Tuple[bool, Any]]= []
+"User has requested to compute these. Defined by tuples: add (whether to include the column in the result), field definition"
 
 
 class FieldExcludedAppend(argparse.Action):
