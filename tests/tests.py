@@ -7,9 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from subprocess import run, PIPE
 from typing import Union, List
-from unittest import TestCase, main, mock
-
-from envelope.smtp_handler import SMTPHandler
+from unittest import TestCase, main
 
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 os.chdir("tests")  # all mentioned resources files are in that folder
@@ -41,10 +39,10 @@ class Convey:
         if args:
             self.cmd.extend(args)
 
-    def __call__(self, cmd="", text=None, debug=None):
+    def __call__(self, cmd="", text=None, debug=None, piped_text=None):
         if debug is not None:
             self.debug = debug
-        if not any((self.filename, self.text)) and not cmd.startswith("-"):
+        if not any((self.filename, self.text, piped_text)) and not cmd.startswith("-"):
             cmd = "--input " + cmd
 
         cmd = [*self.cmd, *shlex.split(cmd)]
@@ -53,7 +51,8 @@ class Convey:
         if self.debug:
             print(" ".join(cmd))
         # run: blocking, output
-        lines = run(cmd, stdout=PIPE, timeout=3).stdout.decode("utf-8").splitlines()
+        input_= piped_text.encode() if piped_text else None
+        lines = run(cmd, input=input_, stdout=PIPE, timeout=3).stdout.decode("utf-8").splitlines()
         if self.debug:
             print(lines)
         if lines and lines[-1] == '\x1b[0m':
@@ -183,6 +182,21 @@ class TestFields(TestCase):
 
         # short number is not considered a timestamp from the beginning of the Unix epoch (1970)
         self.assertEqual([], convey("--single-detect", text="12345"))
+
+
+class TestLaunching(TestCase):
+    def test_piping_in(self):
+        convey = Convey()
+        # just string specified, nothing else
+        lines = convey(piped_text="3 kg")
+        self.assertTrue(len(lines) == 1)
+        self.assertTrue("'1.806642228624337e+27 dalton'" in lines[0])
+        
+        # field base64 specified
+        HELLO = 'aGVsbG8='
+        self.assertListEqual([HELLO], convey("-f base64", piped_text="hello"))
+        self.assertListEqual(['hello'], convey(piped_text=HELLO))        
+        self.assertListEqual([], convey(piped_text="hello"))
 
 
 class TestSending(TestCase):

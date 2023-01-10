@@ -2,6 +2,7 @@
 
 ## 1.4.2
 * fix: OTRS multiple files sending
+* fix: piping into program while specifiying fields works
 
 ## 1.4.1 (2023-01-06)
 * types

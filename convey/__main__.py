@@ -25,7 +25,7 @@ def main():
         # Note that this way we still get stuck when
         # launching with an implicit input `subprocess.run("convey file.csv")`,
         # we have to explicitly state `subprocess.run("convey --file file.csv")`
-        if not any(x in sys.argv for x in ['-i', '--input', '-f', '--file']):
+        if not any(x in sys.argv for x in ['-i', '--input', '--file']):
             sys.argv.extend(["--input", sys.stdin.read().rstrip()])
     daemonize_on_exit = True
     if os.path.exists(socket_file):  # faster than importing Pathlib.path

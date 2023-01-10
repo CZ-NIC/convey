@@ -32,14 +32,11 @@ from .parser import Parser
 from .types import Types, TypeGroup, types, Type, graph, methods, Aggregate, get_module_from_path
 from .wizzard import Preview, bottom_plain_style
 from .wrapper import Wrapper
+from . import __version__
 
 logger = logging.getLogger(__name__)
 aggregate_functions = [f for f in Aggregate.__dict__ if not f.startswith("_")]
 aggregate_functions_str = "".join("\n* " + f for f in aggregate_functions)
-
-# I really do not like to have an extra file for this. Change my mind.
-__version__ = "1.4.1"  # to be changed in __init__.py too
-
 
 def send_ipc(pipe, msg, refresh_stdout):
     sys.stdout = sys.stderr = StringIO()  # creating a new one is faster than truncating the old
