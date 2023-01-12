@@ -1,4 +1,4 @@
-from __future__ import annotations  # remove as of Python3.11
+from __future__ import annotations
 from csv import reader as csvreader
 from pathlib import Path
 import stat
@@ -15,9 +15,9 @@ if TYPE_CHECKING:
     from .parser import Parser
 
 class Attachment:
-    sent: bool  
+    sent: bool
     "True => sent, False => error while sending, None => not yet sent"
-    
+
     abroad: bool
     "True => abroad e-mail is in Contacts dict, False => e-mail is file name, None => undeliverable (no e-mail)"
 
@@ -44,7 +44,7 @@ class Attachment:
             :raises RuntimeError if there is security concern about an attachment
         """
         path = next((f for f in self.parser.fields if f.type == Types.path), None)
-        
+
         with self.path.open() as f:
             reader = csvreader(f, dialect=self.parser.settings["dialect"])
             paths = [Path(row[path.col_i]) for row in reader]

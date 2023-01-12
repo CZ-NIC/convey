@@ -13,6 +13,7 @@ from datetime import datetime
 from enum import IntEnum
 from pathlib import Path
 from quopri import decodestring, encodestring
+from sys import exit
 from typing import List
 from urllib.parse import unquote, quote, urlparse, urlsplit, urljoin
 
@@ -828,7 +829,7 @@ class Types:
         except KeyError:
             if (start, target) in methods_deleted:
                 print(f"Disabled path at {start} – {target}. Launch --config to enable it.")
-                quit()
+                exit()
             else:
                 raise LookupError
 

@@ -5,19 +5,20 @@
 Swiss knife for mutual conversion of the web related data types, like `base64` or outputs of the programs `whois`, `dig`, `curl`.
 Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.
 
-Any input is accepted: 
+Any input is accepted:
 * if a **single value** input is detected, all **meaningful information** is fetched
 * multiline **base64**/**quoted_printable** string gets decoded
-* **log/XLS/XLSX/ODS file** converted to CSV 
+* **log/XLS/XLSX/ODS file** converted to CSV
 * **CSV file** (any delimiter, header or [pandoc](https://pandoc.org/MANUAL.html#tables) table format) performs one or more actions
     1) **Pick, delete or sort columns** (if only some columns are needed)
     2) **Add a column** (computes one field from another – see below)
-    3) **Filter** (keep/discard rows with specific values, no duplicates)    
+    3) **Filter** (keep/discard rows with specific values, no duplicates)
     4) **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
     5) **Change CSV dialect** (change delimiter or quoting character, remove header)
     6) **Aggregate** (count grouped by a column, sum...)
+    7) **Merge** (join other file)
 
-Python3.6+ required.
+Python3.7+ required (older releases support 3.6).
 
 # Table of contents
 * [Usage](#usage)
@@ -57,6 +58,7 @@ Python3.6+ required.
   + [Base64 and Regular expressions](#base64-and-regular-expressions)
   + [Converting units](#converting-units)
   + [Aggregate](#aggregate)
+  + [Merge](#merge)
   + [Sending images to different recipients](#sending-images-to-different-recipients)
 * [Credits](#credits)
 
@@ -117,7 +119,7 @@ Access in the browser: http://localhost:26683/?q=example.com
 
 ### Prerequisites
 * You'll be asked to install `dialog` library at the first run if not already present in the system.
-* If something is missing on your system, you may find help yourself with this command:    
+* If something is missing on your system, you may find help yourself with this command:
 `sudo apt install python3-pip python3-dev python3-tk git xdg-utils dialog whois dnsutils nmap curl build-essential libssl-dev libpcre3 libpcre3-dev && pip3 install setuptools wheel uwsgi && pip3 install --upgrade ipython`
     * `build-essential` is needed to build `uwsgi` and `envelope`
     * `libpcre3 libpcre3-dev` needed to suppress uWSGI warning `!!! no internal routing support, rebuild with pcre support !!!`
@@ -165,7 +167,7 @@ pip3 install -r requirements.txt  --user
 * A file [`config.ini`](convey/defaults/config.ini) is automatically created in [user config folder](convey/defaults/config.ini). This file may be edited for further customisation. Access it with `convey --config`.
 > * Convey tries to open the file in the default GUI editor or in the terminal editor if GUI is not an option.
 > * If `config.ini` is present at working directory, that one is used over the one in the user config folder.
-> * Configuration is updated automatically on upgrade. 
+> * Configuration is updated automatically on upgrade.
 
 ## Computing fields
 
@@ -192,7 +194,7 @@ When obtaining a WHOIS record
 * We are internally calling `whois` program, detecting what servers were asked.
 * Sometimes you encounter a funny formatted *whois* response. We try to mitigate such cases and **re-ask another registry** in well known cases.
 * Since IP addresses in the same prefix share the same information we cache it to gain **maximal speed** while reducing *whois* queries.
-* Sometimes you encounter an IP that gives no information but asserts its prefix includes a large portion of the address space. All IP addresses in that portion ends labeled as unknowns. At the end of the processing you are **asked to redo unknowns** one by one to complete missing information, flushing misleading superset from the cache.  
+* Sometimes you encounter an IP that gives no information but asserts its prefix includes a large portion of the address space. All IP addresses in that portion ends labeled as unknowns. At the end of the processing you are **asked to redo unknowns** one by one to complete missing information, flushing misleading superset from the cache.
 * You may easily hit **LACNIC query rate** quota. In that case, we re-queue such lines to be queried after the quota is over if possible. At the end of the processing, you will get asked whether you wish to carefully and slowly reprocess the lines awaiting the quota lift.
 
 ### Detectable fields
@@ -216,11 +218,11 @@ Current field computing capacity can be get from `--show-uml` flag. Generate you
 * Dashed node: field type is auto-detectable
 * Dashed edge: field types are identical
 * Edge label: generating options asked at runtime
-* Rectangle: field category border 
+* Rectangle: field category border
 
 ![Methods overview](./docs/convey-methods.svg?sanitize=True)
 
-           
+
 
 ### External field how-to
 #### Simple custom method
@@ -236,14 +238,14 @@ def any_method(value):
 * When CSV processing, hit *'Add column'* and choose *'new external... from a method in your. py file'*
 * Or in the terminal append `--field external` to your `convey` command. A dialog for a path of the Python file and desired method will appear.
 ```bash
-$ convey [string_or_filepath] --field external 
+$ convey [string_or_filepath] --field external
 ```
-* You may as well directly specify the path and the callable. Since the `--field` has following syntax:  
+* You may as well directly specify the path and the callable. Since the `--field` has following syntax:
 > *FIELD[[CUSTOM]],[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]*
-  
+
 You may omit both *COLUMN* and *SOURCE_TYPE* writing it this way:
-    
-> *FIELD,~~COLUMN,SOURCE_TYPE~~,CUSTOM,CUSTOM*  
+
+> *FIELD,~~COLUMN,SOURCE_TYPE~~,CUSTOM,CUSTOM*
 > external,/tmp/myfile.py,any_method
 ```bash
 $ convey [string_or_filepath] --field external,/tmp/myfile.py,any_method
@@ -287,7 +289,7 @@ class any_method(PickMethod):
     def all(x):
         ''' All of them.  '''
         return x
-    
+
     def filtered(cls, x):
         ''' Filter some of them '''
         if x in country_code_set:
@@ -328,7 +330,7 @@ When launched as a web service, several parameters are available:
     * Note that unsafe field types `code` and `external` are disabled in web service by default. You may re-allow them in `webservice_allow_unsafe_fields` config option
     * full syntax of CLI flag is supported
     > *FIELD[[CUSTOM]],[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]*
-                                                                             
+
     Ex: `reg_s,l,L` performs regular substitution of *'l'* by *'L'*
 * `clear=web` – clears web scrapping module cache
 
@@ -364,13 +366,13 @@ Access: `curl http://localhost:26683?q=hello&type=country&field=reg_s,l,L`
 
 ## Sending files
 
-When you split the CSV file into chunks by an e-mail, generated files may be sent to these addresses. Look at the example of an unlocked "send" menu below. You see the list of the recipients, followed by a conditional list of recipients that have been already sent to. Next, an exact e-mail message is printed out, including headers. 
+When you split the CSV file into chunks by an e-mail, generated files may be sent to these addresses. Look at the example of an unlocked "send" menu below. You see the list of the recipients, followed by a conditional list of recipients that have been already sent to. Next, an exact e-mail message is printed out, including headers.
 
 In the menu, you may either:
  * **Send** the e-mails
  * **Limit** the messages that are being send at once; if you are not 100 % sure you want to send the the whole message bucket at once.
  * **Edit** the template. The message file will open either in the default GUI or terminal editor. The first line of the template should be `Subject: ...`, followed by a free line. Note that you may include any e-mail headers, such as `Reply-To: ...`, `Cc: ...`, etc. The e-mail will reflect all of them. You may write the message either in plain text or in the HTML.
- * **Choose** which recipients in a checkbox list will receive the message. 
+ * **Choose** which recipients in a checkbox list will receive the message.
  * **Test** sending a message to your own address. You'll be prompted which of the messages should be delivered to you. The e-mail contents possibly modified by a dynamic template is shown just before sending.
  * **Print all e-mails** to a file to have the more granulated control over what is going to be sent.
  * **Toggle file attaching** on and off. A portion of the source file related to this e-mail address might be attached. There are use cases when you do not want the files to be sent with as the body text suits fine.
@@ -405,12 +407,12 @@ p) Print e-mails to a file...
 a) Attach files (toggle): True
 i) Attach paths from path column (toggle): False
 x) Go back...
-? 
+?
 ```
 
 ### Arbitrary e-mail headers, "From" header, GPG signing
 In the template, you may specify any e-mail header, such as `Reply-To`, `Cc` or `From`. If `From` is not found, we take `SMTP/email_from_name` config value. If `gnupg` home is found on the default user path, we check if there is a secret key matching the `From` header and if found, e-mail will be GPG-signed. If it is going to be signed, you would see something like `Content-Type: multipart/signed; protocol="application/pgp-signature";` header in the e-mail template preview.
- 
+
 ### Dynamic templates
 Message is processed with [Jinja2](https://jinja.palletsprojects.com/en/2.10.x/) templating system by default.
 
@@ -418,10 +420,10 @@ Few instruments are included to treat the attachment contents:
 * **attachment()** – Prints the attachment contents and prevent it to be attached.
     ```jinja2
     You will find our findings below.
-    
+
     {{ attachment() }}
     ```
-* **row()** – Generate attachment contents fields row by row. Header skipped. 
+* **row()** – Generate attachment contents fields row by row. Header skipped.
 * **amount(count=2)** – Check if the attachment has at least `count` number of lines. Header is not counted. Useful when deciding whether the are single row in the result or multiple.
 * **joined(column: int, delimiter=", ")** – Return a column joined by delimiter
 * **first_row** – Access first line fields
@@ -429,7 +431,7 @@ Few instruments are included to treat the attachment contents:
     Example:
     ```jinja2
     {% if amount() %}
-        Here is the complete list of the elements.    
+        Here is the complete list of the elements.
         {{ joined(1,"\n") }}
     {% else %}
         Here is the element you had problems with: {{ first_row[1] }}
@@ -438,7 +440,7 @@ Few instruments are included to treat the attachment contents:
 
 ## Examples
 
-In the examples, we will use these parameters to add a field and to shorten the result. 
+In the examples, we will use these parameters to add a field and to shorten the result.
 ```bash
 # -f, --field adding field syntax: FIELD[[CUSTOM]],[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]
 # -H, --headless: just quietly print out single value, no dialog
@@ -489,9 +491,9 @@ Whois 208.80.154.232... us
 field    value
 -------  -------
 country  us
-``` 
+```
 
-Use `--headless, -H` or `--quiet, -q` flag to shorten the output (and cut down all dialogues). 
+Use `--headless, -H` or `--quiet, -q` flag to shorten the output (and cut down all dialogues).
 ```bash
 $ convey wikipedia.com -f country -H
 us
@@ -555,7 +557,7 @@ And see the menu just by adding `--field cidr` argument.
 ```bash
 $ convey test.csv -f cidr
 Source file: /tmp/ram/test.csv
-Identified columns: 
+Identified columns:
 Log lines: 3
 
 Sample:
@@ -595,13 +597,14 @@ Main menu - how the file should be processed?
 4) Split by a column
 5) Change CSV dialect
 6) Aggregate
+7) Merge
 p) process ←←←←←
 ~) send (split first)
 ~) show all details (process first)
 r) redo...
 c) config...
 x) exit
-?  
+?
 ```
 
 #### File splitting
@@ -637,7 +640,7 @@ google.com,25,2016-02-28T02:27:21-05:00,16019,US
 ```
 
 #### CSIRT Usecase
-A CSIRT may use the tool to automate incident handling tasks. The input is any CSV we receive from partners; there is at least one column with IP addresses or URLs. We fetch whois information and produce a set of CSV grouped by country AND/OR abusemail related to IPs. These CSVs are then sent by through OTRS from within the tool.  
+A CSIRT may use the tool to automate incident handling tasks. The input is any CSV we receive from partners; there is at least one column with IP addresses or URLs. We fetch whois information and produce a set of CSV grouped by country AND/OR abusemail related to IPs. These CSVs are then sent by through OTRS from within the tool.
 A most of the work is done by this command.
 ```bash
 convey --field-excluded incident_contact,source_ip --split incident_contact --yes [FILENAME]
@@ -662,7 +665,7 @@ hello
 
 Use a `reg` column for regular expressions.
 ```bash
-# start adding a new reg column wizzard that will take decoded "hello" as input 
+# start adding a new reg column wizzard that will take decoded "hello" as input
 $ convey aGVsbG8= -f reg
 $ convey aGVsbG8= -f reg_s,"ll","LL" -H   # substitute 'll' with 'LL'
 heLLo
@@ -670,7 +673,7 @@ heLLo
 
 Specify source
 ```bash
-# start adding a new reg column wizzard that will take plaintext "aGVsbG8=" as input 
+# start adding a new reg column wizzard that will take plaintext "aGVsbG8=" as input
 $ convey aGVsbG8= -f reg,plaintext
 # specifying plaintext as a source type will prevent implicit convertion from base64
 $ convey aGVsbG8= -f reg_s,plaintext,"[A-Z]","!" -H  # substitute uppercase letters with '!'
@@ -681,7 +684,7 @@ a!!sb!8=
 
 We are connected to the [pint](https://pint.readthedocs.io/en/0.9/) unit converter!
 ```bash
-$ convey "3 kg" 
+$ convey "3 kg"
 Input value detected: unit
 
 field      value
@@ -693,7 +696,7 @@ plaintext  ['1.806642538265029e+27 atomic_mass_unit', '105.82188584874123 ounce'
            ton_mass', '771.6179176470714 apothecary_dram', '3000.0 gram', ...]
 
 
-$ convey "3 kg" -f unit # launches wizzard that let's you decide what unit to convert to 
+$ convey "3 kg" -f unit # launches wizzard that let's you decide what unit to convert to
 $ convey "3 kg" -f unit[g] -H
 3000.0 gram
 
@@ -708,14 +711,14 @@ kg|1000.0 gram
 
 # You may try to specify the units with no space and quotation.
 # In the following example, convey expand all time-units it is able to compute
-# – time units will be printed out and each is base64 encoded. 
+# – time units will be printed out and each is base64 encoded.
 $ convey 3hours
 Input value detected: timestamp, unit
 
 field                value
 -------------------  ------------------------------------------------------------------
 (...)
-base64               ['MC4wMDQxMDY4NjM4OTc0NTAwNzcgbW9udGg=', 'MTA4MDAuMCBzZWNvbmQ=', 'MC4wMTc4NTcxNDI4NTcxNDI4NSB3ZWVr'] 
+base64               ['MC4wMDQxMDY4NjM4OTc0NTAwNzcgbW9udGg=', 'MTA4MDAuMCBzZWNvbmQ=', 'MC4wMTc4NTcxNDI4NTcxNDI4NSB3ZWVr']
 plaintext            ['0.004106863897450077 month', '10800.0 second', '0.01785714285714285 week', (...)]
 time                 03:00:00
 (...)
@@ -724,17 +727,17 @@ time                 03:00:00
 $ convey 3hours -f urlencode
 Input value detected: timestamp, unit
 
-Input unit_expand variable unit: *you type here sec or seconds to see the wizzard*                                                                                                                                                                                                                                           
-Preview                                                                                                                                                                                                            
-| original   | result         |                                                                                                                                                                                    
-|------------|----------------|                                                                                                                                                                                    
-| 3hours     | 10800.0 second |                                                                                                                                                                                    
+Input unit_expand variable unit: *you type here sec or seconds to see the wizzard*
+Preview
+| original   | result         |
+|------------|----------------|
+| 3hours     | 10800.0 second |
 
 field      value
 ---------  ----------------
 urlencode  10800.0%20second
 
-# What if we wanted to urlencode text "3hours" without converting it to unit first? 
+# What if we wanted to urlencode text "3hours" without converting it to unit first?
 # Just specify the SOURCE_TYPE to be plaintext:
 $ convey "3hours" -f urlencode,plaintext
 Input value detected: timestamp, unit
@@ -757,7 +760,7 @@ bash
 $ convey --type country_name Futuna
 wf
 ```
-You may get the country code from various telephone number formats. 
+You may get the country code from various telephone number formats.
 ```bash
 $ convey +2481234567
 Seychelles
@@ -765,12 +768,12 @@ Seychelles
 $ convey "1-541-754-3010"
 ['ca', 'us']
 
-$ convey 
+$ convey
 ```
 
 ### Aggregate
 
-Syntax is `[COLUMN, FUNCTION], ..., [group-by-COLUMN]`.  
+Syntax is `[COLUMN, FUNCTION], ..., [group-by-COLUMN]`.
 Possible functions are:
 * avg
 * sum
@@ -800,7 +803,7 @@ $ convey file.csv --aggregate price,sum
          972
 ```
 
-Group the `price` sum by `category`. 
+Group the `price` sum by `category`.
 ```bash
 $ convey file.csv --aggregate price,sum,category
 category     sum(price)
@@ -848,8 +851,16 @@ Split location: kettle
          602
 ```
 
+### Merge
+
+XXX
+
+When a pivot key (local column value) is missing from the remote file, the fields on the line stays blank.
+
+Performance note: Working with really huge files? Whereas the local file that you merge to can be of an arbitrary size, the remote file being merged should not be excessively big, it should fit to the RAM.
+
 ### Sending images to different recipients
-Imagine you have a directory full of PNG files, containg info for respective domain administrators. 
+Imagine you have a directory full of PNG files, containg info for respective domain administrators.
 
 ```
 example.com.png
@@ -890,7 +901,7 @@ To: abuse@wikimedia.org
 Date: Fri, 06 Jan 2023 20:04:31 +0100
 
 Body text message
-Testing e-mail address to be sent to – type in or hit Enter to use your-testing-mail@example.com (Ctrl+C to go back):  
+Testing e-mail address to be sent to – type in or hit Enter to use your-testing-mail@example.com (Ctrl+C to go back):
 ```
 
 ## Credits

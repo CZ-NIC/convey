@@ -1,4 +1,4 @@
-from __future__ import annotations  # remove as of Python3.11
+from __future__ import annotations
 import binascii
 import logging
 from base64 import b64decode
@@ -179,13 +179,13 @@ class MailDraft:
             e.to(attachment.mail)
             if attachment.cc:
                 e.cc(attachment.cc)
-            
+
             # attach the split CSV file
             if attachment.path and not attachment.used_in_body and Config.get('attach_files', 'SMTP', get=bool):
                 e.attach(attachment.path, "text/csv", attachment.parser.attachment_name)
 
             # attach the paths from the path column (images, ...) in the split CSV file
-            # If there is a trouble with an attachment, 
+            # If there is a trouble with an attachment,
             if Config.get('attach_paths_from_path_column', 'SMTP', get=bool):
                 for path in attachment.get_paths_from_path_column():
                     try:

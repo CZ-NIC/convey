@@ -1,3 +1,4 @@
+from __future__ import annotations  # remove as of Python3.11 in every file
 import csv
 import itertools
 import logging
@@ -7,11 +8,15 @@ from copy import copy
 from csv import Sniffer
 from difflib import SequenceMatcher
 from statistics import mean
-from typing import Tuple, List
+from sys import exit
+from typing import Tuple, List, TYPE_CHECKING
 
 from .config import Config
 from .decorators import PickBase
 from .types import Types, graph, TypeGroup, Type, get_module_from_path
+
+if TYPE_CHECKING:
+    from .field import Field
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +159,7 @@ class Identifier:
         except Error:  # delimiter failed – maybe there is an empty column: "89.187.1.81,06-05-2016,,CZ,botnet drone"
             if sample_text.strip() == "":
                 print("The file seems empty")  # XX I got here once after a clean installation at 26.11.2019
-                quit()
+                exit()
 
             # header detection
             l = [line.strip() for line in sample]
@@ -290,7 +295,7 @@ class Identifier:
             possible_cols = [0]
         return list(possible_cols)
 
-    def get_fitting_source(self, target_type: Type, *task) -> Tuple["Field", Type, List]:
+    def get_fitting_source(self, target_type: Type, *task) -> Tuple[Field, Type, List]:
         """
         For a new field, we need source column and its field type to compute new field from.
         :rtype: source_field: Field, source_type: Type, custom: List[str]
@@ -302,7 +307,7 @@ class Identifier:
         """
         source_col_i = None
         source_type = None
-        source_col_candidates: List["Field"] = []
+        source_col_candidates: List[Field] = []
         task = list(task)
 
         if Config.is_debug():
@@ -315,7 +320,7 @@ class Identifier:
             if source_col_i is None:
                 if len(task) and target_type.group != TypeGroup.custom:
                     print(f"Invalid field type {task[0]}, already having defined by {column_candidate}")
-                    quit()
+                    exit()
                 task.insert(0, column_candidate)  # this was not COLUMN but SOURCE_TYPE or CUSTOM, COLUMN remains empty
         if source_col_i is None:  # get a column whose field could be fitting for that target_tape or any column as a plaintext
             try:
@@ -366,7 +371,7 @@ class Identifier:
                 # source_type = Types.plaintext
             else:
                 print(f"Cannot determine new field from {source_type_candidate}")
-                quit()
+                exit()
 
         # determining missing info
         if source_col_i is not None and not source_type:
@@ -375,10 +380,10 @@ class Identifier:
             except IndexError:
                 print(f"Column ID {source_col_i + 1} does not exist. We have these so far: " +
                       ", ".join([f.name for f in self.parser.fields]))
-                quit()
+                exit()
             if not source_type:
                 print(f"We could not identify a method how to make '{target_type}' from '{self.parser.fields[source_col_i]}'")
-                quit()
+                exit()
         if source_type and source_col_i is None:
             # searching for a fitting type amongst existing columns
             # [source col i] = score (bigger is better)
@@ -394,23 +399,23 @@ class Identifier:
                     source_col_i = f[0].col_i
                 else:
                     print(f"No suitable column of type '{source_type}' found to make field '{target_type}'")
-                    quit()
+                    exit()
 
         if not source_type or source_col_i is None:
             print(f"No suitable column found for field '{target_type}'")
-            quit()
+            exit()
 
         try:
             f = self.parser.fields[source_col_i]
         except IndexError:
             print(f"Column ID {source_col_i + 1} does not exist, only these: " + ", ".join(f.name for f in self.parser.fields))
-            quit()
+            exit()
 
         # Check there is a path between nodes and that path is resolvable
         path = graph.dijkstra(target_type, start=source_type)
         if path is False:
             print(f"No suitable path from '{f.name}' treated as '{source_type}' to '{target_type}'")
-            quit()
+            exit()
         for i in range(len(path) - 1):  # assure there is a valid method
             try:
                 Types.get_method(path[i], path[i + 1])
@@ -445,5 +450,5 @@ class Identifier:
         if check and (source_col_i is None or len(self.parser.fields) <= source_col_i):
             logger.error(f"Cannot identify COLUMN {column}" + (" " + check if type(check) is str else "") +
                          ", put there an exact column name, its type, the numerical order starting with 1, or with -1.")
-            quit()
+            exit()
         return source_col_i

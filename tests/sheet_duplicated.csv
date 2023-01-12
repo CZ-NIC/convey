@@ -1,0 +1,10 @@
+foo,red,second.example.com,foo-2
+foo,red,second.example.com,foo-1
+foo,green,first.example.com,foo-2
+foo,green,first.example.com,foo-1
+bar,blue,wikipedia.org,bar-2
+bar,blue,wikipedia.org,bar-1
+bar,yellow,example.com,bar-2
+bar,yellow,example.com,bar-1
+foo,orange,wikipedia.com,foo-2
+foo,orange,wikipedia.com,foo-1

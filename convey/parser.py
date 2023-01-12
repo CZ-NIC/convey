@@ -12,15 +12,17 @@ from math import ceil
 from operator import eq, ne
 from pathlib import Path
 from shutil import move
-from typing import List
+from typing import Any, List, Optional, Union
+from sys import exit
 
 from tabulate import tabulate
 
+from .action import Action
 from .attachment import Attachment
 from .contacts import Contacts
 from .config import Config, get_terminal_size
 from .dialogue import Cancelled, is_yes, ask
-from .field import Field
+from .field import Cell, Field
 from .identifier import Identifier
 from .informer import Informer
 from .mail_draft import MailDraft
@@ -55,15 +57,16 @@ class Parser:
         "if CSV has header, it's here so that Processor can take it"
         self.sample: List[str] = []
         "lines of the original file, including first line - possible header"
-        self.sample_parsed: List[List[str]] = []
-        "values of the prepared output (ex re-sorted), always excluding header"
+        self.sample_parsed: List[List[Cell]] = []
+        """Values of the prepared output (ex re-sorted), always excluding header.
+        Note that Field.compute_preview might append here a list instead of a str, hence the type Cell. """
         self.fields: List[Field] = []
-        "CSV columns that will be generated to an output"
+        "CSV columns that will be generated to an output. Only parser.add_field is used to append to this list."
         self.first_line_fields: List[str] = []
         "CSV columns (equal to header if used) in the original file"
         self.types = []
         "field types of the columns as given by the user"
-        self.settings = defaultdict(list)
+        self.settings: List[Union[Action, Any]] = defaultdict(list)
         """settings:
            * "add": new_field:Field,
                     source_col_i:int - number of field to compute from,
@@ -71,7 +74,10 @@ class Parser:
                     custom:tuple - If target is a 'custom' field, we'll receive a tuple (module path, method name).
            * "dialect": always present (set in controller just after parser.prepare()), output CSV dialect
            * "header": True if input CSV has header and output CSV should have it too.
-                       False if either input CSV has not header or the output CSV should omit it."""
+                       False if either input CSV has not header or the output CSV should omit it.
+
+            XX The type should be: `self.settings: List[Operation]`, get rid of `Any`
+        """
 
         self.redo_invalids = Config.get("redo_invalids")
         # OTRS attributes to be linked to CSV
@@ -147,7 +153,7 @@ class Parser:
     def prepare(self):
         if self.size == 0:
             print("Empty contents.")
-            quit()
+            exit()
         self.prepare_target_file()
 
         # check if we are parsing a single cell
@@ -268,7 +274,7 @@ class Parser:
             self.reset_settings()
         except Cancelled:
             print("Cancelled.")
-            quit()
+            exit()
         self.informer.sout_info()
         self.is_formatted = True  # delimiter and header has been detected etc.
         return self
@@ -296,7 +302,7 @@ class Parser:
             fields.append((field, s))
         return fields
 
-    def add_field(self, replace: List["Field"] = None, append: "Field" = None):
+    def add_field(self, replace: Optional[List[Field]] = None, append: Optional[Field] = None):
         """
         :param replace: Replace fields by the new field list.
         :param append: Append new field to the current list.
@@ -322,7 +328,7 @@ class Parser:
                 self.types = [getattr(Types, t) for t in types.split(",")]
             except AttributeError:
                 print(f"Unknown type amongst: {types}")
-                quit()
+                exit()
         else:
             self.types = []
         return self
@@ -836,7 +842,7 @@ class Parser:
                     cell = field.compute_preview(line)
                 # suppress new lines in preview; however while processing,
                 # new lines are printed and this may render the CSV unloadable
-                row.append((cell.replace("\n", r"\n"), field))
+                row.append((str(cell).replace("\n", r"\n"), field))
 
             # check if current line is filtered out
             line_chosen = True

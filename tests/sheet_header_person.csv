@@ -1,0 +1,9 @@
+word,colour,host,colour2,john@example.com,foo,male
+foo,red,second.example.com,blue,mary@example.com,foo,female
+foo,red,second.example.com,blue,john@example.com,foo,male
+foo,green,first.example.com,blue,mary@example.com,foo,female
+foo,green,first.example.com,blue,john@example.com,foo,male
+bar,blue,wikipedia.org,yellow,hyacint@example.com,bar,male
+bar,yellow,example.com,,hyacint@example.com,bar,male
+foo,orange,wikipedia.com,,mary@example.com,foo,female
+foo,orange,wikipedia.com,,john@example.com,foo,male

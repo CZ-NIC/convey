@@ -1,26 +1,37 @@
-from __future__ import annotations  # remove as of Python3.11
+from __future__ import annotations
 from bdb import BdbQuit
 from math import inf
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from .config import Config
+from .action import MergeAction
 from .types import Type, Types
 from .whois import Quota, UnknownValue
 
 if TYPE_CHECKING:
     from .parser import Parser
 
+Cell = Union[str, List[str]]
+"""Even though standard fields in the CSV are of type str, while computing new columns,
+    these might generate a list. Such list is immediately split to multiple lines while processing,
+    but not when previewing the CSV table before the processing starts.
+    """
+
+
 class Field:
-    def __init__(self, name, is_chosen=True, source_field: "Field" = None, source_type=None, new_custom=None,
-                 parser: Parser = None):
+    def __init__(self, name, is_chosen=True, source_field: Optional[Field] = None, source_type=None, new_custom=None,
+                 parser: Parser = None, merged_from: Optional[Field] = None, merge_operation: Optional[MergeAction] = None):
         self.col_i = None
         "index of the field in parser.fields"
         self.col_i_original = None
         "original index before any sorting"
-        self.parser = None
+        self.parser = None # XXX how come parser is not used?
         self.name = str(name)
         self.is_chosen = is_chosen
         self.is_selected = False
+        self.merged_from = merged_from
+        self.merge_operation = merge_operation
+        "This field is merged from a remote file"
         self.possible_types = {}
         if isinstance(name, Type):
             self.type = name
@@ -138,7 +149,8 @@ class Field:
                 res.append(c)
         return res
 
-    def compute_preview(self, source_line):
+    def compute_preview(self, source_line: List[Cell]) -> Cell:
+        """ source_line is registered under parser.sample_parsed """
         if Config.get("compute_preview") and self.source_field:
             try:
                 c = source_line[self.source_field.col_i]
@@ -166,8 +178,24 @@ class Field:
                 raise
             except Exception:
                 c = "INVALID"
-        else:
+        elif Config.get("compute_preview") and self.merged_from:
+            # this field is merged
+            try:
+                key = source_line[self.merge_operation.local_column.col_i]
+                remote_lines: Optional[List[str]] = self.merge_operation.rows.get(key)
+                if remote_lines:
+                     # list only first line; user will not know that the line might be duplicated
+                     # if key exist multiple times
+                    c = remote_lines[0][self.merged_from.col_i]
+                else:
+                    c = "EMPTY"
+            except IndexError:
+                # Needed for this complicated case:
+                # convey "http://example.com" --web --field code,"x" --field text,code,url --field reg_m,text
+                return "NOT COMPUTED YET"
+        else: # we do not want the preview to be computed
             c = "..."
+
         # add a newly computed value to source_parsed
         for _ in range(self.col_i - len(source_line) + 1):  # source_line is shorter than we need - fill the missing cols with Nones
             source_line.append(None)

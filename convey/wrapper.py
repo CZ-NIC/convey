@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from csv import writer
 from os import linesep
 from pathlib import Path
+from sys import exit
 from time import time
 
 import ezodf
@@ -106,7 +107,7 @@ class Wrapper:
 
         if not file and not stdin:
             print("No input. Program exit.")
-            quit()
+            exit()
         elif stdin:
             Config.set_cache_dir(Path.cwd())
             self.cache_file = None
@@ -116,7 +117,7 @@ class Wrapper:
 
         if not Path(file).is_file():
             print(f"File '{file}' not found.")
-            quit()
+            exit()
 
         self.assure_cache_file(file)
         if self.cache_file.is_file() and not (fresh or reprocess):
@@ -138,9 +139,9 @@ class Wrapper:
                 if self.parser.is_analyzed or self.parser.is_formatted:
                     self.parser.informer.sout_info()
                     logger.info("It seems the file has already been formatted.")
-            except BdbQuit:  # we do not want to catch quit() signal from pdb
+            except BdbQuit:  # we do not want to catch the exit signal from pdb
                 print("Stopping.")
-                quit()
+                exit()
             except Exception as e:
                 print(e)
                 print("Format of the file may have changed since last time. "
@@ -382,7 +383,7 @@ class Wrapper:
                     return
             else:
                 print(f"The file {target} already exist, cannot be recreated.")
-                quit()
+                exit()
         # noinspection PyBroadException
         try:
             with target.open("w") as f:

@@ -1,14 +1,18 @@
+import csv
 import string
+from pathlib import Path
+from typing import List, Optional
+from sys import exit
 
-from dialog import Dialog, ExecutableNotFound
+from dialog import Dialog, DialogError, ExecutableNotFound
 
-from .config import Config
+from .config import Config, get_terminal_size
 
 try:
     dialog = Dialog(autowidgetsize=True)
 except ExecutableNotFound:
     print("\nError importing dialog library. Try installing: `sudo apt install dialog`.")
-    quit()
+    exit()
 
 
 # monkey patch Dialog class so that it skips the dialog in case there is a single value
@@ -32,8 +36,7 @@ class Cancelled(Exception):
 class Debugged(Exception):
     pass
 
-
-def pick_option(options, title="", guesses=[], skippable=True):
+def pick_option(options, title="", guesses: Optional[List]=None, skippable=True):
     """ Loop all options
         options tuples of items and descriptions: [("url", "this is url")]
         guesses = indices of options that should be highlighted
@@ -41,6 +44,8 @@ def pick_option(options, title="", guesses=[], skippable=True):
 
         :type skippable: bool If True and there is single option, the dialog returns 'Ok' without asking user.
     """
+    if not guesses:
+        guesses = []
 
     # convert numbers `0-8` → `1-9` and `9-...` → `a-...` and then back to number
     abc = string.ascii_lowercase
@@ -192,3 +197,24 @@ class Menu:
                     Config.get_debugger().set_trace()
                     return
                 print("Invalid option")
+
+def choose_file(title:str, dialog: Optional[Dialog]=None):
+    if not dialog:
+        dialog = Dialog(autowidgetsize=True)
+    try:
+        code, path = dialog.fselect(str(Path.cwd()), title=title)
+    except DialogError as e:
+        try:  # I do not know why, fselect stopped working and this helped
+            code, path = dialog.fselect(str(Path.cwd()), title=title,
+                                                            height=max(get_terminal_size()[0] - 20, 10))
+        except DialogError as e:
+            input("Unable launch file dialog. Please post an issue to the Github! Hit any key...")
+            raise Cancelled("... cancelled")
+
+    if code != "ok" or not path:
+        raise Cancelled("... cancelled")
+    return path
+
+def csv_split(val):
+    """ Sometimes ",".split is not enough, they can use quotes and commas in our mighty CLI. """
+    return list(csv.reader([val]))[0]

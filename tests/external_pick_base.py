@@ -3,6 +3,14 @@ import dateutil
 from convey import PickInput
 from convey import PickMethod
 
+def dumb_method(val):
+    """ This is a dumb testing method """
+    return f"-{val}-"
+
+def list_method(arg):
+    """ This external type returns a list. The lines should be duplicated. """
+    return [arg + "-1", arg + "-2"]
+
 
 @PickInput
 def time_format(val, format_="%H:%M"):

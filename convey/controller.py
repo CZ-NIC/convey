@@ -1,5 +1,7 @@
 import argparse
+from collections import defaultdict
 import csv
+from itertools import chain
 import logging
 import os
 import re
@@ -12,20 +14,22 @@ from io import StringIO
 from pathlib import Path
 from sys import exit
 from tempfile import NamedTemporaryFile
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 from colorama import init as colorama_init, Fore
-from dialog import Dialog, DialogError
+from dialog import Dialog
 from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
 from validate_email import validate_email
 
+from .action import Expandable, MergeAction
 from .attachment import Attachment
-from .config import Config, get_terminal_size, console_handler, edit, get_path
+from .config import Config, console_handler, edit, get_path
 from .contacts import Contacts
+from .flag import Flag, MergeFlag, FlagController
 from .decorators import PickBase, PickMethod, PickInput
-from .dialogue import Cancelled, Debugged, Menu, pick_option, ask, ask_number, is_yes
+from .dialogue import Cancelled, Debugged, Menu, choose_file, csv_split, pick_option, ask, ask_number, is_yes
 from .field import Field
 from .ipc import socket_file, recv, send, daemon_pid
 from .mail_sender import MailSenderOtrs, MailSenderSmtp
@@ -38,6 +42,7 @@ from . import __version__
 logger = logging.getLogger(__name__)
 aggregate_functions = [f for f in Aggregate.__dict__ if not f.startswith("_")]
 aggregate_functions_str = "".join("\n* " + f for f in aggregate_functions)
+
 
 def send_ipc(pipe, msg, refresh_stdout):
     sys.stdout = sys.stderr = StringIO()  # creating a new one is faster than truncating the old
@@ -58,7 +63,7 @@ def control_daemon(cmd, in_daemon=False):
             control_daemon("kill")
         if cmd == "start":
             print("Convey daemon starting.")
-            quit()
+            exit()
     if cmd in ["kill", "stop"]:
         if in_daemon:
             raise ConnectionResetError("stop.")
@@ -69,13 +74,13 @@ def control_daemon(cmd, in_daemon=False):
             if Path(socket_file).exists():
                 Path(socket_file).unlink()
     if cmd == "stop":
-        quit()
+        exit()
     if cmd == "status":
         if daemon_pid():
             print(f"Convey daemon is listening at socket {socket_file}")
         else:
             print("Convey daemon seems not to be running.")
-        quit()
+        exit()
     if cmd is False:
         if in_daemon:
             raise ConnectionAbortedError("Daemon should not be used")
@@ -122,7 +127,7 @@ class BlankTrueString(BlankTrue):
         super().__call__(*args, **kwargs, allow_string=True)
 
 
-new_fields : List[Tuple[bool, Any]]= []
+new_fields: List[Tuple[bool, Any]] = []
 "User has requested to compute these. Defined by tuples: add (whether to include the column in the result), field definition"
 
 
@@ -149,14 +154,15 @@ class Controller:
     def __init__(self, parser=None):
         self.parser = parser
 
-    def run(self):
+    def run(self, given_args: Optional[str] = None):
+        """ given_args - Input for ArgumentParser. Else sys.argv used. """
         if "--disable-external" in sys.argv:
             Config.set("disable_external", True)
         Types.refresh()  # load types so that we can print out computable types in the help text
         epilog = "To launch a web service see README.md."
         column_help = "COLUMN is ID of the column (1, 2, 3...), position from the right (-1, ...)," \
                       " the exact column name, field type name or its usual name."
-        parser = argparse.ArgumentParser(description="Data conversion swiss knife", formatter_class=SmartFormatter,
+        parser = argparse.ArgumentParser(description="Swiss knife for mutual conversion of the web related data types, like `base64` or outputs of the programs `whois`, `dig`, `curl`. Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.", formatter_class=SmartFormatter,
                                          epilog=epilog)
 
         group = parser.add_argument_group("Input/Output")
@@ -174,8 +180,7 @@ class Controller:
         group.add_argument('-S', '--single-query', help="Consider the input as a single value, not a CSV.",
                            action="store_true")
         group.add_argument('--single-detect', help="Consider the input as a single value, not a CSV,"
-                                                   " and just print out possible types of the input."
-                           , action="store_true")
+                                                   " and just print out possible types of the input.", action="store_true")
         group.add_argument('-C', '--csv-processing', help="Consider the input as a CSV, not a single.",
                            action="store_true")
 
@@ -246,8 +251,8 @@ class Controller:
 
         group = parser.add_argument_group("Actions")
         group.add_argument('-d', '--delete',
-                           help="Delete a column. You may comma separate multiple columns." + column_help,
-                           metavar="COLUMN,[COLUMN]")
+                           help="Delete a column. You may comma separate multiple columns."
+                           "\n " + column_help, metavar="COLUMN,[COLUMN]")
         group.add_argument('-f', '--field',
                            help="R|Compute field."
                                 "\n* FIELD is a field type (see below) that may be appended with a [CUSTOM] in square brackets."
@@ -259,8 +264,8 @@ class Controller:
                                 "\nEx: --field netname,ip  # would add netname column from any IP column"
                                 "\n    (Note the comma without space behind 'netname'.)"
                                 "\n\nComputable fields: " + "".join(
-                               "\n* " + t.doc() for t in Types.get_computable_types()) +
-                                "\n\nThis flag May be used multiple times.",
+                                    "\n* " + t.doc() for t in Types.get_computable_types()) +
+                           "\n\nThis flag May be used multiple times.",
                            action=FieldVisibleAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
         group.add_argument('-fe', '--field-excluded',
                            help="The same as field but its column will not be added to the output.",
@@ -287,6 +292,9 @@ class Controller:
                                                      " (count will automatically set grouping column to the same)"
                                                      f"\n\nAvailable functions: {aggregate_functions_str}",
                            metavar="[COLUMN, FUNCTION], ..., [group-by-COLUMN]")
+        group.add_argument('--merge', help="R|Merge another file here. "
+                           "\n " + column_help,
+                           metavar="[REMOTE_PATH],[REMOTE_COLUMN],[LOCAL_COLUMN]")
 
         group = parser.add_argument_group("Enabling modules")
         group.add_argument('--whois',
@@ -340,8 +348,8 @@ class Controller:
         group.add_argument('--attach-files', help="Split files are added as e-mail attachments",
                            action=BlankTrue, nargs="?", metavar="blank/false")
         group.add_argument('--attach-paths-from-path-column', help="Files from a column of the Path type are added as e-mail attachments."
-                " Note for security reasons, files must not be symlinks, be readable for others `chmod o+r`, and be in the same directory."
-                " So that a crafted CSV would not pull up ~/.ssh or /etc/ files.",
+                           " Note for security reasons, files must not be symlinks, be readable for others `chmod o+r`, and be in the same directory."
+                           " So that a crafted CSV would not pull up ~/.ssh or /etc/ files.",
                            action=BlankTrue, nargs="?", metavar="blank/false")
         group.add_argument('--testing', help="Do not be afraid, e-mail messages will not be sent."
                                              " They will get forwarded to the testing e-mail"
@@ -364,7 +372,7 @@ class Controller:
         for flag in csv_flags:
             group.add_argument('--' + flag[0], help=flag[1])
 
-        self.args = args = parser.parse_args()
+        self.args = args = parser.parse_args(args=given_args)
         see_menu = True
         is_daemon = None
         if args.server:
@@ -373,7 +381,7 @@ class Controller:
             print(get_path("uwsgi.ini").read_text())
             cmd = ["uwsgi", "--ini", get_path("uwsgi.ini"), "--wsgi-file", Path(Path(__file__).parent, "wsgi.py")]
             subprocess.run(cmd)
-            quit()
+            exit()
         if args.daemon is not None and control_daemon(args.daemon) == "server":
             # XX :( after a thousand requests, we start to slow down. Memory leak must be somewhere
             is_daemon = True
@@ -387,7 +395,7 @@ class Controller:
                 Config.integrity_check()
             except ConnectionAbortedError:
                 print("Config file integrity check failed. Launch convey normally to upgrade config parameters.")
-                quit()
+                exit()
 
             print("Opening socket...")
             server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -452,8 +460,7 @@ class Controller:
                     except OSError:
                         stdout.write("Invalid cwd\n")
                         continue
-                    new_fields.clear()  # reset new fields so that they will not be remembered in another query
-                    Config.cache.clear()
+                    self.cleanup()  # reset new fields so that they will not be remembered in another query
                     try:
                         self.args = args = parser.parse_args(argv[2:])  # the daemon has receives a new command
                     except SystemExit as e:
@@ -462,7 +469,7 @@ class Controller:
                             raise ConnectionAbortedError("Error in help text")
                         else:
                             # argparse put everything in stdout
-                            quit()
+                            exit()
                     see_menu = True
                     control_daemon(args.daemon, True)
 
@@ -471,7 +478,7 @@ class Controller:
                     raise ConnectionAbortedError("web server request")
                 if args.config is not None:
                     edit(*args.config, restart_when_done=True)
-                    quit()
+                    exit()
                 Config.set("stdout", args.output is True or None)
                 if args.output is True:
                     # --output=True → no output file in favour of stdout (Config.get("stdout") -> parser.stdout set)
@@ -496,13 +503,13 @@ class Controller:
                 TypeGroup.init()
                 if args.show_uml is not None:
                     print(Types.get_uml(args.show_uml))
-                    quit()
+                    exit()
                 if args.get_autocompletion:
                     print(self.get_autocompletion(parser))
-                    quit()
+                    exit()
                 if args.version:
                     print(__version__)
-                    quit()
+                    exit()
                 if not is_daemon:  # in daemon, we checked it earlier
                     Config.integrity_check()
                 if args.header:
@@ -543,21 +550,25 @@ class Controller:
                 for add, task in new_fields:
                     self.add_new_column(task, add)
 
+                fc = FlagController(self.parser)
+                if args.merge:
+                    self.add_merge(**fc.read(MergeFlag, args.merge))
+
                 # run single value check if the input is not a CSV file
                 if args.single_detect:
-                    quit()
+                    exit()
                 if self.parser.is_single_query:
                     res = self.parser.run_single_query(json=args.json)
                     if res:
                         print(res)
-                    quit()
+                    exit()
                 if is_daemon and see_menu:
                     # if we will need menu, daemon must stop here
                     send_ipc(pipe, chr(4), "Could not help with.\n")
                     continue
 
                 if args.aggregate:
-                    params = [x for x in csv.reader([args.aggregate])][0]
+                    params = csv_split(args.aggregate)
                     group = get_column_i(params.pop(), "to be grouped by") if len(params) % 2 else None
                     l = []
                     if not params:
@@ -578,22 +589,22 @@ class Controller:
                                 elif column != group:
                                     logger.error(f"Count column {self.parser.fields[column].name} must be the same"
                                                  f" as the grouping column {self.parser.fields[group].name}")
-                                    quit()
+                                    exit()
                     self.parser.settings["aggregate"] = group, l
 
                 if args.sort:
-                    self.parser.resort(list(csv.reader([args.sort]))[0])
+                    self.parser.resort(csv_split(args.sort))
                     self.parser.is_processable = True
 
                 if args.split:
                     self.parser.settings["split"] = get_column_i(args.split, "to be split with")
 
                 if args.include_filter:
-                    col, val = [x for x in csv.reader([args.include_filter])][0]
+                    col, val = csv_split(args.include_filter)
                     self.add_filtering(True, get_column_i(col, "to be filtered with"), val)
 
                 if args.exclude_filter:
-                    col, val = [x for x in csv.reader([args.exclude_filter])][0]
+                    col, val = csv_split(args.exclude_filter)
                     self.add_filtering(False, get_column_i(col, "to be filtered with"), val)
 
                 if args.unique:
@@ -612,7 +623,7 @@ class Controller:
                         v = v.replace(r"\t", "\t").replace("TAB", "\t").replace("tab", "\t")
                         if len(v) != 1:
                             print(f"Output {s2} has to be 1 character long: {v}")
-                            quit()
+                            exit()
                         setattr(dialect, s2, v)
                         self.parser.is_processable = True
 
@@ -643,7 +654,7 @@ class Controller:
                 if not see_menu:
                     self.close()
                 if is_daemon:  # if in daemon, everything important has been already sent to STDOUT
-                    quit()
+                    exit()
             except ConnectionRefusedError as e:
                 send_ipc(pipe, chr(3), f"Daemon has insufficient input: {e}\n")
                 continue
@@ -652,7 +663,7 @@ class Controller:
                 continue
             except ConnectionResetError as e:
                 send_ipc(pipe, chr(17), f"Daemon killed: {e}\n")
-                quit()
+                exit()
             except SystemExit:
                 if is_daemon:
                     send_ipc(pipe, sys.stdout.getvalue(), "Result sent.\n")
@@ -686,6 +697,7 @@ class Controller:
             menu.add("Split by a column", self.add_splitting)
             menu.add("Change CSV dialect", self.add_dialect)
             menu.add("Aggregate", self.add_aggregation)
+            menu.add("Merge", self.add_merge)
             if self.parser.is_processable:
                 menu.add("process", self.process, key="p", default=True)
             else:
@@ -773,7 +785,16 @@ class Controller:
         :type task: str FIELD,[COLUMN],[SOURCE_TYPE], ex: `netname 3|"IP address" ip|sourceip`
         :type add: bool Add to the result.
         """
-        task = [x for x in csv.reader([task])][0]
+        target_type, source_field, source_type, custom = self._add_new_column(task)
+        if not self.source_new_column(target_type, add, source_field, source_type, custom):
+            print("Cancelled")
+            exit()
+        self.parser.is_processable = True
+        return target_type
+
+    def _add_new_column(self, task):
+        """ Internal analysis for `add_new_column` """
+        task = csv_split(task)
         custom = []
         target_type = task[0]
         m = re.search(r"(\w*)\[([^]]*)\]", target_type)
@@ -786,14 +807,10 @@ class Controller:
             d = {t.name: SequenceMatcher(None, task[0], t.name).ratio() for t in Types.get_computable_types()}
             rather = max(d, key=d.get)
             logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
-            quit()
+            exit()
         source_field, source_type, c = self.parser.identifier.get_fitting_source(target_type, *task[1:])
         custom = c + custom
-        if not self.source_new_column(target_type, add, source_field, source_type, custom):
-            print("Cancelled")
-            quit()
-        self.parser.is_processable = True
-        return target_type
+        return target_type, source_field, source_type, custom
 
     def send_menu(self, method="smtp", test_attachment=None, send_now=False):
         # choose method SMTP/OTRS
@@ -826,7 +843,7 @@ class Controller:
         # sending dialog loop
         st = self.parser.stats
         limit = float("inf")
-        limitable = lambda max_: f"limited to: {limit}/{max_}" if limit < max_ else max_
+        def limitable(max_): return f"limited to: {limit}/{max_}" if limit < max_ else max_
 
         while True:
             # clear screen
@@ -844,9 +861,9 @@ class Controller:
                     if c[1]:
                         info.append(f"Already sent ({c[1]}/{sum(c)}): "
                                     + ", ".join([o.mail for o in Attachment.get_all(abroad, True, 5, True)]))
-                    info.append(f"Attachment: " + (", ".join(filter(None, (Config.get('attach_files', 'SMTP', get=bool) and "split CSV file attached" ,
-                                                                            Config.get('attach_paths_from_path_column', 'SMTP', get=bool) and "files from the path column attached")))
-                                                                            or "nothing attached"))
+                    info.append(f"Attachment: " + (", ".join(filter(None, (Config.get('attach_files', 'SMTP', get=bool) and "split CSV file attached",
+                                                                           Config.get('attach_paths_from_path_column', 'SMTP', get=bool) and "files from the path column attached")))
+                                                   or "nothing attached"))
                     info.append(f"\n{Contacts.mail_draft[draft].get_mail_preview()}\n")
                     return True
                 return False
@@ -890,7 +907,8 @@ class Controller:
                 menu.add("Send test e-mail...", key="t", default=not everything_sent)
                 menu.add("Print e-mails to a file...", key="p")
                 menu.add(f"Attach files (toggle): {Config.get('attach_files', 'SMTP', get=bool)}", key="a")
-                menu.add(f"Attach paths from path column (toggle): {Config.get('attach_paths_from_path_column', 'SMTP', get=bool)}", key="i")
+                menu.add("Attach paths from path column (toggle):"
+                         f" {Config.get('attach_paths_from_path_column', 'SMTP', get=bool)}", key="i")
                 menu.add("Go back...", key="x", default=everything_sent)
 
                 option = menu.sout()
@@ -933,7 +951,8 @@ class Controller:
             elif option == "a":
                 Config.set("attach_files", not Config.get('attach_files', 'SMTP', get=bool))
             elif option == "i":
-                Config.set("attach_paths_from_path_column", not Config.get('attach_paths_from_path_column', 'SMTP', get=bool))
+                Config.set("attach_paths_from_path_column",
+                           not Config.get('attach_paths_from_path_column', 'SMTP', get=bool))
             elif option in ["test", "t", "r", "p"]:
                 attachments = sorted(list(Attachment.get_all()), key=lambda x: x.mail.lower())
                 if option == "p":
@@ -1158,20 +1177,7 @@ class Controller:
                         *custom, target_type = Preview(source_field, source_type, target_type).reg()
                     elif target_type == Types.external:  # choose a file with a needed method
                         while True:
-                            title = "What .py file should be used as custom source?"
-                            try:
-                                code, path = dialog.fselect(str(Path.cwd()), title=title)
-                            except DialogError as e:
-                                try:  # I do not know why, fselect stopped working and this helped
-                                    code, path = dialog.fselect(str(Path.cwd()), title=title,
-                                                                height=max(get_terminal_size()[0] - 20, 10))
-                                except DialogError as e:
-                                    input(
-                                        "Unable launch file dialog. Please post an issue to the Github! Hit any key...")
-                                    raise Cancelled("... cancelled")
-
-                            if code != "ok" or not path:
-                                raise Cancelled("... cancelled")
+                            path = choose_file("What .py file should be used as custom source?", dialog)
                             module = get_module_from_path(path)
                             if module:
                                 # inspect the .py file, extract methods and let the user choose one
@@ -1230,43 +1236,51 @@ class Controller:
                 self.parser.fields[int(v) - 1].is_chosen = True
             self.parser.is_processable = True
 
-    def select_col(self, dialog_title="", only_computables=False, add=None, prepended_field=None):
+    def select_col(self, dialog_title="", only_computables=False, include_computables=True, add=None, prepended_field=None, return_object=False, highlight_field: int = None):
         """ Starts dialog where user has to choose a column.
             If cancelled, we return to main menu automatically.
             :type prepended_field: tuple (field_name, description) If present, this field is prepended. If chosen, you receive -1.
             :rtype: int Column
+
+            XXX always return_object
         """
         # add existing fields
         fields = [] if only_computables else self.parser.get_fields_autodetection()
 
         # add computable field types
-        for field in Types.get_computable_types():
-            if field.from_message:
-                s = field.from_message
-            else:
-                node_distance = graph.dijkstra(field, ignore_private=True)
-                s = field.group.name + " " if field.group != TypeGroup.general else ""
-                s += "from " + ", ".join([str(k) for k in node_distance][:3])
-                if len(node_distance) > 3:
-                    s += "..."
-            fields.append((f"new {field}...", s))
+        if include_computables:
+            for field in Types.get_computable_types():
+                if field.from_message:
+                    s = field.from_message
+                else:
+                    node_distance = graph.dijkstra(field, ignore_private=True)
+                    s = field.group.name + " " if field.group != TypeGroup.general else ""
+                    s += "from " + ", ".join([str(k) for k in node_distance][:3])
+                    if len(node_distance) > 3:
+                        s += "..."
+                fields.append((f"new {field}...", s))
 
         # add special prepended field
         if prepended_field:
             fields.insert(0, prepended_field)
 
         # launch dialog
-        col_i = pick_option(fields, dialog_title)
+        guesses = [highlight_field] if highlight_field else None
+        col_i = pick_option(fields, dialog_title, guesses=guesses)
 
         # convert returned int col_i to match an existing or new column
         if prepended_field:
             col_i -= 1
             if col_i == -1:
+                # XXX I should receive None when having no object, isnt it?
                 return col_i
         if only_computables or col_i >= len(self.parser.fields):
             target_type_i = col_i if only_computables else col_i - len(self.parser.fields)
             col_i = len(self.parser.fields)
             self.source_new_column(Types.get_computable_types()[target_type_i], add=add)
+
+        if return_object:
+            return self.parser.fields[col_i]
         return col_i
 
     def add_filter(self):
@@ -1352,6 +1366,48 @@ class Controller:
         self.parser.settings["unique"].append(col_i)
         self.parser.is_processable = True
 
+    def add_merge(self, remote_path=None, remote_col_i:Optional[int]=None, local_col_i:Optional[int]=None):
+        if not remote_path:
+            remote_path = choose_file("What file we should merge the columns from?")
+
+        # dialog user and build the link between files
+        file2 = Path(remote_path)
+        parser2 = Parser(file2)
+        controller2 = Controller(parser2)
+        # XXX highlight probable columns
+        column2 = parser2.fields[remote_col_i] \
+            if remote_col_i is not None \
+            else controller2.select_col("Select remote column to be merged", include_computables=False, return_object=True)
+        column1 = self.parser.fields[local_col_i] \
+            if local_col_i is not None \
+            else self.select_col(f"Select local column to merge '{column2}' to", include_computables=False, return_object=True)
+        # XXX choose which fields should be imported - every column is imported right now
+
+        # cache remote value
+        rows = defaultdict(list)
+        with file2.open() as f:
+            reader = csv.reader(f, dialect=parser2.dialect)
+            for row in reader:
+                if not row:  # skip blank
+                    continue
+                # {'foo': [Expandable(['john@example.com', 'foo']), Expandable(['mary@example.com', 'foo'])],
+                # 'bar': [Expandable(['hyacint@example.com', 'bar'])]})
+                rows[row[column2.col_i]].append(Expandable(row))
+        operation = MergeAction(column1, rows, parser2)
+
+        # build local fields based on the remotes
+        for rf in parser2.fields:
+            # XXX merged fields are at the end – check it won't pose a problem when user wants to compute columns from them
+            f = Field(rf.name,
+                      is_chosen=True,
+                      merged_from=rf,
+                      merge_operation=operation)
+            self.parser.add_field(append=f)
+
+        # prepare the operation
+        self.parser.is_processable = True
+        self.parser.settings["merge"].append(operation)
+
     def close(self):
         self.wrapper.save(last_chance=True)  # re-save cache file
         if not Config.get("yes"):
@@ -1383,6 +1439,13 @@ class Controller:
 
             print("Finished.")
         exit(0)
+
+    def cleanup(self):
+        """ Make `Controller.run()` calls independent.
+        This method is called by ex: tests.
+        """
+        new_fields.clear()
+        Config.cache.clear()
 
     def get_autocompletion(self, parser):
         actions = [x for action in parser._actions for x in action.option_strings]

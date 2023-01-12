@@ -9,6 +9,7 @@ import webbrowser
 from pathlib import Path
 from shutil import copy
 from subprocess import Popen, PIPE, call, run
+from sys import exit
 from time import sleep
 from urllib.parse import quote
 
@@ -31,10 +32,10 @@ try:
 except PermissionError:
     file_handler = None
     print("Cannot create convey.log here at " + str(os.path.abspath(".")) + " – change directory please.")
-    quit()
+    exit()
 except FileNotFoundError:  # FileNotFoundError emitted when we are in a directory whose inode exists no more
     print("Current working directory doesn't exist.")
-    quit()
+    exit()
 logging.basicConfig(level=logging.INFO, handlers=handlers)
 
 # mute noisy module (prints warning every time a validation fails which fails permanently when determining data type)
@@ -220,7 +221,7 @@ class Config:
             else:
                 print("Please write missing items into the config file before continuing.\nOpening", Config.path, "...")
                 p = Popen(["xdg-open", Config.path], shell=False)
-            quit()
+            exit()
 
     @staticmethod
     def init_verbosity(yes=False, verbosity=None, daemon=None):

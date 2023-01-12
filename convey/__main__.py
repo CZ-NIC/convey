@@ -3,6 +3,7 @@ import bdb
 import os
 import socket
 import sys
+from sys import exit
 
 from .ipc import send, recv, socket_file, daemon_pid
 
@@ -12,7 +13,7 @@ __date__ = "$Feb 26, 2015 8:13:25 PM$"
 
 if sys.version_info[0:2] < (3, 6):
     print("We need at least Python 3.6, your version is " + sys.version + ". Try an older Convey release or rather upgrade Python.")
-    quit()
+    exit()
 
 
 def main():
@@ -53,7 +54,7 @@ def main():
                         daemonize_on_exit = False
                         if not response.endswith(chr(4)):  # daemon brings some results
                             print(response, end='')
-                            quit()
+                            exit()
             finally:
                 pipe.close()
 

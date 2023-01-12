@@ -1,3 +1,4 @@
+attrs
 ezodf
 xlrd
 jinja2

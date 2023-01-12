@@ -1,4 +1,4 @@
-from __future__ import annotations  # remove as of Python3.11
+from __future__ import annotations
 import subprocess
 import sys
 from collections import deque
@@ -91,10 +91,10 @@ class Informer:
                 t = ", ".join([str(t) for t in f.possible_types])
                 l3.append(f.color(f"{f} ({t})"))
         stdout.write("\nIdentified columns: " + ", ".join(l3))
-        if se["add"]:
+        if se["add"] or se["merge"]:
             l2 = []
-            for f in se["add"]:
-                l2.append(f.color(f"{f} (from {str(f.source_field)})"))
+            l2.extend(f.color(f"{f} (from {str(f.source_field)})") for f in se["add"])
+            l2.extend(f"{ma.remote_parser.source_file} (from {str(ma.local_column)})" for ma in se["merge"])
             stdout.write("\nComputed columns: " + ", ".join(l2))
         l = []
         progress = 0
@@ -349,7 +349,7 @@ class Informer:
                 l.append(f"unknown contact for {ip_abroad_unknown} IP in {prefix_abroad_unknown} prefixes")
             res.append(f"{abusemail_abroad} abroad e-mail addresses ({', '.join(l)})")
 
-        r = "; ".join(res) + "." if res else ""            
+        r = "; ".join(res) + "." if res else ""
         """ XX
         if invalidLines:
             res += "\nThere were {} invalid lines in {} file.".format(invalidLines, self.parser.invalidReg.getPath())"""

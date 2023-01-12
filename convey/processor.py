@@ -1,4 +1,4 @@
-from __future__ import annotations  # remove as of Python3.11
+from __future__ import annotations  # remove as of Python3.11 in every file
 import io
 import logging
 import traceback
@@ -9,9 +9,11 @@ from functools import reduce
 from operator import eq, ne, mul
 from pathlib import Path
 from queue import Queue, Empty
+from sys import exit
 from threading import Thread, Lock
-from typing import Dict, TYPE_CHECKING
+from typing import Dict, TYPE_CHECKING, List, Tuple, Union
 
+from .action import Expandable
 from .attachment import Attachment
 from .config import Config
 from .dialogue import ask
@@ -19,6 +21,7 @@ from .types import Web
 from .whois import Quota, UnknownValue
 
 if TYPE_CHECKING:
+    import _csv
     from .parser import Parser
 
 logger = logging.getLogger(__name__)
@@ -27,11 +30,10 @@ logger = logging.getLogger(__name__)
 def prod(iterable):  # XX as of Python3.8, replace with math.prod
     return reduce(mul, iterable, 1)
 
-
 class Processor:
     """ Opens the CSV file and processes the lines. """
 
-    descriptors: Dict[str, object]  # location => file_descriptor, his csv-writer
+    descriptors: Dict[Union[int, str], Tuple[io.StringIO, _csv._writer]]  # location => file_descriptor, his csv-writer
     descriptorsStatsOpen: Dict[str, int]  # {location: count} XX(performance) we may use a SortedDict object
 
     def __init__(self, parser, rewrite=True):
@@ -59,11 +61,15 @@ class Processor:
 
         # apply setup
         # convert settings["add"] to lambdas
-        adds = []
-        for f in settings["add"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
-            adds.append((f.name, f.source_field.col_i_original, f.get_methods()))
+        # Ex: ... = [("netname", 20, [lambda x, lambda x...]), ...]
+        settings["addByMethod"] = [(f.name, f.source_field.col_i_original, f.get_methods()) for f in settings["add"]]
         del settings["add"]
-        settings["addByMethod"] = adds
+
+        # convert settings["merge"] to lambdas
+        if settings["merge"]:
+            settings["merging"] = True
+            settings["addByMethod"] += [("merged", op.local_column.col_i_original, (lambda x: op.get(x),)) for op in settings["merge"]]
+            del settings["merge"]
 
         # convert filter settings to pre (before line processing) and post that spare a lot of time
         #   (ex: skip lines before WHOIS processing)
@@ -161,7 +167,8 @@ class Processor:
                     if o == "a":
                         Config.set("lacnic_quota_skip_lines", True, "FIELDS")
                     if o == "d":
-                        print("Maybe you should hit n multiple times because pdb takes you to the wrong scope.")  # I dont know why.
+                        # I dont know why.
+                        print("Maybe you should hit n multiple times because pdb takes you to the wrong scope.")
                         Config.get_debugger().set_trace()
                     elif o == "s":
                         continue  # skip to the next line XXmaybe this is not true for threads
@@ -177,7 +184,7 @@ class Processor:
                         return
                     elif o == "q":
                         self._close_descriptors()
-                        quit()
+                        exit()
                     else:  # continue from last row
                         parser.line_count -= 1  # let's pretend we didn't just do this row before and give it a second chance
                         if thread_count:
@@ -262,7 +269,7 @@ class Processor:
         for f in self.descriptors.values():
             f[0].close()
 
-    def process_line(self, parser: Parser, line, settings, fields=None):
+    def process_line(self, parser: Parser, line: List, settings: Dict, fields: Union[Tuple, List]=None):
         """
         Parses line – compute fields while adding, perform filters, pick or delete cols, split and write to a file.
         """
@@ -292,9 +299,9 @@ class Processor:
             # add fields
             if add:
                 list_lengths = []
-                for col_i in settings["addByMethod"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
-                    val = fields[col_i[1]]
-                    for l in col_i[2]:
+                for _, col_i, lambdas in settings["addByMethod"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
+                    val = fields[col_i]
+                    for l in lambdas:
                         if isinstance(val, list):
                             # resolve all items, while flattening any list encountered
                             val = [y for x in (l(v) for v in val) for y in (x if type(x) is list else [x])]
@@ -311,12 +318,18 @@ class Processor:
                         # if we received empty list, row is invalid
                         # ex: missing IP of a hostname
                         if not fields[i]:
-                            raise RuntimeWarning(f"Column {i + 1} cannot be determined and the row was marked as invalid")
-                        fields[i] *= row_count // len(fields[i])
+                            raise RuntimeWarning(
+                                f"Column {i + 1} cannot be determined and the row was marked as invalid")
+                        # XXX try putting back
+                        # fields[i] *= fields[i] * (row_count // len(fields[i]))
+                        fields[i] = fields[i] * (row_count // len(fields[i]))
                     it = zip(*fields)
                     fields = it.__next__()  # now we are sure fields has only scalar values
                     for v in it:  # duplicate row because one of lambdas produced a multiple value list
                         self.process_line(parser, line, settings, v)  # new row with scalar values only
+
+            if settings["merging"]:
+                fields = Expandable.flatten(fields)
 
             # post filtering
             # filter (include, col, value), ex: [(True, 23, "passed-value"), (False, 13, "another-value")]
@@ -341,7 +354,8 @@ class Processor:
 
             # determine location
             if type(settings["split"]) == int:
-                location = fields[settings["split"]].replace("/", "-")  # split ('/' is a forbidden char in linux file names)
+                # split ('/' is a forbidden char in linux file names)
+                location = fields[settings["split"]].replace("/", "-")
                 if not location:
                     parser.unknown_lines_count += 1
                     location = Config.UNKNOWN_NAME

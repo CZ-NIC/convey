@@ -1,3 +1,5 @@
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 import logging
 import os
 import shlex
@@ -9,12 +11,26 @@ from subprocess import run, PIPE
 from typing import Union, List
 from unittest import TestCase, main
 
+from convey.controller import Controller
+
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 os.chdir("tests")  # all mentioned resources files are in that folder
 HELLO_B64 = 'aGVsbG8='
+SHEET_CSV = Path("sheet.csv")
+GIF_CSV = Path("gif.csv")
+PERSON_CSV = Path("person.csv")
+COMBINED_SHEET_PERSON = Path("combined_sheet_person.csv")
+PERSON_HEADER_CSV = Path("person_header.csv")
+COMBINED_LIST_METHOD = Path("combined_list_method.csv")
+SHEET_DUPLICATED_CSV = Path("sheet_duplicated.csv")
+SHEET_HEADER_CSV = Path("sheet_header.csv")
+SHEET_HEADER_ITSELF_CSV = Path("sheet_header_itself.csv")
+SHEET_HEADER_PERSON_CSV = Path("sheet_header_person.csv")
+SHEET_PERSON_CSV = Path("sheet_person.csv")
+PERSON_GIF_CSV = Path("person_gif.csv")
 
 class Convey:
-    def __init__(self, *args, filename=None, text=None, whois=False, debug=None):
+    def __init__(self, *args, filename:Union[str,Path]=None, text=None, whois=False, debug=None):
         """ It is important that an input is flagged with --file or --input when performing tests
             because otherwise, main() would hang on `not sys.stdin.isatty() -> sys.stdin.read()`
             :type args: object
@@ -23,18 +39,18 @@ class Convey:
 
         # XX travis will not work will daemon=true (which imposes slow testing)
         self.cmd = ["../convey.py", "--output", "--reprocess", "--headless", "--daemon", "false", "--debug", "false", "--crash-post-mortem", "false"]
-        if filename is None and not text and len(args) == 1 and not args[0].startswith("-"):
+        if filename is None and not text and len(args) == 1 and not str(args[0]).startswith("-"):
             filename = args[0]
             args = None
         if filename:
             if not Path(filename).exists():
                 raise FileNotFoundError(filename)
-            self.cmd.extend(("--file", filename))
+            self.cmd.extend(("--file", str(filename)))
         if text:
             self.cmd.extend(("--input", text))
 
-        self.filename = filename
-        self.text = text
+        self.has_filename = bool(filename)
+        self.has_text = bool(text)
         if not whois:
             self.cmd.extend(("--whois-cache", "false"))
         if args:
@@ -43,7 +59,7 @@ class Convey:
     def __call__(self, cmd="", text=None, debug=None, piped_text=None):
         if debug is not None:
             self.debug = debug
-        if not any((self.filename, self.text, piped_text)) and not cmd.startswith("-"):
+        if not any((self.has_filename, self.has_text, piped_text)) and not cmd.startswith("-"):
             cmd = "--input " + cmd
 
         cmd = [*self.cmd, *shlex.split(cmd)]
@@ -66,8 +82,33 @@ convey = Convey()
 
 
 class TestAbstract(TestCase):
-    def check(self, check: Union[List, str], cmd: str = "", text=None, filename=None, debug=None):
-        o = Convey(filename=filename, text=text, debug=debug)(cmd)
+    def check(self, check: Union[List, str], cmd: str = "", text=None, filename: Union[str, Path]=None, debug=None):
+        # o = Convey(filename=filename, text=text, debug=debug)(cmd)
+        args = ["--output", "--reprocess", "--headless", "--daemon", "false", "--debug", "false", "--crash-post-mortem", "false"]
+        if filename:
+            args.extend(("--file" , str(filename)))
+        if text:
+            args.extend(("--input",  text))
+        args.extend(shlex.split(cmd))
+
+        if debug:
+            print("convey", " ".join(args))
+
+        with redirect_stdout(StringIO()) as buf:
+            c = Controller()
+            try:
+                c.run(given_args=args)
+            except SystemExit as e:
+                if e.code:
+                    raise AssertionError(f"Bad exit code: {e.code}")
+            finally:
+                c.cleanup()
+            o = buf.getvalue().splitlines()
+
+        if isinstance(check, Path):
+            check = Path(check).read_text().splitlines()
+        if debug:
+            print(check)
         if isinstance(check, list):
             self.assertListEqual(check, o)
         elif check is None:
@@ -80,14 +121,14 @@ class TestAbstract(TestCase):
 
 class TestFilter(TestCase):
     def test_filter(self):
-        convey = Convey("filter.csv")
+        convey = Convey(SHEET_CSV)
         self.assertEqual(3, len(convey("--include-filter 1,foo")))
         self.assertEqual(2, len(convey("--exclude-filter 1,foo")))
         self.assertEqual(2, len(convey("--unique 1")))
 
     def test_post_filter(self):
         """ Filter after a field was generated. """
-        convey = Convey("filter.csv")
+        convey = Convey(SHEET_CSV)
         self.assertEqual(3, len(convey("--field base64,1 --include-filter base64,Zm9v")))
         self.assertEqual(2, len(convey("--field base64,1 --exclude-filter base64,Zm9v")))
         self.assertEqual(2, len(convey("--field base64,1 --unique base64")))
@@ -95,7 +136,7 @@ class TestFilter(TestCase):
 
 class TestDialect(TestCase):
     def test_dialect(self):
-        convey = Convey("filter.csv")
+        convey = Convey(SHEET_CSV)
         self.assertIn("foo|red|second.example.com", convey("--delimiter-output '|'"))
         self.assertIn("foo|red|second.example.com", convey("--delimiter-output '|' --header-output false"))
         self.assertNotIn("foo|red|second.example.com", convey("--delimiter-output '|' --header-output false --header"))
@@ -111,7 +152,7 @@ class TestColumns(TestAbstract):
         self.check("Column ID 2 does not exist. We have these so far: one.com", "-f tld,2", "one.com")
         self.check('two.cz,one.com,com', "-f tld,2 -C", "two.cz,one.com")
 
-        c = Convey(filename="filter.csv")
+        c = Convey(filename=SHEET_CSV)
         self.assertEqual('foo,green,first.example.com,com', c("-f tld,-1")[1])
         self.assertEqual('foo,green,first.example.com,com', c("-f tld,3")[1])
         self.assertEqual('foo,green,first.example.com,com,comA', c("-f tld,-1 -f code,-1,'x+=\"A\"'")[1])
@@ -194,6 +235,36 @@ class TestFields(TestAbstract):
         self.assertEqual([], convey("--single-detect", text="12345"))
 
 
+class TestMerge(TestAbstract):
+    def test_merge(self):
+        # merging generally works
+        self.check(COMBINED_SHEET_PERSON, f"--merge {PERSON_CSV},2,1", filename=SHEET_CSV, debug=True)
+
+        # rows can be duplicated due to other fields
+        self.check(COMBINED_LIST_METHOD, f"--merge {PERSON_CSV},2,1 -f external,external_pick_base.py,list_method,1", filename=SHEET_CSV)
+
+        # merging file with header and with a missing value
+        self.check(SHEET_PERSON_CSV, f"--merge {PERSON_HEADER_CSV},2,1", filename=SHEET_CSV)
+
+        # merge on a column type
+        self.check(PERSON_GIF_CSV, f"--merge {GIF_CSV},email,email", filename=PERSON_CSV)
+
+        # merge by a column number
+        self.check(PERSON_GIF_CSV, f"--merge {GIF_CSV},email,1", filename=PERSON_CSV)
+
+        # invalid column definition
+        msg = "ERROR:convey.identifier:Cannot identify COLUMN invalid, put there an exact column name, its type, the numerical order starting with 1, or with -1."
+        with self.assertLogs(level='WARNING') as cm:
+            self.check(None, f"--merge {GIF_CSV},email,invalid", filename=PERSON_CSV)
+            self.assertEqual([msg], cm.output)
+
+        # merging a file with itself
+        self.check(SHEET_HEADER_ITSELF_CSV, f"--merge {SHEET_HEADER_CSV},4,2", filename=SHEET_HEADER_CSV)
+
+        # only local file has header; different dialects
+        self.check(SHEET_HEADER_PERSON_CSV, f"--merge {PERSON_CSV},2,1", filename=SHEET_HEADER_CSV)
+
+
 class TestLaunching(TestAbstract):
     def test_piping_in(self):
         convey = Convey()
@@ -211,7 +282,7 @@ class TestLaunching(TestAbstract):
         """ Stable --single-query parsing  """
 
         # Single field containing a comma, still must be fully converted (comma must not be mistaken for a CSV delimiter)
-        self.check("aGVsbG8sIGhlbGxv", "-f base64", "hello, hello")
+        self.check("aGVsbG8sIGhlbGxv", "-f base64", "hello, hello", debug=True)
         self.check("V=C3=A1=C5=BEen=C3=A1 Ad=C3=A9lo, ra=C4=8Dte vstoupit", "-f quoted_printable", "Vážená Adélo, račte vstoupit")
         self.check([], "",  "hello, hello")
 
@@ -222,11 +293,12 @@ class TestLaunching(TestAbstract):
         word_64 = b64encode(word.encode()).decode()
 
         self.check(multiline_64, "--single-query -f base64", multiline)
-        self.check([f'"{word}","{word_64}"']*2, "-f base64", multiline, debug=True)
+        self.check([f'"{word}","{word_64}"']*2, "-f base64", multiline) #, debug=True)
+
 
 class TestSending(TestCase):
     def test_dynamic_template(self):
-        convey = Convey("--output", "False", filename="filter.csv")
+        convey = Convey("--output", "False", filename=SHEET_CSV)
         cmd = """--field code,3,'x="example@example.com" if "example.com" in x else x+"@example.com"'""" \
               " --split code --send-test {mail} 'email_template.eml' --headless"
         lines = convey(cmd.format(mail="example@example.com"))
@@ -239,7 +311,7 @@ class TestSending(TestCase):
         lines = convey(cmd.format(mail="wikipedia.com@example.com"))
         self.assertIn('Subject: My cool dynamic template demonstrating a short amount of lines!', lines)
         self.assertIn('We send you single colour: orange.', lines)
-        self.assertIn('Attachment filter.csv (text/csv):', lines[0])
+        self.assertIn('Attachment sheet.csv (text/csv):', lines[0])
 
         cmd += " --header"  # we force first row to be a header
         lines = convey(cmd.format(mail="wikipedia.com@example.com"))
@@ -248,14 +320,14 @@ class TestSending(TestCase):
 
     # XX we should test body, subject, references flag
     # def test_body_flag(self):
-    #     convey = Convey("filter.csv")
+    #     convey = Convey(FILTER_FILE)
     #     cmd = """--body "body text" """
 
     def test_send(self):
         BLACK = "Attachment black.gif (image/gif)"
         WHITE = "Attachment white.gif (image/gif)"
-        COLOURS = "Attachment colours.csv (text/csv)"
-        convey = Convey("--output", "False", filename="colours.csv")
+        COLOURS = "Attachment gif.csv (text/csv)"
+        convey = Convey("--output", "False", filename=GIF_CSV)
         cmd_pattern = """-t abusemail,path --split abusemail --send-test {mail} 'bare_template.eml' """
 
         cmd = cmd_pattern + "--attach-files False --attach-paths-from-path-column True"
@@ -286,7 +358,17 @@ class TestSending(TestCase):
         self.assertNotIn(BLACK, lines[1])
 
 
-class TestExternals(TestCase):
+class TestExternals(TestAbstract):
+
+    def test_list_in_result(self):
+        """ The method returns a list while CSV processing. """
+        self.check(SHEET_DUPLICATED_CSV, "-f external,external_pick_base.py,list_method", filename=SHEET_CSV)
+
+    def test_bare_method(self):
+        convey = Convey()
+        lines = convey("--field external,external_pick_base.py,dumb_method --input 'foo'")
+        self.assertEqual(lines, ["-foo-"])
+
     def test_pick_input(self):
         convey = Convey()
         lines = convey("--field external,external_pick_base.py,time_format --input '2016-08-08 12:00'")

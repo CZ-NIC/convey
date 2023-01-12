@@ -1,9 +1,12 @@
 # CHANGELOG
 
 ## 1.4.2
+* files merging
 * fix: OTRS multiple files sending
 * fix: piping into program while specifiying fields works
 * fix: single-query processing
+* testing directly through module import possible
+* drop Python3.6 support
 
 ## 1.4.1 (2023-01-06)
 * types
