@@ -281,7 +281,6 @@ class TestAction(TestAbstract):
     def test_merge(self):
         # merging generally works
         self.check(COMBINED_SHEET_PERSON, f"--merge {PERSON_CSV},2,1", filename=SHEET_CSV)
-
         # rows can be duplicated due to other fields
         self.check(COMBINED_LIST_METHOD,
                    f"--merge {PERSON_CSV},2,1 -f external,external_pick_base.py,list_method,1", filename=SHEET_CSV)

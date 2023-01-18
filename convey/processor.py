@@ -332,7 +332,7 @@ class Processor:
                         self.process_line(parser, line, settings, v)  # new row with scalar values only
 
             if settings["merging"]:
-                fields = Expandable.flatten(fields)
+                fields = tuple(Expandable.flatten(fields))
 
             # post filtering
             # filter (include, col, value), ex: [(True, 23, "passed-value"), (False, 13, "another-value")]

@@ -1382,6 +1382,7 @@ class Controller:
             if local_col_i is not None \
             else self.select_col(f"Select local column to merge '{column2}' to", include_computables=False, return_object=True)
         # XXX choose which fields should be imported - every column is imported right now
+        # XXX and merging does not work with choose columns
 
         # cache remote values
         operation = MergeAction.build(file2, parser2, column2, column1)
@@ -1390,7 +1391,7 @@ class Controller:
         for rf in parser2.fields:
             # XXX merged fields are at the end – check it won't pose a problem when user wants to compute columns from them
             f = Field(rf.name,
-                      is_chosen=True,
+                      is_chosen=False if rf is column2 else True,
                       merged_from=rf,
                       merge_operation=operation)
             self.parser.add_field(append=f)

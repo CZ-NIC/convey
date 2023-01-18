@@ -12,7 +12,7 @@ from math import ceil
 from operator import eq, ne
 from pathlib import Path
 from shutil import move
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from sys import exit
 
 from tabulate import tabulate
@@ -821,7 +821,7 @@ class Parser:
         rows = []  # nice table formatting
         full_rows = []  # formatting that optically matches the Sample above
         for line in self.sample_parsed:
-            row = []
+            row: List[Tuple[str,Field]] = []
             for field, cell in zip_longest(self.fields, line):
                 if field is None:
                     # when lines have different length, field may be none
