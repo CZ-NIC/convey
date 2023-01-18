@@ -23,7 +23,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
 from validate_email import validate_email
 
-from .action import Expandable, MergeAction
+from .action import AggregateAction, Expandable, MergeAction
 from .attachment import Attachment
 from .config import Config, console_handler, edit, get_path
 from .contacts import Contacts
@@ -590,7 +590,7 @@ class Controller:
                                     logger.error(f"Count column {self.parser.fields[column].name} must be the same"
                                                  f" as the grouping column {self.parser.fields[group].name}")
                                     exit()
-                    self.parser.settings["aggregate"] = group, l
+                    self.parser.settings["aggregate"] = AggregateAction(group, l)
 
                 if args.sort:
                     self.parser.resort(csv_split(args.sort))
@@ -754,7 +754,7 @@ class Controller:
                 def _(_):
                     for f in self.parser.fields:
                         if f.is_selected:
-                            self.parser.settings["aggregate"] = f.col_i, [[Aggregate.count, f.col_i]]
+                            self.parser.settings["aggregate"] = AggregateAction(f.col_i, [[Aggregate.count, f.col_i]])
                             self.parser.is_processable = True
                             session.process = True
                             break
@@ -1328,7 +1328,7 @@ class Controller:
                 if group == -1:
                     group = None
         fns.append([fn, col_i])
-        self.parser.settings["aggregate"] = group, fns
+        self.parser.settings["aggregate"] = AggregateAction(group, fns)
         self.parser.is_processable = True
 
     def add_dialect(self):

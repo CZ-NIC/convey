@@ -252,10 +252,10 @@ class Config:
     @staticmethod
     def get_debugger():
         try:
-            import pudb as mod
+            import ipdb as mod
         except ImportError:
-            try:
-                import ipdb as mod
+            try:  # pudb not preffered as it wrote "NoneType: None" instead of exceptions
+                import pudb as mod
             except ImportError:
                 import pdb as mod
         return mod

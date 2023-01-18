@@ -20,12 +20,12 @@ Cell = Union[str, List[str]]
 
 class Field:
     def __init__(self, name, is_chosen=True, source_field: Optional[Field] = None, source_type=None, new_custom=None,
-                 parser: Parser = None, merged_from: Optional[Field] = None, merge_operation: Optional[MergeAction] = None):
+                 merged_from: Optional[Field] = None, merge_operation: Optional[MergeAction] = None):
         self.col_i = None
         "index of the field in parser.fields"
         self.col_i_original = None
         "original index before any sorting"
-        self.parser = None # XXX how come parser is not used?
+        self.parser: Optional[Parser] = None
         self.name = str(name)
         self.is_chosen = is_chosen
         self.is_selected = False
@@ -48,6 +48,9 @@ class Field:
 
     def __repr__(self):
         return f"<Field {self.name}({self.type})>"
+
+    def set_parser(self, parser):
+        self.parser = parser
 
     def move(self, direction=0):
         """ direction = +1 right, -1 left """

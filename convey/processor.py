@@ -11,7 +11,7 @@ from pathlib import Path
 from queue import Queue, Empty
 from sys import exit
 from threading import Thread, Lock
-from typing import Dict, TYPE_CHECKING, List, Tuple, Union
+from typing import Dict, TYPE_CHECKING, List, Optional, Tuple, Union
 
 from .action import Expandable
 from .attachment import Attachment
@@ -23,12 +23,17 @@ from .whois import Quota, UnknownValue
 if TYPE_CHECKING:
     import _csv
     from .parser import Parser
+    from .definition import Settings
+
 
 logger = logging.getLogger(__name__)
 
 
 def prod(iterable):  # XX as of Python3.8, replace with math.prod
     return reduce(mul, iterable, 1)
+
+
+
 
 class Processor:
     """ Opens the CSV file and processes the lines. """
@@ -269,7 +274,7 @@ class Processor:
         for f in self.descriptors.values():
             f[0].close()
 
-    def process_line(self, parser: Parser, line: List, settings: Dict, fields: Union[Tuple, List]=None):
+    def process_line(self, parser: Parser, line: List, settings: Settings, fields: Union[Tuple, List]=None):
         """
         Parses line – compute fields while adding, perform filters, pick or delete cols, split and write to a file.
         """
@@ -363,15 +368,9 @@ class Processor:
 
             # aggregation: count column
             if settings["aggregate"]:
-                # settings["aggregate"] = column to be grouped, [(sum, column to be summed)]
-                # Ex: settings["aggregate"] = 1, [(Aggregate.sum, 2), (Aggregate.avg, 3)]
-                # Ex: settings["aggregate"] = 0, [(Aggregate.count, 0)]
-                # Ex: settings["aggregate"] = None, [(Aggregate.sum, 1)]
-                # Ex: settings["aggregate"] = None, [(Aggregate.sum, 1), (Aggregate.avg, 1)]
-
-                col_group_i = settings["aggregate"][0]
+                col_group_i = settings["aggregate"].col_i
                 grp = fields[col_group_i] if col_group_i is not None else None
-                for i, (fn, col_data_i) in enumerate(settings["aggregate"][1]):
+                for i, (fn, col_data_i) in enumerate(settings["aggregate"].actions):
                     # counters[location file][grouped row][order in aggregation settings] = [sum generator, count]
                     loc = self.parser.aggregation[location]
 

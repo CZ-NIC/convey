@@ -2,7 +2,7 @@ from __future__ import annotations
 from collections import defaultdict
 import csv
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
 
 from attrs import define, asdict, field
 
@@ -17,6 +17,8 @@ class Action:
 
 Pivot = str
 "Common value in both local and remote columns"
+ColumnI = int
+"index of a field"
 
 @define
 class MergeAction(Action):
@@ -74,3 +76,19 @@ class Expandable(list):
                 yield from cls.flatten(x)
             else:
                 yield x
+
+
+@define
+class AggregateAction(Action):
+    """
+        settings["aggregate"] = column to be grouped, [(sum, column to be summed)]
+        Ex: settings["aggregate"] = 1, [(Aggregate.sum, 2), (Aggregate.avg, 3)]
+        Ex: settings["aggregate"] = 0, [(Aggregate.count, 0)]
+        Ex: settings["aggregate"] = None, [(Aggregate.sum, 1)]
+        Ex: settings["aggregate"] = None, [(Aggregate.sum, 1), (Aggregate.avg, 1)]
+        """
+    col_i : Optional[ColumnI]
+    "column to be grouped by"
+
+    actions: List[Tuple[Callable, ColumnI]]
+    "[(sum, column to be summed), ...]"

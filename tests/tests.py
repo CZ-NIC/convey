@@ -30,9 +30,11 @@ SHEET_HEADER_ITSELF_CSV = Path("sheet_header_itself.csv")
 SHEET_HEADER_PERSON_CSV = Path("sheet_header_person.csv")
 SHEET_PERSON_CSV = Path("sheet_person.csv")
 PERSON_GIF_CSV = Path("person_gif.csv")
+CONSUMPTION = Path("consumption.csv")
+
 
 class Convey:
-    def __init__(self, *args, filename:Union[str,Path]=None, text=None, whois=False, debug=None):
+    def __init__(self, *args, filename: Union[str, Path] = None, text=None, whois=False, debug=None):
         """ It is important that an input is flagged with --file or --input when performing tests
             because otherwise, main() would hang on `not sys.stdin.isatty() -> sys.stdin.read()`
             :type args: object
@@ -40,7 +42,8 @@ class Convey:
         self.debug = debug
 
         # XX travis will not work will daemon=true (which imposes slow testing)
-        self.cmd = ["../convey.py", "--output", "--reprocess", "--headless", "--daemon", "false", "--debug", "false", "--crash-post-mortem", "false"]
+        self.cmd = ["../convey.py", "--output", "--reprocess", "--headless",
+                    "--daemon", "false", "--debug", "false", "--crash-post-mortem", "false"]
         if filename is None and not text and len(args) == 1 and not str(args[0]).startswith("-"):
             filename = args[0]
             args = None
@@ -70,7 +73,7 @@ class Convey:
         if self.debug:
             print(" ".join(cmd))
         # run: blocking, output
-        input_= piped_text.encode() if piped_text else None
+        input_ = piped_text.encode() if piped_text else None
         lines = run(cmd, input=input_, stdout=PIPE, timeout=3).stdout.decode("utf-8").splitlines()
         if self.debug:
             print(lines)
@@ -84,11 +87,12 @@ convey = Convey()
 
 
 class TestAbstract(TestCase):
-    def check(self, check: Union[List, str], cmd: str = "", text=None, filename: Union[str, Path]=None, debug=None):
+    def check(self, check: Union[List, str], cmd: str = "", text=None, filename: Union[str, Path] = None, debug=None):
         # o = Convey(filename=filename, text=text, debug=debug)(cmd)
-        args = ["--output", "--reprocess", "--headless", "--daemon", "false", "--debug", "false", "--crash-post-mortem", "false"]
+        args = ["--output", "--reprocess", "--headless", "--daemon",
+                "false", "--debug", "false", "--crash-post-mortem", "false"]
         if filename:
-            args.extend(("--file" , str(filename)))
+            args.extend(("--file", str(filename)))
         if text:
             args.extend(("--input",  text))
         args.extend(shlex.split(cmd))
@@ -122,10 +126,6 @@ class TestAbstract(TestCase):
             else:
                 self.assertEqual(check, o[0])
         except AssertionError as e:
-            # print("*" * 50)
-            # print("CMD: ", cmd)
-            # print("Checking: ", check)
-            # print("-" * 50)
             raise AssertionError("Cmd", "convey " + " ".join(args), "Check", check) from e
 
 
@@ -245,13 +245,46 @@ class TestFields(TestAbstract):
         self.assertEqual([], convey("--single-detect", text="12345"))
 
 
-class TestMerge(TestAbstract):
+class TestAction(TestAbstract):
+    def test_aggregate(self):
+        self.check(["sum(price)", "972.0"], f"--aggregate price,sum", filename=CONSUMPTION)
+        self.check(['category,sum(price)', 'total,972.0', 'kettle,602.0', 'bulb,370.0'],
+                   f"--aggregate price,sum,category", filename=CONSUMPTION)
+        self.check(['category,sum(price),avg(consumption)',
+                    'total,972.0,41.0',
+                    'kettle,602.0,75.0',
+                    'bulb,370.0,18.33'], f"--aggregate price,sum,consumption,avg,category", filename=CONSUMPTION)
+        self.check(['category,sum(price),list(price)',
+                    'total,972.0,(all)',
+                    '''kettle,602.0,"['250', '352']"''',
+                    '''bulb,370.0,"['100', '150', '120']"'''], f"--aggregate price,sum,price,list,category", filename=CONSUMPTION)
+
+        # XX this will correctly split the files,
+        # however, the output is poor and for a reason not readable by the check.
+        # self.check(['','Split location: bulb','','Split location: kettle'],
+        #            "--agg price,sum --split category", filename=CONSUMPTION)
+        # Until then, following substitution is used to generate the files at least
+        Convey(filename=CONSUMPTION)("--agg price,sum --split category")
+
+        # Check the contents of the files that just have been split
+        check1 = False
+        check2 = False
+        for f in Path().glob("consumption.csv_convey*/*"):
+            if f.name == "kettle" and f.read_text() == "sum(price)\n602.0\n":
+                check1 = True
+            if f.name == "bulb" and f.read_text() == "sum(price)\n370.0\n":
+                check2 = True
+        self.assertTrue(check1)
+        self.assertTrue(check2)
+
+
     def test_merge(self):
         # merging generally works
         self.check(COMBINED_SHEET_PERSON, f"--merge {PERSON_CSV},2,1", filename=SHEET_CSV)
 
         # rows can be duplicated due to other fields
-        self.check(COMBINED_LIST_METHOD, f"--merge {PERSON_CSV},2,1 -f external,external_pick_base.py,list_method,1", filename=SHEET_CSV)
+        self.check(COMBINED_LIST_METHOD,
+                   f"--merge {PERSON_CSV},2,1 -f external,external_pick_base.py,list_method,1", filename=SHEET_CSV)
 
         # merging file with header and with a missing value
         self.check(SHEET_PERSON_CSV, f"--merge {PERSON_HEADER_CSV},2,1", filename=SHEET_CSV)
@@ -293,7 +326,8 @@ class TestLaunching(TestAbstract):
 
         # Single field containing a comma, still must be fully converted (comma must not be mistaken for a CSV delimiter)
         self.check("aGVsbG8sIGhlbGxv", "-f base64", "hello, hello", debug=True)
-        self.check("V=C3=A1=C5=BEen=C3=A1 Ad=C3=A9lo, ra=C4=8Dte vstoupit", "-f quoted_printable", "Vážená Adélo, račte vstoupit")
+        self.check("V=C3=A1=C5=BEen=C3=A1 Ad=C3=A9lo, ra=C4=8Dte vstoupit",
+                   "-f quoted_printable", "Vážená Adélo, račte vstoupit")
         self.check([], "",  "hello, hello")
 
         # multiline base64 string
@@ -303,7 +337,7 @@ class TestLaunching(TestAbstract):
         word_64 = b64encode(word.encode()).decode()
 
         self.check(multiline_64, "--single-query -f base64", multiline)
-        self.check([f'"{word}","{word_64}"']*2, "-f base64", multiline) #, debug=True)
+        self.check([f'"{word}","{word_64}"']*2, "-f base64", multiline)
 
 
 class TestSending(TestCase):

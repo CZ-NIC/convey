@@ -72,11 +72,9 @@ class Informer:
         if se["split"] or se["split"] == 0:
             l.append("Split by: {}".format(p.fields[se["split"]]))
         if se["aggregate"]:
-            # settings["aggregate"] = column to be grouped, [(sum, column to be summed)]
-            # Ex: settings["aggregate"] = 1, [(Aggregate.sum, 2), (Aggregate.avg, 3)]
-            v = ", ".join(f"{fn.__name__}({p.fields[col].name})" for fn, col in se["aggregate"][1])
-            if se["aggregate"][0] is not None:
-                l.append(f"Group by {p.fields[se['aggregate'][0]]}: " + v)
+            v = ", ".join(f"{fn.__name__}({p.fields[col].name})" for fn, col in se["aggregate"].actions)
+            if se["aggregate"].col_i is not None:
+                l.append(f"Group by {p.fields[se['aggregate'].col_i]}: " + v)
             else:
                 l.append("Aggregate: " + v)
 
@@ -256,13 +254,13 @@ class Informer:
         """
         form = lambda v, fmt: f"\033[{fmt}m{v}\033[0m" if color else v
         header = []
-        grouping = self.parser.settings["aggregate"][0] is not None
+        grouping = self.parser.settings["aggregate"].col_i is not None
         if grouping:
-            header.append(form(self.parser.fields[self.parser.settings["aggregate"][0]].name, 36))
-        header.extend([form(f"{fn.__name__}({self.parser.fields[col]})", 33) for fn, col in self.parser.settings["aggregate"][1]])
+            header.append(form(self.parser.fields[self.parser.settings["aggregate"].col_i].name, 36))
+        header.extend([form(f"{fn.__name__}({self.parser.fields[col]})", 33) for fn, col in self.parser.settings["aggregate"].actions])
 
         rows = []
-        generators = cycle(g[0] for g in self.parser.settings["aggregate"][1])
+        generators = cycle(g[0] for g in self.parser.settings["aggregate"].actions)
         # sorting by first column (may be a bottleneck, re-sorting every time)
         dd = sorted(data.items(), key=lambda x: x[1][0][1], reverse=True)
         for i, (grouped_el, d) in enumerate(dd):
@@ -271,7 +269,7 @@ class Informer:
                 if grouping:
                     rows[-1].insert(0, "...")
                 break
-            if grouped_el is None and len(self.parser.settings["aggregate"][1]) == 1 \
+            if grouped_el is None and len(self.parser.settings["aggregate"].actions) == 1 \
                     and next(generators) == Aggregate.list:
                 # This is the total row
                 # We are aggregating only single thing which is list.

@@ -12,15 +12,15 @@ from math import ceil
 from operator import eq, ne
 from pathlib import Path
 from shutil import move
-from typing import Any, List, Optional, Union
+from typing import List, Optional
 from sys import exit
 
 from tabulate import tabulate
 
-from .action import Action
 from .attachment import Attachment
 from .contacts import Contacts
 from .config import Config, get_terminal_size
+from .definition import Settings
 from .dialogue import Cancelled, is_yes, ask
 from .field import Cell, Field
 from .identifier import Identifier
@@ -66,19 +66,8 @@ class Parser:
         "CSV columns (equal to header if used) in the original file"
         self.types = []
         "field types of the columns as given by the user"
-        self.settings: List[Union[Action, Any]] = defaultdict(list)
-        """settings:
-           * "add": new_field:Field,
-                    source_col_i:int - number of field to compute from,
-                    fitting_type:Field - possible type of source ,
-                    custom:tuple - If target is a 'custom' field, we'll receive a tuple (module path, method name).
-           * "dialect": always present (set in controller just after parser.prepare()), output CSV dialect
-           * "header": True if input CSV has header and output CSV should have it too.
-                       False if either input CSV has not header or the output CSV should omit it.
-
-            XX The type should be: `self.settings: List[Operation]`, get rid of `Any`
-        """
-
+        self.settings: Settings = defaultdict(list)
+        "processing settings"
         self.redo_invalids = Config.get("redo_invalids")
         # OTRS attributes to be linked to CSV
         self.otrs_cookie = False
@@ -318,7 +307,7 @@ class Parser:
             f.col_i_original = f.col_i = len(self.fields)
             if self.types and len(self.types) > f.col_i:
                 f.type = self.types[f.col_i]
-            f.parser = self
+            f.set_parser(self)  # register Field to this parser
             self.fields.append(f)
         return self
 
@@ -542,9 +531,9 @@ class Parser:
             l.append(str(f))
         agg = se["aggregate"]
         if agg:
-            if agg[0] is not None:
-                l.append(f"{self.fields[agg[0]]}-grouped")
-            for fn, col in agg[1]:
+            if agg.col_i is not None:
+                l.append(f"{self.fields[agg.col_i]}-grouped")
+            for fn, col in agg.actions:
                 l.append(f"{fn.__name__}-{self.fields[col]}")
         if hasattr(self, "source_file"):
             l.insert(0, self.source_file.stem)
