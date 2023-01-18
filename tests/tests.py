@@ -42,6 +42,11 @@ CONSUMPTION = Path("consumption.csv")
 
 
 class Convey:
+    """ While we prefer to check the results with .check method
+    (quicker, directly connected with the internals of the library),
+    this method is able to test piping and interprocess communication.
+    """
+
     def __init__(self, *args, filename: Union[str, Path] = None, text=None, whois=False, debug=None):
         """ It is important that an input is flagged with --file or --input when performing tests
             because otherwise, main() would hang on `not sys.stdin.isatty() -> sys.stdin.read()`
@@ -129,13 +134,12 @@ class TestAbstract(TestCase):
                 c.cleanup()
             o = buf.getvalue().splitlines()
 
-
         try:
             if isinstance(check, list):
                 self.assertListEqual(check, o)
-            elif check == "": # check empty output
+            elif check == "":  # check empty output
                 self.assertFalse(o)
-            elif check is None: # we do not want to do any checks
+            elif check is None:  # we do not want to do any checks
                 pass
             elif not len(o):
                 raise AssertionError(f"Output too short: {o}")
@@ -145,6 +149,7 @@ class TestAbstract(TestCase):
             raise AssertionError(*info) from e
 
         return c
+
 
 class TestFilter(TestCase):
     def test_filter(self):
@@ -294,6 +299,41 @@ class TestAction(TestAbstract):
         self.assertTrue(check1)
         self.assertTrue(check2)
 
+    def test_aggregate_group_col(self):
+        # group by a column without any additional info means counting
+        self.check(["price,count(price)",
+                    "total,5",
+                    "100,1",
+                    "150,1",
+                    "250,1",
+                    "352,1",
+                    "120,1"], f"-a price", filename=CONSUMPTION)
+
+        # group by the same column works
+        self.check([
+            "price,sum(price)",
+            "total,972.0",
+            "352,352.0",
+            "250,250.0",
+            "150,150.0",
+            "120,120.0",
+            "100,100.0"], f"--aggregate price,sum,price", filename=CONSUMPTION)
+
+        self.check([
+            "price,count(price)",
+            "total,5",
+            "100,1",
+            "150,1",
+            "250,1",
+            "352,1",
+            "120,1"], f"--aggregate price,count,price", filename=CONSUMPTION)
+
+        # group by a different column when counting does not make sense
+        msg = "ERROR:convey.controller:Count column 'price' must be the same as the grouping column 'consumption'."
+        with self.assertLogs(level='WARNING') as cm:
+            self.check("", f"--aggregate price,count,consumption", filename=CONSUMPTION)
+            self.assertEqual([msg], cm.output)
+
     def test_merge(self):
         # merging generally works
         self.check(COMBINED_SHEET_PERSON, f"--merge {PERSON_CSV},2,1", filename=SHEET_CSV)
@@ -324,7 +364,8 @@ class TestAction(TestAbstract):
 
     def test_compute_from_merge(self):
         """ Computing a new column from another file currenlty being merged was not implemented. """
-        self.check('Column ID 6 does not exist. We have these so far: foo, red, second.example.com', f"--merge {PERSON_CSV},2,1 -f base64,6", filename=SHEET_CSV)
+        self.check('Column ID 6 does not exist. We have these so far: foo, red, second.example.com',
+                   f"--merge {PERSON_CSV},2,1 -f base64,6", filename=SHEET_CSV)
 
 
 class TestInternal(TestAbstract):
@@ -346,6 +387,7 @@ class TestInternal(TestAbstract):
         self.assertListEqual([], c2.get_similar_columns(fields2A, fields2B[1]))
         self.assertListEqual([fields2A[1]], c2.get_similar_columns(fields2A, fields2B[3]))
         self.assertListEqual([fields2B[0], fields2B[3]], c2.get_similar_columns(fields2B, fields2A))
+
 
 class TestLaunching(TestAbstract):
     def test_piping_in(self):
@@ -378,28 +420,27 @@ class TestLaunching(TestAbstract):
         self.check(multiline_64, "--single-query -f base64", multiline)
         self.check([f'"{word}","{word_64}"']*2, "-f base64", multiline)
 
-
     def test_conversion(self):
         lines = ["john@example.com", "mary@example.com", "hyacint@example.com"]
         with TemporaryDirectory() as temp:
             for pattern in (PERSON_XLS, PERSON_XLSX, PERSON_ODS):
-                    f = Path(temp, pattern.name)
-                    f_converted = Path(temp, pattern.name + ".csv")
-                    # XX as of Python3.8, use this line: shutil.copy(pattern, f)
-                    shutil.copy(str(pattern), str(f))  # move to temp dir to not pollute the tests folder
+                f = Path(temp, pattern.name)
+                f_converted = Path(temp, pattern.name + ".csv")
+                # XX as of Python3.8, use this line: shutil.copy(pattern, f)
+                shutil.copy(str(pattern), str(f))  # move to temp dir to not pollute the tests folder
 
-                    self.assertFalse(f_converted.exists())
-                    self.check(lines, f"-s 1", filename=f)
-                    self.assertTrue(f_converted.exists())
-                    # try again, as the file now exists
-                    self.check(lines, f"-s 1", filename=f)
+                self.assertFalse(f_converted.exists())
+                self.check(lines, f"-s 1", filename=f)
+                self.assertTrue(f_converted.exists())
+                # try again, as the file now exists
+                self.check(lines, f"-s 1", filename=f)
 
-                    # clean the converted file up and use it not as the main file but
-                    # as a secondary Wrapper – in a merge action
-                    f_converted.unlink()
-                    self.check(COMBINED_SHEET_PERSON, f"--merge {f},2,1", filename=SHEET_CSV)
-                    self.assertTrue(f_converted.exists())
-                    self.check(COMBINED_SHEET_PERSON, f"--merge {f},2,1", filename=SHEET_CSV)
+                # clean the converted file up and use it not as the main file but
+                # as a secondary Wrapper – in a merge action
+                f_converted.unlink()
+                self.check(COMBINED_SHEET_PERSON, f"--merge {f},2,1", filename=SHEET_CSV)
+                self.assertTrue(f_converted.exists())
+                self.check(COMBINED_SHEET_PERSON, f"--merge {f},2,1", filename=SHEET_CSV)
 
 
 class TestSending(TestCase):
@@ -451,15 +492,19 @@ class TestSending(TestCase):
 
         # Image cannot be attached
         lines = convey(cmd.format(mail="hyacint@example.com"))
-        self.assertIn("Convey crashed at For security reasons, path must be readable to others: red-permission.gif", lines[0])
+        self.assertIn(
+            "Convey crashed at For security reasons, path must be readable to others: red-permission.gif", lines[0])
 
         # Flags controlling attachments work
-        lines = convey(cmd_pattern.format(mail="john@example.com") + "--attach-files True --attach-paths-from-path-column False")
+        lines = convey(cmd_pattern.format(mail="john@example.com") +
+                       "--attach-files True --attach-paths-from-path-column False")
         self.assertIn(COLOURS, lines[0])
-        lines = convey(cmd_pattern.format(mail="john@example.com") + "--attach-files True --attach-paths-from-path-column True")
+        lines = convey(cmd_pattern.format(mail="john@example.com") +
+                       "--attach-files True --attach-paths-from-path-column True")
         self.assertIn(COLOURS, lines[0])
         self.assertIn(BLACK, lines[1])
-        lines = convey(cmd_pattern.format(mail="john@example.com") + "--attach-files False --attach-paths-from-path-column False")
+        lines = convey(cmd_pattern.format(mail="john@example.com") +
+                       "--attach-files False --attach-paths-from-path-column False")
         self.assertNotIn(COLOURS, lines[0])
         self.assertNotIn(BLACK, lines[1])
 

@@ -5,10 +5,11 @@ from typing import Callable, Dict, TYPE_CHECKING, List, Optional, Tuple, Union
 from .action import AggregateAction, MergeAction
 from .field import Field
 
-if version_info >= (3, 8):
+try:
     from typing import TypedDict
-else:  # remove as of Python 3.7, but comment while editing so that IDE displayes correct values
-     TypedDict = Dict
+except ImportError:  # remove as of Python 3.7
+    if not TYPE_CHECKING:  # that way, IDE displays correct values and Python 3.7 still works
+        TypedDict = Dict
 
 Unique = Optional[List[int]]
 Filter = Optional[List[Tuple[bool, int, str]]]

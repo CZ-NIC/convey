@@ -2,14 +2,10 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 import logging
-import re
-from typing import TYPE_CHECKING, List, Optional, Type
+from typing import TYPE_CHECKING, Callable, List, Optional, Type
 
 from attrs import define, asdict, field
 from difflib import SequenceMatcher
-
-from .dialogue import csv_split
-from .types import Types, types
 
 if TYPE_CHECKING:
     from .field import Field
@@ -23,11 +19,12 @@ class BareField:
     """ This will become a Field once the parser is ready.
     Note: This cannot be an attrs class because it would be converted to dict by FlagController.read too early.
     """
-    task:str
+    task: str
 
 
 def Column(): return field(converter=lambda x: BareField(x) if x is not None else None, default=None)
 def Path(): return field(default=None)
+
 
 class FlagController:
     def __init__(self, parser: Parser):
@@ -42,7 +39,7 @@ class FlagController:
 
         # post processing
         for k, v in flag.items():
-            if isinstance(v, BareField): # convert BareField to Field, we have the parser now
+            if isinstance(v, BareField):  # convert BareField to Field, we have the parser now
                 flag[k] = self.parser.identifier.get_column_i(v.task, check=True)
         return flag
 
@@ -51,6 +48,7 @@ class FlagController:
 class Flag:
     """ Flag convert CLI input to an Action """
     pass
+
 
 @define
 class MergeFlag(Flag):

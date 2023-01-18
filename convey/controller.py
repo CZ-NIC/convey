@@ -14,7 +14,7 @@ from io import StringIO
 from pathlib import Path
 from sys import exit
 from tempfile import NamedTemporaryFile
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 from colorama import init as colorama_init, Fore
 from dialog import Dialog
@@ -23,7 +23,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
 from validate_email import validate_email
 
-from .action import AggregateAction, Expandable, MergeAction
+from .action import AggregateAction, MergeAction
 from .attachment import Attachment
 from .config import Config, console_handler, edit, get_path
 from .contacts import Contacts
@@ -572,27 +572,12 @@ class Controller:
                     params = csv_split(args.aggregate)
                     group: Optional[Field] = self.parser.fields[get_column_i(params.pop(), "to be grouped by")] \
                         if len(params) % 2 else None
-                    l = []
                     if not params:
-                        l.append([Aggregate.count, group])
+                        self.add_aggregation(Aggregate.count.__name__, group, exit_on_fail=True)
                     else:
                         for i in range(0, len(params), 2):
-                            column_task, fn = params[i:i + 2]
-                            fn = getattr(Aggregate, fn, None)
-                            if not fn:
-                                logger.error(
-                                    f"Unknown aggregate function {fn}. Possible functions are: {aggregate_functions_str}")
-                            column: Field = self.parser.fields[get_column_i(column_task, "to be aggregated with")]
-                            l.append([fn, column])
-
-                            if fn == Aggregate.count:
-                                if group is None:
-                                    group = column
-                                elif column != group:
-                                    logger.error(f"Count column {column.name} must be the same"
-                                                 f" as the grouping column {group.name}")
-                                    exit()
-                    self.parser.settings["aggregate"] = AggregateAction(group, l)
+                            column_task, fn_name = params[i:i + 2]
+                            self.add_aggregation(fn_name, column_task, group, grouping_probably_wanted=False, exit_on_fail=True)
 
                 if args.sort:
                     self.parser.resort(csv_split(args.sort))
@@ -760,6 +745,9 @@ class Controller:
                             self.parser.is_processable = True
                             session.process = True
                             break
+                    else:
+                        # I cannot use a mere `input()` here, it would interfere with promtpt_toolkit and freeze
+                        Dialog(autowidgetsize=True).msgbox("No column selected to aggregate with.\nUse arrows to select a column first.")
                     refresh()
 
                 # @bindings.add('escape', 'n')  # alt-n to rename header
@@ -1302,30 +1290,72 @@ class Controller:
         self.parser.settings["split"] = self.select_col("splitting").col_i
         self.parser.is_processable = True
 
-    def add_aggregation(self):
+    def get_aggregation_fn(self, fn_name:str=None, exit_on_fail=False) -> Optional[Callable]:
+        if not fn_name:
+            menu = Menu("Choose aggregate function", callbacks=False, fullscreen=True)
+            [menu.add(f) for f in aggregate_functions]
+            option = menu.sout()
+            if not option:
+                raise Cancelled # XXX tohle bude fungovat?
+            fn_name = aggregate_functions[int(option) - 1]
+        fn = getattr(Aggregate, fn_name, None)
+        if not fn:
+            if exit_on_fail:
+                logger.error(f"Unknown aggregate function '{fn_name}'. Possible functions are: {aggregate_functions_str}")
+                exit()
+            else:
+                raise Cancelled
+        return fn
+
+    def assure_aggregation_group_by(self, fn, field, group, grouping_probably_wanted=True, exit_on_fail=False) -> Optional[Field]:
+        a,b,c = (fn == Aggregate.count, group is None, grouping_probably_wanted)
+        if (a,b) == (True, True):
+            group = field
+        elif (a,b,c) == (False, True, True):
+            # here, self.select col might return None
+            group = self.select_col("group by", prepended_field=("no grouping", "aggregate whole column"))
+        elif (a,b) == (True, False):
+            if field != group:
+                logger.error(f"Count column '{field.name}' must be the same"
+                                f" as the grouping column '{group.name}'.")
+                if exit_on_fail:
+                    exit()
+                else:
+                    raise Cancelled
+        return group # XXX as of Python 3.10
+        match (fn == Aggregate.count, group is None, grouping_probably_wanted):
+            case True, True, _:
+                group = field
+            case False, True, True:
+                # here, self.select col might return None
+                group = self.select_col("group by", prepended_field=("no grouping", "aggregate whole column"))
+            case True, False, _:
+                if field != group:
+                    logger.error(f"Count column '{field.name}' must be the same"
+                                    f" as the grouping column '{group.name}'.")
+                    if exit_on_fail:
+                        exit()
+                    else:
+                        raise Cancelled
+        return group
+
+    def add_aggregation(self, fn_name:str = None, column_task:Optional[str] = None, group:Optional[Field]=None, grouping_probably_wanted=True, exit_on_fail=False):
         # choose what column we want
 
-        menu = Menu("Choose aggregate function", callbacks=False, fullscreen=True)
-        [menu.add(f) for f in aggregate_functions]
-        option = menu.sout()
-        if not option:
-            return
-        fn = getattr(Aggregate, aggregate_functions[int(option) - 1])
-        f = self.select_col("aggregation")
+        fn = self.get_aggregation_fn(fn_name, exit_on_fail)
+        if column_task:
+            field: Field = self.parser.fields[self.parser.identifier.get_column_i(column_task, "to be aggregated with")]
+        else:
+            field = self.select_col("aggregation")
 
         sett = self.parser.settings["aggregate"]
         if sett:
-            group, fns = sett.group_by, sett.actions
+            group_old, fns = sett.group_by, sett.actions
         else:
-            group, fns = None, []
+            group_old, fns = None, []
 
-        if group is None:
-            if fn == Aggregate.count:
-                group = f
-            else:
-                # here, self.select col might return None
-                group = self.select_col("group by", prepended_field=("no grouping", "aggregate whole column"))
-        fns.append([fn, f])
+        group = self.assure_aggregation_group_by(fn, field, group or group_old, grouping_probably_wanted, exit_on_fail)
+        fns.append([fn, field])
         self.parser.settings["aggregate"] = AggregateAction(group, fns)
         self.parser.is_processable = True
 
@@ -1430,8 +1460,8 @@ class Controller:
                         l.extend(f"--unique {fields[f].name}" for f in items)
                     elif type_ == "aggregate":
                         # XX does not work well - at least, they are printed out opposite way
-                        l.append(f"--aggregate {items[0]}," + ",".join(
-                            f"{fn.__name__},{fields[col].name}" for fn, col in items[1]))
+                        l.append(f"--aggregate {items.group_by}," + ",".join(
+                            f"{fn.__name__},{col.name}" for fn, col in items.actions))
                 if l:
                     print(f" Settings cached:\n convey {self.parser.source_file} " + " ".join(l) + "\n")
 
