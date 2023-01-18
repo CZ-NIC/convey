@@ -320,9 +320,7 @@ class Processor:
                         if not fields[i]:
                             raise RuntimeWarning(
                                 f"Column {i + 1} cannot be determined and the row was marked as invalid")
-                        # XXX try putting back
-                        # fields[i] *= fields[i] * (row_count // len(fields[i]))
-                        fields[i] = fields[i] * (row_count // len(fields[i]))
+                        fields[i] *= row_count // len(fields[i])
                     it = zip(*fields)
                     fields = it.__next__()  # now we are sure fields has only scalar values
                     for v in it:  # duplicate row because one of lambdas produced a multiple value list

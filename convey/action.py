@@ -1,5 +1,8 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, List, Optional
+from collections import defaultdict
+import csv
+from pathlib import Path
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 from attrs import define, asdict, field
 
@@ -12,19 +15,44 @@ class Action:
     """ A processing operation. """
     pass
 
+Pivot = str
+"Common value in both local and remote columns"
 
 @define
 class MergeAction(Action):
     local_column: Field
-    rows: List[List[str]]
+    rows: Dict[Pivot, List[Union[List[str], Expandable]]]
     remote_parser: Parser
 
     def get(self, key):
         """ Get the rows containing the key.
         If those do not exist, made up a row full of empty values
-        so that the dimention of the CSV file will not change.
+        (thanks to the Expandable helper class)
+        so that the dimension of the CSV file will not change.
         """
-        return self.rows.get(key) or [Expandable(("",) * len(self.remote_parser.fields))]
+        # Even though rows return list (for an existing key), cast them
+        # to list once again. When processing, the duplication mechanism
+        # at line `fields[i] *= row_count // len(fields[i])`
+        # would duplicate the very list itself (and test_merge would fail)
+        # which would result in exponencially bigger line count.
+        return list(self.rows.get(key, ())) or [Expandable(("",) * len(self.remote_parser.fields))]
+
+    @classmethod
+    def build (cls, remote_file: Path, remote_parser: Parser, remote_column: Field, local_column: Field):
+        """ Cache remote values and return a new instance """
+        rows = defaultdict(list)
+        with remote_file.open() as f:
+            reader = csv.reader(f, dialect=remote_parser.dialect)
+            for row in reader:
+                if not row:  # skip blank
+                    continue
+                # {'foo': [Expandable(['john@example.com', 'foo']), Expandable(['mary@example.com', 'foo'])],
+                # 'bar': [Expandable(['hyacint@example.com', 'bar'])]})
+                rows[row[remote_column.col_i]].append(Expandable(row))
+
+        # convert
+
+        return cls(local_column, rows, remote_parser)
 
 
 class Expandable(list):

@@ -1383,17 +1383,8 @@ class Controller:
             else self.select_col(f"Select local column to merge '{column2}' to", include_computables=False, return_object=True)
         # XXX choose which fields should be imported - every column is imported right now
 
-        # cache remote value
-        rows = defaultdict(list)
-        with file2.open() as f:
-            reader = csv.reader(f, dialect=parser2.dialect)
-            for row in reader:
-                if not row:  # skip blank
-                    continue
-                # {'foo': [Expandable(['john@example.com', 'foo']), Expandable(['mary@example.com', 'foo'])],
-                # 'bar': [Expandable(['hyacint@example.com', 'bar'])]})
-                rows[row[column2.col_i]].append(Expandable(row))
-        operation = MergeAction(column1, rows, parser2)
+        # cache remote values
+        operation = MergeAction.build(file2, parser2, column2, column1)
 
         # build local fields based on the remotes
         for rf in parser2.fields:

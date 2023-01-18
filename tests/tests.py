@@ -3,6 +3,7 @@ from io import StringIO
 import logging
 import os
 import shlex
+from stat import S_IRGRP, S_IRUSR
 import sys
 from base64 import b64encode
 from datetime import datetime
@@ -15,6 +16,7 @@ from convey.controller import Controller
 
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 os.chdir("tests")  # all mentioned resources files are in that folder
+os.chmod("red-permission.gif", S_IRUSR | S_IRGRP)  # make file unreadable to others
 HELLO_B64 = 'aGVsbG8='
 SHEET_CSV = Path("sheet.csv")
 GIF_CSV = Path("gif.csv")
@@ -109,14 +111,22 @@ class TestAbstract(TestCase):
             check = Path(check).read_text().splitlines()
         if debug:
             print(check)
-        if isinstance(check, list):
-            self.assertListEqual(check, o)
-        elif check is None:
-            self.assertFalse(o)
-        elif not len(o):
-            raise AssertionError(f"Output too short: {o}")
-        else:
-            self.assertEqual(check, o[0])
+
+        try:
+            if isinstance(check, list):
+                self.assertListEqual(check, o)
+            elif check is None:
+                self.assertFalse(o)
+            elif not len(o):
+                raise AssertionError(f"Output too short: {o}")
+            else:
+                self.assertEqual(check, o[0])
+        except AssertionError as e:
+            # print("*" * 50)
+            # print("CMD: ", cmd)
+            # print("Checking: ", check)
+            # print("-" * 50)
+            raise AssertionError("Cmd", "convey " + " ".join(args), "Check", check) from e
 
 
 class TestFilter(TestCase):
@@ -238,7 +248,7 @@ class TestFields(TestAbstract):
 class TestMerge(TestAbstract):
     def test_merge(self):
         # merging generally works
-        self.check(COMBINED_SHEET_PERSON, f"--merge {PERSON_CSV},2,1", filename=SHEET_CSV, debug=True)
+        self.check(COMBINED_SHEET_PERSON, f"--merge {PERSON_CSV},2,1", filename=SHEET_CSV)
 
         # rows can be duplicated due to other fields
         self.check(COMBINED_LIST_METHOD, f"--merge {PERSON_CSV},2,1 -f external,external_pick_base.py,list_method,1", filename=SHEET_CSV)

@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9, "3.10", 3.11]
+        python-version: [3.7] # XXX, 3.8, 3.9, "3.10", 3.11]
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
@@ -16,5 +16,8 @@ jobs:
         run: |
           sudo apt install dialog
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Set up config files
+        run: mkdir -p /home/runner/.config/convey && cp convey/defaults/* "$_"
       - name: Run tests
-        run: python3 -m unittest tests.tests.TestExternals
+        run: python3 -m unittest tests.tests
+        # XXX run: python3 -m unittest tests.tests.TestSending.test_send
