@@ -17,8 +17,6 @@ class Action:
 
 Pivot = str
 "Common value in both local and remote columns"
-ColumnI = int
-"index of a field"
 
 @define
 class MergeAction(Action):
@@ -87,8 +85,8 @@ class AggregateAction(Action):
         Ex: settings["aggregate"] = None, [(Aggregate.sum, 1)]
         Ex: settings["aggregate"] = None, [(Aggregate.sum, 1), (Aggregate.avg, 1)]
         """
-    col_i : Optional[ColumnI]
+    group_by : Optional[Field]
     "column to be grouped by"
 
-    actions: List[Tuple[Callable, ColumnI]]
+    actions: List[Tuple[Callable, Field]]
     "[(sum, column to be summed), ...]"

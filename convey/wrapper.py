@@ -257,11 +257,10 @@ class Wrapper:
             # so that I could raise an official issue.
             jsonpickle.decode(string, keys=True)
         except Exception:
-            print("The program state is not picklable by 'jsonpickle' module. "
+            hit_any_key("The program state is not picklable by 'jsonpickle' module. "
                   "Continuing will provide a file that will have to be reanalysed. "
                   "You may post this as a bug to the project issue tracker.")
             Config.error_caught()
-            input("Continue...")
 
         # save cache file
         if self.cache_file:  # cache_file does not exist typically if reading from STDIN

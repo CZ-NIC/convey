@@ -8,7 +8,7 @@ from .field import Field
 if version_info >= (3, 8):
     from typing import TypedDict
 else:  # remove as of Python 3.7, but comment while editing so that IDE displayes correct values
-    TypedDict = Dict
+     TypedDict = Dict
 
 Unique = Optional[List[int]]
 Filter = Optional[List[Tuple[bool, int, str]]]

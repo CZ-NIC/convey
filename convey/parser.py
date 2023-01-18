@@ -531,10 +531,10 @@ class Parser:
             l.append(str(f))
         agg = se["aggregate"]
         if agg:
-            if agg.col_i is not None:
-                l.append(f"{self.fields[agg.col_i]}-grouped")
+            if agg.group_by is not None:
+                l.append(f"{agg.group_by}-grouped")
             for fn, col in agg.actions:
-                l.append(f"{fn.__name__}-{self.fields[col]}")
+                l.append(f"{fn.__name__}-{col}")
         if hasattr(self, "source_file"):
             l.insert(0, self.source_file.stem)
             target_file = f"{'_'.join(l)}{self.source_file.suffix}"

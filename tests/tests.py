@@ -93,6 +93,8 @@ convey = Convey()
 
 
 class TestAbstract(TestCase):
+    maxDiff = None
+
     def check(self, check: Union[List, str], cmd: str = "", text=None, filename: Union[str, Path] = None, debug=None):
         # o = Convey(filename=filename, text=text, debug=debug)(cmd)
         args = ["--output", "--reprocess", "--headless", "--daemon",
@@ -290,9 +292,10 @@ class TestAction(TestAbstract):
     def test_merge(self):
         # merging generally works
         self.check(COMBINED_SHEET_PERSON, f"--merge {PERSON_CSV},2,1", filename=SHEET_CSV)
+
         # rows can be duplicated due to other fields
         self.check(COMBINED_LIST_METHOD,
-                   f"--merge {PERSON_CSV},2,1 -f external,external_pick_base.py,list_method,1", filename=SHEET_CSV)
+                   f"--merge {PERSON_CSV},2,1 -f external,1,external_pick_base.py,list_method", filename=SHEET_CSV)
 
         # merging file with header and with a missing value
         self.check(SHEET_PERSON_CSV, f"--merge {PERSON_HEADER_CSV},2,1", filename=SHEET_CSV)
@@ -308,7 +311,6 @@ class TestAction(TestAbstract):
         with self.assertLogs(level='WARNING') as cm:
             self.check(None, f"--merge {GIF_CSV},email,invalid", filename=PERSON_CSV)
             self.assertEqual([msg], cm.output)
-
         # merging a file with itself
         self.check(SHEET_HEADER_ITSELF_CSV, f"--merge {SHEET_HEADER_CSV},4,2", filename=SHEET_HEADER_CSV)
 
@@ -317,7 +319,7 @@ class TestAction(TestAbstract):
 
     def test_compute_from_merge(self):
         """ Computing a new column from another file currenlty being merged was not implemented. """
-        self.check('Sourcing from columns being merged was not implemented', f"--merge {PERSON_CSV},2,1 -f base64,6", filename=SHEET_CSV)
+        self.check('Column ID 6 does not exist. We have these so far: foo, red, second.example.com', f"--merge {PERSON_CSV},2,1 -f base64,6", filename=SHEET_CSV)
 
 class TestLaunching(TestAbstract):
     def test_piping_in(self):
@@ -443,9 +445,14 @@ class TestExternals(TestAbstract):
         self.check(SHEET_DUPLICATED_CSV, "-f external,external_pick_base.py,list_method", filename=SHEET_CSV)
 
     def test_bare_method(self):
-        convey = Convey()
-        lines = convey("--field external,external_pick_base.py,dumb_method --input 'foo'")
-        self.assertEqual(lines, ["-foo-"])
+        # single value converted by the external
+        self.check("-foo-", "--field external,external_pick_base.py,dumb_method --input 'foo'")
+
+        # by default, first column is used
+        self.check("foo,bar,-foo-", "--field external,external_pick_base.py,dumb_method -C --input 'foo,bar'")
+
+        # specify 2nd column is the source for the external field
+        self.check("foo,bar,-bar-", "--field external,2,plaintext,external_pick_base.py,dumb_method -C --input 'foo,bar'")
 
     def test_pick_input(self):
         convey = Convey()

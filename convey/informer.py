@@ -72,9 +72,9 @@ class Informer:
         if se["split"] or se["split"] == 0:
             l.append("Split by: {}".format(p.fields[se["split"]]))
         if se["aggregate"]:
-            v = ", ".join(f"{fn.__name__}({p.fields[col].name})" for fn, col in se["aggregate"].actions)
-            if se["aggregate"].col_i is not None:
-                l.append(f"Group by {p.fields[se['aggregate'].col_i]}: " + v)
+            v = ", ".join(f"{fn.__name__}({col.name})" for fn, col in se["aggregate"].actions)
+            if se["aggregate"].group_by is not None:
+                l.append(f"Group by {se['aggregate'].group_by}: " + v)
             else:
                 l.append("Aggregate: " + v)
 
@@ -254,10 +254,10 @@ class Informer:
         """
         form = lambda v, fmt: f"\033[{fmt}m{v}\033[0m" if color else v
         header = []
-        grouping = self.parser.settings["aggregate"].col_i is not None
+        grouping = self.parser.settings["aggregate"].group_by is not None
         if grouping:
-            header.append(form(self.parser.fields[self.parser.settings["aggregate"].col_i].name, 36))
-        header.extend([form(f"{fn.__name__}({self.parser.fields[col]})", 33) for fn, col in self.parser.settings["aggregate"].actions])
+            header.append(form(self.parser.settings["aggregate"].group_by.name, 36))
+        header.extend([form(f"{fn.__name__}({col})", 33) for fn, col in self.parser.settings["aggregate"].actions])
 
         rows = []
         generators = cycle(g[0] for g in self.parser.settings["aggregate"].actions)

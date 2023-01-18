@@ -368,9 +368,8 @@ class Processor:
 
             # aggregation: count column
             if settings["aggregate"]:
-                col_group_i = settings["aggregate"].col_i
-                grp = fields[col_group_i] if col_group_i is not None else None
-                for i, (fn, col_data_i) in enumerate(settings["aggregate"].actions):
+                grp = fields[settings["aggregate"].group_by.col_i] if settings["aggregate"].group_by else None
+                for i, (fn, col_data) in enumerate(settings["aggregate"].actions):
                     # counters[location file][grouped row][order in aggregation settings] = [sum generator, count]
                     loc = self.parser.aggregation[location]
 
@@ -383,14 +382,14 @@ class Processor:
                         if fn.__name__ == "list":
                             loc[None][i][1] = "(all)"  # we do not want to enlist whole table
                         else:
-                            loc[None][i][1] = loc[None][i][0].send(fields[col_data_i])
+                            loc[None][i][1] = loc[None][i][0].send(fields[col_data.col_i])
 
                     if grp not in loc:
                         loc[grp] = []
                     if len(loc[grp]) <= i:
                         loc[grp].append([fn(), 0])
                         next(loc[grp][i][0])
-                    loc[grp][i][1] = loc[grp][i][0].send(fields[col_data_i])
+                    loc[grp][i][1] = loc[grp][i][0].send(fields[col_data.col_i])
                 return  # we will not write anything right know, aggregation results are not ready yet
         except Quota.QuotaExceeded:
             parser.queued_lines_count += 1

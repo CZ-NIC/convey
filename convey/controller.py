@@ -546,15 +546,14 @@ class Controller:
                     for c in args.delete.split(","):
                         self.parser.fields[get_column_i(c, "to be deleted")].is_chosen = False
 
-                # merge
-                fc = FlagController(self.parser)
-                if args.merge:
-                    self.add_merge(**fc.read(MergeFlag, args.merge))
-
                 # append new fields from CLI
                 for add, task in new_fields:
                     self.add_new_column(task, add)
 
+                # merge
+                fc = FlagController(self.parser)
+                if args.merge:
+                    self.add_merge(**fc.read(MergeFlag, args.merge))
 
                 # run single value check if the input is not a CSV file
                 if args.single_detect:
@@ -571,26 +570,27 @@ class Controller:
 
                 if args.aggregate:
                     params = csv_split(args.aggregate)
-                    group = get_column_i(params.pop(), "to be grouped by") if len(params) % 2 else None
+                    group: Optional[Field] = self.parser.fields[get_column_i(params.pop(), "to be grouped by")] \
+                        if len(params) % 2 else None
                     l = []
                     if not params:
                         l.append([Aggregate.count, group])
                     else:
                         for i in range(0, len(params), 2):
-                            column, fn = params[i:i + 2]
+                            column_task, fn = params[i:i + 2]
                             fn = getattr(Aggregate, fn, None)
                             if not fn:
                                 logger.error(
                                     f"Unknown aggregate function {fn}. Possible functions are: {aggregate_functions_str}")
-                            column = get_column_i(column, "to be aggregated with")
+                            column: Field = self.parser.fields[get_column_i(column_task, "to be aggregated with")]
                             l.append([fn, column])
 
                             if fn == Aggregate.count:
                                 if group is None:
                                     group = column
                                 elif column != group:
-                                    logger.error(f"Count column {self.parser.fields[column].name} must be the same"
-                                                 f" as the grouping column {self.parser.fields[group].name}")
+                                    logger.error(f"Count column {column.name} must be the same"
+                                                 f" as the grouping column {group.name}")
                                     exit()
                     self.parser.settings["aggregate"] = AggregateAction(group, l)
 
@@ -756,7 +756,7 @@ class Controller:
                 def _(_):
                     for f in self.parser.fields:
                         if f.is_selected:
-                            self.parser.settings["aggregate"] = AggregateAction(f.col_i, [[Aggregate.count, f.col_i]])
+                            self.parser.settings["aggregate"] = AggregateAction(f, [[Aggregate.count, f]])
                             self.parser.is_processable = True
                             session.process = True
                             break
@@ -1242,13 +1242,10 @@ class Controller:
                 self.parser.fields[int(v) - 1].is_chosen = True
             self.parser.is_processable = True
 
-    def select_col(self, dialog_title="", only_computables=False, include_computables=True, add=None, prepended_field=None, return_object=False, highlight_field: int = None):
+    def select_col(self, dialog_title="", only_computables=False, include_computables=True, add=None, prepended_field=None, highlight_field: int = None) -> Optional[Field]:
         """ Starts dialog where user has to choose a column.
             If cancelled, we return to main menu automatically.
-            :type prepended_field: tuple (field_name, description) If present, this field is prepended. If chosen, you receive -1.
-            :rtype: int Column
-
-            XXX always return_object
+            :type prepended_field: tuple (field_name, description) If present, this field is prepended. If chosen, you receive None.
         """
         # add existing fields
         fields = [] if only_computables else self.parser.get_fields_autodetection()
@@ -1277,17 +1274,14 @@ class Controller:
         # convert returned int col_i to match an existing or new column
         if prepended_field:
             col_i -= 1
-            if col_i == -1:
-                # XXX I should receive None when having no object, isnt it?
-                return col_i
+            if col_i == -1: # we hit a prepended_field, a mere description, not a real field
+                return None
         if only_computables or col_i >= len(self.parser.fields):
             target_type_i = col_i if only_computables else col_i - len(self.parser.fields)
             col_i = len(self.parser.fields)
             self.source_new_column(Types.get_computable_types()[target_type_i], add=add)
 
-        if return_object:
-            return self.parser.fields[col_i]
-        return col_i
+        return self.parser.fields[col_i]
 
     def add_filter(self):
         menu = Menu(title="Choose a filter")
@@ -1298,7 +1292,7 @@ class Controller:
 
     def add_filtering(self, include=True, col_i=None, val=None):
         if col_i is None:
-            col_i = self.select_col("filter")
+            col_i = self.select_col("filter").col_i
         if val is None:
             s = "" if include else "not "
             val = ask(f"What value must {s}the field have to keep the line?")
@@ -1306,34 +1300,33 @@ class Controller:
         self.parser.is_processable = True
 
     def add_splitting(self):
-        self.parser.settings["split"] = self.select_col("splitting")
+        self.parser.settings["split"] = self.select_col("splitting").col_i
         self.parser.is_processable = True
 
     def add_aggregation(self):
         # choose what column we want
 
         menu = Menu("Choose aggregate function", callbacks=False, fullscreen=True)
-        for f in aggregate_functions:
-            menu.add(f)
+        [menu.add(f) for f in aggregate_functions]
         option = menu.sout()
         if not option:
             return
         fn = getattr(Aggregate, aggregate_functions[int(option) - 1])
-        col_i = self.select_col("aggregation")
+        f = self.select_col("aggregation")
 
-        if self.parser.settings["aggregate"]:
-            group, fns = self.parser.settings["aggregate"]
+        sett = self.parser.settings["aggregate"]
+        if sett:
+            group, fns = sett.group_by, sett.actions
         else:
             group, fns = None, []
 
         if group is None:
             if fn == Aggregate.count:
-                group = col_i
+                group = f
             else:
+                # here, self.select col might return None
                 group = self.select_col("group by", prepended_field=("no grouping", "aggregate whole column"))
-                if group == -1:
-                    group = None
-        fns.append([fn, col_i])
+        fns.append([fn, f])
         self.parser.settings["aggregate"] = AggregateAction(group, fns)
         self.parser.is_processable = True
 
@@ -1368,7 +1361,7 @@ class Controller:
 
     def add_uniquing(self, col_i=None):
         if col_i is None:
-            col_i = self.select_col("unique")
+            col_i = self.select_col("unique").col_i
         self.parser.settings["unique"].append(col_i)
         self.parser.is_processable = True
 
@@ -1383,17 +1376,16 @@ class Controller:
         # XXX highlight probable columns
         column2 = parser2.fields[remote_col_i] \
             if remote_col_i is not None \
-            else controller2.select_col("Select remote column to be merged", include_computables=False, return_object=True)
+            else controller2.select_col("Select remote column to be merged", include_computables=False)
         column1 = self.parser.fields[local_col_i] \
             if local_col_i is not None \
-            else self.select_col(f"Select local column to merge '{column2}' to", include_computables=False, return_object=True)
+            else self.select_col(f"Select local column to merge '{column2}' to", include_computables=False)
 
         # cache remote values
         operation = MergeAction.build(wrapper2.file, parser2, column2, column1)
 
         # build local fields based on the remotes
         for rf in parser2.fields:
-            # XXX merged fields are at the end – check it won't pose a problem when user wants to compute columns from them
             f = Field(rf.name,
                       is_chosen=False if rf is column2 else True,
                       merged_from=rf,
