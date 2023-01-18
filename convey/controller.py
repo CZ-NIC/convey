@@ -14,7 +14,7 @@ from io import StringIO
 from pathlib import Path
 from sys import exit
 from tempfile import NamedTemporaryFile
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 from colorama import init as colorama_init, Fore
 from dialog import Dialog
@@ -1242,7 +1242,7 @@ class Controller:
                 self.parser.fields[int(v) - 1].is_chosen = True
             self.parser.is_processable = True
 
-    def select_col(self, dialog_title="", only_computables=False, include_computables=True, add=None, prepended_field=None, highlight_field: int = None) -> Optional[Field]:
+    def select_col(self, dialog_title="", only_computables=False, include_computables=True, add=None, prepended_field=None, highlighted: Optional[List[Field]] = None) -> Optional[Field]:
         """ Starts dialog where user has to choose a column.
             If cancelled, we return to main menu automatically.
             :type prepended_field: tuple (field_name, description) If present, this field is prepended. If chosen, you receive None.
@@ -1268,8 +1268,7 @@ class Controller:
             fields.insert(0, prepended_field)
 
         # launch dialog
-        guesses = [highlight_field] if highlight_field else None
-        col_i = pick_option(fields, dialog_title, guesses=guesses)
+        col_i = pick_option(fields, dialog_title, guesses=[f.col_i for f in highlighted or ()])
 
         # convert returned int col_i to match an existing or new column
         if prepended_field:
@@ -1373,13 +1372,16 @@ class Controller:
 
         # dialog user and build the link between files
         controller2 = Controller(parser2)
-        # XXX highlight probable columns
-        column2 = parser2.fields[remote_col_i] \
-            if remote_col_i is not None \
-            else controller2.select_col("Select remote column to be merged", include_computables=False)
-        column1 = self.parser.fields[local_col_i] \
-            if local_col_i is not None \
-            else self.select_col(f"Select local column to merge '{column2}' to", include_computables=False)
+        column1 = self.parser.fields[local_col_i] if local_col_i is not None else None
+
+        if remote_col_i is not None:
+            column2 = parser2.fields[remote_col_i]
+        else:
+            high = self.get_similar_columns(parser2.fields, column1 or self.parser.fields)
+            column2 = controller2.select_col("Select remote column to be merged", include_computables=False, highlighted=high)
+        if not column1:
+            high = self.get_similar_columns(self.parser.fields, column2)
+            column1 = self.select_col(f"Select local column to merge '{column2}' to", include_computables=False, highlighted=high)
 
         # cache remote values
         operation = MergeAction.build(wrapper2.file, parser2, column2, column1)
@@ -1395,6 +1397,14 @@ class Controller:
         # prepare the operation
         self.parser.is_processable = True
         self.parser.settings["merge"].append(operation)
+
+    def get_similar_columns(self, fields1: List[Field], fields2: Union[Field, List[Field]]):
+        """ Recommend which fields might be similar in different parsers.
+            Based on the same column type.
+        """
+        if isinstance(fields2, Field):
+            fields2 = [fields2]
+        return [f1 for f1 in fields1 if f1.type for f2 in fields2 if f1.type == f2.type]
 
     def close(self):
         self.wrapper.save(last_chance=True)  # re-save cache file

@@ -13,9 +13,11 @@ from subprocess import run, PIPE
 from tempfile import TemporaryDirectory
 from typing import Union, List
 from unittest import TestCase, main
+from convey.config import Config
 
 from convey.controller import Controller
 from convey.dialogue import Cancelled
+from convey.parser import Parser
 
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 os.chdir("tests")  # all mentioned resources files are in that folder
@@ -95,7 +97,7 @@ convey = Convey()
 class TestAbstract(TestCase):
     maxDiff = None
 
-    def check(self, check: Union[List, str], cmd: str = "", text=None, filename: Union[str, Path] = None, debug=None):
+    def check(self, check: Union[List, str, None], cmd: str = "", text=None, filename: Union[str, Path] = None, debug=None):
         # o = Convey(filename=filename, text=text, debug=debug)(cmd)
         args = ["--output", "--reprocess", "--headless", "--daemon",
                 "false", "--debug", "false", "--crash-post-mortem", "false"]
@@ -131,8 +133,10 @@ class TestAbstract(TestCase):
         try:
             if isinstance(check, list):
                 self.assertListEqual(check, o)
-            elif check is None:
+            elif check == "": # check empty output
                 self.assertFalse(o)
+            elif check is None: # we do not want to do any checks
+                pass
             elif not len(o):
                 raise AssertionError(f"Output too short: {o}")
             else:
@@ -140,6 +144,7 @@ class TestAbstract(TestCase):
         except AssertionError as e:
             raise AssertionError(*info) from e
 
+        return c
 
 class TestFilter(TestCase):
     def test_filter(self):
@@ -191,7 +196,7 @@ class TestFields(TestAbstract):
     def test_base64_detection(self):
         """ Base64 detection should work if majority of the possibly decoded characters are not gibberish."""
         self.check("base64", "--single-detect", HELLO_B64)
-        self.check(None, "--single-detect", "ahojahoj")
+        self.check("", "--single-detect", "ahojahoj")
 
     def test_base64_charset(self):
         """ Base64 detection should work even if encoded with another charset """
@@ -309,7 +314,7 @@ class TestAction(TestAbstract):
         # invalid column definition
         msg = "ERROR:convey.identifier:Cannot identify COLUMN invalid, put there an exact column name, its type, the numerical order starting with 1, or with -1."
         with self.assertLogs(level='WARNING') as cm:
-            self.check(None, f"--merge {GIF_CSV},email,invalid", filename=PERSON_CSV)
+            self.check("", f"--merge {GIF_CSV},email,invalid", filename=PERSON_CSV)
             self.assertEqual([msg], cm.output)
         # merging a file with itself
         self.check(SHEET_HEADER_ITSELF_CSV, f"--merge {SHEET_HEADER_CSV},4,2", filename=SHEET_HEADER_CSV)
@@ -320,6 +325,27 @@ class TestAction(TestAbstract):
     def test_compute_from_merge(self):
         """ Computing a new column from another file currenlty being merged was not implemented. """
         self.check('Column ID 6 does not exist. We have these so far: foo, red, second.example.com', f"--merge {PERSON_CSV},2,1 -f base64,6", filename=SHEET_CSV)
+
+
+class TestInternal(TestAbstract):
+    def test_similar_fields(self):
+        """ Recommending of the similar columns """
+        c1 = self.check(None, f"--merge {PERSON_CSV},2,1", filename=GIF_CSV)
+        fields1A = c1.parser.fields
+        fields1B = c1.parser.settings["merge"][0].remote_parser.fields
+        self.assertListEqual([fields1A[0]], c1.get_similar_columns(fields1A, fields1B))
+        self.assertListEqual([fields1B[0]], c1.get_similar_columns(fields1B, fields1A))
+        self.assertListEqual([fields1B[0]], c1.get_similar_columns(fields1B, fields1A[0]))
+        self.assertListEqual([], c1.get_similar_columns(fields1B, fields1A[1]))
+
+        c2 = self.check(None, f"--merge {PERSON_GIF_CSV},2,1", filename=GIF_CSV)
+        fields2A = c2.parser.fields
+        fields2B = c2.parser.settings["merge"][0].remote_parser.fields
+        self.assertListEqual([fields2A[0], fields2A[1]], c2.get_similar_columns(fields2A, fields2B))
+        self.assertListEqual([fields2A[0]], c2.get_similar_columns(fields2A, fields2B[0]))
+        self.assertListEqual([], c2.get_similar_columns(fields2A, fields2B[1]))
+        self.assertListEqual([fields2A[1]], c2.get_similar_columns(fields2A, fields2B[3]))
+        self.assertListEqual([fields2B[0], fields2B[3]], c2.get_similar_columns(fields2B, fields2A))
 
 class TestLaunching(TestAbstract):
     def test_piping_in(self):
