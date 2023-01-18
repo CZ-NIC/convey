@@ -262,6 +262,7 @@ class Config:
 
     @staticmethod
     def error_caught(force=False):
+        """ Return True if the user got the prompt (and possibly clean the error up then). """
         if Config.is_debug() or force:
             import traceback
             import sys

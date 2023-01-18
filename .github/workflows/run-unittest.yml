@@ -20,4 +20,3 @@ jobs:
         run: mkdir -p /home/runner/.config/convey && cp convey/defaults/* "$_"
       - name: Run tests
         run: python3 -m unittest tests.tests
-        # XXX run: python3 -m unittest tests.tests.TestSending.test_send

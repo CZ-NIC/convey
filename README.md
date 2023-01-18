@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/CZ-NIC/convey/actions/workflows/run-unittest.yml/badge.svg)](https://github.com/CZ-NIC/convey/actions) [![Downloads](https://pepy.tech/badge/convey)](https://pepy.tech/project/convey)
 
 Swiss knife for mutual conversion of the web related data types, like `base64` or outputs of the programs `whois`, `dig`, `curl`.
-Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.
+A convenient way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.
 
 Any input is accepted:
 * if a **single value** input is detected, all **meaningful information** is fetched
@@ -853,11 +853,43 @@ Split location: kettle
 
 ### Merge
 
-XXX
+You can merge two file based on a common column.
 
-When a pivot key (local column value) is missing from the remote file, the fields on the line stays blank.
+Imagine a XLS file `person.xls`, containing following rows:
 
-Performance note: Working with really huge files? Whereas the local file that you merge to can be of an arbitrary size, the remote file being merged should not be excessively big, it should fit to the RAM.
+```
+john@example.com,foo,male
+mary@example.com,foo,female
+hyacint@example.com,bar,male
+```
+
+And a file `sheet.csv`
+```
+foo,red,second.example.com
+foo,green,first.example.com
+bar,blue,wikipedia.org
+bar,yellow,example.com
+foo,orange,wikipedia.com
+```
+
+Get them merged with a single command. We specify the merged file will be `person.xls`, while the common column (`foo/bar`) is the second in the remote and the first in the local `sheet.csv` file.
+
+```bash
+$ convey --output --headless --file sheet.csv --merge person.xls,2,1
+foo,red,second.example.com,mary@example.com,female
+foo,red,second.example.com,john@example.com,male
+foo,green,first.example.com,mary@example.com,female
+foo,green,first.example.com,john@example.com,male
+bar,blue,wikipedia.org,hyacint@example.com,male
+bar,yellow,example.com,hyacint@example.com,male
+foo,orange,wikipedia.com,mary@example.com,female
+foo,orange,wikipedia.com,john@example.com,male
+```
+
+* When a pivot key (local column value)
+  * is missing from the remote file, the fields on the line stays blank.
+  * is found twice, the row gets duplicated.
+* Performance note: Working with really huge files? Whereas the local file that you merge to can be of an arbitrary size, the remote file being merged should not be excessively big, it should fit to the RAM.
 
 ### Sending images to different recipients
 Imagine you have a directory full of PNG files, containg info for respective domain administrators.

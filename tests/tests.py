@@ -3,16 +3,19 @@ from io import StringIO
 import logging
 import os
 import shlex
+import shutil
 from stat import S_IRGRP, S_IRUSR
 import sys
 from base64 import b64encode
 from datetime import datetime
 from pathlib import Path
 from subprocess import run, PIPE
+from tempfile import TemporaryDirectory
 from typing import Union, List
 from unittest import TestCase, main
 
 from convey.controller import Controller
+from convey.dialogue import Cancelled
 
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 os.chdir("tests")  # all mentioned resources files are in that folder
@@ -21,6 +24,9 @@ HELLO_B64 = 'aGVsbG8='
 SHEET_CSV = Path("sheet.csv")
 GIF_CSV = Path("gif.csv")
 PERSON_CSV = Path("person.csv")
+PERSON_XLS = Path("person.xls")
+PERSON_XLSX = Path("person.xlsx")
+PERSON_ODS = Path("person.ods")
 COMBINED_SHEET_PERSON = Path("combined_sheet_person.csv")
 PERSON_HEADER_CSV = Path("person_header.csv")
 COMBINED_LIST_METHOD = Path("combined_list_method.csv")
@@ -97,8 +103,12 @@ class TestAbstract(TestCase):
             args.extend(("--input",  text))
         args.extend(shlex.split(cmd))
 
+        if isinstance(check, Path):
+            check = Path(check).read_text().splitlines()
         if debug:
             print("convey", " ".join(args))
+            print(check)
+        info = ("Cmd", "convey " + " ".join(args), "Check", check)
 
         with redirect_stdout(StringIO()) as buf:
             c = Controller()
@@ -107,14 +117,14 @@ class TestAbstract(TestCase):
             except SystemExit as e:
                 if e.code:
                     raise AssertionError(f"Bad exit code: {e.code}")
+            except Cancelled as e:
+                print(str(e))
+            except Exception as e:
+                raise Exception(*info) from e
             finally:
                 c.cleanup()
             o = buf.getvalue().splitlines()
 
-        if isinstance(check, Path):
-            check = Path(check).read_text().splitlines()
-        if debug:
-            print(check)
 
         try:
             if isinstance(check, list):
@@ -126,7 +136,7 @@ class TestAbstract(TestCase):
             else:
                 self.assertEqual(check, o[0])
         except AssertionError as e:
-            raise AssertionError("Cmd", "convey " + " ".join(args), "Check", check) from e
+            raise AssertionError(*info) from e
 
 
 class TestFilter(TestCase):
@@ -277,7 +287,6 @@ class TestAction(TestAbstract):
         self.assertTrue(check1)
         self.assertTrue(check2)
 
-
     def test_merge(self):
         # merging generally works
         self.check(COMBINED_SHEET_PERSON, f"--merge {PERSON_CSV},2,1", filename=SHEET_CSV)
@@ -306,6 +315,9 @@ class TestAction(TestAbstract):
         # only local file has header; different dialects
         self.check(SHEET_HEADER_PERSON_CSV, f"--merge {PERSON_CSV},2,1", filename=SHEET_HEADER_CSV)
 
+    def test_compute_from_merge(self):
+        """ Computing a new column from another file currenlty being merged was not implemented. """
+        self.check('Sourcing from columns being merged was not implemented', f"--merge {PERSON_CSV},2,1 -f base64,6", filename=SHEET_CSV)
 
 class TestLaunching(TestAbstract):
     def test_piping_in(self):
@@ -337,6 +349,29 @@ class TestLaunching(TestAbstract):
 
         self.check(multiline_64, "--single-query -f base64", multiline)
         self.check([f'"{word}","{word_64}"']*2, "-f base64", multiline)
+
+
+    def test_conversion(self):
+        lines = ["john@example.com", "mary@example.com", "hyacint@example.com"]
+        with TemporaryDirectory() as temp:
+            for pattern in (PERSON_XLS, PERSON_XLSX, PERSON_ODS):
+                    f = Path(temp, pattern.name)
+                    f_converted = Path(temp, pattern.name + ".csv")
+                    # XX as of Python3.8, use this line: shutil.copy(pattern, f)
+                    shutil.copy(str(pattern), str(f))  # move to temp dir to not pollute the tests folder
+
+                    self.assertFalse(f_converted.exists())
+                    self.check(lines, f"-s 1", filename=f)
+                    self.assertTrue(f_converted.exists())
+                    # try again, as the file now exists
+                    self.check(lines, f"-s 1", filename=f)
+
+                    # clean the converted file up and use it not as the main file but
+                    # as a secondary Wrapper – in a merge action
+                    f_converted.unlink()
+                    self.check(COMBINED_SHEET_PERSON, f"--merge {f},2,1", filename=SHEET_CSV)
+                    self.assertTrue(f_converted.exists())
+                    self.check(COMBINED_SHEET_PERSON, f"--merge {f},2,1", filename=SHEET_CSV)
 
 
 class TestSending(TestCase):

@@ -5,6 +5,7 @@
 * fix: OTRS multiple files sending
 * fix: piping into program while specifiying fields works
 * fix: single-query processing
+* fix: support for XLSX files
 * testing directly through module import possible
 * drop Python3.6 support
 

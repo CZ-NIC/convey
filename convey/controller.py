@@ -29,7 +29,7 @@ from .config import Config, console_handler, edit, get_path
 from .contacts import Contacts
 from .flag import Flag, MergeFlag, FlagController
 from .decorators import PickBase, PickMethod, PickInput
-from .dialogue import Cancelled, Debugged, Menu, choose_file, csv_split, pick_option, ask, ask_number, is_yes
+from .dialogue import Cancelled, Debugged, Menu, choose_file, csv_split, hit_any_key, pick_option, ask, ask_number, is_yes
 from .field import Field
 from .ipc import socket_file, recv, send, daemon_pid
 from .mail_sender import MailSenderOtrs, MailSenderSmtp
@@ -546,13 +546,15 @@ class Controller:
                     for c in args.delete.split(","):
                         self.parser.fields[get_column_i(c, "to be deleted")].is_chosen = False
 
+                # merge
+                fc = FlagController(self.parser)
+                if args.merge:
+                    self.add_merge(**fc.read(MergeFlag, args.merge))
+
                 # append new fields from CLI
                 for add, task in new_fields:
                     self.add_new_column(task, add)
 
-                fc = FlagController(self.parser)
-                if args.merge:
-                    self.add_merge(**fc.read(MergeFlag, args.merge))
 
                 # run single value check if the input is not a CSV file
                 if args.single_detect:
@@ -1220,6 +1222,10 @@ class Controller:
                   source_field=source_field,
                   source_type=source_type,
                   new_custom=custom)
+        if f.source_field.merged_from:
+            hit_any_key("Unfortunately, sourcing from columns being merged was not implemented."
+                        " Ask for it on Github. And for now, merge first, then add a column.")
+            raise Cancelled("Sourcing from columns being merged was not implemented")
         self.parser.settings["add"].append(f)
         self.parser.add_field(append=f)
         return f
@@ -1369,10 +1375,10 @@ class Controller:
     def add_merge(self, remote_path=None, remote_col_i:Optional[int]=None, local_col_i:Optional[int]=None):
         if not remote_path:
             remote_path = choose_file("What file we should merge the columns from?")
+        wrapper2 = Wrapper(Path(remote_path))
+        parser2 = wrapper2.parser
 
         # dialog user and build the link between files
-        file2 = Path(remote_path)
-        parser2 = Parser(file2)
         controller2 = Controller(parser2)
         # XXX highlight probable columns
         column2 = parser2.fields[remote_col_i] \
@@ -1381,11 +1387,9 @@ class Controller:
         column1 = self.parser.fields[local_col_i] \
             if local_col_i is not None \
             else self.select_col(f"Select local column to merge '{column2}' to", include_computables=False, return_object=True)
-        # XXX choose which fields should be imported - every column is imported right now
-        # XXX and merging does not work with choose columns
 
         # cache remote values
-        operation = MergeAction.build(file2, parser2, column2, column1)
+        operation = MergeAction.build(wrapper2.file, parser2, column2, column1)
 
         # build local fields based on the remotes
         for rf in parser2.fields:

@@ -15,12 +15,13 @@ from time import time
 
 import ezodf
 import jsonpickle
+import openpyxl
 import xlrd
 from netaddr import IPRange
 from xlrd import XLRDError
 
 from .config import Config, config_dir
-from .dialogue import is_yes
+from .dialogue import hit_any_key, is_yes
 from .identifier import Identifier
 from .parser import Parser
 from .utils import lazy_print
@@ -84,7 +85,7 @@ class Wrapper:
             stdin = file_or_input.split("\n") if file_or_input else read_stdin()
         elif force_file:
             file = file_or_input if file_or_input else choose_file()
-        elif file_or_input and len(file_or_input) < 256 and Path(file_or_input).is_file():
+        elif isinstance(file_or_input, Path) or (file_or_input and len(file_or_input) < 256 and Path(file_or_input).is_file()):
             # if longer than 255, it is most probably not a file but input
             file = file_or_input
         elif file_or_input:
@@ -298,7 +299,7 @@ class Wrapper:
             self.cache_file.write_text(string)  # save cache
 
     def clear(self):
-        self.check_xls() or self.check_ods() or self.check_log()
+        self.check_ods() or self.check_xlsx() or self.check_xls() or self.check_log()
 
         self.parser = Parser(self.file, self.stdin, self.types)
         self.save()
@@ -357,8 +358,8 @@ class Wrapper:
         """ Check if the contents is a XLS file """
         try:
             wb = xlrd.open_workbook(self.file)
-            sh = wb.sheet_by_name('Sheet1')
-        except XLRDError:
+            sh = wb.sheets()[0]
+        except (XLRDError, IndexError):
             pass
         else:
             if is_yes("This seems like a XLS file. Do you wish to transform it to CSV first?"):
@@ -366,6 +367,21 @@ class Wrapper:
                     for row in range(sh.nrows):
                         target.writerow(sh.row_values(row))
             return True
+
+    def check_xlsx(self):
+        """ Check if the contents is a XLSX file """
+        try:
+            wb = openpyxl.load_workbook(self.file, read_only=True, keep_vba=False, data_only=True, keep_links=False)
+            sh = wb[wb.sheetnames[0]]
+        except (openpyxl.utils.exceptions.InvalidFileException, IndexError):
+            pass
+        else:
+            if is_yes("This seems like a XLSX file. Do you wish to transform it to CSV first?"):
+                with self.rework() as target:
+                    for row in sh.values:
+                        target.writerow(row)
+            return True
+
 
     @contextmanager
     def rework(self):
@@ -389,9 +405,11 @@ class Wrapper:
             with target.open("w") as f:
                 yield writer(f)
         except Exception as e:
-            print(e)
-            input(f"Could not convert. Hit any key.")
+            print(f"Could not convert.")
+            logger.error(e)
+            Config.error_caught()
+            raise
         else:
-            input(f"Successfully written to {target.absolute()}. Hit any key.")
+            hit_any_key(f"Successfully written to {target.absolute()}.")
             # XX remove old cache directory if empty
             self.assure_cache_file(target.absolute())  # changes self.file

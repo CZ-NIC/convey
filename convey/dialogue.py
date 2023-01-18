@@ -1,4 +1,5 @@
 import csv
+import logging
 import string
 from pathlib import Path
 from typing import List, Optional
@@ -7,6 +8,8 @@ from sys import exit
 from dialog import Dialog, DialogError, ExecutableNotFound
 
 from .config import Config, get_terminal_size
+
+logger = logging.getLogger(__name__)
 
 try:
     dialog = Dialog(autowidgetsize=True)
@@ -116,6 +119,13 @@ def is_no(text):
     if Config.get("daemon", get=bool):
         raise ConnectionAbortedError
     return ask(text=text + " y/[n]: ").lower() in ("n", "no", "")
+
+def hit_any_key(text: str):
+    """ Display text and let the user hit any key. Skip when headless. """
+    if Config.get("yes", get=bool):
+        logger.info(text)
+        return
+    input(text + " Hit any key.")
 
 
 class Menu:
