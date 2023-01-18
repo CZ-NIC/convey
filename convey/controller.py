@@ -1,20 +1,14 @@
-import argparse
-from collections import defaultdict
-import csv
-from itertools import chain
 import logging
 import os
-import re
 import socket
 import subprocess
 import sys
 from ast import literal_eval
-from difflib import SequenceMatcher
 from io import StringIO
 from pathlib import Path
 from sys import exit
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Optional, TYPE_CHECKING
 
 from colorama import init as colorama_init, Fore
 from dialog import Dialog
@@ -23,26 +17,28 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
 from validate_email import validate_email
 
-from .action import AggregateAction, MergeAction
+from .action import AggregateAction
+from .action_controller import ActionController, aggregate_functions
+from .args_controller import ArgsController, otrs_flags, new_fields
 from .attachment import Attachment
 from .config import Config, console_handler, edit, get_path
 from .contacts import Contacts
-from .flag import Flag, MergeFlag, FlagController
+from .flag import MergeFlag, FlagController
 from .decorators import PickBase, PickMethod, PickInput
-from .dialogue import Cancelled, Debugged, Menu, choose_file, csv_split, hit_any_key, pick_option, ask, ask_number, is_yes
+from .dialogue import Cancelled, Debugged, Menu, csv_split, pick_option, ask, ask_number
 from .field import Field
 from .ipc import socket_file, recv, send, daemon_pid
 from .mail_sender import MailSenderOtrs, MailSenderSmtp
 from .parser import Parser
-from .types import Types, TypeGroup, types, Type, graph, methods, Aggregate, get_module_from_path
-from .wizzard import Preview, bottom_plain_style
+from .types import Types, TypeGroup, Aggregate
+from .wizzard import bottom_plain_style
 from .wrapper import Wrapper
 from . import __version__
 
-logger = logging.getLogger(__name__)
-aggregate_functions = [f for f in Aggregate.__dict__ if not f.startswith("_")]
-aggregate_functions_str = "".join("\n* " + f for f in aggregate_functions)
+if TYPE_CHECKING:
+    from socket import socket
 
+logger = logging.getLogger(__name__)
 
 def send_ipc(pipe, msg, refresh_stdout):
     sys.stdout = sys.stderr = StringIO()  # creating a new one is faster than truncating the old
@@ -94,62 +90,6 @@ def control_daemon(cmd, in_daemon=False):
     return cmd
 
 
-class BlankTrue(argparse.Action):
-    """ When left blank, this flag produces True. (Normal behaviour is to produce None which I use for not being set.)
-        Return boolean for 0/false/off/1/true/on.
-        Return a metavar value if metavar is a list.
-        Else raises ValueError.
-    """
-
-    def __call__(self, _, namespace, values, option_string=None, allow_string=False):
-        if values in [None, []]:  # blank argument with nargs="?" produces None, with ="*" produces []
-            values = True
-        elif values.lower() in ["0", "false", "off"]:
-            values = False
-        elif values.lower() in ["1", "true", "on"]:
-            values = True
-        elif not allow_string \
-                and (type(self.metavar) is not list or values.lower() not in self.metavar) \
-                and (len(self.metavar.split("/")) < 2 or values.lower() not in self.metavar.split("/")):
-            print(f"Unrecognised value '{values}' of '{self.dest}'. Allowed values are 0/1/BLANK."
-                  f" Should the value be considered a positional parameter, move '{self.dest}' behind.")
-            exit()
-        setattr(namespace, self.dest, values)
-
-
-class BlankTrueString(BlankTrue):
-    """ When left blank, this flag produces True.
-        Return boolean for 0/false/off/1/true/on.
-        Else returns input value or None if flag omitted.
-    """
-
-    def __call__(self, *args, **kwargs):
-        super().__call__(*args, **kwargs, allow_string=True)
-
-
-new_fields: List[Tuple[bool, Any]] = []
-"User has requested to compute these. Defined by tuples: add (whether to include the column in the result), field definition"
-
-
-class FieldExcludedAppend(argparse.Action):
-    def __call__(self, _, namespace, values, option_string=None):
-        new_fields.append((False, values))
-
-
-class FieldVisibleAppend(argparse.Action):
-    def __call__(self, _, namespace, values, option_string=None):
-        new_fields.append((True, values))
-
-
-class SmartFormatter(argparse.HelpFormatter):
-
-    def _split_lines(self, text, width):
-        if text.startswith('R|'):
-            return text[2:].splitlines()
-        # this is the RawTextHelpFormatter._split_lines
-        return argparse.HelpFormatter._split_lines(self, text, width)
-
-
 class Controller:
     def __init__(self, parser=None):
         self.parser = parser
@@ -159,222 +99,16 @@ class Controller:
         if "--disable-external" in sys.argv:
             Config.set("disable_external", True)
         Types.refresh()  # load types so that we can print out computable types in the help text
-        epilog = "To launch a web service see README.md."
-        column_help = "COLUMN is ID of the column (1, 2, 3...), position from the right (-1, ...)," \
-                      " the exact column name, field type name or its usual name."
-        parser = argparse.ArgumentParser(description="Swiss knife for mutual conversion of the web related data types, like `base64` or outputs of the programs `whois`, `dig`, `curl`. Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.", formatter_class=SmartFormatter,
-                                         epilog=epilog)
+        argparser = ArgsController().parse_args()
+        self.args = args = argparser.parse_args(args=given_args)
+        self.see_menu = True
+        self.check_server(args)
+        is_daemon, stdout, server = self.check_daemon(args)
+        self.assure_terminal(is_daemon, args)
+        ac = self.process_args_from_daemon_or_locally(is_daemon, stdout, server, argparser, args)
+        self.run_menu(ac)
 
-        group = parser.add_argument_group("Input/Output")
-        group.add_argument('file_or_input', nargs='?', help="File name to be parsed or input text. "
-                                                            "In nothing is given, user will input data through stdin.")
-        group.add_argument('--file', help="Treat <file_or_input> parameter as a file, never as an input",
-                           action="store_true")
-        group.add_argument('-i', '--input', help="Treat <file_or_input> parameter as an input text, not a file name",
-                           action="store_true")
-        group.add_argument('-o', '--output', help="Save output to this file."
-                                                  " If left blank, pass output to STDOUT."
-                                                  " If omitted, a filename will be produced automatically."
-                                                  " May be combined with --headless.",
-                           action=BlankTrueString, nargs="?", metavar="blank/FILENAME")
-        group.add_argument('-S', '--single-query', help="Consider the input as a single value, not a CSV.",
-                           action="store_true")
-        group.add_argument('--single-detect', help="Consider the input as a single value, not a CSV,"
-                                                   " and just print out possible types of the input.", action="store_true")
-        group.add_argument('-C', '--csv-processing', help="Consider the input as a CSV, not a single.",
-                           action="store_true")
-
-        group = parser.add_argument_group("CLI experience")
-        group.add_argument('--debug', help="Development only: increases verbosity and gets the prompt in the case of an exception.",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('--crash-post-mortem', help="Get prompt if program crashes",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('-v', '--verbose', help="Sets the verbosity to see DEBUG messages.", action="store_true")
-        group.add_argument('-q', '--quiet', help="R|Sets the verbosity to see WARNINGs and ERRORs only."
-                                                 " Prints out the least information possible."
-                                                 "\n(Ex: if checking single value outputs a single word, prints out just that.)",
-                           action="store_true")
-        group.add_argument('-y', '--yes', help="Assume non-interactive mode and the default answer to questions. "
-                                               "Will not send e-mails unless --send is on too.",
-                           action="store_true")
-        group.add_argument('-H', '--headless',
-                           help="Launch program in a headless mode which imposes --yes and --quiet. No menu is shown.",
-                           action="store_true")
-        group.add_argument('--compute-preview', help="When adding new columns, show few first computed values.",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-
-        group = parser.add_argument_group("Environment")
-        group.add_argument('--config', help="R|Open a config file and exit."
-                                            "\n File: config (default)/uwsgi/template/template_abroad"
-                                            "\n Mode: 1 terminal / 2 GUI / 3 try both (default)",
-                           nargs='*', metavar=("FILE", "MODE"))
-        group.add_argument('--show-uml', help="R|Show UML of fields and methods and exit."
-                                              " Methods that are currently disabled via flags or config file are grayed out."
-                                              "\n * FLAGs:"
-                                              "\n    * +1 to gray out disabled fields/methods"
-                                              "\n    * +2 to include usual field names",
-                           type=int, const=1, nargs='?')
-        group.add_argument('--get-autocompletion', help="Get bash autocompletion.", action="store_true")
-        group.add_argument('--version', help=f"Show the version number (which is currently {__version__}).",
-                           action="store_true")
-
-        group = parser.add_argument_group("Processing")
-        group.add_argument('--threads', help="Set the thread processing number.",
-                           action=BlankTrueString, nargs="?", metavar="blank/false/auto/INT")
-        group.add_argument('-F', '--fresh', help="Do not attempt to load any previous settings / results."
-                                                 " Do not load convey's global WHOIS cache."
-                                                 " (But merge WHOIS results in there afterwards.)", action="store_true")
-        group.add_argument('-R', '--reprocess', help="Do not attempt to load any previous settings / results."
-                                                     " But load convey's global WHOIS cache.", action="store_true")
-
-        parser.add_argument('--server', help=f"Launches simple web server", action="store_true")
-        parser.add_argument('--daemon', help=f"R|Run a UNIX socket daemon to speed up single query requests."
-                                             "\n  * 1/true/on – allow using the daemon"
-                                             "\n  * 0/false/off – do not use the daemon"
-                                             "\n  * start – start the daemon and exit"
-                                             "\n  * stop – stop the daemon and exit"
-                                             "\n  * status – print out the status of the daemon"
-                                             "\n  * restart – restart the daemon and continue"
-                                             "\n  * server – run the server in current process (I.E. for debugging)",
-                            action=BlankTrue, nargs="?", metavar="start/restart/stop/status/server")
-
-        group = parser.add_argument_group("CSV dialect")
-        group.add_argument('--delimiter', help="Treat file as having this delimiter. For tab use either \\t or tab.")
-        group.add_argument('--quote-char', help="Treat file as having this quoting character")
-        group.add_argument('--header', help="Treat file as having header", action="store_true")
-        group.add_argument('--no-header', help="Treat file as not having header", action="store_true")
-        group.add_argument('--delimiter-output', help="Output delimiter. For tab use either \\t or tab.",
-                           metavar="DELIMITER")
-        group.add_argument('--quote-char-output', help="Output quoting char", metavar="QUOTE_CHAR")
-        group.add_argument('--header-output', help="If false, header is omitted when processing..",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-
-        group = parser.add_argument_group("Actions")
-        group.add_argument('-d', '--delete',
-                           help="Delete a column. You may comma separate multiple columns."
-                           "\n " + column_help, metavar="COLUMN,[COLUMN]")
-        group.add_argument('-f', '--field',
-                           help="R|Compute field."
-                                "\n* FIELD is a field type (see below) that may be appended with a [CUSTOM] in square brackets."
-                                "\n* " + column_help +
-                                "\n* SOURCE_TYPE is either field type or usual field type. "
-                                "That way, you may specify processing method."
-                                "\n* CUSTOM is any string dependent on the new FIELD type (if not provided, will be asked it for)."
-                                "\nEx: --field tld[gTLD]  # would add TLD from probably a hostname, filtered by CUSTOM=gTLD"
-                                "\nEx: --field netname,ip  # would add netname column from any IP column"
-                                "\n    (Note the comma without space behind 'netname'.)"
-                                "\n\nComputable fields: " + "".join(
-                                    "\n* " + t.doc() for t in Types.get_computable_types()) +
-                           "\n\nThis flag May be used multiple times.",
-                           action=FieldVisibleAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
-        group.add_argument('-fe', '--field-excluded',
-                           help="The same as field but its column will not be added to the output.",
-                           action=FieldExcludedAppend, metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")
-        group.add_argument('-t', '--type', help="R|Determine column type(s)."
-                                                "\nEx: --type country,,phone"
-                                                " # 1st column is country, 2nd unspecified, 3rd is phone",
-                           metavar="[TYPE],...")
-        group.add_argument('--split', help="Split by this COLUMN.",
-                           metavar="COLUMN")
-        group.add_argument('-s', '--sort', help="List of columns.",
-                           metavar="COLUMN,...")
-        group.add_argument('-u', '--unique', help="Cast unique filter on this COLUMN.",
-                           metavar="COLUMN,VALUE")
-        group.add_argument('-ef', '--exclude-filter', help="Filter include this COLUMN by a VALUE.",
-                           metavar="COLUMN,VALUE")
-        group.add_argument('-if', '--include-filter', help="Filter include this COLUMN by a VALUE.",
-                           metavar="COLUMN,VALUE")
-        group.add_argument('-a', '--aggregate', help="R|Aggregate"
-                                                     "\nEx: --aggregate 2,sum # will sum the second column"
-                                                     "\nEx: --aggregate 2,sum,3,avg # will sum the second column and average the third"
-                                                     "\nEx: --aggregate 2,sum,1 # will sum the second column grouped by the first"
-                                                     "\nEx: --aggregate 1,count # will count the grouped items in the 1st column"
-                                                     " (count will automatically set grouping column to the same)"
-                                                     f"\n\nAvailable functions: {aggregate_functions_str}",
-                           metavar="[COLUMN, FUNCTION], ..., [group-by-COLUMN]")
-        group.add_argument('--merge', help="R|Merge another file here. "
-                           "\n " + column_help,
-                           metavar="[REMOTE_PATH],[REMOTE_COLUMN],[LOCAL_COLUMN]")
-
-        group = parser.add_argument_group("Enabling modules")
-        group.add_argument('--whois',
-                           help="R|Allowing Whois module: Leave blank for True or put true/on/1 or false/off/0.",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('--nmap',
-                           help="R|Allowing NMAP module: Leave blank for True or put true/on/1 or false/off/0.",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('--dig',
-                           help="R|Allowing DNS DIG module: Leave blank for True or put true/on/1 or false/off/0.",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('--web', help="R|Allowing Web module: Leave blank for True or put true/on/1 or false/off/0."
-                                         "\nWhen single value input contains a web page, we could fetch it and add"
-                                         " status (HTTP code) and text fields. Text is just mere text, no tags, style,"
-                                         " script, or head. ",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-
-        group = parser.add_argument_group("Field computing options")
-        group.add_argument('--disable-external',
-                           help="R|Disable external function registered in config.ini to be imported.",
-                           action="store_true", default=False)
-        group.add_argument('--json', help="When checking single value, prefer JSON output rather than text.",
-                           action="store_true")
-        group.add_argument('--user-agent', help="Change user agent to be used when scraping a URL")
-        group.add_argument('--multiple-hostname-ip', help="Hostname can be resolved into multiple IP addresses."
-                                                          " Duplicate row for each.",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('--multiple-cidr-ip', help="CIDR can be resolved into multiple IP addresses."
-                                                      " Duplicate row for each.",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('--web-timeout', help="Timeout used when scraping a URL", type=int, metavar="SECONDS")
-
-        group = parser.add_argument_group("WHOIS module options")
-        group.add_argument('--whois-ttl', help="How many seconds will a WHOIS answer cache will be considered fresh.",
-                           type=int, metavar="SECONDS")
-        group.add_argument('--whois-delete', help="Delete convey's global WHOIS cache.", action="store_true")
-        group.add_argument('--whois-delete-unknown', help="Delete unknown prefixes from convey's global WHOIS cache.",
-                           action="store_true")
-        group.add_argument('--whois-reprocessable-unknown',
-                           help="Make unknown lines reprocessable while single file processing,"
-                                " do not leave unknown cells empty.", action="store_true")
-        group.add_argument('--whois-cache', help="Use whois cache.", action=BlankTrue, nargs="?", metavar="blank/false")
-
-        group = parser.add_argument_group("Sending options")
-        group.add_argument('--send', help="Automatically send e-mails when split.",
-                           action=BlankTrueString, nargs="?", metavar="blank/smtp/otrs")
-        group.add_argument('--send-test', help="Display e-mail message that would be generated for given e-mail.",
-                           nargs=2, metavar=("E-MAIL", "TEMPLATE_FILE"))
-        group.add_argument('--jinja', help="Process e-mail messages with jinja2 templating system",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('--attach-files', help="Split files are added as e-mail attachments",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('--attach-paths-from-path-column', help="Files from a column of the Path type are added as e-mail attachments."
-                           " Note for security reasons, files must not be symlinks, be readable for others `chmod o+r`, and be in the same directory."
-                           " So that a crafted CSV would not pull up ~/.ssh or /etc/ files.",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('--testing', help="Do not be afraid, e-mail messages will not be sent."
-                                             " They will get forwarded to the testing e-mail"
-                                             " (and e-mails in Cc will not be sent at all)",
-                           action=BlankTrue, nargs="?", metavar="blank/false")
-        group.add_argument('--subject',
-                           help="E-mail subject."
-                                " May be in BASE64 if started with \"data:text/plain;base64,\"", metavar="SUBJECT")
-        group.add_argument('--body',
-                           help="E-mail body text (or HTML)."
-                                " May be in BASE64 if started with \"data:text/plain;base64,\"", metavar="TEXT")
-        group.add_argument('--references',
-                           help="E-mail references header (to send message within a thread)."
-                                " If used, Bcc header with the `email_from_name` is added to the e-mail template.",
-                           metavar="MESSAGE_ID")
-
-        group = parser.add_argument_group("OTRS")
-        csv_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRSAgentInterface cookie"),
-                     ("otrs_token", "OTRS challenge token")]
-        for flag in csv_flags:
-            group.add_argument('--' + flag[0], help=flag[1])
-
-        self.args = args = parser.parse_args(args=given_args)
-        see_menu = True
-        is_daemon = None
+    def check_server(self, args):
         if args.server:
             # XX not implemeneted: allow or disable fields via CLI by ex: `--web`
             print(f"Webserver configuration can be changed by `convey --config uwsgi`")
@@ -382,9 +116,10 @@ class Controller:
             cmd = ["uwsgi", "--ini", get_path("uwsgi.ini"), "--wsgi-file", Path(Path(__file__).parent, "wsgi.py")]
             subprocess.run(cmd)
             exit()
+
+    def check_daemon(self, args):
         if args.daemon is not None and control_daemon(args.daemon) == "server":
             # XX :( after a thousand requests, we start to slow down. Memory leak must be somewhere
-            is_daemon = True
             Config.set("daemonize",
                        False)  # do not restart daemon when killed, there must be a reason this daemon was killed
             if Path(socket_file).exists():
@@ -408,7 +143,10 @@ class Controller:
                 console_handler.setStream(sys.stdout)
             PromptSession.__init__ = lambda _, *ar, **kw: (_ for _ in ()).throw(
                 ConnectionAbortedError('Prompt raised.'))
+            return True, stdout, server
+        return None, None, None
 
+    def assure_terminal(self, is_daemon, args):
         if not is_daemon and not sys.stdin.isatty():  # piping to the process, no terminal
             try:
                 sys.stdin = open("/dev/tty")
@@ -433,16 +171,17 @@ class Controller:
 
                 PromptSession.prompt = safe_prompt
 
-            see_menu = False
+            self.see_menu = False
             args.yes = True
 
+    def process_args_from_daemon_or_locally(self, is_daemon, stdout, server, argparser, args):
         colorama_init()
         while True:
             try:
                 if is_daemon:
                     stdout.write("Listening...\n")
                     stdout.flush()
-                    pipe, addr = server.accept()
+                    pipe, _addr = server.accept()
                     msg = recv(pipe)
                     if not msg:
                         continue
@@ -462,7 +201,7 @@ class Controller:
                         continue
                     self.cleanup()  # reset new fields so that they will not be remembered in another query
                     try:
-                        self.args = args = parser.parse_args(argv[2:])  # the daemon has receives a new command
+                        self.args = args = argparser.parse_args(argv[2:])  # the daemon has receives a new command
                     except SystemExit as e:
                         if not sys.stdout.getvalue():
                             # argparse sent usage to stderr, we do not have in in stdout instance will rerun the command
@@ -470,178 +209,11 @@ class Controller:
                         else:
                             # argparse put everything in stdout
                             exit()
-                    see_menu = True
+                    self.see_menu = True
                     control_daemon(args.daemon, True)
-
-                # this try-block may send the results to the client convey processes when a daemon is used
-                if args.server:
-                    raise ConnectionAbortedError("web server request")
-                if args.config is not None:
-                    edit(*args.config, restart_when_done=True)
-                    exit()
-                Config.set("stdout", args.output is True or None)
-                if args.output is True:
-                    # --output=True → no output file in favour of stdout (Config.get("stdout") -> parser.stdout set)
-                    # --output=FILE → an output file generated (Config.get("output") -> parser.target_file set)
-                    args.output = None
-                for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview",
-                             "user_agent",
-                             "multiple_hostname_ip", "multiple_cidr_ip", "web_timeout", "whois_ttl", "disable_external",
-                             "debug", "crash_post_mortem",
-                             "testing", "attach_files", "attach_paths_from_path_column", "jinja", "subject", "body", "references",
-                             "whois_delete_unknown", "whois_reprocessable_unknown", "whois_cache"]:
-                    if getattr(args, flag) is not None:
-                        Config.set(flag, getattr(args, flag))
-                if args.headless or args.send_test:
-                    args.yes = True
-                    args.quiet = True
-                    see_menu = False
-                Config.init_verbosity(args.yes, 30 if args.quiet else (10 if args.verbose else None), is_daemon)
-                if is_daemon:
-                    logger.debug("This result comes from the daemon.")
-                Types.refresh()  # reload Types for the second time so that the methods reflect CLI flags
-                TypeGroup.init()
-                if args.show_uml is not None:
-                    print(Types.get_uml(args.show_uml))
-                    exit()
-                if args.get_autocompletion:
-                    print(self.get_autocompletion(parser))
-                    exit()
-                if args.version:
-                    print(__version__)
-                    exit()
-                if not is_daemon:  # in daemon, we checked it earlier
-                    Config.integrity_check()
-                if args.header:
-                    Config.set("header", True)
-                if args.no_header:
-                    Config.set("header", False)
-                if args.csv_processing:
-                    Config.set("single_query", False)
-                if args.single_query or args.single_detect:
-                    Config.set("single_query", True)
-                    if args.single_detect:
-                        Config.set("single_detect", True)
-                Config.set("adding-new-fields", bool(new_fields))
-                self.wrapper = Wrapper(args.file_or_input, args.file, args.input,
-                                       args.type, args.fresh, args.reprocess,
-                                       args.whois_delete)
-                self.parser: Parser = self.wrapper.parser
-
-                if args.threads is not None:
-                    Config.set("threads", args.threads)
-
-                def get_column_i(col, check):
-                    self.parser.is_processable = True
-                    return self.parser.identifier.get_column_i(col, check=check)
-
-                # load flags
-                for flag in csv_flags:
-                    if args.__dict__[flag[0]]:
-                        self.parser.__dict__[flag[0]] = args.__dict__[flag[0]]
-                        logger.debug("{}: {}".format(flag[1], flag[0]))
-
-                # prepare some columns to be removed
-                if args.delete:
-                    for c in args.delete.split(","):
-                        self.parser.fields[get_column_i(c, "to be deleted")].is_chosen = False
-
-                # append new fields from CLI
-                for add, task in new_fields:
-                    self.add_new_column(task, add)
-
-                # merge
-                fc = FlagController(self.parser)
-                if args.merge:
-                    self.add_merge(**fc.read(MergeFlag, args.merge))
-
-                # run single value check if the input is not a CSV file
-                if args.single_detect:
-                    exit()
-                if self.parser.is_single_query:
-                    res = self.parser.run_single_query(json=args.json)
-                    if res:
-                        print(res)
-                    exit()
-                if is_daemon and see_menu:
-                    # if we will need menu, daemon must stop here
-                    send_ipc(pipe, chr(4), "Could not help with.\n")
+                ac = self.process_args(is_daemon, args, argparser)
+                if not ac:
                     continue
-
-                if args.aggregate:
-                    params = csv_split(args.aggregate)
-                    group: Optional[Field] = self.parser.fields[get_column_i(params.pop(), "to be grouped by")] \
-                        if len(params) % 2 else None
-                    if not params:
-                        self.add_aggregation(Aggregate.count.__name__, group, exit_on_fail=True)
-                    else:
-                        for i in range(0, len(params), 2):
-                            column_task, fn_name = params[i:i + 2]
-                            self.add_aggregation(fn_name, column_task, group, grouping_probably_wanted=False, exit_on_fail=True)
-
-                if args.sort:
-                    self.parser.resort(csv_split(args.sort))
-                    self.parser.is_processable = True
-
-                if args.split:
-                    self.parser.settings["split"] = get_column_i(args.split, "to be split with")
-
-                if args.include_filter:
-                    col, val = csv_split(args.include_filter)
-                    self.add_filtering(True, get_column_i(col, "to be filtered with"), val)
-
-                if args.exclude_filter:
-                    col, val = csv_split(args.exclude_filter)
-                    self.add_filtering(False, get_column_i(col, "to be filtered with"), val)
-
-                if args.unique:
-                    self.add_uniquing(get_column_i(args.unique, "to be put a single time"))
-
-                # set output dialect
-                # Taken from config.ini or flags. If differs from the current one, parser marked as processable.
-                self.parser.settings["dialect"] = dialect = type('', (), {})()
-                for k, v in self.parser.dialect.__dict__.copy().items():
-                    setattr(dialect, k, v)
-
-                def change_dialect(s, s2):
-                    # delimiter_output, quote_char_output
-                    v = getattr(args, s + "_output") or Config.get(s + "_output", "CSV")
-                    if v and v != getattr(dialect, s2):
-                        v = v.replace(r"\t", "\t").replace("TAB", "\t").replace("tab", "\t")
-                        if len(v) != 1:
-                            print(f"Output {s2} has to be 1 character long: {v}")
-                            exit()
-                        setattr(dialect, s2, v)
-                        self.parser.is_processable = True
-
-                change_dialect("delimiter", "delimiter")
-                change_dialect("quote_char", "quotechar")
-                self.parser.settings["header"] = self.parser.has_header
-                if self.parser.has_header and args.header_output is not None:
-                    # If current parser has header, we may cut it off
-                    # However, this is such a small change, we will not turning parser.is_processable on.
-                    self.parser.settings["header"] = args.header_output
-
-                if self.parser.is_processable and Config.get("yes"):
-                    self.process()
-
-                if args.send and self.parser.is_analyzed and self.parser.is_split and not self.parser.is_processable:
-                    # Config.set("yes", True)
-                    see_menu = False
-                    if args.send is not True:
-                        self.send_menu(args.send, send_now=True)
-                    else:
-                        self.send_menu(send_now=True)
-                if args.send_test:
-                    c = Path(args.send_test[1]).read_text()
-                    Path(Config.get_cache_dir(), Config.get("mail_template")).write_text(c)
-                    Path(Config.get_cache_dir(), Config.get("mail_template_abroad")).write_text(c)
-                    self.send_menu(test_attachment=args.send_test[0])
-
-                if not see_menu:
-                    self.close()
-                if is_daemon:  # if in daemon, everything important has been already sent to STDOUT
-                    exit()
             except ConnectionRefusedError as e:
                 send_ipc(pipe, chr(3), f"Daemon has insufficient input: {e}\n")
                 continue
@@ -658,9 +230,182 @@ class Controller:
                 else:
                     raise
             break
+        return ac
 
+    def process_args(self, is_daemon, args, argparser) -> Optional[ActionController]:
+        # this try-block may send the results to the client convey processes when a daemon is used
+        if args.server:
+            raise ConnectionAbortedError("web server request")
+        if args.config is not None:
+            edit(*args.config, restart_when_done=True)
+            exit()
+        Config.set("stdout", args.output is True or None)
+        if args.output is True:
+            # --output=True → no output file in favour of stdout (Config.get("stdout") -> parser.stdout set)
+            # --output=FILE → an output file generated (Config.get("output") -> parser.target_file set)
+            args.output = None
+        for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview",
+                        "user_agent",
+                        "multiple_hostname_ip", "multiple_cidr_ip", "web_timeout", "whois_ttl", "disable_external",
+                        "debug", "crash_post_mortem",
+                        "testing", "attach_files", "attach_paths_from_path_column", "jinja", "subject", "body", "references",
+                        "whois_delete_unknown", "whois_reprocessable_unknown", "whois_cache"]:
+            if getattr(args, flag) is not None:
+                Config.set(flag, getattr(args, flag))
+        if args.headless or args.send_test:
+            args.yes = True
+            args.quiet = True
+            self.see_menu = False
+        Config.init_verbosity(args.yes, 30 if args.quiet else (10 if args.verbose else None), is_daemon)
+        if is_daemon:
+            logger.debug("This result comes from the daemon.")
+        Types.refresh()  # reload Types for the second time so that the methods reflect CLI flags
+        TypeGroup.init()
+        if args.show_uml is not None:
+            print(Types.get_uml(args.show_uml))
+            exit()
+        if args.get_autocompletion:
+            print(self.get_autocompletion(argparser))
+            exit()
+        if args.version:
+            print(__version__)
+            exit()
+        if not is_daemon:  # in daemon, we checked it earlier
+            Config.integrity_check()
+        if args.header:
+            Config.set("header", True)
+        if args.no_header:
+            Config.set("header", False)
+        if args.csv_processing:
+            Config.set("single_query", False)
+        if args.single_query or args.single_detect:
+            Config.set("single_query", True)
+            if args.single_detect:
+                Config.set("single_detect", True)
+        Config.set("adding-new-fields", bool(new_fields))
+        self.wrapper = Wrapper(args.file_or_input, args.file, args.input,
+                                args.type, args.fresh, args.reprocess,
+                                args.whois_delete)
+        self.parser: Parser = self.wrapper.parser
+        ac = ActionController(self.parser, args.reprocess)
+
+        if args.threads is not None:
+            Config.set("threads", args.threads)
+
+        def get_column_i(col, check):
+            self.parser.is_processable = True
+            return self.parser.identifier.get_column_i(col, check=check)
+
+        # load flags
+        for flag in otrs_flags:
+            if args.__dict__[flag[0]]:
+                self.parser.__dict__[flag[0]] = args.__dict__[flag[0]]
+                logger.debug("{}: {}".format(flag[1], flag[0]))
+
+        # prepare some columns to be removed
+        if args.delete:
+            for c in args.delete.split(","):
+                self.parser.fields[get_column_i(c, "to be deleted")].is_chosen = False
+
+        # append new fields from CLI
+        for add, task in new_fields:
+            ac.add_new_column(task, add)
+
+        # merge
+        fc = FlagController(self.parser)
+        if args.merge:
+            ac.add_merge(**fc.read(MergeFlag, args.merge))
+
+        # run single value check if the input is not a CSV file
+        if args.single_detect:
+            exit()
+        if self.parser.is_single_query:
+            res = self.parser.run_single_query(json=args.json)
+            if res:
+                print(res)
+            exit()
+        if is_daemon and self.see_menu: # if we will need menu, daemon must stop here
+            raise ConnectionAbortedError("displaying a menu is too complex")
+
+        if args.aggregate:
+            params = csv_split(args.aggregate)
+            group: Optional[Field] = self.parser.fields[get_column_i(params.pop(), "to be grouped by")] \
+                if len(params) % 2 else None
+            if not params:
+                ac.add_aggregation(Aggregate.count.__name__, group, exit_on_fail=True)
+            else:
+                for i in range(0, len(params), 2):
+                    column_task, fn_name = params[i:i + 2]
+                    ac.add_aggregation(fn_name, column_task, group, grouping_probably_wanted=False, exit_on_fail=True)
+
+        if args.sort:
+            self.parser.resort(csv_split(args.sort))
+            self.parser.is_processable = True
+
+        if args.split:
+            self.parser.settings["split"] = get_column_i(args.split, "to be split with")
+
+        if args.include_filter:
+            col, val = csv_split(args.include_filter)
+            ac.add_filtering(True, get_column_i(col, "to be filtered with"), val)
+
+        if args.exclude_filter:
+            col, val = csv_split(args.exclude_filter)
+            ac.add_filtering(False, get_column_i(col, "to be filtered with"), val)
+
+        if args.unique:
+            ac.add_uniquing(get_column_i(args.unique, "to be put a single time"))
+
+        # set output dialect
+        # Taken from config.ini or flags. If differs from the current one, parser marked as processable.
+        self.parser.settings["dialect"] = dialect = type('', (), {})()
+        for k, v in self.parser.dialect.__dict__.copy().items():
+            setattr(dialect, k, v)
+
+        def change_dialect(s, s2):
+            # delimiter_output, quote_char_output
+            v = getattr(args, s + "_output") or Config.get(s + "_output", "CSV")
+            if v and v != getattr(dialect, s2):
+                v = v.replace(r"\t", "\t").replace("TAB", "\t").replace("tab", "\t")
+                if len(v) != 1:
+                    print(f"Output {s2} has to be 1 character long: {v}")
+                    exit()
+                setattr(dialect, s2, v)
+                self.parser.is_processable = True
+
+        change_dialect("delimiter", "delimiter")
+        change_dialect("quote_char", "quotechar")
+        self.parser.settings["header"] = self.parser.has_header
+        if self.parser.has_header and args.header_output is not None:
+            # If current parser has header, we may cut it off
+            # However, this is such a small change, we will not turning parser.is_processable on.
+            self.parser.settings["header"] = args.header_output
+
+        if self.parser.is_processable and Config.get("yes"):
+            self.process()
+
+        if args.send and self.parser.is_analyzed and self.parser.is_split and not self.parser.is_processable:
+            # Config.set("yes", True)
+            self.see_menu = False
+            if args.send is not True:
+                self.send_menu(args.send, send_now=True)
+            else:
+                self.send_menu(send_now=True)
+        if args.send_test:
+            c = Path(args.send_test[1]).read_text()
+            Path(Config.get_cache_dir(), Config.get("mail_template")).write_text(c)
+            Path(Config.get_cache_dir(), Config.get("mail_template_abroad")).write_text(c)
+            self.send_menu(test_attachment=args.send_test[0])
+
+        if not self.see_menu:
+            self.close()
+        if is_daemon:  # if in daemon, everything important has been already sent to STDOUT
+            exit()
+        return ac
+
+    def run_menu(self, ac):
         # main menu
-        self.start_debugger = False
+        start_debugger = False
         session = None
         while True:
             if session and hasattr(session, "process"):
@@ -671,20 +416,19 @@ class Controller:
             self.parser = self.wrapper.parser  # may be changed by reprocessing
             self.parser.informer.sout_info()
 
-            if self.start_debugger:
-                parser = self.parser
+            if start_debugger:
                 print("\nDebugging mode, you may want to see `self.parser` variable:")
-                self.start_debugger = False
+                start_debugger = False
                 Config.get_debugger().set_trace()
 
             menu = Menu(title="Main menu - how the file should be processed?")
-            menu.add("Pick or delete columns", self.choose_cols)
-            menu.add("Add a column", self.add_column)
-            menu.add("Filter", self.add_filter)
-            menu.add("Split by a column", self.add_splitting)
-            menu.add("Change CSV dialect", self.add_dialect)
-            menu.add("Aggregate", self.add_aggregation)
-            menu.add("Merge", self.add_merge)
+            menu.add("Pick or delete columns", ac.choose_cols)
+            menu.add("Add a column", ac.add_column)
+            menu.add("Filter", ac.add_filter)
+            menu.add("Split by a column", ac.add_splitting)
+            menu.add("Change CSV dialect", ac.add_dialect)
+            menu.add("Aggregate", ac.add_aggregation)
+            menu.add("Merge", ac.add_merge)
             if self.parser.is_processable:
                 menu.add("process", self.process, key="p", default=True)
             else:
@@ -741,7 +485,7 @@ class Controller:
                 def _(_):
                     for f in self.parser.fields:
                         if f.is_selected:
-                            self.parser.settings["aggregate"] = AggregateAction(f, [[Aggregate.count, f]])
+                            self.parser.settings["aggregate"] = AggregateAction(f, [(Aggregate.count, f)])
                             self.parser.is_processable = True
                             session.process = True
                             break
@@ -768,39 +512,7 @@ class Controller:
                 print(e)
                 pass
             except Debugged as e:
-                Config.get_debugger().set_trace()
-
-    def add_new_column(self, task, add=True):
-        """
-        :type task: str FIELD,[COLUMN],[SOURCE_TYPE], ex: `netname 3|"IP address" ip|sourceip`
-        :type add: bool Add to the result.
-        """
-        target_type, source_field, source_type, custom = self._add_new_column(task)
-        if not self.source_new_column(target_type, add, source_field, source_type, custom):
-            print("Cancelled")
-            exit()
-        self.parser.is_processable = True
-        return target_type
-
-    def _add_new_column(self, task):
-        """ Internal analysis for `add_new_column` """
-        task = csv_split(task)
-        custom = []
-        target_type = task[0]
-        m = re.search(r"(\w*)\[([^]]*)\]", target_type)
-        if m:
-            target_type = m.group(1)
-            custom = [m.group(2)]
-        try:
-            target_type = types[types.index(target_type)]  # determine FIELD by exact name
-        except ValueError:
-            d = {t.name: SequenceMatcher(None, task[0], t.name).ratio() for t in Types.get_computable_types()}
-            rather = max(d, key=d.get)
-            logger.error(f"Unknown field '{task[0]}', did not you mean '{rather}'?")
-            exit()
-        source_field, source_type, c = self.parser.identifier.get_fitting_source(target_type, *task[1:])
-        custom = c + custom
-        return target_type, source_field, source_type, custom
+                start_debugger = True
 
     def send_menu(self, method="smtp", test_attachment=None, send_now=False):
         # choose method SMTP/OTRS
@@ -1025,7 +737,7 @@ class Controller:
 
     def config_menu(self):
         def start_debugger():
-            self.start_debugger = True
+            raise Debugged
 
         menu = Menu(title="Config menu")
         menu.add("Edit configuration", lambda: edit("config", 3, restart_when_done=True, blocking=True))
@@ -1106,335 +818,7 @@ class Controller:
         menu.add("Rework whole file again", self.wrapper.clear)
         menu.sout()
 
-    def source_new_column(self, target_type, add=None, source_field: Field = None, source_type: Type = None,
-                          custom: list = None):
-        """ We know what Field the new column should be of, now determine how we should extend it:
-            Summarize what order has the source field and what type the source field should be considered alike.
-                :type source_field: Field
-                :type source_type: Type
-                :type target_type: Type
-                :type add: bool if the column should be added to the table; None ask
-                :type custom: List
-                :raise Cancelled
-                :return Field
-        """
-        if custom is None:
-            # default [] would be evaluated at the time the function is defined, multiple columns may share the same function
-            custom = []
-        dialog = Dialog(autowidgetsize=True)
-        if not source_field or not source_type:
-            print("\nWhat column we base {} on?".format(target_type))
-            guesses = self.parser.identifier.get_fitting_source_i(target_type)
-            source_col_i = pick_option(self.parser.get_fields_autodetection(),
-                                       title="Searching source for " + str(target_type),
-                                       guesses=guesses)
-            source_field = self.parser.fields[source_col_i]
-            source_type = self.parser.identifier.get_fitting_type(source_col_i, target_type, try_plaintext=True)
-            if source_type is None:
-                # ask how should be treated the column as, even it seems not valid
-                # list all known methods to compute the desired new_field (e.g. for incident-contact it is: ip, hostname, ...)
-                choices = [(k.name, k.description)
-                           for k, _ in graph.dijkstra(target_type, ignore_private=True).items()]
 
-                # if len(choices) == 1 and choices[0][0] == Types.plaintext:
-                #     # if the only method is derivable from a plaintext, no worries that a method
-                #     # converting the column type to "plaintext" is not defined; everything's plaintext
-                #     source_type = Types.plaintext
-                # el
-                if choices:
-                    s = ""
-                    if self.parser.sample_parsed:
-                        s = f"\n\nWhat type of value '{self.parser.sample_parsed[0][source_col_i]}' is?"
-                    title = f"Choose the right method\n\nNo known method for making {target_type} from column {source_field} because the column type wasn't identified. How should I treat the column?{s}"
-                    code, source_type = dialog.menu(title, choices=choices)
-                    if code == "cancel":
-                        raise Cancelled("... cancelled")
-                    source_type = getattr(Types, source_type)
-                else:
-                    dialog.msgbox(
-                        "No known method for making {}. Raise your usecase as an issue at {}.".format(target_type,
-                                                                                                      Config.PROJECT_SITE))
-                    raise Cancelled("... cancelled")
-            clear()
-
-        if not custom:
-            try:
-                if target_type.group == TypeGroup.custom:
-                    if target_type == Types.code:
-                        print("What code should be executed? Change 'x'. Ex: x += \"append\";")
-                        custom = Preview(source_field, source_type).code()
-                    elif target_type in [Types.reg, Types.reg_m, Types.reg_s]:
-                        *custom, target_type = Preview(source_field, source_type, target_type).reg()
-                    elif target_type == Types.external:  # choose a file with a needed method
-                        while True:
-                            path = choose_file("What .py file should be used as custom source?", dialog)
-                            module = get_module_from_path(path)
-                            if module:
-                                # inspect the .py file, extract methods and let the user choose one
-                                code, method_name = dialog.menu(f"What method should be used in the file {path}?",
-                                                                choices=[(x, "") for x in dir(module) if
-                                                                         not x.startswith("_")])
-                                if code == "cancel":
-                                    raise Cancelled("... cancelled")
-
-                                custom = path, method_name
-                                break
-                            else:
-                                dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
-                    if not custom:
-                        raise Cancelled("... cancelled")
-            except Cancelled:
-                raise Cancelled("... cancelled")
-            path = graph.dijkstra(target_type, start=source_type, ignore_private=True)
-            for i in range(len(path) - 1):
-                m = methods[path[i], path[i + 1]]
-                if isinstance(m, PickBase):
-                    c = None
-                    if Config.get("yes"):
-                        pass
-                    elif type(m) is PickMethod:
-                        m: PickMethod
-                        code, c = dialog.menu(f"Choose subtype", choices=m.get_options())
-                        if code == "cancel":
-                            raise Cancelled("... cancelled")
-                    elif type(m) is PickInput:
-                        m: PickInput
-                        c = Preview(source_field, source_type, target_type).pick_input(m)
-                    custom.insert(0, c)
-        if add is None:
-            if dialog.yesno("New field added: {}\n\nDo you want to include this field as a new column?".format(
-                    target_type)) == "ok":
-                add = True
-
-        f = Field(target_type, is_chosen=add,
-                  source_field=source_field,
-                  source_type=source_type,
-                  new_custom=custom)
-        if f.source_field.merged_from:
-            hit_any_key("Unfortunately, sourcing from columns being merged was not implemented."
-                        " Ask for it on Github. And for now, merge first, then add a column.")
-            raise Cancelled("Sourcing from columns being merged was not implemented")
-        self.parser.settings["add"].append(f)
-        self.parser.add_field(append=f)
-        return f
-
-    def choose_cols(self):
-        # XX possibility un/check all
-        chosens = [(str(i + 1), str(f), f.is_chosen) for i, f in enumerate(self.parser.fields)]
-        d = Dialog(autowidgetsize=True)
-        ret, values = d.checklist("What fields should be included in the output file?", choices=chosens)
-        if ret == "ok":
-            for f in self.parser.fields:
-                f.is_chosen = False
-            for v in values:
-                self.parser.fields[int(v) - 1].is_chosen = True
-            self.parser.is_processable = True
-
-    def select_col(self, dialog_title="", only_computables=False, include_computables=True, add=None, prepended_field=None, highlighted: Optional[List[Field]] = None) -> Optional[Field]:
-        """ Starts dialog where user has to choose a column.
-            If cancelled, we return to main menu automatically.
-            :type prepended_field: tuple (field_name, description) If present, this field is prepended. If chosen, you receive None.
-        """
-        # add existing fields
-        fields = [] if only_computables else self.parser.get_fields_autodetection()
-
-        # add computable field types
-        if include_computables:
-            for field in Types.get_computable_types():
-                if field.from_message:
-                    s = field.from_message
-                else:
-                    node_distance = graph.dijkstra(field, ignore_private=True)
-                    s = field.group.name + " " if field.group != TypeGroup.general else ""
-                    s += "from " + ", ".join([str(k) for k in node_distance][:3])
-                    if len(node_distance) > 3:
-                        s += "..."
-                fields.append((f"new {field}...", s))
-
-        # add special prepended field
-        if prepended_field:
-            fields.insert(0, prepended_field)
-
-        # launch dialog
-        col_i = pick_option(fields, dialog_title, guesses=[f.col_i for f in highlighted or ()])
-
-        # convert returned int col_i to match an existing or new column
-        if prepended_field:
-            col_i -= 1
-            if col_i == -1: # we hit a prepended_field, a mere description, not a real field
-                return None
-        if only_computables or col_i >= len(self.parser.fields):
-            target_type_i = col_i if only_computables else col_i - len(self.parser.fields)
-            col_i = len(self.parser.fields)
-            self.source_new_column(Types.get_computable_types()[target_type_i], add=add)
-
-        return self.parser.fields[col_i]
-
-    def add_filter(self):
-        menu = Menu(title="Choose a filter")
-        menu.add("Unique filter", self.add_uniquing)
-        menu.add("Include filter", self.add_filtering)
-        menu.add("Exclude filter", lambda: self.add_filtering(False))
-        menu.sout()
-
-    def add_filtering(self, include=True, col_i=None, val=None):
-        if col_i is None:
-            col_i = self.select_col("filter").col_i
-        if val is None:
-            s = "" if include else "not "
-            val = ask(f"What value must {s}the field have to keep the line?")
-        self.parser.settings["filter"].append((include, col_i, val))
-        self.parser.is_processable = True
-
-    def add_splitting(self):
-        self.parser.settings["split"] = self.select_col("splitting").col_i
-        self.parser.is_processable = True
-
-    def get_aggregation_fn(self, fn_name:str=None, exit_on_fail=False) -> Optional[Callable]:
-        if not fn_name:
-            menu = Menu("Choose aggregate function", callbacks=False, fullscreen=True)
-            [menu.add(f) for f in aggregate_functions]
-            option = menu.sout()
-            if not option:
-                raise Cancelled # XXX tohle bude fungovat?
-            fn_name = aggregate_functions[int(option) - 1]
-        fn = getattr(Aggregate, fn_name, None)
-        if not fn:
-            if exit_on_fail:
-                logger.error(f"Unknown aggregate function '{fn_name}'. Possible functions are: {aggregate_functions_str}")
-                exit()
-            else:
-                raise Cancelled
-        return fn
-
-    def assure_aggregation_group_by(self, fn, field, group, grouping_probably_wanted=True, exit_on_fail=False) -> Optional[Field]:
-        a,b,c = (fn == Aggregate.count, group is None, grouping_probably_wanted)
-        if (a,b) == (True, True):
-            group = field
-        elif (a,b,c) == (False, True, True):
-            # here, self.select col might return None
-            group = self.select_col("group by", prepended_field=("no grouping", "aggregate whole column"))
-        elif (a,b) == (True, False):
-            if field != group:
-                logger.error(f"Count column '{field.name}' must be the same"
-                                f" as the grouping column '{group.name}'.")
-                if exit_on_fail:
-                    exit()
-                else:
-                    raise Cancelled
-        return group # XXX as of Python 3.10
-        match (fn == Aggregate.count, group is None, grouping_probably_wanted):
-            case True, True, _:
-                group = field
-            case False, True, True:
-                # here, self.select col might return None
-                group = self.select_col("group by", prepended_field=("no grouping", "aggregate whole column"))
-            case True, False, _:
-                if field != group:
-                    logger.error(f"Count column '{field.name}' must be the same"
-                                    f" as the grouping column '{group.name}'.")
-                    if exit_on_fail:
-                        exit()
-                    else:
-                        raise Cancelled
-        return group
-
-    def add_aggregation(self, fn_name:str = None, column_task:Optional[str] = None, group:Optional[Field]=None, grouping_probably_wanted=True, exit_on_fail=False):
-        # choose what column we want
-
-        fn = self.get_aggregation_fn(fn_name, exit_on_fail)
-        if column_task:
-            field: Field = self.parser.fields[self.parser.identifier.get_column_i(column_task, "to be aggregated with")]
-        else:
-            field = self.select_col("aggregation")
-
-        sett = self.parser.settings["aggregate"]
-        if sett:
-            group_old, fns = sett.group_by, sett.actions
-        else:
-            group_old, fns = None, []
-
-        group = self.assure_aggregation_group_by(fn, field, group or group_old, grouping_probably_wanted, exit_on_fail)
-        fns.append([fn, field])
-        self.parser.settings["aggregate"] = AggregateAction(group, fns)
-        self.parser.is_processable = True
-
-    def add_dialect(self):
-        # XX not ideal and mostly copies Parser.__init__
-        # XX There might be a table with all the csv.dialect properties or so.
-        dialect = self.parser.settings["dialect"]
-        while True:
-            s = "What is delimiter " + (f"(default '{dialect.delimiter}')" if dialect.delimiter else "") + ": "
-            dialect.delimiter = input(s) or dialect.delimiter
-            if len(dialect.delimiter) != 1:
-                print("Delimiter must be a 1-character string. Invent one (like ',').")
-                continue
-            s = "What is quoting char " + (f"(default '{dialect.quotechar}')" if dialect.quotechar else "") + ": "
-            dialect.quotechar = input(s) or dialect.quotechar
-            break
-        dialect.quoting = csv.QUOTE_NONE if not dialect.quotechar else csv.QUOTE_MINIMAL
-
-        if self.parser.has_header:
-            if self.parser.settings['header'] is False:
-                s = f"Should we remove header? "
-            else:
-                s = f"Should we include header? "
-            if not is_yes(s):
-                self.parser.settings["header"] = not self.parser.settings["header"]
-
-        self.parser.is_processable = True
-
-    def add_column(self):
-        self.select_col("New column", only_computables=True, add=True)
-        self.parser.is_processable = True
-
-    def add_uniquing(self, col_i=None):
-        if col_i is None:
-            col_i = self.select_col("unique").col_i
-        self.parser.settings["unique"].append(col_i)
-        self.parser.is_processable = True
-
-    def add_merge(self, remote_path=None, remote_col_i:Optional[int]=None, local_col_i:Optional[int]=None):
-        if not remote_path:
-            remote_path = choose_file("What file we should merge the columns from?")
-        wrapper2 = Wrapper(Path(remote_path))
-        parser2 = wrapper2.parser
-
-        # dialog user and build the link between files
-        controller2 = Controller(parser2)
-        column1 = self.parser.fields[local_col_i] if local_col_i is not None else None
-
-        if remote_col_i is not None:
-            column2 = parser2.fields[remote_col_i]
-        else:
-            high = self.get_similar_columns(parser2.fields, column1 or self.parser.fields)
-            column2 = controller2.select_col("Select remote column to be merged", include_computables=False, highlighted=high)
-        if not column1:
-            high = self.get_similar_columns(self.parser.fields, column2)
-            column1 = self.select_col(f"Select local column to merge '{column2}' to", include_computables=False, highlighted=high)
-
-        # cache remote values
-        operation = MergeAction.build(wrapper2.file, parser2, column2, column1)
-
-        # build local fields based on the remotes
-        for rf in parser2.fields:
-            f = Field(rf.name,
-                      is_chosen=False if rf is column2 else True,
-                      merged_from=rf,
-                      merge_operation=operation)
-            self.parser.add_field(append=f)
-
-        # prepare the operation
-        self.parser.is_processable = True
-        self.parser.settings["merge"].append(operation)
-
-    def get_similar_columns(self, fields1: List[Field], fields2: Union[Field, List[Field]]):
-        """ Recommend which fields might be similar in different parsers.
-            Based on the same column type.
-        """
-        if isinstance(fields2, Field):
-            fields2 = [fields2]
-        return [f1 for f1 in fields1 if f1.type for f2 in fields2 if f1.type == f2.type]
 
     def close(self):
         self.wrapper.save(last_chance=True)  # re-save cache file

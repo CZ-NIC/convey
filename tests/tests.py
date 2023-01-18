@@ -18,6 +18,7 @@ from convey.config import Config
 from convey.controller import Controller
 from convey.dialogue import Cancelled
 from convey.parser import Parser
+from convey.field import Field
 
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 os.chdir("tests")  # all mentioned resources files are in that folder
@@ -329,7 +330,7 @@ class TestAction(TestAbstract):
             "120,1"], f"--aggregate price,count,price", filename=CONSUMPTION)
 
         # group by a different column when counting does not make sense
-        msg = "ERROR:convey.controller:Count column 'price' must be the same as the grouping column 'consumption'."
+        msg = "ERROR:convey.action_controller:Count column 'price' must be the same as the grouping column 'consumption'."
         with self.assertLogs(level='WARNING') as cm:
             self.check("", f"--aggregate price,count,consumption", filename=CONSUMPTION)
             self.assertEqual([msg], cm.output)
@@ -372,21 +373,23 @@ class TestInternal(TestAbstract):
     def test_similar_fields(self):
         """ Recommending of the similar columns """
         c1 = self.check(None, f"--merge {PERSON_CSV},2,1", filename=GIF_CSV)
+        parser1A, parser1B = c1.parser, c1.parser.settings["merge"][0].remote_parser
         fields1A = c1.parser.fields
-        fields1B = c1.parser.settings["merge"][0].remote_parser.fields
-        self.assertListEqual([fields1A[0]], c1.get_similar_columns(fields1A, fields1B))
-        self.assertListEqual([fields1B[0]], c1.get_similar_columns(fields1B, fields1A))
-        self.assertListEqual([fields1B[0]], c1.get_similar_columns(fields1B, fields1A[0]))
-        self.assertListEqual([], c1.get_similar_columns(fields1B, fields1A[1]))
+        fields1B = parser1B.fields
+        self.assertListEqual([fields1A[0]], parser1A.get_similar(fields1B))
+        self.assertListEqual([fields1B[0]], parser1B.get_similar(fields1A))
+        self.assertListEqual([fields1B[0]], parser1B.get_similar(fields1A[0]))
+        self.assertListEqual([], parser1B.get_similar(fields1A[1]))
 
         c2 = self.check(None, f"--merge {PERSON_GIF_CSV},2,1", filename=GIF_CSV)
+        parser2A, parser2B = c2.parser, c2.parser.settings["merge"][0].remote_parser
         fields2A = c2.parser.fields
-        fields2B = c2.parser.settings["merge"][0].remote_parser.fields
-        self.assertListEqual([fields2A[0], fields2A[1]], c2.get_similar_columns(fields2A, fields2B))
-        self.assertListEqual([fields2A[0]], c2.get_similar_columns(fields2A, fields2B[0]))
-        self.assertListEqual([], c2.get_similar_columns(fields2A, fields2B[1]))
-        self.assertListEqual([fields2A[1]], c2.get_similar_columns(fields2A, fields2B[3]))
-        self.assertListEqual([fields2B[0], fields2B[3]], c2.get_similar_columns(fields2B, fields2A))
+        fields2B = parser2B.fields
+        self.assertListEqual([fields2A[0], fields2A[1]], parser2A.get_similar(fields2B))
+        self.assertListEqual([fields2A[0]], parser2A.get_similar(fields2B[0]))
+        self.assertListEqual([], parser2A.get_similar(fields2B[1]))
+        self.assertListEqual([fields2A[1]], parser2A.get_similar(fields2B[3]))
+        self.assertListEqual([fields2B[0], fields2B[3]], parser2B.get_similar(fields2A))
 
 
 class TestLaunching(TestAbstract):

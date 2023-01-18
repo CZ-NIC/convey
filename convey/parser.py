@@ -12,7 +12,7 @@ from math import ceil
 from operator import eq, ne
 from pathlib import Path
 from shutil import move
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 from sys import exit
 
 from tabulate import tabulate
@@ -854,6 +854,18 @@ class Parser:
             rows.append([*g(True)])
             full_rows.append([*g(False)])
         return full_rows, rows
+
+    def get_similar(self, fields2: Union[Field, List[Field]]):
+        """ Recommend which fields might be similar in different parsers.
+            Based on the same column type.
+
+            (In the future, we might implement comparing the similarity by the parser sample values too.)
+        """
+        if isinstance(fields2, Field):
+            fields2 = [fields2]
+        return [f1 for f1 in self.fields if f1.type for f2 in fields2 if f1.type == f2.type]
+
+
 
     def __getstate__(self):
         state = self.__dict__.copy()

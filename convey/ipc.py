@@ -1,4 +1,4 @@
-# This file should not anything that is not vitally needed. (Import config would take us 10 ms, do not do it.)
+# This file should not do anything that is not vitally needed to stay fast. (Import config would take us 10 ms, do not do it.)
 import struct
 
 # XX I suppose this will not work on Win. What other paths should I use instead?
