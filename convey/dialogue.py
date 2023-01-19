@@ -18,18 +18,15 @@ except ExecutableNotFound:
     exit()
 
 
-# monkey patch Dialog class so that it skips the dialog in case there is a single value
-def skippable_menu(self, *args, skippable=True, **kwargs):
+# skips the dialog in case there is a single value
+def skippable_menu(*args, skippable=True, **kwargs):
     """
     :param self: Dialog
     :type skippable: bool If True and there is single option, the dialog returns 'Ok' without asking user.
     """
     if skippable and kwargs["choices"] and len(kwargs["choices"]) == 1:
         return "ok", kwargs["choices"][0][0]
-    return self.menu(*args, **kwargs)
-
-
-Dialog.skippable_menu = skippable_menu
+    return dialog.menu(*args, **kwargs)
 
 
 class Cancelled(Exception):
@@ -70,7 +67,7 @@ def pick_option(options, title="", guesses: Optional[List]=None, skippable=True)
         for i, (field_name, desc) in enumerate(options):
             choices.append((f"{i_to_abc(i)} {field_name}", str(desc)))
 
-    code, col_i = dialog.skippable_menu(title or " ", choices=choices, skippable=skippable)
+    code, col_i = skippable_menu(title or " ", choices=choices, skippable=skippable)
     if col_i == '-':
         return pick_option(options, title, guesses, skippable)
     if code != "ok":
@@ -176,7 +173,7 @@ class Menu:
                 print("{}) {}".format(key, name))
             try:
                 if self.fullscreen:
-                    code, ans = dialog.skippable_menu(self.title, choices=[(it[0], it[1]) for it in l], skippable=self.skippable)
+                    code, ans = skippable_menu(self.title, choices=[(it[0], it[1]) for it in l], skippable=self.skippable)
                     if code != "ok":
                         return
                 elif session:

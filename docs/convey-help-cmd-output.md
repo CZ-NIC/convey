@@ -16,6 +16,7 @@ usage: convey [-h] [--file] [-i] [-o [blank/FILENAME]] [-S] [--single-detect]
               [-t [TYPE],...] [--split COLUMN] [-s COLUMN,...]
               [-u COLUMN,VALUE] [-ef COLUMN,VALUE] [-if COLUMN,VALUE]
               [-a [COLUMN, FUNCTION], ..., [group-by-COLUMN]]
+              [--merge [REMOTE_PATH],[REMOTE_COLUMN],[LOCAL_COLUMN]]
               [--whois [blank/false]] [--nmap [blank/false]]
               [--dig [blank/false]] [--web [blank/false]] [--disable-external]
               [--json] [--user-agent USER_AGENT]
@@ -32,7 +33,10 @@ usage: convey [-h] [--file] [-i] [-o [blank/FILENAME]] [-S] [--single-detect]
               [--otrs_token OTRS_TOKEN]
               [file_or_input]
 
-Data conversion swiss knife
+Swiss knife for mutual conversion of the web related data types, like `base64`
+or outputs of the programs `whois`, `dig`, `curl`. Convenable way to quickly
+gather all meaningful information or to process large files that might freeze
+your spreadsheet processor.
 
 options:
   -h, --help            show this help message and exit
@@ -93,7 +97,7 @@ Environment:
                             * +2 to include usual field names
   --get-autocompletion  Get bash autocompletion.
   --version             Show the version number (which is currently
-                        1.4.1-rc.1).
+                        1.4.2-rc.1).
 
 Processing:
   --threads [blank/false/auto/INT]
@@ -122,7 +126,7 @@ CSV dialect:
 Actions:
   -d COLUMN,[COLUMN], --delete COLUMN,[COLUMN]
                         Delete a column. You may comma separate multiple
-                        columns.COLUMN is ID of the column (1, 2, 3...),
+                        columns. COLUMN is ID of the column (1, 2, 3...),
                         position from the right (-1, ...), the exact column
                         name, field type name or its usual name.
   -f FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM], --field FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]
@@ -151,6 +155,7 @@ Actions:
                         * plaintext (Plain text) usual names: plaintext, text
                         * port (port) usual names: port, prt
                         * quoted_printable (Text encoded as quotedprintable)
+                        * return_list ( no jo )
                         * second_method (Hello boys!)
                         * time
                         * tld
@@ -217,6 +222,9 @@ Actions:
                         * max
                         * list
                         * set
+  --merge [REMOTE_PATH],[REMOTE_COLUMN],[LOCAL_COLUMN]
+                        Merge another file here. 
+                         COLUMN is ID of the column (1, 2, 3...), position from the right (-1, ...), the exact column name, field type name or its usual name.
 
 Enabling modules:
   --whois [blank/false]

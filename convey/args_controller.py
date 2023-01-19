@@ -1,5 +1,6 @@
 import argparse
 from typing import Any, List, Tuple
+from sys import exit
 
 from .action_controller import aggregate_functions_str
 from .types import Types
