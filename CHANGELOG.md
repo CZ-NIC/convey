@@ -1,6 +1,9 @@
 # CHANGELOG
 
-## 1.4.2
+## 1.4.3 (2023-05-05)
+* fix: OTRS sending removes the attachment we have been split from (avoid duplicity)
+
+## 1.4.2 (2023-01-19)
 * files merging
 * fix: OTRS multiple files sending
 * fix: piping into program while specifiying fields works

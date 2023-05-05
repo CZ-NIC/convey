@@ -4,6 +4,7 @@ import smtplib
 import sys
 from abc import abstractmethod, ABC
 from socket import gaierror
+from bs4 import BeautifulSoup
 from requests import get, post
 
 from validate_email import validate_email
@@ -36,7 +37,7 @@ class MailSender(ABC):
         pass
 
     def send_list(self, mails):
-        """ Send a bunch of e-mail messages 
+        """ Send a bunch of e-mail messages
         :type mails: Union[list, generator]
         """
         sent_mails = 0
@@ -135,16 +136,35 @@ class MailSenderOtrs(MailSender):
         if attachments:
             # get FormID to pair attachments
             logger.debug("Receiving FormID")
-            form_id_r = get(url,
+            upload_form = get(url,
                             params={"ChallengeToken": self.parser.otrs_token,
                                     "Action": "AgentTicketForward",
                                     "TicketID": str(self.parser.otrs_id)},
                             cookies=cookies
                             )
-
-            m = re.search(r'FormID" value="((\d|\.)*)"', form_id_r.text)
+            m = re.search(r'FormID" value="((\d|\.)*)"', upload_form.text)
             if m:
                 form_id = m[1]
+
+                # Remove the attachment we have been split from (avoid duplicity)
+                if self.parser.source_file:
+                    try:
+                        bs = BeautifulSoup(upload_form.text, features="html.parser")
+                        tr = bs.find('td', {'class': 'Filename'}, lambda tag: tag.string == self.parser.source_file.name).parent
+                        data_file_id = tr.find('a', {'class': 'AttachmentDelete'})['data-file-id']
+                        logger.debug(f"Removing FileID={data_file_id} ({self.parser.source_file.name}) from attachments")
+                        post(url,
+                                params={"Action": "AjaxAttachment",
+                                        "Subaction": "Delete",
+                                        "FormID": form_id,
+                                        "ChallengeToken": self.parser.otrs_token,
+                                        "FileID": data_file_id
+                                        },
+                                cookies=cookies
+                                )
+                    except TypeError:
+                        logger.info(f"Unable to remove ({self.parser.source_file.name}) from attachments")
+
                 for a in attachments:
                     logger.debug("Uploading %s", a.name)
                     post(url,
