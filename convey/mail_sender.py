@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 OTRS_VERSION = 6
 
+
 class MailSender(ABC):
     def __init__(self, parser):
         self.parser: Parser = parser
@@ -137,34 +138,15 @@ class MailSenderOtrs(MailSender):
             # get FormID to pair attachments
             logger.debug("Receiving FormID")
             upload_form = get(url,
-                            params={"ChallengeToken": self.parser.otrs_token,
-                                    "Action": "AgentTicketForward",
-                                    "TicketID": str(self.parser.otrs_id)},
-                            cookies=cookies
-                            )
+                              params={"ChallengeToken": self.parser.otrs_token,
+                                      "Action": "AgentTicketForward",
+                                      "TicketID": str(self.parser.otrs_id)},
+                              cookies=cookies
+                              )
             m = re.search(r'FormID" value="((\d|\.)*)"', upload_form.text)
             if m:
                 form_id = m[1]
-
-                # Remove the attachment we have been split from (avoid duplicity)
-                if self.parser.source_file:
-                    try:
-                        bs = BeautifulSoup(upload_form.text, features="html.parser")
-                        tr = bs.find('td', {'class': 'Filename'}, lambda tag: tag.string == self.parser.source_file.name).parent
-                        data_file_id = tr.find('a', {'class': 'AttachmentDelete'})['data-file-id']
-                        logger.debug(f"Removing FileID={data_file_id} ({self.parser.source_file.name}) from attachments")
-                        post(url,
-                                params={"Action": "AjaxAttachment",
-                                        "Subaction": "Delete",
-                                        "FormID": form_id,
-                                        "ChallengeToken": self.parser.otrs_token,
-                                        "FileID": data_file_id
-                                        },
-                                cookies=cookies
-                                )
-                    except TypeError:
-                        logger.info(f"Unable to remove ({self.parser.source_file.name}) from attachments")
-
+                self._clean_attachments(upload_form, url, form_id, cookies)
                 for a in attachments:
                     logger.debug("Uploading %s", a.name)
                     post(url,
@@ -181,12 +163,38 @@ class MailSenderOtrs(MailSender):
             else:
                 raise RuntimeError("Cannot get the FormID, unable to upload the attachments.")
 
-        # If we have a single file, we could upload it with single request that way:
-        # `files={"FileUpload": (a.name, a.data)}``
+        # If we had a single file, we could upload it with a single request that way:
+        # `files={"FileUpload": (a.name, a.data)}`
         logger.debug("Submitting mail")
-        r = post(url, params=fields, cookies=cookies)
+        r = post(url, data=fields, cookies=cookies)
 
         return r.text
+
+    def _clean_attachments(self, upload_form, url, form_id, cookies):
+        """ Remove all the attachments, received in the first ticket article so that they are not forwareded. """
+        REMOVE_ALL_ATTACHMENTS = True
+        def bs(): return BeautifulSoup(upload_form.text, features="html.parser")
+
+        if REMOVE_ALL_ATTACHMENTS:
+            for td in reversed(bs().find_all('a', {'class': 'AttachmentDelete'})): # why reversed? When deleted, others data-file-id shift down.
+                self._remove_attachment(td['data-file-id'], form_id, url, cookies)
+        elif self.parser.source_file:  # remove at least the attachment we have been split from (avoid duplicity)
+            td = bs().find('td', {'class': 'Filename'}, lambda tag: tag.string == self.parser.source_file.name)
+            if td:  # such attachment exists
+                tr = td.parent
+                data_file_id = tr.find('a', {'class': 'AttachmentDelete'})['data-file-id']
+                self._remove_attachment(data_file_id, form_id, url, cookies)
+
+    def _remove_attachment(self, data_file_id, form_id, url, cookies):
+        logger.debug(f"Removing FileID={data_file_id} from the ticket article attachments") # XXX
+        vv = post(url,
+             params={"Action": "AjaxAttachment",
+                     "Subaction": "Delete",
+                     "FormID": form_id,
+                     "ChallengeToken": self.parser.otrs_token,
+                     "FileID": data_file_id
+                     },
+             cookies=cookies)
 
     @staticmethod
     def _check_record(record, lineno):

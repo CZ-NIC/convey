@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.4.4 (2023-05-26)
+* fix: OTRS sending with no attachment forwarded
+
 ## 1.4.3 (2023-05-05)
 * fix: OTRS sending removes the attachment we have been split from (avoid duplicity)
 
