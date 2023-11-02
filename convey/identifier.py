@@ -17,13 +17,14 @@ from .types import Types, graph, TypeGroup, Type, get_module_from_path
 
 if TYPE_CHECKING:
     from .field import Field
+    from .parser import Parser
 
 logger = logging.getLogger(__name__)
 
 
 class Identifier:
 
-    def __init__(self, parser):
+    def __init__(self, parser: Parser):
         self.parser = parser
         self.graph = None
 
@@ -239,6 +240,10 @@ class Identifier:
                     return False
 
         for i, field in enumerate(self.parser.fields):
+            if field.type:
+                field.possible_types = {field.type : 100}
+                continue
+
             possible_types = {}
             for type_ in Types.get_guessable_types():
                 score = type_.check_conformity(samples[i], self.parser.has_header, field)
@@ -247,8 +252,6 @@ class Identifier:
             # Use with Python3.8
             # possible_types = {type_: score for type_ in Types.get_guessable_types()
             #                   if (score := type_.check_conformity(samples[i], self.parser.has_header, field))}
-            if field.type:
-                possible_types[field.type] = 100
 
             if possible_types:  # sort by biggest score - biggest probability the column is of this type
                 field.possible_types = {k: v for k, v in sorted(possible_types.items(), key=lambda k: k[1], reverse=True)}

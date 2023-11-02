@@ -138,7 +138,7 @@ class Checker:
             try:
                 Checker.hostname_ips_cache[val] = list(
                     {addr[4][0] for addr in timeout(15, socket.getaddrinfo, val, None)})
-            except (TimeoutError, OSError) as e:
+            except (TimeoutError, OSError, ValueError) as e:
                 Checker.hostname_ips_cache[val] = []
         return Checker.hostname_ips_cache[val]
 
@@ -147,7 +147,7 @@ class Checker:
         if val not in cls.hostname_cache:
             try:
                 cls.hostname_cache[val] = timeout(3, socket.gethostbyname, val)
-            except (TimeoutError, OSError) as e:
+            except (TimeoutError, OSError, ValueError) as e:
                 logger.warning(f"Hostname {val}: {e}")
                 cls.hostname_cache[val] = []
         return cls.hostname_cache[val]

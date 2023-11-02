@@ -33,6 +33,7 @@ class Field:
         self.merge_operation = merge_operation
         "This field is merged from a remote file"
         self.possible_types = {}
+        "Possible types the field can be of. If self.type is specified, it is just self.type."
         if isinstance(name, Type):
             self.type = name
         else:

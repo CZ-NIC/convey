@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.4.5
+* fix: Setting field type by `--type` suppresses the auto-detection.
+
 ## 1.4.4 (2023-05-26)
 * fix: OTRS sending with no attachment forwarded
 
