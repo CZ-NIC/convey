@@ -11,13 +11,15 @@ from pathlib import Path
 from queue import Queue, Empty
 from sys import exit
 from threading import Thread, Lock
-from typing import Dict, TYPE_CHECKING, List, Optional, Tuple, Union
+from typing import Dict, TYPE_CHECKING, List, Tuple, Union
 
+from .aggregate import Aggregate
 from .action import Expandable
 from .attachment import Attachment
 from .config import Config
 from .dialogue import ask
-from .types import Web
+from .types import Types
+from .web import Web
 from .whois import Quota, UnknownValue
 
 if TYPE_CHECKING:
@@ -31,8 +33,6 @@ logger = logging.getLogger(__name__)
 
 def prod(iterable):  # XX as of Python3.8, replace with math.prod
     return reduce(mul, iterable, 1)
-
-
 
 
 class Processor:
@@ -73,7 +73,8 @@ class Processor:
         # convert settings["merge"] to lambdas
         if settings["merge"]:
             settings["merging"] = True
-            settings["addByMethod"] += [("merged", op.local_column.col_i_original, (lambda x: op.get(x),)) for op in settings["merge"]]
+            settings["addByMethod"] += [("merged", op.local_column.col_i_original,
+                                         (lambda x: op.get(x),)) for op in settings["merge"]]
             del settings["merge"]
 
         # convert filter settings to pre (before line processing) and post that spare a lot of time
@@ -94,7 +95,8 @@ class Processor:
         if [f for f in self.parser.fields if (not f.is_chosen or f.col_i_original != f.col_i)]:
             settings["chosen_cols"] = [f.col_i_original for f in self.parser.fields if f.is_chosen]
 
-        Web.init([f.type for f in self.parser.get_computed_fields()])
+        used_types = [f.type for f in self.parser.get_computed_fields()]
+        Web.init(Types.text in used_types, Types.html in used_types)
 
         # start file processing
         try:
@@ -274,7 +276,7 @@ class Processor:
         for f in self.descriptors.values():
             f[0].close()
 
-    def process_line(self, parser: Parser, line: List, settings: Settings, fields: Union[Tuple, List]=None):
+    def process_line(self, parser: Parser, line: List, settings: Settings, fields: Union[Tuple, List] = None):
         """
         Parses line – compute fields while adding, perform filters, pick or delete cols, split and write to a file.
         """
@@ -370,26 +372,20 @@ class Processor:
             if settings["aggregate"]:
                 grp = fields[settings["aggregate"].group_by.col_i] if settings["aggregate"].group_by else None
                 for i, (fn, col_data) in enumerate(settings["aggregate"].actions):
-                    # counters[location file][grouped row][order in aggregation settings] = [sum generator, count]
+                    # loc[grouped row] = [Aggregate(sum generator, count),]
                     loc = self.parser.aggregation[location]
 
                     if grp:  # it makes sense to compute total row because we are grouping
-                        if None not in loc:
-                            loc[None] = []
                         if len(loc[None]) <= i:
-                            loc[None].append([fn(), 0])
-                            next(loc[None][i][0])
+                            loc[None].append(Aggregate(fn))
                         if fn.__name__ == "list":
-                            loc[None][i][1] = "(all)"  # we do not want to enlist whole table
+                            loc[None][i].count = "(all)"  # we do not want to enlist whole table
                         else:
-                            loc[None][i][1] = loc[None][i][0].send(fields[col_data.col_i])
+                            loc[None][i].count = loc[None][i].generator.send(fields[col_data.col_i])
 
-                    if grp not in loc:
-                        loc[grp] = []
                     if len(loc[grp]) <= i:
-                        loc[grp].append([fn(), 0])
-                        next(loc[grp][i][0])
-                    loc[grp][i][1] = loc[grp][i][0].send(fields[col_data.col_i])
+                        loc[grp].append(Aggregate(fn))
+                    loc[grp][i].count = loc[grp][i].generator.send(fields[col_data.col_i])
                 return  # we will not write anything right know, aggregation results are not ready yet
         except Quota.QuotaExceeded:
             parser.queued_lines_count += 1

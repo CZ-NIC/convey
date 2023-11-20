@@ -10,21 +10,21 @@ from dialog import Dialog
 from prompt_toolkit.shortcuts import clear
 
 from .action import AggregateAction, MergeAction
+from .aggregate import Aggregate, AggregateMethod, aggregate_functions_str, aggregate_functions
 from .config import Config
 from .decorators import PickBase, PickMethod, PickInput
 from .dialogue import Cancelled, Menu, choose_file, csv_split, hit_any_key, pick_option, ask, is_yes
 from .field import Field
 from .parser import Parser
-from .types import Types, TypeGroup, types, Type, graph, methods, Aggregate, get_module_from_path
+from .types import Types, TypeGroup, types, Type, graph, methods, get_module_from_path
 from .wizzard import Preview
 from .wrapper import Wrapper
 
 logger = logging.getLogger(__name__)
-aggregate_functions = [f for f in Aggregate.__dict__ if not f.startswith("_")]
-aggregate_functions_str = "".join("\n* " + f for f in aggregate_functions)
+
 
 class ActionController:
-    def __init__(self, parser: Parser, reprocess = False):
+    def __init__(self, parser: Parser, reprocess=False):
         self.parser = parser
         self.reprocess = reprocess
 
@@ -32,7 +32,7 @@ class ActionController:
         self.select_col("New column", only_computables=True, add=True)
         self.parser.is_processable = True
 
-    def add_aggregation(self, fn_name:str = None, column_task:Optional[str] = None, group:Optional[Field]=None, grouping_probably_wanted=True, exit_on_fail=False):
+    def add_aggregation(self, fn_name: str = None, column_task: Optional[str] = None, group: Optional[Field] = None, grouping_probably_wanted=True, exit_on_fail=False):
         # choose what column we want
 
         fn = self.get_aggregation_fn(fn_name, exit_on_fail)
@@ -77,8 +77,6 @@ class ActionController:
 
         self.parser.is_processable = True
 
-
-
     def add_filter(self):
         menu = Menu(title="Choose a filter")
         menu.add("Unique filter", self.add_uniquing)
@@ -86,7 +84,7 @@ class ActionController:
         menu.add("Exclude filter", lambda: self.add_filtering(False))
         menu.sout()
 
-    def add_merge(self, remote_path=None, remote_col_i:Optional[int]=None, local_col_i:Optional[int]=None):
+    def add_merge(self, remote_path=None, remote_col_i: Optional[int] = None, local_col_i: Optional[int] = None):
         if not remote_path:
             remote_path = choose_file("What file we should merge the columns from?")
         wrapper2 = Wrapper(Path(remote_path), reprocess=self.reprocess)
@@ -100,10 +98,12 @@ class ActionController:
             column2 = parser2.fields[remote_col_i]
         else:
             high = parser2.get_similar(column1 or self.parser.fields)
-            column2 = controller2.select_col("Select remote column to be merged", include_computables=False, highlighted=high)
+            column2 = controller2.select_col("Select remote column to be merged",
+                                             include_computables=False, highlighted=high)
         if not column1:
             high = self.parser.get_similar(column2)
-            column1 = self.select_col(f"Select local column to merge '{column2}' to", include_computables=False, highlighted=high)
+            column1 = self.select_col(
+                f"Select local column to merge '{column2}' to", include_computables=False, highlighted=high)
 
         # cache remote values
         operation = MergeAction.build(wrapper2.file, parser2, column2, column1)
@@ -152,7 +152,6 @@ class ActionController:
         custom = c + custom
         return target_type, source_field, source_type, custom
 
-
     def add_uniquing(self, col_i=None):
         if col_i is None:
             col_i = self.select_col("unique").col_i
@@ -160,21 +159,21 @@ class ActionController:
         self.parser.is_processable = True
 
     def assure_aggregation_group_by(self, fn, field, group, grouping_probably_wanted=True, exit_on_fail=False) -> Optional[Field]:
-        a,b,c = (fn == Aggregate.count, group is None, grouping_probably_wanted)
-        if (a,b) == (True, True):
+        a, b, c = (fn == Aggregate.count, group is None, grouping_probably_wanted)
+        if (a, b) == (True, True):
             group = field
-        elif (a,b,c) == (False, True, True):
+        elif (a, b, c) == (False, True, True):
             # here, self.select col might return None
             group = self.select_col("group by", prepended_field=("no grouping", "aggregate whole column"))
-        elif (a,b) == (True, False):
+        elif (a, b) == (True, False):
             if field != group:
                 logger.error(f"Count column '{field.name}' must be the same"
-                                f" as the grouping column '{group.name}'.")
+                             f" as the grouping column '{group.name}'.")
                 if exit_on_fail:
                     exit()
                 else:
                     raise Cancelled
-        return group # XX as of Python 3.10 replace with the following
+        return group  # XX as of Python 3.10 replace with the following
         # match (fn == Aggregate.count, group is None, grouping_probably_wanted):
         #     case True, True, _:
         #         group = field
@@ -191,10 +190,6 @@ class ActionController:
         #                 raise Cancelled
         # return group
 
-
-
-
-
     def add_filtering(self, include=True, col_i=None, val=None):
         if col_i is None:
             col_i = self.select_col("filter").col_i
@@ -208,7 +203,6 @@ class ActionController:
         self.parser.settings["split"] = self.select_col("splitting").col_i
         self.parser.is_processable = True
 
-
     def choose_cols(self):
         # XX possibility un/check all
         chosens = [(str(i + 1), str(f), f.is_chosen) for i, f in enumerate(self.parser.fields)]
@@ -221,24 +215,23 @@ class ActionController:
                 self.parser.fields[int(v) - 1].is_chosen = True
             self.parser.is_processable = True
 
-
-    def get_aggregation_fn(self, fn_name:str=None, exit_on_fail=False) -> Optional[Callable]:
+    def get_aggregation_fn(self, fn_name: str = None, exit_on_fail=False) -> AggregateMethod:
         if not fn_name:
             menu = Menu("Choose aggregate function", callbacks=False, fullscreen=True)
             [menu.add(f) for f in aggregate_functions]
             option = menu.sout()
             if not option:
-                raise Cancelled # XXX tohle bude fungovat?
+                raise Cancelled
             fn_name = aggregate_functions[int(option) - 1]
         fn = getattr(Aggregate, fn_name, None)
         if not fn:
             if exit_on_fail:
-                logger.error(f"Unknown aggregate function '{fn_name}'. Possible functions are: {aggregate_functions_str}")
+                logger.error(
+                    f"Unknown aggregate function '{fn_name}'. Possible functions are: {aggregate_functions_str}")
                 exit()
             else:
                 raise Cancelled
         return fn
-
 
     def select_col(self, dialog_title="", only_computables=False, include_computables=True, add=None, prepended_field=None, highlighted: Optional[List[Field]] = None) -> Optional[Field]:
         """ Starts dialog where user has to choose a column.
@@ -271,7 +264,7 @@ class ActionController:
         # convert returned int col_i to match an existing or new column
         if prepended_field:
             col_i -= 1
-            if col_i == -1: # we hit a prepended_field, a mere description, not a real field
+            if col_i == -1:  # we hit a prepended_field, a mere description, not a real field
                 return None
         if only_computables or col_i >= len(self.parser.fields):
             target_type_i = col_i if only_computables else col_i - len(self.parser.fields)
@@ -279,8 +272,6 @@ class ActionController:
             self.source_new_column(Types.get_computable_types()[target_type_i], add=add)
 
         return self.parser.fields[col_i]
-
-
 
     def source_new_column(self, target_type, add=None, source_field: Field = None, source_type: Type = None,
                           custom: list = None):

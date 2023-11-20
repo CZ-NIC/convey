@@ -9,7 +9,7 @@ from csv import Sniffer
 from difflib import SequenceMatcher
 from statistics import mean
 from sys import exit
-from typing import Tuple, List, TYPE_CHECKING
+from typing import Optional, Tuple, List, TYPE_CHECKING
 
 from .config import Config
 from .decorators import PickBase
@@ -429,7 +429,7 @@ class Identifier:
             print(f"Preparing type {target_type} of field={f}, source_type={source_type}, custom={task}, path={path}")
         return f, source_type, task
 
-    def get_column_i(self, column, check=False):
+    def get_column_i(self, column, check=False) -> Optional[int]:
         """
         Useful for parsing user input COLUMN from the CLI args.
         :type column: object Either column ID (ex "1" points to column index 0), position from the right (-1, ...),

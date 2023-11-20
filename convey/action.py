@@ -2,21 +2,29 @@ from __future__ import annotations
 from collections import defaultdict
 import csv
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Tuple, Union
 
-from attrs import define, asdict, field
+from attrs import define
+
+from .aggregate import Aggregate, AggregateMethod
 
 if TYPE_CHECKING:
     from .field import Field
     from .parser import Parser
 
+AggregationGroupedRows = DefaultDict[Optional[int], List[Aggregate]]
+
 # XX we should convert whole parser.settings to Action subclasses
+
+
 class Action:
     """ A processing operation. """
     pass
 
+
 Pivot = str
 "Common value in both local and remote columns"
+
 
 @define
 class MergeAction(Action):
@@ -38,7 +46,7 @@ class MergeAction(Action):
         return list(self.rows.get(key, ())) or [Expandable(("",) * len(self.remote_parser.fields))]
 
     @classmethod
-    def build (cls, remote_file: Path, remote_parser: Parser, remote_column: Field, local_column: Field):
+    def build(cls, remote_file: Path, remote_parser: Parser, remote_column: Field, local_column: Field):
         """ Cache remote values and return a new instance """
         rows = defaultdict(list)
         with remote_file.open() as f:
@@ -85,8 +93,8 @@ class AggregateAction(Action):
         Ex: settings["aggregate"] = None, [(Aggregate.sum, 1)]
         Ex: settings["aggregate"] = None, [(Aggregate.sum, 1), (Aggregate.avg, 1)]
         """
-    group_by : Optional[Field]
+    group_by: Optional[Field]
     "column to be grouped by"
 
-    actions: List[Tuple[Callable, Field]]
-    "[(sum, column to be summed), ...]"
+    actions: List[Tuple[AggregateMethod, Field]]
+    "[(Aggregate.sum, column to be summed), ...]"

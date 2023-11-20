@@ -21,9 +21,9 @@ Cell = Union[str, List[str]]
 class Field:
     def __init__(self, name, is_chosen=True, source_field: Optional[Field] = None, source_type=None, new_custom=None,
                  merged_from: Optional[Field] = None, merge_operation: Optional[MergeAction] = None):
-        self.col_i = None
+        self.col_i: Optional[int] = None
         "index of the field in parser.fields"
-        self.col_i_original = None
+        self.col_i_original: Optional[int] = None
         "original index before any sorting"
         self.parser: Optional[Parser] = None
         self.name = str(name)

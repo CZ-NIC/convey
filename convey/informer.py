@@ -16,8 +16,8 @@ import humanize
 from colorama import Fore
 from tabulate import tabulate
 
+from .action import AggregationGroupedRows
 from .config import Config, get_terminal_size
-from .types import Aggregate
 from .whois import Whois
 
 if TYPE_CHECKING:
@@ -243,7 +243,7 @@ class Informer:
             self.stdout.write("".join(self.queue))
             # XX if random true, pops out an element so that it wont stay forever
 
-    def get_aggregation(self, data, color=False, limit=None, nice=True):
+    def get_aggregation(self, data: AggregationGroupedRows, color=False, limit=None, nice=True):
         """
 
         @param data:
@@ -262,23 +262,20 @@ class Informer:
         rows = []
         generators = cycle(g[0] for g in self.parser.settings["aggregate"].actions)
         # sorting by first column (may be a bottleneck, re-sorting every time)
-        dd = sorted(data.items(), key=lambda x: x[1][0][1], reverse=True)
-        for i, (grouped_el, d) in enumerate(dd):
+        for i, (grouped_el, counters) in enumerate(sorted(data.items(), key=lambda x: x[1][0].count, reverse=True)):
             if limit and i == limit:
-                rows.append(["..." for fn, count in d])
+                rows.append(["..." for _ in counters])
                 if grouping:
                     rows[-1].insert(0, "...")
                 break
-            if grouped_el is None and len(self.parser.settings["aggregate"].actions) == 1 \
-                    and next(generators) == Aggregate.list:
+            if grouped_el is None and len(counters) == 1 and counters[0].is_too_broad:
                 # This is the total row
                 # We are aggregating only single thing which is list.
                 # That list would comprehend all of the values in the column. We omit it.
+                rows.append(["(all)"])
                 continue
 
-            # rows.append([form(count if fn.__name__ in ("count", "list") else round(count * 100) / 100, 33) for fn, count in d])
-            rows.append([form(count if next(generators) not in (Aggregate.sum, Aggregate.avg) else round(count, 2), 33) for
-                         fn, count in d])
+            rows.append([form(c.get(), 33) for c in counters])
             if grouping:
                 rows[-1].insert(0, form("total" if grouped_el is None else grouped_el, 36))
         # floatfmt - display numbers longers than 15 as the scientific 1e+15, not numbers bigger than a million only

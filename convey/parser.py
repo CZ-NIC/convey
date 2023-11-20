@@ -12,13 +12,15 @@ from math import ceil
 from operator import eq, ne
 from pathlib import Path
 from shutil import move
-from typing import List, Optional, Tuple, Union
+from typing import DefaultDict, List, Optional, Tuple, Union
 from sys import exit
 
 from tabulate import tabulate
 
+from .action import AggregationGroupedRows
 from .attachment import Attachment
 from .contacts import Contacts
+from .checker import Checker
 from .config import Config, get_terminal_size
 from .definition import Settings
 from .dialogue import Cancelled, is_yes, ask
@@ -27,7 +29,8 @@ from .identifier import Identifier
 from .informer import Informer
 from .mail_draft import MailDraft
 from .processor import Processor
-from .types import Types, Type, Web, TypeGroup, Checker
+from .types import Types, Type, TypeGroup
+from .web import Web
 from .whois import Whois
 
 logger = logging.getLogger(__name__)
@@ -94,9 +97,10 @@ class Parser:
         "CSV processing vs single_query check usage"
         self.ranges = {}  # XX should be refactored as part of Whois
         self.ip_seen = {}  # XX should be refactored as part of Whois
-        self.aggregation = defaultdict(dict)
-        "set by processor [location file][grouped row][order in aggregation settings] = [sum generator, count]"
+        self.aggregation: DefaultDict[str, AggregationGroupedRows] = defaultdict(lambda: defaultdict(list))
+        "set by processor [location file][grouped row] = [AggregationCounter,]"
         self.refresh()
+        self.stats = defaultdict(set)
         self._reset(reset_header=False)
         self.selected: List[int] = []
         "list of selected fields col_i that may be in/excluded and moved in the menu"
@@ -453,11 +457,10 @@ class Parser:
                    unknown_mode=unknown_mode)
 
     def reset_settings(self):
-        self.settings = defaultdict(list)
+        self.settings.clear()
         # when resetting settings, we free up any finished aggregation
         # (because informer wants to display it but the self.parser.settings["aggregate"] is gone
-        self.aggregation = defaultdict(
-            dict)  # self.aggregation[location file][grouped row][order in aggregation settings] = [sum generator, count]
+        self.aggregation.clear()
         self.sample_parsed = [x for x in
                               csv.reader(self.sample[slice(1 if self.has_header else 0, None)],
                                          skipinitialspace=self.is_pandoc,
@@ -473,11 +476,10 @@ class Parser:
         """ Reset variables before new analysis.
         @type reset_header: False if we are in the constructor and added fields is not ready yet.
         """
-        self.stats = defaultdict(set)
+        self.stats.clear()
         Attachment.reset(self.stats)
         self.queued_lines_count = self.invalid_lines_count = self.unknown_lines_count = 0
-        # self.aggregation[location file][grouped row][order in aggregation settings] = [sum generator, count]
-        self.aggregation = defaultdict(dict)
+        self.aggregation.clear()
 
         if reset_header:
             class Wr:  # very ugly way to correctly get the output from csv.writer
@@ -821,7 +823,7 @@ class Parser:
         rows = []  # nice table formatting
         full_rows = []  # formatting that optically matches the Sample above
         for line in self.sample_parsed:
-            row: List[Tuple[str,Field]] = []
+            row: List[Tuple[str, Field]] = []
             for field, cell in zip_longest(self.fields, line):
                 if field is None:
                     # when lines have different length, field may be none
@@ -864,8 +866,6 @@ class Parser:
         if isinstance(fields2, Field):
             fields2 = [fields2]
         return [f1 for f1 in self.fields if f1.type for f2 in fields2 if f1.type == f2.type]
-
-
 
     def __getstate__(self):
         state = self.__dict__.copy()

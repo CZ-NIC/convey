@@ -17,8 +17,9 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
 from validate_email import validate_email
 
+from .aggregate import Aggregate, aggregate_functions
 from .action import AggregateAction
-from .action_controller import ActionController, aggregate_functions
+from .action_controller import ActionController
 from .args_controller import ArgsController, otrs_flags, new_fields
 from .attachment import Attachment
 from .config import Config, console_handler, edit, get_path
@@ -30,7 +31,7 @@ from .field import Field
 from .ipc import socket_file, recv, send, daemon_pid
 from .mail_sender import MailSenderOtrs, MailSenderSmtp
 from .parser import Parser
-from .types import Types, TypeGroup, Aggregate
+from .types import Types, TypeGroup
 from .wizzard import bottom_plain_style
 from .wrapper import Wrapper
 from . import __version__

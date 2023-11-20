@@ -1,4 +1,4 @@
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import redirect_stdout
 from io import StringIO
 import logging
 import os
@@ -13,12 +13,9 @@ from subprocess import run, PIPE
 from tempfile import TemporaryDirectory
 from typing import Union, List
 from unittest import TestCase, main
-from convey.config import Config
 
 from convey.controller import Controller
 from convey.dialogue import Cancelled
-from convey.parser import Parser
-from convey.field import Field
 
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 os.chdir("tests")  # all mentioned resources files are in that folder
