@@ -403,7 +403,7 @@ class Controller:
             exit()
         return ac
 
-    def run_menu(self, ac):
+    def run_menu(self, ac: ActionController):
         # main menu
         start_debugger = False
         session = None

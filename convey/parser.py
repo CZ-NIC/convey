@@ -148,6 +148,7 @@ class Parser:
             print("Empty contents.")
             exit()
         self.prepare_target_file()
+        self.sample_parsed = [x for x in csv.reader(self.sample)]
 
         # check if we are parsing a single cell
         if self.stdin:
@@ -209,7 +210,6 @@ class Parser:
                     return self
 
         # we are parsing a CSV file
-        self.sample_parsed = [x for x in csv.reader(self.sample)]
         self.informer.sout_info()
         try:
             # Dialog to obtain basic information about CSV - delimiter, header
@@ -277,7 +277,7 @@ class Parser:
         :type append_values: bool Append sample values to the informative result string.
         """
         fields = []
-        for col, field in enumerate(self.fields):
+        for _, field in enumerate(self.fields):
             s = ""
             if field.is_new:
                 s = f"computed from: {field.source_type}"

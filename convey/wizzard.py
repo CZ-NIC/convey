@@ -17,8 +17,9 @@ from pygments.styles import get_style_by_name
 from pygments.token import Token
 from tabulate import tabulate
 
-from convey import PickInput
 from .config import Config, console_handler
+from .decorators import PickInput
+from .field import Field
 from .dialogue import Cancelled
 from .types import Type, Types
 
@@ -181,7 +182,7 @@ class TypeValidator(Validator):
 
 class Preview:
 
-    def __init__(self, source_field, source_type: "Type", target_type: "Type" = None):
+    def __init__(self, source_field: Field, source_type: Type, target_type: Type = None):
         self.source_field = source_field
         self.source_type = source_type
         self.target_type = target_type

@@ -358,9 +358,10 @@ class Processor:
                 chosen_fields = fields
 
             # determine location
-            if type(settings["split"]) == int:
-                # split ('/' is a forbidden char in linux file names)
-                location = fields[settings["split"]].replace("/", "-")
+            if type(settings["split"]) == int:  # split location:
+                # * '/' is a forbidden char in linux file names)
+                # * we cast to str as the field could contain an object (like IPRange for the 'cidr' type)
+                location = str(fields[settings["split"]]).replace("/", "-")
                 if not location:
                     parser.unknown_lines_count += 1
                     location = Config.UNKNOWN_NAME
@@ -429,10 +430,8 @@ class Processor:
             if self.descriptors_count >= self.descriptors_max:  # too many descriptors open, we have to close the least used
                 key = min(self.descriptorsStatsOpen, key=self.descriptorsStatsOpen.get)
                 self.descriptors[key][0].close()
-                # print("Closing", key, self.descriptorsStatsOpen[key])
                 del self.descriptorsStatsOpen[key]
                 self.descriptors_count -= 1
-            # print("Opening", location)
 
             if location == 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
                 t = w = parser.external_stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods

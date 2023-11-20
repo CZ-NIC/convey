@@ -18,7 +18,7 @@ Any input is accepted:
     6) **Aggregate** (count grouped by a column, sum...)
     7) **Merge** (join other file)
 
-Python3.7+ required (older releases support 3.6).
+Python3.10+ required (older releases support up to 3.6).
 
 # Table of contents
 * [Usage](#usage)
@@ -673,10 +673,11 @@ heLLo
 
 Specify source
 ```bash
-# start adding a new reg column wizzard that will take plaintext "aGVsbG8=" as input
+# start adding a new reg column wizzard that will take plaintext from auto-detected base64 "aGVsbG8=" as input
 $ convey aGVsbG8= -f reg,plaintext
-# specifying plaintext as a source type will prevent implicit convertion from base64
-$ convey aGVsbG8= -f reg_s,plaintext,"[A-Z]","!" -H  # substitute uppercase letters with '!'
+# specifying plaintext as a source type (and not as a column) will prevent implicit conversion from base64
+# Note the 1 that specifies the (first and only) column.
+$ convey aGVsbG8= -f reg_s,1,plaintext,"[A-Z]","!" -H  # substitute uppercase letters with '!'
 a!!sb!8=
 ```
 
