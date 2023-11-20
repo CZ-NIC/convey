@@ -11,8 +11,8 @@ __doc__ = """Convey – CSV swiss knife brought by CSIRT.cz"""
 __author__ = "Edvard Rejthar, CSIRT.CZ"
 __date__ = "$Feb 26, 2015 8:13:25 PM$"
 
-if sys.version_info[0:2] < (3, 7):
-    print("We need at least Python 3.7, your version is " + sys.version + ". Try an older Convey release or rather upgrade Python.")
+if sys.version_info[0:2] < (3, 10):
+    print("We need at least Python 3.10, your version is " + sys.version + ". Try an older Convey release or rather upgrade Python.")
     exit()
 
 

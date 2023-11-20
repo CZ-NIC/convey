@@ -18,25 +18,35 @@ from convey.controller import Controller
 from convey.dialogue import Cancelled
 
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
-os.chdir("tests")  # all mentioned resources files are in that folder
-os.chmod("red-permission.gif", S_IRUSR | S_IRGRP)  # make file unreadable to others
+
+# to evade project folder pollution, chdir to a temp folder
+PROJECT_DIR = Path.cwd()
+# temp = TemporaryDirectory() XX As the output folder appears in the file folder, this has diminished effect.
+# os.chdir(temp.name)
+os.chdir("tests")
+
+def p(s):
+    """ all mentioned resources files are in the tests folder """
+    return PROJECT_DIR / "tests" / Path(s)
+
 HELLO_B64 = 'aGVsbG8='
-SHEET_CSV = Path("sheet.csv")
-GIF_CSV = Path("gif.csv")
-PERSON_CSV = Path("person.csv")
-PERSON_XLS = Path("person.xls")
-PERSON_XLSX = Path("person.xlsx")
-PERSON_ODS = Path("person.ods")
-COMBINED_SHEET_PERSON = Path("combined_sheet_person.csv")
-PERSON_HEADER_CSV = Path("person_header.csv")
-COMBINED_LIST_METHOD = Path("combined_list_method.csv")
-SHEET_DUPLICATED_CSV = Path("sheet_duplicated.csv")
-SHEET_HEADER_CSV = Path("sheet_header.csv")
-SHEET_HEADER_ITSELF_CSV = Path("sheet_header_itself.csv")
-SHEET_HEADER_PERSON_CSV = Path("sheet_header_person.csv")
-SHEET_PERSON_CSV = Path("sheet_person.csv")
-PERSON_GIF_CSV = Path("person_gif.csv")
-CONSUMPTION = Path("consumption.csv")
+SHEET_CSV = p("sheet.csv")
+GIF_CSV = p("gif.csv")
+PERSON_CSV = p("person.csv")
+PERSON_XLS = p("person.xls")
+PERSON_XLSX = p("person.xlsx")
+PERSON_ODS = p("person.ods")
+COMBINED_SHEET_PERSON = p("combined_sheet_person.csv")
+PERSON_HEADER_CSV = p("person_header.csv")
+COMBINED_LIST_METHOD = p("combined_list_method.csv")
+SHEET_DUPLICATED_CSV = p("sheet_duplicated.csv")
+SHEET_HEADER_CSV = p("sheet_header.csv")
+SHEET_HEADER_ITSELF_CSV = p("sheet_header_itself.csv")
+SHEET_HEADER_PERSON_CSV = p("sheet_header_person.csv")
+SHEET_PERSON_CSV = p("sheet_person.csv")
+PERSON_GIF_CSV = p("person_gif.csv")
+CONSUMPTION = p("consumption.csv")
+p("red-permission.gif").chmod(S_IRUSR | S_IRGRP)  # make file unreadable to others
 
 
 class Convey:
@@ -53,7 +63,7 @@ class Convey:
         self.debug = debug
 
         # XX travis will not work will daemon=true (which imposes slow testing)
-        self.cmd = ["../convey.py", "--output", "--reprocess", "--headless",
+        self.cmd = [str(PROJECT_DIR / "convey.py"), "--output", "--reprocess", "--headless",
                     "--daemon", "false", "--debug", "false", "--crash-post-mortem", "false"]
         if filename is None and not text and len(args) == 1 and not str(args[0]).startswith("-"):
             filename = args[0]
@@ -294,6 +304,8 @@ class TestAction(TestAbstract):
                 check1 = True
             if f.name == "bulb" and f.read_text() == "sum(price)\n370.0\n":
                 check2 = True
+        print("ZDEEEEEEEEE", list(Path().glob("consumption.csv_convey*/*")))
+        print(check1)
         self.assertTrue(check1)
         self.assertTrue(check2)
 

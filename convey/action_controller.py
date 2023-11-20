@@ -2,7 +2,7 @@ import csv
 import re
 from difflib import SequenceMatcher
 import logging
-from typing import Any, Callable, List, Optional
+from typing import List, Optional
 from pathlib import Path
 from sys import exit
 
@@ -159,36 +159,21 @@ class ActionController:
         self.parser.is_processable = True
 
     def assure_aggregation_group_by(self, fn, field, group, grouping_probably_wanted=True, exit_on_fail=False) -> Optional[Field]:
-        a, b, c = (fn == Aggregate.count, group is None, grouping_probably_wanted)
-        if (a, b) == (True, True):
-            group = field
-        elif (a, b, c) == (False, True, True):
-            # here, self.select col might return None
-            group = self.select_col("group by", prepended_field=("no grouping", "aggregate whole column"))
-        elif (a, b) == (True, False):
-            if field != group:
-                logger.error(f"Count column '{field.name}' must be the same"
-                             f" as the grouping column '{group.name}'.")
-                if exit_on_fail:
-                    exit()
-                else:
-                    raise Cancelled
-        return group  # XX as of Python 3.10 replace with the following
-        # match (fn == Aggregate.count, group is None, grouping_probably_wanted):
-        #     case True, True, _:
-        #         group = field
-        #     case False, True, True:
-        #         # here, self.select col might return None
-        #         group = self.select_col("group by", prepended_field=("no grouping", "aggregate whole column"))
-        #     case True, False, _:
-        #         if field != group:
-        #             logger.error(f"Count column '{field.name}' must be the same"
-        #                             f" as the grouping column '{group.name}'.")
-        #             if exit_on_fail:
-        #                 exit()
-        #             else:
-        #                 raise Cancelled
-        # return group
+        match (fn == Aggregate.count, group is None, grouping_probably_wanted):
+            case True, True, _:
+                group = field
+            case False, True, True:
+                # here, self.select col might return None
+                group = self.select_col("group by", prepended_field=("no grouping", "aggregate whole column"))
+            case True, False, _:
+                if field != group:
+                    logger.error(f"Count column '{field.name}' must be the same"
+                                    f" as the grouping column '{group.name}'.")
+                    if exit_on_fail:
+                        exit()
+                    else:
+                        raise Cancelled
+        return group
 
     def add_filtering(self, include=True, col_i=None, val=None):
         if col_i is None:

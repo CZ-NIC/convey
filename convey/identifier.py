@@ -258,7 +258,7 @@ class Identifier:
             logger.debug(f"Possible type of the field '{field}': {possible_types}")
         return True
 
-    def get_fitting_type(self, source_field_i, target_field, try_plaintext=False):
+    def get_fitting_type(self, source_field_i: int, target_field, try_plaintext=False):
         """ Loops all types the field could be and return the type best suited method for compute new field. """
         _min = 999
         fitting_type = None

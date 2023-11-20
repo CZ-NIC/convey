@@ -1,6 +1,7 @@
 # CHANGELOG
 
 ## 1.4.5
+* drop Python3.9 support
 * fix: Setting field type by `--type` suppresses the auto-detection.
 
 ## 1.4.4 (2023-05-26)

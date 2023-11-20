@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 def send_ipc(pipe, msg, refresh_stdout):
     sys.stdout = sys.stderr = StringIO()  # creating a new one is faster than truncating the old
     console_handler.setStream(sys.stdout)
@@ -139,9 +140,7 @@ class Controller:
             server.listen()
             sys.stdout_real = stdout = sys.stdout
             sys.stdout = sys.stderr = StringIO()
-            if sys.version_info >= (3, 7):  # XX remove when dropped Python 3.6 support.
-                # In 3.6, logging message from the daemon will not work.
-                console_handler.setStream(sys.stdout)
+            console_handler.setStream(sys.stdout)
             PromptSession.__init__ = lambda _, *ar, **kw: (_ for _ in ()).throw(
                 ConnectionAbortedError('Prompt raised.'))
             return True, stdout, server
@@ -246,11 +245,11 @@ class Controller:
             # --output=FILE → an output file generated (Config.get("output") -> parser.target_file set)
             args.output = None
         for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview",
-                        "user_agent",
-                        "multiple_hostname_ip", "multiple_cidr_ip", "web_timeout", "whois_ttl", "disable_external",
-                        "debug", "crash_post_mortem",
-                        "testing", "attach_files", "attach_paths_from_path_column", "jinja", "subject", "body", "references",
-                        "whois_delete_unknown", "whois_reprocessable_unknown", "whois_cache"]:
+                     "user_agent",
+                     "multiple_hostname_ip", "multiple_cidr_ip", "web_timeout", "whois_ttl", "disable_external",
+                     "debug", "crash_post_mortem",
+                     "testing", "attach_files", "attach_paths_from_path_column", "jinja", "subject", "body", "references",
+                     "whois_delete_unknown", "whois_reprocessable_unknown", "whois_cache"]:
             if getattr(args, flag) is not None:
                 Config.set(flag, getattr(args, flag))
         if args.headless or args.send_test:
@@ -285,8 +284,8 @@ class Controller:
                 Config.set("single_detect", True)
         Config.set("adding-new-fields", bool(new_fields))
         self.wrapper = Wrapper(args.file_or_input, args.file, args.input,
-                                args.type, args.fresh, args.reprocess,
-                                args.whois_delete)
+                               args.type, args.fresh, args.reprocess,
+                               args.whois_delete)
         self.parser: Parser = self.wrapper.parser
         ac = ActionController(self.parser, args.reprocess)
 
@@ -325,7 +324,7 @@ class Controller:
             if res:
                 print(res)
             exit()
-        if is_daemon and self.see_menu: # if we will need menu, daemon must stop here
+        if is_daemon and self.see_menu:  # if we will need menu, daemon must stop here
             raise ConnectionAbortedError("displaying a menu is too complex")
 
         if args.aggregate:
@@ -492,7 +491,8 @@ class Controller:
                             break
                     else:
                         # I cannot use a mere `input()` here, it would interfere with promtpt_toolkit and freeze
-                        Dialog(autowidgetsize=True).msgbox("No column selected to aggregate with.\nUse arrows to select a column first.")
+                        Dialog(autowidgetsize=True).msgbox(
+                            "No column selected to aggregate with.\nUse arrows to select a column first.")
                     refresh()
 
                 # @bindings.add('escape', 'n')  # alt-n to rename header
@@ -799,7 +799,7 @@ class Controller:
         if ret == "ok":
             # these processing settings should be removed
             for v in values[
-                     ::-1]:  # we reverse the list, we need to pop bigger indices first without shifting lower indices
+                    ::-1]:  # we reverse the list, we need to pop bigger indices first without shifting lower indices
                 fn, v = discard[int(v) - 1]
                 fn(v)
             if st["aggregate"] and not st["aggregate"][1]:
@@ -819,36 +819,27 @@ class Controller:
         menu.add("Rework whole file again", self.wrapper.clear)
         menu.sout()
 
-
-
     def close(self):
         self.wrapper.save(last_chance=True)  # re-save cache file
         if not Config.get("yes"):
             if not Config.is_quiet():
                 # Build processing settings list
-                l = []
+                o = []
                 st = self.parser.settings
                 fields = self.parser.fields
 
-                for type_, items in st.items():
-                    # XX code does not return its custom part
-                    if not items and items != 0:
-                        continue
-                    if type_ == "split":
-                        l.append(f"--split {fields[items]}")
-                    elif type_ == "add":
-                        l.extend(f"--field {f},{str(f.source_field)}" for f in items)
-                    elif type_ == "filter":
-                        l.extend(f"--{'include' if include else 'exclude'}-filter {fields[f].name},{val}"
-                                 for include, f, val in items)
-                    elif type_ == "unique":
-                        l.extend(f"--unique {fields[f].name}" for f in items)
-                    elif type_ == "aggregate":
-                        # XX does not work well - at least, they are printed out opposite way
-                        l.append(f"--aggregate {items.group_by}," + ",".join(
-                            f"{fn.__name__},{col.name}" for fn, col in items.actions))
-                if l:
-                    print(f" Settings cached:\n convey {self.parser.source_file} " + " ".join(l) + "\n")
+                # XX code does not return its custom part
+                if col := st["split"]:
+                    o.append(f"--split {fields[col]}")
+                o.extend(f"--field {f},{str(f.source_field)}" for f in st["add"])
+                o.extend(f"--{'include' if include else 'exclude'}-filter {fields[f].name},{val}"
+                         for include, f, val in st["filter"])
+                o.extend(f"--unique {fields[f].name}" for f in st["unique"])
+                if col := st["aggregate"]:
+                    o.append(f"--aggregate " + ",".join(f"{col.name},{fn.__name__}" for fn, col in col.actions)
+                             + (f",{col.group_by}" if col.group_by else ""))
+                if o:
+                    print(f" Settings cached:\n convey {self.parser.source_file} " + " ".join(o) + "\n")
 
             print("Finished.")
         exit(0)

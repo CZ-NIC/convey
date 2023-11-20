@@ -1,15 +1,9 @@
 from csv import Dialect
 from sys import version_info
-from typing import Callable, Dict, TYPE_CHECKING, List, Optional, Tuple, Union
+from typing import Callable, Dict, TYPE_CHECKING, List, Optional, Tuple, Union, TypedDict
 
 from .action import AggregateAction, MergeAction
 from .field import Field
-
-try:
-    from typing import TypedDict
-except ImportError:  # remove as of Python 3.7
-    if not TYPE_CHECKING:  # that way, IDE displays correct values and Python 3.7 still works
-        TypedDict = Dict
 
 Unique = Optional[List[int]]
 Filter = Optional[List[Tuple[bool, int, str]]]
