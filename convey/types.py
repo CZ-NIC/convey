@@ -349,7 +349,7 @@ class Types:
                      ["sourceipaddress", "source", "src"], Checker.is_ip, usual_must_match=True)
     destination_ip = Type("destination_ip", TypeGroup.general, "valid destination IP address",
                           ["destinationipaddress", "destination", "dest", "dst"], Checker.is_ip, usual_must_match=True)
-    port = Type("port", TypeGroup.general, "port", ["port", "prt"], lambda x: re.match("\d{1,5}", x),
+    port = Type("port", TypeGroup.general, "port", ["port", "prt"], lambda x: re.match(r"\d{1,5}", x),
                 usual_must_match=True)
     cidr = Type("cidr", TypeGroup.general, "CIDR 127.0.0.1/32", ["cidr"], Checker.check_cidr)
     port_ip = Type("port_ip", TypeGroup.general, "IP in the form 1.2.3.4.port", [], reIpWithPort.match)
@@ -362,7 +362,7 @@ class Types:
     url = Type("url", TypeGroup.general, "URL starting with http/https", ["url", "uri", "location"],
                lambda s: reUrl.match(s) and "[.]" not in s)  # input "example[.]com" would be admitted as a valid URL)
     asn = Type("asn", TypeGroup.whois, "Autonomous system number", ["as", "asn", "asnumber"],
-               lambda x: re.search('AS\d+', x) is not None)
+               lambda x: re.search(r'AS\d+', x) is not None)
     base64 = Type("base64", TypeGroup.general, "Text encoded with Base64", ["base64"], Checker.is_base64)
     quoted_printable = Type("quoted_printable", TypeGroup.general, "Text encoded as quotedprintable", [],
                             Checker.is_quopri)

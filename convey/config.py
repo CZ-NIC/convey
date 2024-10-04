@@ -176,7 +176,7 @@ class Config:
             section_lines = {}  # [section name] = section start line number
             for i, line in enumerate(config_lines):
                 try:
-                    section = re.match("\[([^]]*)\]", line).group(1)
+                    section = re.match(r"\[([^]]*)\]", line).group(1)
                 except AttributeError:
                     pass
                 else:

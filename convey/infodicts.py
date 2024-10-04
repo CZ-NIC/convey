@@ -3,7 +3,7 @@ from collections import defaultdict
 
 idds = ('00', '+')
 phone_reg = re.compile(r"(\+|00)?\d[\d\-()]{7,12}\d$")
-phone_dial = re.compile("[+(]?(\d{0,6})")  # any prefix like `+420` or `(089)`, then up to 6 digits (there is no longer prefix)
+phone_dial = re.compile(r"[+(]?(\d{0,6})")  # any prefix like `+420` or `(089)`, then up to 6 digits (there is no longer prefix)
 
 
 def phone_regex_match(val):

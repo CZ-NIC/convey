@@ -307,7 +307,7 @@ class Wrapper:
         """ Check if the contents is a CSV and not just a log
          ex: "06:25:13.378767 IP 142.234.39.36.51354 > 195.250.148.86.80: Flags [S], seq 1852455482, win 29200, length 0"
          """
-        re_ip_with_port = re.compile("((\d{1,3}\.){4})(\d+)")
+        re_ip_with_port = re.compile(r"((\d{1,3}\.){4})(\d+)")
         re_log_line = re.compile(r"([^\s]*)\sIP\s([^\s]*)\s>\s([^\s:]*)")
         _, sample, _ = Identifier(None).get_sample(self.file)
         if sample and re_log_line.match(sample[0]):

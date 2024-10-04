@@ -83,7 +83,7 @@ class Identifier:
                     return search.sub("", s)
                 try:
                     # we convert "str{0}" → "\g<0>" (works better than conversion to a mere "\0" that may result to ambiguity
-                    return search.sub(re.sub("{(\d+)}", r"\\g<\1>", replace), s)
+                    return search.sub(re.sub(r"{(\d+)}", r"\\g<\1>", replace), s)
                 except re.error:
                     logger.error(f"RegExp failed: `{replace}` cannot be used to substitute `{s}` with `{search}`")
                     if not Config.error_caught():

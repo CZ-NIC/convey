@@ -28,7 +28,7 @@ class Contacts:
         """ mail = mail@example.com;mail2@example2.com -> [example.com, example2.com] """
         try:
             # return set(re.findall("@([\w.]+)", mail))
-            return set([x[0] for x in re.findall("@(([A-Za-z0-9-]{1,63}\.)+[A-Za-z]{2,6})", mail)])
+            return set([x[0] for x in re.findall(r"@(([A-Za-z0-9-]{1,63}\.)+[A-Za-z]{2,6})", mail)])
         except AttributeError:
             return []
 
