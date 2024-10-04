@@ -8,11 +8,11 @@ import subprocess
 
 logger = logging.getLogger(__name__)
 
-reIpWithPort = re.compile("((\d{1,3}\.){4})(\d+)")
-reAnyIp = re.compile("\"?((\d{1,3}\.){3}(\d{1,3}))")
+reIpWithPort = re.compile(r"((\d{1,3}\.){4})(\d+)")
+reAnyIp = re.compile(r"\"?((\d{1,3}\.){3}(\d{1,3}))")
 reFqdn = re.compile(
-    "(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-_]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)")  # Xtoo long, infinite loop: ^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+){1,63}\.))+){1,255}$
-reUrl = re.compile('[htps]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
+    r"(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-_]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)")  # Xtoo long, infinite loop: ^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+){1,63}\.))+){1,255}$
+reUrl = re.compile(r'[htps]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
 # reBase64 = re.compile('^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$')
 
 
@@ -43,7 +43,7 @@ def port_ip_port(s):
 
 def url_port(s):
     s = s.split(":")[1]
-    return re.match("^(\d*)", s).group(1)
+    return re.match(r"^(\d*)", s).group(1)
 
 
 def url_hostname(url):
@@ -103,7 +103,7 @@ def nmap(val, port=""):
     if Config.get("multiple_nmap_ports", "FIELDS"):
         l = []
         for row in text.split("\n"):
-            l.append(int(re.match("(\d+)", row).group(1)))
+            l.append(int(re.match(r"(\d+)", row).group(1)))
         return l
 
     return text

@@ -373,7 +373,7 @@ class Whois:
                 return c
         return ""
 
-    reAbuse = re.compile('[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}')
+    reAbuse = re.compile(r'[a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,125}[a-z]{2,63}')
 
     def get_abusemail(self):
         """ Loads abusemail from last whois response OR from whois json api. """
