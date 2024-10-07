@@ -12,7 +12,9 @@
 /config.ini
 /tests/**
 !/tests/*
+!/tests/test_data/*
 /tests/statistics.txt
 convey.log
 output_*
 *@example*
+.venv

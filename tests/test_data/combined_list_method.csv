@@ -1,0 +1,16 @@
+foo,red,second.example.com,foo-2,mary@example.com,female
+foo,red,second.example.com,foo-1,john@example.com,male
+foo,red,second.example.com,foo-2,mary@example.com,female
+foo,red,second.example.com,foo-1,john@example.com,male
+foo,green,first.example.com,foo-2,mary@example.com,female
+foo,green,first.example.com,foo-1,john@example.com,male
+foo,green,first.example.com,foo-2,mary@example.com,female
+foo,green,first.example.com,foo-1,john@example.com,male
+bar,blue,wikipedia.org,bar-2,hyacint@example.com,male
+bar,blue,wikipedia.org,bar-1,hyacint@example.com,male
+bar,yellow,example.com,bar-2,hyacint@example.com,male
+bar,yellow,example.com,bar-1,hyacint@example.com,male
+foo,orange,wikipedia.com,foo-2,mary@example.com,female
+foo,orange,wikipedia.com,foo-1,john@example.com,male
+foo,orange,wikipedia.com,foo-2,mary@example.com,female
+foo,orange,wikipedia.com,foo-1,john@example.com,male

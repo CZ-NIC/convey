@@ -1,0 +1,6 @@
+word;colour;host;colour2
+foo;red;second.example.com;blue
+foo;green;first.example.com;blue
+bar;blue;wikipedia.org;yellow
+bar;yellow;example.com;
+foo;orange;wikipedia.com;

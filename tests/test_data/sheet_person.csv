@@ -1,0 +1,8 @@
+foo,red,second.example.com,mary@example.com,female
+foo,red,second.example.com,john@example.com,male
+foo,green,first.example.com,mary@example.com,female
+foo,green,first.example.com,john@example.com,male
+bar,blue,wikipedia.org,,
+bar,yellow,example.com,,
+foo,orange,wikipedia.com,mary@example.com,female
+foo,orange,wikipedia.com,john@example.com,male
