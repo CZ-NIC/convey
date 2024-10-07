@@ -1,7 +1,0 @@
-word,colour,host,colour2,word,colour,host
-foo,red,second.example.com,blue,,,
-foo,green,first.example.com,blue,,,
-bar,blue,wikipedia.org,yellow,foo,green,first.example.com
-bar,blue,wikipedia.org,yellow,foo,red,second.example.com
-bar,yellow,example.com,,bar,blue,wikipedia.org
-foo,orange,wikipedia.com,,,,

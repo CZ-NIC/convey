@@ -1,9 +1,0 @@
-Subject: My cool dynamic template demonstrating a {% if amount() %}long{% else %}short{% endif %} amount of lines!
-
-Here we demonstrate jinja templating.
-We send you {% if amount() %}lots of colours: {{ joined(1) }}{% else %}single colour: {{ first_row[1] }}{% endif %}.
-
-{% if amount() %}
-Here is the complete list of the multirow file.
-{{ attachment() }}
-{% endif %}
