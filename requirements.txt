@@ -21,3 +21,4 @@ pythondialog
 requests
 tabulate
 xlrd
+tldextract

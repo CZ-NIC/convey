@@ -295,6 +295,7 @@ class Types:
                 raise LookupError
 
     whois = Type("whois", TypeGroup.whois, "ask whois servers", is_private=True)
+    whoisdomain = Type("whoisdomain", TypeGroup.whois, "ask whois servers for domain", is_private=True)
     web = Type("web", TypeGroup.web, "scrape web contents", is_private=True)
 
     external = Type("external", TypeGroup.custom, from_message="from a method in your .py file")
@@ -304,6 +305,7 @@ class Types:
     reg_m = Type("reg_m", TypeGroup.custom, from_message="match from a regular expression")
     netname = Type("netname", TypeGroup.whois)
     country = Type("country", TypeGroup.whois)
+    registrar_abusemail = Type("registrar_abusemail", TypeGroup.whois, "Abuse e-mail contact from whois")
     abusemail = Type("abusemail", TypeGroup.whois, "Abuse e-mail contact from whois")
     prefix = Type("prefix", TypeGroup.whois)  # XX rename to 'inetnum'? to 'range'?
     csirt_contact = Type("csirt_contact", TypeGroup.whois,
@@ -510,12 +512,14 @@ class Types:
                                                                    "FIELDS") else Checker.hostname_ip,
             # (t.url, t.ip): Whois.url2ip,
             (t.ip, t.whois): Whois,
+            (t.hostname, t.whoisdomain): lambda x: Whois(ip=None, hostname=x),
             # (t.asn, t.whois): Whois, # XX can be easily allowed, however Whois object will huff there is no IP prefix range
             (t.cidr, t.ip): Checker.cidr_ips if Config.get("multiple_cidr_ip", "FIELDS") else
             lambda x: str(ipaddress.ip_interface(x).ip),
             (t.whois, t.prefix): lambda x: str(x.get[0]),
             (t.whois, t.asn): lambda x: x.get[3],
             (t.whois, t.abusemail): lambda x: x.get[6],
+            (t.whoisdomain, t.registrar_abusemail): lambda x: x.get[8],
             (t.whois, t.country): lambda x: x.get[5],
             (t.whois, t.netname): lambda x: x.get[4],
             (t.whois, t.csirt_contact):
