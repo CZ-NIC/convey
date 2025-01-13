@@ -101,6 +101,7 @@ class Controller:
         if "--disable-external" in sys.argv:
             Config.set("disable_external", True)
         Types.refresh()  # load types so that we can print out computable types in the help text
+        # TODO re-implement to mininterface, while using OmitArgPrefixes for groups.
         argparser = ArgsController().parse_args()
         self.args = args = argparser.parse_args(args=given_args)
         self.see_menu = True

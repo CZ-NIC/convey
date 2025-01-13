@@ -1,10 +1,11 @@
 # CHANGELOG
 
-## 1.4.5
+## 1.4.5 (2025-01-13)
 * drop Python3.9 support
 * fix: Setting field type by `--type` suppresses the auto-detection.
 * fix: split by CIDR
 * fix: single value regex preview wizzard
+* registrar_abusemail field
 
 ## 1.4.4 (2023-05-26)
 * fix: OTRS sending with no attachment forwarded

@@ -96,8 +96,7 @@ Environment:
                             * +1 to gray out disabled fields/methods
                             * +2 to include usual field names
   --get-autocompletion  Get bash autocompletion.
-  --version             Show the version number (which is currently
-                        1.4.2-rc.1).
+  --version             Show the version number (which is currently 1.4.5).
 
 Processing:
   --threads [blank/false/auto/INT]
