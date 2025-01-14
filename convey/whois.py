@@ -14,7 +14,6 @@ from .infodicts import address_country_lowered
 
 logger = logging.getLogger(__name__)
 
-rirs = ["whois.ripe.netf", "whois.arin.net", "whois.lacnic.net", "whois.apnic.net", "whois.afrinic.net"]
 whole_space = IPRange('0.0.0.0', '255.255.255.255')
 
 
@@ -400,18 +399,11 @@ class Whois:
     def get_registrar_abusemail(self):
         """Loads registrar's abusemail from last whois response OR from whois json api."""
 
-        # reg_lines = re.findall(r'^.*registrar.*$', self.whois_response[0])
-        # for rl in reg_lines:
-        #     if 'abuse' in rl and '@' in rl:
-        #         abusemail = re.search(self.email_regex, rl)
-        #         if abusemail:
-        #             return abusemail.group(0)
-        # return ""
+        abuse_line_pattern = r"^(?=.*\babuse\b)(?=.*\bregistrar\b).*"
+        matches = re.findall(abuse_line_pattern, self.whois_response[0], flags=re.MULTILINE)
 
-        match = re.search(r".*(?=.*\babuse\b).*(?=.*\b@\b).*(?=.*\bregistrar\b).*(?:.*\b(email|contact)\b)?.*", self.whois_response[0])
-
-        if match:
-            abusemail = re.search(self.email_regex, match.group(0))
+        for match in matches:
+            abusemail = re.search(self.email_regex, match)
             if abusemail:
                 return abusemail.group(0)
         else:
