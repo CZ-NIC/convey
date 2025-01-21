@@ -519,7 +519,7 @@ class Types:
             (t.whois, t.prefix): lambda x: str(x.get[0]),
             (t.whois, t.asn): lambda x: x.get[3],
             (t.whois, t.abusemail): lambda x: x.get[6],
-            (t.whoisdomain, t.registrar_abusemail): lambda x: x.get[8],
+            (t.whoisdomain, t.registrar_abusemail): lambda x: x.get[6],
             (t.whois, t.country): lambda x: x.get[5],
             (t.whois, t.netname): lambda x: x.get[4],
             (t.whois, t.csirt_contact):

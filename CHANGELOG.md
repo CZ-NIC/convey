@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 1.4.5 (2025-01-13)
+## 1.4.7 (2025-01-21)
 * drop Python3.9 support
 * fix: Setting field type by `--type` suppresses the auto-detection.
 * fix: split by CIDR

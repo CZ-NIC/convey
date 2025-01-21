@@ -4,6 +4,7 @@ from collections import OrderedDict
 from datetime import datetime, timedelta
 from subprocess import PIPE, Popen
 from time import time, sleep
+from typing import Literal
 
 from netaddr import IPRange, IPNetwork
 from tldextract import tldextract
@@ -15,6 +16,16 @@ from .infodicts import address_country_lowered
 logger = logging.getLogger(__name__)
 
 whole_space = IPRange('0.0.0.0', '255.255.255.255')
+
+Ttl = int
+Asn = NetName = Country = str
+Email = str
+CountryMail = Email
+AbuseMail = Email
+IncidentContact = AbuseMail | CountryMail
+Location = Literal["local", "abroad"]
+Prefix = str
+AnalysisResult = tuple[Prefix, Location, IncidentContact, Asn, NetName, Country, AbuseMail, Ttl]
 
 
 class Quota:
@@ -77,9 +88,7 @@ class Whois:
         #     Whois.servers[name] = val
 
     def __init__(self, ip, hostname=None):
-        """
-         self.get stores tuple: prefix, location, mail, asn, netname, country, ttl
-        """
+        """ Access self.get for AnalyzisResult. """
         self.ip = ip
         self.hostname = hostname
         self.whois_response = []
@@ -110,7 +119,7 @@ class Whois:
             if self.see:
                 print("waiting 7 seconds... ", end="", flush=True)
             sleep(7)
-        get = self.analyze()  # prefix, location, mail, asn, netname, country...
+        get: AnalysisResult = self.analyze()  # AnalyzisResult: prefix, location, mail, asn, netname, country...
         if self.see:
             print(get[2] or "no incident contact.")
         prefix = get[0]
@@ -246,10 +255,7 @@ class Whois:
         #             return line
         # return ""  # no grep result found
 
-    def analyze(self):
-        """
-        :return: prefix, "local"|"abroad", incident-contact ( = abuse-mail|country), asn, netname, country, abuse-mail, TTL
-        """
+    def analyze(self) -> AnalysisResult:
         prefix = country = ""
 
         for server in list(self.servers):
@@ -359,7 +365,6 @@ class Whois:
         asn = self._match_response(r'\norigin(.*)\d+', last_word=True)
         netname = self._match_response([r'netname:\s*([^\s]*)', r'network:network-name:\s*([^\s]*)'])
 
-        registrar_ab = self.get_registrar_abusemail()
         ab = self.get_abusemail()
         if Whois.unknown_mode and not ab:
             ab = self.resolve_unknown_mail()
@@ -372,7 +377,7 @@ class Whois:
         else:
             get1 = "local"
             get2 = ab
-        return prefix, get1, get2, asn, netname, country, ab, int(time()), registrar_ab
+        return prefix, get1, get2, asn, netname, country, ab, int(time())
 
     def _load_country_from_addresses(self):
         # let's try to find country in the non-standardised address field
@@ -388,16 +393,19 @@ class Whois:
     reAbuse = re.compile(email_regex)
 
     def get_abusemail(self):
-        """ Loads abusemail from last whois response OR from whois json api. """
+        """ Loads abusemail from last whois response """
         match = self.reAbuse.search(self._match_response(['% abuse contact for.*',
                                                           'orgabuseemail.*',
                                                           'abuse-mailbox.*',
-                                                          "e-mail:.*"  # whois 179.50.80.0/21
+                                                          "e-mail:.*",  # whois 179.50.80.0/21,
+                                                          "email:.*"  # ex: 'Registrar Abuse Contact Email: domainabuse@tucows.com',
                                                           ]))
         return match.group(0) if match else ""
 
     def get_registrar_abusemail(self):
-        """Loads registrar's abusemail from last whois response OR from whois json api."""
+        """Loads registrar's abusemail from last whois response.
+           Grep a line where both 'abuse', 'registrar' and e-mail are present.
+        """
 
         abuse_line_pattern = r"^(?=.*\babuse\b)(?=.*\bregistrar\b).*"
         matches = re.findall(abuse_line_pattern, self.whois_response[0], flags=re.MULTILINE)

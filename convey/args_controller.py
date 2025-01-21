@@ -7,10 +7,11 @@ from .types import Types
 from . import __version__
 
 otrs_flags = [("otrs_id", "Ticket id"), ("otrs_num", "Ticket num"), ("otrs_cookie", "OTRSAgentInterface cookie"),
-                     ("otrs_token", "OTRS challenge token")]
+              ("otrs_token", "OTRS challenge token")]
 
 new_fields: List[Tuple[bool, Any]] = []
 "User has requested to compute these. Defined by tuples: add (whether to include the column in the result), field definition"
+
 
 class BlankTrue(argparse.Action):
     """ When left blank, this flag produces True. (Normal behaviour is to produce None which I use for not being set.)
@@ -44,6 +45,7 @@ class BlankTrueString(BlankTrue):
     def __call__(self, *args, **kwargs):
         super().__call__(*args, **kwargs, allow_string=True)
 
+
 class FieldExcludedAppend(argparse.Action):
     def __call__(self, _, namespace, values, option_string=None):
         new_fields.append((False, values))
@@ -61,7 +63,6 @@ class SmartFormatter(argparse.HelpFormatter):
             return text[2:].splitlines()
         # this is the RawTextHelpFormatter._split_lines
         return argparse.HelpFormatter._split_lines(self, text, width)
-
 
 
 class ArgsController:
@@ -136,13 +137,13 @@ class ArgsController:
 
         parser.add_argument('--server', help=f"Launches simple web server", action="store_true")
         parser.add_argument('--daemon', help=f"R|Run a UNIX socket daemon to speed up single query requests."
-                                             "\n  * 1/true/on – allow using the daemon"
-                                             "\n  * 0/false/off – do not use the daemon"
-                                             "\n  * start – start the daemon and exit"
-                                             "\n  * stop – stop the daemon and exit"
-                                             "\n  * status – print out the status of the daemon"
-                                             "\n  * restart – restart the daemon and continue"
-                                             "\n  * server – run the server in current process (I.E. for debugging)",
+                            "\n  * 1/true/on – allow using the daemon"
+                            "\n  * 0/false/off – do not use the daemon"
+                            "\n  * start – start the daemon and exit"
+                            "\n  * stop – stop the daemon and exit"
+                            "\n  * status – print out the status of the daemon"
+                            "\n  * restart – restart the daemon and continue"
+                            "\n  * server – run the server in current process (I.E. for debugging)",
                             action=BlankTrue, nargs="?", metavar="start/restart/stop/status/server")
 
         group = parser.add_argument_group("CSV dialect")
