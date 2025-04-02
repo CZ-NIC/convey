@@ -6,14 +6,14 @@ from typing import List, Optional
 from pathlib import Path
 from sys import exit
 
-from dialog import Dialog
+from mininterface import Mininterface, PathTag
 from prompt_toolkit.shortcuts import clear
 
 from .action import AggregateAction, MergeAction
 from .aggregate import Aggregate, AggregateMethod, aggregate_functions_str, aggregate_functions
 from .config import Config
 from .decorators import PickBase, PickMethod, PickInput
-from .dialogue import Cancelled, Menu, choose_file, csv_split, hit_any_key, pick_option, ask, is_yes
+from .dialogue import Cancelled, Menu, csv_split, hit_any_key, is_yes
 from .field import Field
 from .parser import Parser
 from .types import Types, TypeGroup, types, Type, graph, methods, get_module_from_path
@@ -24,9 +24,10 @@ logger = logging.getLogger(__name__)
 
 
 class ActionController:
-    def __init__(self, parser: Parser, reprocess=False):
+    def __init__(self, parser: Parser, m: Mininterface, reprocess=False):
         self.parser = parser
         self.reprocess = reprocess
+        self.m = m
 
     def add_column(self):
         self.select_col("New column", only_computables=True, add=True)
@@ -78,20 +79,20 @@ class ActionController:
         self.parser.is_processable = True
 
     def add_filter(self):
-        menu = Menu(title="Choose a filter")
-        menu.add("Unique filter", self.add_uniquing)
-        menu.add("Include filter", self.add_filtering)
-        menu.add("Exclude filter", lambda: self.add_filtering(False))
-        menu.sout()
+        self.m.choice({
+            "Unique filter": self.add_uniquing,
+            "Include filter": self.add_filtering,
+            "Exclude filter": lambda: self.add_filtering(False),
+        }, "Choose a filter")
 
     def add_merge(self, remote_path=None, remote_col_i: Optional[int] = None, local_col_i: Optional[int] = None):
         if not remote_path:
-            remote_path = choose_file("What file we should merge the columns from?")
-        wrapper2 = Wrapper(Path(remote_path), reprocess=self.reprocess)
+            remote_path = self.m.form({f"What file we should merge the columns from?": PathTag(is_file=True)})
+        wrapper2 = Wrapper(self.m, Path(remote_path), reprocess=self.reprocess)
         parser2 = wrapper2.parser
 
         # dialog user and build the link between files
-        controller2 = ActionController(parser2)
+        controller2 = ActionController(parser2, self.m)
         column1 = self.parser.fields[local_col_i] if local_col_i is not None else None
 
         if remote_col_i is not None:
@@ -168,7 +169,7 @@ class ActionController:
             case True, False, _:
                 if field != group:
                     logger.error(f"Count column '{field.name}' must be the same"
-                                    f" as the grouping column '{group.name}'.")
+                                 f" as the grouping column '{group.name}'.")
                     if exit_on_fail:
                         exit()
                     else:
@@ -180,7 +181,7 @@ class ActionController:
             col_i = self.select_col("filter").col_i
         if val is None:
             s = "" if include else "not "
-            val = ask(f"What value must {s}the field have to keep the line?")
+            val = self.m.ask(f"What value must {s}the field have to keep the line?")
         self.parser.settings["filter"].append((include, col_i, val))
         self.parser.is_processable = True
 
@@ -190,24 +191,15 @@ class ActionController:
 
     def choose_cols(self):
         # XX possibility un/check all
-        chosens = [(str(i + 1), str(f), f.is_chosen) for i, f in enumerate(self.parser.fields)]
-        d = Dialog(autowidgetsize=True)
-        ret, values = d.checklist("What fields should be included in the output file?", choices=chosens)
-        if ret == "ok":
-            for f in self.parser.fields:
-                f.is_chosen = False
-            for v in values:
-                self.parser.fields[int(v) - 1].is_chosen = True
+        chosens = set(self.m.choice(self.parser.fields, "Choose columns to be included in the output file",
+                                    default=[f for f in self.parser.fields if f.is_chosen]))
+        for f in self.parser.fields:
+            f.is_chosen = f in chosens
             self.parser.is_processable = True
 
     def get_aggregation_fn(self, fn_name: str = None, exit_on_fail=False) -> AggregateMethod:
         if not fn_name:
-            menu = Menu("Choose aggregate function", callbacks=False, fullscreen=True)
-            [menu.add(f) for f in aggregate_functions]
-            option = menu.sout()
-            if not option:
-                raise Cancelled
-            fn_name = aggregate_functions[int(option) - 1]
+            fn_name = self.m.choice(aggregate_functions, "Choose aggregate function")
         fn = getattr(Aggregate, fn_name, None)
         if not fn:
             if exit_on_fail:
@@ -224,39 +216,30 @@ class ActionController:
             :type prepended_field: tuple (field_name, description) If present, this field is prepended. If chosen, you receive None.
         """
         # add existing fields
-        fields = [] if only_computables else self.parser.get_fields_autodetection()
+        fields: dict[str, Field | Type] = {}
+        if prepended_field:  # a prepended_field is a mere description, not a real field
+            fields[prepended_field] = None
+        fields.update({(str(field), s): field for field, s in (
+            [] if only_computables else self.parser.get_fields_autodetection())})
 
         # add computable field types
         if include_computables:
-            for field in Types.get_computable_types():
-                if field.from_message:
-                    s = field.from_message
+            for type_ in Types.get_computable_types():
+                if type_.from_message:
+                    s = type_.from_message
                 else:
-                    node_distance = graph.dijkstra(field, ignore_private=True)
-                    s = field.group.name + " " if field.group != TypeGroup.general else ""
-                    s += "from " + ", ".join([str(k) for k in node_distance][:3])
-                    if len(node_distance) > 3:
-                        s += "..."
-                fields.append((f"new {field}...", s))
+                    node_distance = graph.dijkstra(type_, ignore_private=True)
+                    s = type_.group.name + " " if type_.group != TypeGroup.general else ""
+                    if len(node_distance):
+                        s += "from " + ", ".join([str(k) for k in node_distance][:3])
+                        if len(node_distance) > 3:
+                            s += "..."
+                fields[(f"new {type_}...", s)] = type_
 
-        # add special prepended field
-        if prepended_field:
-            fields.insert(0, prepended_field)
-
-        # launch dialog
-        col_i = pick_option(fields, dialog_title, guesses=[f.col_i for f in highlighted or ()])
-
-        # convert returned int col_i to match an existing or new column
-        if prepended_field:
-            col_i -= 1
-            if col_i == -1:  # we hit a prepended_field, a mere description, not a real field
-                return None
-        if only_computables or col_i >= len(self.parser.fields):
-            target_type_i = col_i if only_computables else col_i - len(self.parser.fields)
-            col_i = len(self.parser.fields)
-            self.source_new_column(Types.get_computable_types()[target_type_i], add=add)
-
-        return self.parser.fields[col_i]
+        col = self.m.choice(fields, dialog_title, tips=highlighted)
+        if isinstance(col, Type):
+            return self.source_new_column(col, add=add)
+        return col
 
     def source_new_column(self, target_type, add=None, source_field: Field = None, source_type: Type = None,
                           custom: list = None):
@@ -273,39 +256,29 @@ class ActionController:
         if custom is None:
             # default [] would be evaluated at the time the function is defined, multiple columns may share the same function
             custom = []
-        dialog = Dialog(autowidgetsize=True)
         if not source_field or not source_type:
-            print("\nWhat column we base {} on?".format(target_type))
-            guesses = self.parser.identifier.get_fitting_source_i(target_type)
-            source_col_i = pick_option(self.parser.get_fields_autodetection(),
-                                       title="Searching source for " + str(target_type),
-                                       guesses=guesses)
-            source_field = self.parser.fields[source_col_i]
-            source_type = self.parser.identifier.get_fitting_type(source_col_i, target_type, try_plaintext=True)
+            print(f"\nWhat column we base {target_type} on?")
+            vals = {f"{k} - {v} ": k for k, v in self.parser.get_fields_autodetection()}
+            source_field = self.m.choice(vals, title="Searching source for " + str(target_type),
+                                         tips=[self.parser.fields[i] for i in self.parser.identifier.get_fitting_source_i(target_type)])
+            source_col_i = self.parser.fields.index(source_field)
+            source_type = self.parser.identifier.get_fitting_type(source_field, target_type, try_plaintext=True)
+
             if source_type is None:
                 # ask how should be treated the column as, even it seems not valid
                 # list all known methods to compute the desired new_field (e.g. for incident-contact it is: ip, hostname, ...)
-                choices = [(k.name, k.description)
-                           for k, _ in graph.dijkstra(target_type, ignore_private=True).items()]
-
-                # if len(choices) == 1 and choices[0][0] == Types.plaintext:
-                #     # if the only method is derivable from a plaintext, no worries that a method
-                #     # converting the column type to "plaintext" is not defined; everything's plaintext
-                #     source_type = Types.plaintext
-                # el
-                if choices:
+                if choices := {(k.name, k.description): k
+                               for k, _ in graph.dijkstra(target_type, ignore_private=True).items()}:
                     s = ""
                     if self.parser.sample_parsed:
                         s = f"\n\nWhat type of value '{self.parser.sample_parsed[0][source_col_i]}' is?"
-                    title = f"Choose the right method\n\nNo known method for making {target_type} from column {source_field} because the column type wasn't identified. How should I treat the column?{s}"
-                    code, source_type = dialog.menu(title, choices=choices)
-                    if code == "cancel":
-                        raise Cancelled("... cancelled")
-                    source_type = getattr(Types, source_type)
+                    title = (f"Choose the right method\n\nNo known method for making {target_type}"
+                             f" from column {source_field} because the column type wasn't identified."
+                             f" How should I treat the column?{s}")
+                    source_type: Type = self.m.choice(choices, title=title)
                 else:
-                    dialog.msgbox(
-                        "No known method for making {}. Raise your usecase as an issue at {}.".format(target_type,
-                                                                                                      Config.PROJECT_SITE))
+                    self.m.alert(f"No known method for making {target_type}. Raise your usecase as"
+                                 f" an issue at {Config.PROJECT_SITE}.")
                     raise Cancelled("... cancelled")
             clear()
 
@@ -319,20 +292,17 @@ class ActionController:
                         *custom, target_type = Preview(source_field, source_type, target_type).reg()
                     elif target_type == Types.external:  # choose a file with a needed method
                         while True:
-                            path = choose_file("What .py file should be used as custom source?", dialog)
+                            path = self.m.form({"What .py file should be used as custom source?":
+                                                PathTag(is_file=True)})
                             module = get_module_from_path(path)
                             if module:
                                 # inspect the .py file, extract methods and let the user choose one
-                                code, method_name = dialog.menu(f"What method should be used in the file {path}?",
-                                                                choices=[(x, "") for x in dir(module) if
-                                                                         not x.startswith("_")])
-                                if code == "cancel":
-                                    raise Cancelled("... cancelled")
-
+                                method_name = self.m.choice([x for x in dir(module) if not x.startswith(
+                                    "_")], title=f"What method should be used in the file {path}?")
                                 custom = path, method_name
                                 break
                             else:
-                                dialog.msgbox("The file {} does not exist or is not a valid .py file.".format(path))
+                                self.m.alert(f"The file {path} does not exist or is not a valid .py file.")
                     if not custom:
                         raise Cancelled("... cancelled")
             except Cancelled:
@@ -346,16 +316,13 @@ class ActionController:
                         pass
                     elif type(m) is PickMethod:
                         m: PickMethod
-                        code, c = dialog.menu(f"Choose subtype", choices=m.get_options())
-                        if code == "cancel":
-                            raise Cancelled("... cancelled")
+                        c = self.m.choice({(k, v): k for k, v in m.get_options()}, f"Choose subtype")
                     elif type(m) is PickInput:
                         m: PickInput
                         c = Preview(source_field, source_type, target_type).pick_input(m)
                     custom.insert(0, c)
         if add is None:
-            if dialog.yesno("New field added: {}\n\nDo you want to include this field as a new column?".format(
-                    target_type)) == "ok":
+            if self.m.is_yes(f"New field added: {target_type}\n\nDo you want to include this field as a new column?"):
                 add = True
 
         f = Field(target_type, is_chosen=add,

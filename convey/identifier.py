@@ -14,9 +14,9 @@ from typing import Optional, Tuple, List, TYPE_CHECKING
 from .config import Config
 from .decorators import PickBase
 from .types import Types, graph, TypeGroup, Type, get_module_from_path
+from .field import Field
 
 if TYPE_CHECKING:
-    from .field import Field
     from .parser import Parser
 
 logger = logging.getLogger(__name__)
@@ -143,7 +143,8 @@ class Identifier:
                     is_pandoc = True
                     continue
                 sample.append(row)
-                if i == 8:  # sniffer needs 7+ lines to determine dialect, not only 3 (/mnt/csirt-rook/2015/06_08_Ramnit/zdroj), I dont know why
+                # sniffer needs 7+ lines to determine dialect, not only 3 (/mnt/csirt-rook/2015/06_08_Ramnit/zdroj), I dont know why
+                if i == 8:
                     break
         return first_line.strip(), sample, is_pandoc
         # csvfile.seek(0)
@@ -167,7 +168,8 @@ class Identifier:
             if len(l[1:]) > 0:
                 header_to_rows_similarity = mean([SequenceMatcher(None, l[0], it).ratio() for it in l[1:]])
                 if len(l[1:]) > 1:
-                    rows_similarity = mean([SequenceMatcher(None, *comb).ratio() for comb in itertools.combinations(l[1:], 2)])
+                    rows_similarity = mean([SequenceMatcher(None, *comb).ratio()
+                                           for comb in itertools.combinations(l[1:], 2)])
                     has_header = rows_similarity > header_to_rows_similarity + 0.1  # it seems that first line differs -> header
                 else:
                     has_header = header_to_rows_similarity < 0.5
@@ -241,7 +243,7 @@ class Identifier:
 
         for i, field in enumerate(self.parser.fields):
             if field.type:
-                field.possible_types = {field.type : 100}
+                field.possible_types = {field.type: 100}
                 continue
 
             possible_types = {}
@@ -254,15 +256,16 @@ class Identifier:
             #                   if (score := type_.check_conformity(samples[i], self.parser.has_header, field))}
 
             if possible_types:  # sort by biggest score - biggest probability the column is of this type
-                field.possible_types = {k: v for k, v in sorted(possible_types.items(), key=lambda k: k[1], reverse=True)}
+                field.possible_types = {k: v for k, v in sorted(
+                    possible_types.items(), key=lambda k: k[1], reverse=True)}
             logger.debug(f"Possible type of the field '{field}': {possible_types}")
         return True
 
-    def get_fitting_type(self, source_field_i: int, target_field, try_plaintext=False):
+    def get_fitting_type(self, source_field: Field, target_field: Type, try_plaintext=False):
         """ Loops all types the field could be and return the type best suited method for compute new field. """
         _min = 999
         fitting_type = None
-        possible_fields = list(self.parser.fields[source_field_i].possible_types)
+        possible_fields = list(source_field.possible_types)
         dijkstra = graph.dijkstra(target_field)  # get all fields that new_field is computable from
         for _type in possible_fields:
             # loop all the types the field could be, loop from the FieldType we think the source_col correspond the most
@@ -362,7 +365,7 @@ class Identifier:
                 best_candidate = None
                 for field in source_col_candidates:
                     path = graph.dijkstra(field.type, start=source_type)\
-                            or graph.dijkstra(source_type, start=field.type)
+                        or graph.dijkstra(source_type, start=field.type)
                     if path:
                         best_candidate = min((len(path), field.col_i, field.type), best_candidate or (float('INF'),))
                         source_type = best_candidate[2]
@@ -379,13 +382,14 @@ class Identifier:
         # determining missing info
         if source_col_i is not None and not source_type:
             try:
-                source_type = self.get_fitting_type(source_col_i, target_type, try_plaintext=True)
+                source_type = self.get_fitting_type(self.parser.fields[source_col_i], target_type, try_plaintext=True)
             except IndexError:
                 print(f"Column ID {source_col_i + 1} does not exist. We have these so far: " +
                       ", ".join([f.name for f in self.parser.fields]))
                 exit()
             if not source_type:
-                print(f"We could not identify a method how to make '{target_type}' from '{self.parser.fields[source_col_i]}'")
+                print(
+                    f"We could not identify a method how to make '{target_type}' from '{self.parser.fields[source_col_i]}'")
                 exit()
         if source_type and source_col_i is None:
             # searching for a fitting type amongst existing columns
@@ -411,7 +415,8 @@ class Identifier:
         try:
             f = self.parser.fields[source_col_i]
         except IndexError:
-            print(f"Column ID {source_col_i + 1} does not exist, only these: " + ", ".join(f.name for f in self.parser.fields))
+            print(f"Column ID {source_col_i + 1} does not exist, only these: " +
+                  ", ".join(f.name for f in self.parser.fields))
             exit()
 
         # Check there is a path between nodes and that path is resolvable
@@ -423,7 +428,8 @@ class Identifier:
             try:
                 Types.get_method(path[i], path[i + 1])
             except LookupError:
-                print(f"Path from '{f.name}' treated as '{source_type}' to '{target_type}' blocked at {path[i]} – {path[i + 1]}")
+                print(
+                    f"Path from '{f.name}' treated as '{source_type}' to '{target_type}' blocked at {path[i]} – {path[i + 1]}")
 
         if Config.is_debug():
             print(f"Preparing type {target_type} of field={f}, source_type={source_type}, custom={task}, path={path}")

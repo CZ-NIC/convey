@@ -1,3 +1,4 @@
+from dataclasses import fields
 import logging
 import os
 import socket
@@ -10,8 +11,8 @@ from sys import exit
 from tempfile import NamedTemporaryFile
 from typing import Optional, TYPE_CHECKING
 
+from attr import mutable
 from colorama import init as colorama_init, Fore
-from dialog import Dialog
 from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
@@ -20,13 +21,13 @@ from validate_email import validate_email
 from .aggregate import Aggregate, aggregate_functions
 from .action import AggregateAction
 from .action_controller import ActionController
-from .args_controller import ArgsController, otrs_flags, new_fields
+from .args_controller import Env, get_parser, parse_args, otrs_flags, new_fields
 from .attachment import Attachment
 from .config import Config, console_handler, edit, get_path
 from .contacts import Contacts
 from .flag import MergeFlag, FlagController
 from .decorators import PickBase, PickMethod, PickInput
-from .dialogue import Cancelled, Debugged, Menu, csv_split, pick_option, ask, ask_number
+from .dialogue import Cancelled, Debugged, Menu, csv_split, init_global_interface
 from .field import Field
 from .ipc import socket_file, recv, send, daemon_pid
 from .mail_sender import MailSenderOtrs, MailSenderSmtp
@@ -93,6 +94,9 @@ def control_daemon(cmd, in_daemon=False):
 
 
 class Controller:
+    # m: Optional[Mininterface]
+    # args: Optional[Env]
+
     def __init__(self, parser=None):
         self.parser = parser
 
@@ -101,18 +105,18 @@ class Controller:
         if "--disable-external" in sys.argv:
             Config.set("disable_external", True)
         Types.refresh()  # load types so that we can print out computable types in the help text
-        # TODO re-implement to mininterface, while using OmitArgPrefixes for groups.
-        argparser = ArgsController().parse_args()
-        self.args = args = argparser.parse_args(args=given_args)
+        self.m = parse_args(args=given_args)
+        init_global_interface()
+        self.args = self.m.env
         self.see_menu = True
-        self.check_server(args)
-        is_daemon, stdout, server = self.check_daemon(args)
-        self.assure_terminal(is_daemon, args)
-        ac = self.process_args_from_daemon_or_locally(is_daemon, stdout, server, argparser, args)
+        self.check_server()
+        is_daemon, stdout, server = self.check_daemon()
+        self.assure_terminal(is_daemon)
+        ac = self.process_args_from_daemon_or_locally(is_daemon, stdout, server)
         self.run_menu(ac)
 
-    def check_server(self, args):
-        if args.server:
+    def check_server(self):
+        if self.args.process.server:
             # XX not implemeneted: allow or disable fields via CLI by ex: `--web`
             print(f"Webserver configuration can be changed by `convey --config uwsgi`")
             print(get_path("uwsgi.ini").read_text())
@@ -120,8 +124,10 @@ class Controller:
             subprocess.run(cmd)
             exit()
 
-    def check_daemon(self, args):
-        if args.daemon is not None and control_daemon(args.daemon) == "server":
+    def check_daemon(self):
+        daemon = self.args.process.daemon
+        cli = self.args.cli
+        if daemon is not None and control_daemon(daemon) == "server":
             # XX :( after a thousand requests, we start to slow down. Memory leak must be somewhere
             Config.set("daemonize",
                        False)  # do not restart daemon when killed, there must be a reason this daemon was killed
@@ -129,7 +135,7 @@ class Controller:
                 Path(socket_file).unlink()
 
             try:
-                Config.init_verbosity(args.yes, 30 if args.quiet else (10 if args.verbose else None), True)
+                Config.init_verbosity(cli.yes, 30 if cli.quiet else (10 if cli.verbose else None), True)
                 Config.integrity_check()
             except ConnectionAbortedError:
                 print("Config file integrity check failed. Launch convey normally to upgrade config parameters.")
@@ -147,7 +153,7 @@ class Controller:
             return True, stdout, server
         return None, None, None
 
-    def assure_terminal(self, is_daemon, args):
+    def assure_terminal(self, is_daemon):
         if not is_daemon and not sys.stdin.isatty():  # piping to the process, no terminal
             try:
                 sys.stdin = open("/dev/tty")
@@ -173,9 +179,9 @@ class Controller:
                 PromptSession.prompt = safe_prompt
 
             self.see_menu = False
-            args.yes = True
+            self.args.cli.yes = True
 
-    def process_args_from_daemon_or_locally(self, is_daemon, stdout, server, argparser, args):
+    def process_args_from_daemon_or_locally(self, is_daemon, stdout, server):
         colorama_init()
         while True:
             try:
@@ -202,7 +208,7 @@ class Controller:
                         continue
                     self.cleanup()  # reset new fields so that they will not be remembered in another query
                     try:
-                        self.args = args = argparser.parse_args(argv[2:])  # the daemon has receives a new command
+                        self.args = parse_args(argv[2:]).env  # the daemon has receives a new command
                     except SystemExit as e:
                         if not sys.stdout.getvalue():
                             # argparse sent usage to stderr, we do not have in in stdout instance will rerun the command
@@ -211,8 +217,8 @@ class Controller:
                             # argparse put everything in stdout
                             exit()
                     self.see_menu = True
-                    control_daemon(args.daemon, True)
-                ac = self.process_args(is_daemon, args, argparser)
+                    control_daemon(self.args.process.daemon, True)
+                ac = self.process_args(is_daemon)
                 if not ac:
                     continue
             except ConnectionRefusedError as e:
@@ -233,79 +239,85 @@ class Controller:
             break
         return ac
 
-    def process_args(self, is_daemon, args, argparser) -> Optional[ActionController]:
+    def process_args(self, is_daemon) -> Optional[ActionController]:
+        e = self.args
         # this try-block may send the results to the client convey processes when a daemon is used
-        if args.server:
+        if e.process.server:
             raise ConnectionAbortedError("web server request")
-        if args.config is not None:
-            edit(*args.config, restart_when_done=True)
+        if e.env.config:
+            edit(*e.env.config, restart_when_done=True)
             exit()
-        Config.set("stdout", args.output is True or None)
-        if args.output is True:
+        Config.set("stdout", e.io.output is True or None)
+        if e.io.output is True:
             # --output=True → no output file in favour of stdout (Config.get("stdout") -> parser.stdout set)
             # --output=FILE → an output file generated (Config.get("output") -> parser.target_file set)
-            args.output = None
+            e.io.output = None
         for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview",
                      "user_agent",
                      "multiple_hostname_ip", "multiple_cidr_ip", "web_timeout", "whois_ttl", "disable_external",
                      "debug", "crash_post_mortem",
                      "testing", "attach_files", "attach_paths_from_path_column", "jinja", "subject", "body", "references",
                      "whois_delete_unknown", "whois_reprocessable_unknown", "whois_cache"]:
-            if getattr(args, flag) is not None:
-                Config.set(flag, getattr(args, flag))
-        if args.headless or args.send_test:
-            args.yes = True
-            args.quiet = True
+            for f in fields(e):
+                if hasattr(getattr(e, f.name), flag):
+                    val = getattr(getattr(e, f.name), flag)
+                    if val is not None:
+                        Config.set(flag, val)
+                    break
+
+        if e.cli.headless or e.sending.send_test:
+            e.cli.yes = True
+            e.cli.quiet = True
             self.see_menu = False
-        Config.init_verbosity(args.yes, 30 if args.quiet else (10 if args.verbose else None), is_daemon)
+        Config.init_verbosity(e.cli.yes, 30 if e.cli.quiet else (
+            10 if e.cli.verbose else None), is_daemon)
         if is_daemon:
             logger.debug("This result comes from the daemon.")
         Types.refresh()  # reload Types for the second time so that the methods reflect CLI flags
         TypeGroup.init()
-        if args.show_uml is not None:
-            print(Types.get_uml(args.show_uml))
+        if e.env.show_uml is not None:
+            print(Types.get_uml(int(e.env.show_uml)))
             exit()
-        if args.get_autocompletion:
-            print(self.get_autocompletion(argparser))
+        if e.env.get_autocompletion:
+            print(self.get_autocompletion(get_parser()))
             exit()
-        if args.version:
+        if e.env.version:
             print(__version__)
             exit()
         if not is_daemon:  # in daemon, we checked it earlier
             Config.integrity_check()
-        if args.header:
-            Config.set("header", True)
-        if args.no_header:
-            Config.set("header", False)
-        if args.csv_processing:
+        if e.csv.header is not None:
+            Config.set("header", e.csv.header)
+        if e.io.csv_processing:
             Config.set("single_query", False)
-        if args.single_query or args.single_detect:
+        if e.io.single_query or e.io.single_detect:
             Config.set("single_query", True)
-            if args.single_detect:
+            if e.io.single_detect:
                 Config.set("single_detect", True)
         Config.set("adding-new-fields", bool(new_fields))
-        self.wrapper = Wrapper(args.file_or_input, args.file, args.input,
-                               args.type, args.fresh, args.reprocess,
-                               args.whois_delete)
+        self.wrapper = Wrapper(self.m, e.io.file_or_input, e.io.file, e.io.input,
+                               e.action.type, e.process.fresh, e.process.reprocess,
+                               e.whois.whois_delete)
         self.parser: Parser = self.wrapper.parser
-        ac = ActionController(self.parser, args.reprocess)
+        ac = ActionController(self.parser, self.m, e.process.reprocess)
 
-        if args.threads is not None:
-            Config.set("threads", args.threads)
+        if e.process.threads is not None:
+            Config.set("threads", e.process.threads)
 
         def get_column_i(col, check):
             self.parser.is_processable = True
             return self.parser.identifier.get_column_i(col, check=check)
 
         # load flags
-        for flag in otrs_flags:
-            if args.__dict__[flag[0]]:
-                self.parser.__dict__[flag[0]] = args.__dict__[flag[0]]
-                logger.debug("{}: {}".format(flag[1], flag[0]))
+        for field in fields(e.otrs):
+            val = getattr(e.otrs, field.name)
+            if val:
+                self.parser.__dict__[field.name] = val
+                logger.debug(f"{field.name}: {val}")
 
         # prepare some columns to be removed
-        if args.delete:
-            for c in args.delete.split(","):
+        if e.action.delete:
+            for c in e.action.delete.split(","):
                 self.parser.fields[get_column_i(c, "to be deleted")].is_chosen = False
 
         # append new fields from CLI
@@ -314,22 +326,22 @@ class Controller:
 
         # merge
         fc = FlagController(self.parser)
-        if args.merge:
-            ac.add_merge(**fc.read(MergeFlag, args.merge))
+        if e.action.merge:
+            ac.add_merge(**fc.read(MergeFlag, e.action.merge))
 
         # run single value check if the input is not a CSV file
-        if args.single_detect:
+        if e.io.single_detect:
             exit()
         if self.parser.is_single_query:
-            res = self.parser.run_single_query(json=args.json)
+            res = self.parser.run_single_query(json=e.comp.json)
             if res:
                 print(res)
             exit()
         if is_daemon and self.see_menu:  # if we will need menu, daemon must stop here
             raise ConnectionAbortedError("displaying a menu is too complex")
 
-        if args.aggregate:
-            params = csv_split(args.aggregate)
+        if e.action.aggregate:
+            params = csv_split(e.action.aggregate)
             group: Optional[Field] = self.parser.fields[get_column_i(params.pop(), "to be grouped by")] \
                 if len(params) % 2 else None
             if not params:
@@ -339,23 +351,23 @@ class Controller:
                     column_task, fn_name = params[i:i + 2]
                     ac.add_aggregation(fn_name, column_task, group, grouping_probably_wanted=False, exit_on_fail=True)
 
-        if args.sort:
-            self.parser.resort(csv_split(args.sort))
+        if e.action.sort:
+            self.parser.resort(csv_split(e.action.sort))
             self.parser.is_processable = True
 
-        if args.split:
-            self.parser.settings["split"] = get_column_i(args.split, "to be split with")
+        if e.action.split:
+            self.parser.settings["split"] = get_column_i(e.action.split, "to be split with")
 
-        if args.include_filter:
-            col, val = csv_split(args.include_filter)
+        if e.action.include_filter:
+            col, val = csv_split(e.action.include_filter)
             ac.add_filtering(True, get_column_i(col, "to be filtered with"), val)
 
-        if args.exclude_filter:
-            col, val = csv_split(args.exclude_filter)
+        if e.action.exclude_filter:
+            col, val = csv_split(e.action.exclude_filter)
             ac.add_filtering(False, get_column_i(col, "to be filtered with"), val)
 
-        if args.unique:
-            ac.add_uniquing(get_column_i(args.unique, "to be put a single time"))
+        if e.action.unique:
+            ac.add_uniquing(get_column_i(e.action.unique, "to be put a single time"))
 
         # set output dialect
         # Taken from config.ini or flags. If differs from the current one, parser marked as processable.
@@ -365,7 +377,7 @@ class Controller:
 
         def change_dialect(s, s2):
             # delimiter_output, quote_char_output
-            v = getattr(args, s + "_output") or Config.get(s + "_output", "CSV")
+            v = getattr(e.csv, s + "_output") or Config.get(s + "_output", "CSV")
             if v and v != getattr(dialect, s2):
                 v = v.replace(r"\t", "\t").replace("TAB", "\t").replace("tab", "\t")
                 if len(v) != 1:
@@ -377,26 +389,25 @@ class Controller:
         change_dialect("delimiter", "delimiter")
         change_dialect("quote_char", "quotechar")
         self.parser.settings["header"] = self.parser.has_header
-        if self.parser.has_header and args.header_output is not None:
+        if self.parser.has_header and e.csv.header_output is not None:
             # If current parser has header, we may cut it off
             # However, this is such a small change, we will not turning parser.is_processable on.
-            self.parser.settings["header"] = args.header_output
+            self.parser.settings["header"] = e.csv.header_output
 
         if self.parser.is_processable and Config.get("yes"):
             self.process()
 
-        if args.send and self.parser.is_analyzed and self.parser.is_split and not self.parser.is_processable:
-            # Config.set("yes", True)
+        if e.sending.send and self.parser.is_analyzed and self.parser.is_split and not self.parser.is_processable:
             self.see_menu = False
-            if args.send is not True:
-                self.send_menu(args.send, send_now=True)
+            if e.sending.send is not True:
+                self.send_menu(e.sending.send, send_now=True)
             else:
                 self.send_menu(send_now=True)
-        if args.send_test:
-            c = Path(args.send_test[1]).read_text()
+        if e.sending.send_test:
+            c = Path(e.sending.send_test[1]).read_text()
             Path(Config.get_cache_dir(), Config.get("mail_template")).write_text(c)
             Path(Config.get_cache_dir(), Config.get("mail_template_abroad")).write_text(c)
-            self.send_menu(test_attachment=args.send_test[0])
+            self.send_menu(test_attachment=e.sending.send_test[0])
 
         if not self.see_menu:
             self.close()
@@ -471,16 +482,19 @@ class Controller:
                 def _(_):
                     self.parser.move_selection(1, True)
                     refresh()
+                    self.parser.is_processable = True
 
                 @bindings.add('c-left')  # control-left to move the column
                 def _(_):
                     self.parser.move_selection(-1, True)
                     refresh()
+                    self.parser.is_processable = True
 
                 @bindings.add('delete')  # enter to toggle selected field
                 def _(_):
                     [f.toggle_chosen() for f in self.parser.fields if f.is_selected]
                     refresh()
+                    self.parser.is_processable = True
 
                 @bindings.add('escape', 'a')  # alt-a to aggregate
                 def _(_):
@@ -492,8 +506,7 @@ class Controller:
                             break
                     else:
                         # I cannot use a mere `input()` here, it would interfere with promtpt_toolkit and freeze
-                        Dialog(autowidgetsize=True).msgbox(
-                            "No column selected to aggregate with.\nUse arrows to select a column first.")
+                        self.m.alert("No column selected to aggregate with.\nUse arrows to select a column first.")
                     refresh()
 
                 # @bindings.add('escape', 'n')  # alt-n to rename header
@@ -519,22 +532,12 @@ class Controller:
     def send_menu(self, method="smtp", test_attachment=None, send_now=False):
         # choose method SMTP/OTRS
         # We prefer OTRS sending over SMTP because of the signing keys that an OTRS operator does not possess.
-        if Config.get("otrs_enabled", "OTRS") and self.args.otrs_id:
+        if Config.get("otrs_enabled", "OTRS") and self.args.otrs.otrs_id:
             method = "otrs"
         elif Config.get("otrs_enabled", "OTRS") and not Config.get("yes"):
-            menu = Menu(title="What sending method do we want to use?", callbacks=False, fullscreen=True)
-            menu.add("Send by SMTP...")
-            menu.add("Send by OTRS...")
-            o = menu.sout()
-            clear()
-            if o == '1':
-                method = "smtp"
-            elif o == '2':
-                method = "otrs"
-            else:
-                print("Unknown option")
-                return
-
+            method = self.m.choice({"Send by SMTP...": "smtp",
+                                    "Send by OTRS...": "otrs"},
+                                   "What sending method do we want to use?")
         if method == "otrs":
             sender = MailSenderOtrs(self.parser)
             sender.assure_tokens()
@@ -649,7 +652,7 @@ class Controller:
                 if not (local or abroad):
                     print("Neither local nor abroad e-mails are to be sent, no editor was opened.")
             elif option == "l":
-                limit = ask_number("How many e-mails should be send at once: ")
+                limit = self.m.ask_number("How many e-mails should be send at once: ")
                 if limit < 0:
                     limit = float("inf")
             elif option == "a":
@@ -683,9 +686,9 @@ class Controller:
                     return
                 elif option == "t":
                     # Choose an attachment
-                    choices = [(o.mail, "") for o in attachments]
                     try:
-                        attachment = attachments[pick_option(choices, f"What attachment should serve as a test?")]
+                        attachment = self.m.choice({o.mail: o for o in attachments},
+                                                   f"What attachment should serve as a test?")
                     except Cancelled:
                         continue
                     clear()
@@ -697,7 +700,7 @@ class Controller:
                     t = Config.get("testing_mail")
                     t = f" – type in or hit Enter to use {t}" if t else ""
                     try:
-                        t = ask(
+                        t = self.m.ask(
                             Fore.YELLOW + f"Testing e-mail address to be sent to{t} (Ctrl+C to go back): " + Fore.RESET).strip()
                     except KeyboardInterrupt:
                         continue
@@ -717,19 +720,17 @@ class Controller:
                     attachment.sent = old_sent
                 elif option == "r":
                     # choose recipient list
-                    choices = [(o.mail,
-                                o.get_draft_name() + ("" if validate_email(o.mail, check_dns=False, check_smtp=False) else " (invalid)"),
-                                not o.sent)
-                               for o in attachments]
-                    code, tags = Dialog(autowidgetsize=True).checklist("Toggle e-mails to be send", choices=choices)
-                    if code != 'ok':
+                    choices = {(o.mail, o.get_draft_name() + ("" if validate_email(o.mail, check_dns=False,
+                                check_smtp=False) else " (invalid)")): o for o in attachments}
+                    default = [o.mail for o in attachments if not o.sent]
+                    try:
+                        tags = set(self.m.choice(choices, "Toggle e-mails to be send", default=default))
+                    except Cancelled:
                         continue
-                    for attachment in attachments:
-                        # XX if the same address is going to receive both local and abroad template e-mail,
-                        #   this will change the status of its both e-mails.
-                        #   In the future, we'd like to have another checklist engine where item references can be passed directly.
-                        attachment.sent = attachment.mail not in tags
-                    print("Changed!")
+                    else:
+                        for attachment in attachments:
+                            attachment.sent = attachment not in tags
+                        print("Changed!")
             elif option == "x":
                 return
 
@@ -794,18 +795,17 @@ class Controller:
             return
 
         # Build dialog
-        choices = [(str(i + 1), v, False) for i, v in enumerate(actions)]
-        ret, values = Dialog(autowidgetsize=True).checklist("What processing settings should be discarded?",
-                                                            choices=choices)
-        if ret == "ok":
-            # these processing settings should be removed
-            for v in values[
-                    ::-1]:  # we reverse the list, we need to pop bigger indices first without shifting lower indices
-                fn, v = discard[int(v) - 1]
-                fn(v)
-            if st["aggregate"] and not st["aggregate"][1]:
-                # when removing an aggregation settings, we check if it was the last one to get rid of the setting altogether
-                del st["aggregate"]
+        values = self.m.choice({action: i+1 for i, action in enumerate(actions)},
+                               "What processing settings should be discarded?", multiple=True, skippable=False)
+
+        # these processing settings should be removed
+        # we reverse the list, we need to pop bigger indices first without shifting lower indices
+        for v in values[::-1]:
+            fn, v = discard[int(v) - 1]
+            fn(v)
+        if st["aggregate"] and not st["aggregate"][1]:
+            # when removing an aggregation settings, we check if it was the last one to get rid of the setting altogether
+            del st["aggregate"]
 
     def redo_menu(self):
         menu = Menu(title="What should be reprocessed?", fullscreen=True)

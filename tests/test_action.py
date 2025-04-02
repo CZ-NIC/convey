@@ -55,7 +55,7 @@ class TestAction(TestAbstract):
         # self.check(['','Split location: bulb','','Split location: kettle'],
         #            "--agg price,sum --split category", filename=CONSUMPTION)
         # Until then, following substitution is used to generate the files at least
-        Convey(filename=CONSUMPTION)("--agg price,sum --split category")
+        Convey(filename=CONSUMPTION)("--aggregate price,sum --split category")
 
         # Check the contents of the files that just have been split
         check1 = False

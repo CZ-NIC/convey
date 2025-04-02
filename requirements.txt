@@ -22,3 +22,4 @@ requests
 tabulate
 xlrd
 tldextract
+mininterface

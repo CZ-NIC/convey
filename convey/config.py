@@ -158,7 +158,8 @@ class Config:
                 # continue
             for key in default_config[section]:
                 if missing_section or key not in Config.config[section]:
-                    print(f"Missing key {key} (defaulting to {repr(default_config[section][key])}) in section: {section}")
+                    print(
+                        f"Missing key {key} (defaulting to {repr(default_config[section][key])}) in section: {section}")
                     key_missing[key] = section
                     passed = False
         for section in Config.config:
@@ -395,7 +396,8 @@ def edit(path="config", mode=3, restart_when_done=False, blocking=False):
         # we cannot use xdg-open because template.eml would probably launch an e-mail client
         # app = Popen(['xdg-open', path], stdout=PIPE, stderr=PIPE)
         try:
-            editor = run(["xdg-mime", "query", "default", "text/plain"], stdout=PIPE).stdout.split()[0]  # run: blocking, output
+            editor = run(["xdg-mime", "query", "default", "text/plain"],
+                         stdout=PIPE).stdout.split()[0]  # run: blocking, output
             app = Popen(["gtk-launch", editor, path], stdout=PIPE, stderr=PIPE)  # Popen: non blocking
         except FileNotFoundError:
             library = "xdg-utils libgtk-3-bin"

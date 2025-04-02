@@ -138,9 +138,9 @@ class MailSenderOtrs(MailSender):
             # get FormID to pair attachments
             logger.debug("Receiving FormID")
             upload_form = get(url,
-                              params={"ChallengeToken": self.parser.otrs_token,
+                              params={"ChallengeToken": self.parser.sending.otrs_token,
                                       "Action": "AgentTicketForward",
-                                      "TicketID": str(self.parser.otrs_id)},
+                                      "TicketID": str(self.parser.sending.otrs_id)},
                               cookies=cookies
                               )
             m = re.search(r'FormID" value="((\d|\.)*)"', upload_form.text)
@@ -153,7 +153,7 @@ class MailSenderOtrs(MailSender):
                          params={"Action": "AjaxAttachment",
                                  "Subaction": "Upload",
                                  "FormID": form_id,
-                                 "ChallengeToken": self.parser.otrs_token
+                                 "ChallengeToken": self.parser.sending.otrs_token
                                  },
                          cookies=cookies,
                          files={"Files": (a.name, a.data)}
@@ -176,7 +176,8 @@ class MailSenderOtrs(MailSender):
         def bs(): return BeautifulSoup(upload_form.text, features="html.parser")
 
         if REMOVE_ALL_ATTACHMENTS:
-            for td in reversed(bs().find_all('a', {'class': 'AttachmentDelete'})): # why reversed? When deleted, others data-file-id shift down.
+            # why reversed? When deleted, others data-file-id shift down.
+            for td in reversed(bs().find_all('a', {'class': 'AttachmentDelete'})):
                 self._remove_attachment(td['data-file-id'], form_id, url, cookies)
         elif self.parser.source_file:  # remove at least the attachment we have been split from (avoid duplicity)
             td = bs().find('td', {'class': 'Filename'}, lambda tag: tag.string == self.parser.source_file.name)
@@ -186,15 +187,15 @@ class MailSenderOtrs(MailSender):
                 self._remove_attachment(data_file_id, form_id, url, cookies)
 
     def _remove_attachment(self, data_file_id, form_id, url, cookies):
-        logger.debug(f"Removing FileID={data_file_id} from the ticket article attachments") # XXX
+        logger.debug(f"Removing FileID={data_file_id} from the ticket article attachments")  # XXX
         vv = post(url,
-             params={"Action": "AjaxAttachment",
-                     "Subaction": "Delete",
-                     "FormID": form_id,
-                     "ChallengeToken": self.parser.otrs_token,
-                     "FileID": data_file_id
-                     },
-             cookies=cookies)
+                  params={"Action": "AjaxAttachment",
+                          "Subaction": "Delete",
+                          "FormID": form_id,
+                          "ChallengeToken": self.parser.sending.otrs_token,
+                          "FileID": data_file_id
+                          },
+                  cookies=cookies)
 
     @staticmethod
     def _check_record(record, lineno):
@@ -233,38 +234,9 @@ class MailSenderOtrs(MailSender):
             logger.error(response)
         return False
 
-    @staticmethod
-    def ask_value(value, description=""):
-        sys.stdout.write(f'Change {description} ({value})? [s]kip or paste it: ')
-        t = input()
-        if not t or t.lower() == "s":
-            if not value:
-                print("Attention, there should not be an empty value.")
-            return value
-        else:
-            return t
-
     def assure_tokens(self):
         """ Check and update by dialog OTRS credentials """
-        force = False
-        while True:
-            if (force
-                    or not self.parser.otrs_id or not self.parser.otrs_num
-                    or not self.parser.otrs_cookie or not self.parser.otrs_token or not self.parser.attachment_name):
-                self.parser.otrs_id = self.ask_value(self.parser.otrs_id, "ticket url-id")
-                self.parser.otrs_num = self.ask_value(self.parser.otrs_num, "ticket long-num")
-                self.parser.otrs_cookie = self.ask_value(self.parser.otrs_cookie, "cookie")
-                self.parser.otrs_token = self.ask_value(self.parser.otrs_token, "token")
-                self.parser.attachment_name = self.ask_value(self.parser.attachment_name, "attachment name")
-
-            if is_yes(f"Ticket id = {self.parser.otrs_id}, ticket num = {self.parser.otrs_num},"
-                      f" cookie = {self.parser.otrs_cookie}, token = {self.parser.otrs_token},"
-                      f" attachment_name = {self.parser.attachment_name}"
-                      f"\nWas that correct?"):
-                return True
-            else:
-                force = True
-                continue
+        self.parser.m.form(self.parser.sending)
 
     def process(self, e: Envelope):
         def assure_str(c):
@@ -279,7 +251,7 @@ class MailSenderOtrs(MailSender):
         fields = {
             "Action": "AgentTicketForward",
             "Subaction": "SendEmail",
-            "TicketID": str(self.parser.otrs_id),
+            "TicketID": str(self.parser.sending.otrs_id),
             "Email": e.from_().address,
             "From": assure_str(e.from_()),
             "To": assure_str(e.to()),  # mails can be delimited by comma or semicolon
@@ -287,7 +259,7 @@ class MailSenderOtrs(MailSender):
             "Body": message,
             "ArticleTypeID": "1",  # mail-external
             "ComposeStateID": "4",  # open
-            "ChallengeToken": self.parser.otrs_token,
+            "ChallengeToken": self.parser.sending.otrs_token,
         }
 
         try:  # XX as of Python3.8, convert "try" to if m := Config.get("signkeyid", "OTRS"):
@@ -304,7 +276,7 @@ class MailSenderOtrs(MailSender):
             fields["Bcc"] = assure_str(e.bcc())
 
         attachments = e.attachments()
-        cookies = {('OTRSAgentInterface' if OTRS_VERSION == 6 else 'Session'): self.parser.otrs_cookie}
+        cookies = {('OTRSAgentInterface' if OTRS_VERSION == 6 else 'Session'): self.parser.sending.otrs_cookie}
 
         if Config.is_testing():
             print(" **** Testing info:")

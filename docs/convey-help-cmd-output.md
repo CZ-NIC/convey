@@ -29,7 +29,6 @@ usage: convey [-h] [--file] [-i] [-o [blank/FILENAME]] [-S] [--single-detect]
               [--attach-paths-from-path-column [blank/false]]
               [--testing [blank/false]] [--subject SUBJECT] [--body TEXT]
               [--references MESSAGE_ID] [--otrs_id OTRS_ID]
-              [--otrs_num OTRS_NUM] [--otrs_cookie OTRS_COOKIE]
               [--otrs_token OTRS_TOKEN]
               [file_or_input]
 
@@ -137,8 +136,8 @@ Actions:
                         Ex: --field tld[gTLD]  # would add TLD from probably a hostname, filtered by CUSTOM=gTLD
                         Ex: --field netname,ip  # would add netname column from any IP column
                             (Note the comma without space behind 'netname'.)
-                        
-                        Computable fields: 
+
+                        Computable fields:
                         * HostnameTldExternal (hostname example text)
                         * base64 (Text encoded with Base64) usual names: base64
                         * charset
@@ -189,7 +188,7 @@ Actions:
                         * redirects
                         * text
                         * x_frame_options
-                        
+
                         This flag May be used multiple times.
   -fe FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM], --field-excluded FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]
                         The same as field but its column will not be added to
@@ -212,8 +211,8 @@ Actions:
                         Ex: --aggregate 2,sum,3,avg # will sum the second column and average the third
                         Ex: --aggregate 2,sum,1 # will sum the second column grouped by the first
                         Ex: --aggregate 1,count # will count the grouped items in the 1st column (count will automatically set grouping column to the same)
-                        
-                        Available functions: 
+
+                        Available functions:
                         * avg
                         * sum
                         * count
@@ -222,7 +221,7 @@ Actions:
                         * list
                         * set
   --merge [REMOTE_PATH],[REMOTE_COLUMN],[LOCAL_COLUMN]
-                        Merge another file here. 
+                        Merge another file here.
                          COLUMN is ID of the column (1, 2, 3...), position from the right (-1, ...), the exact column name, field type name or its usual name.
 
 Enabling modules:
@@ -231,7 +230,7 @@ Enabling modules:
   --nmap [blank/false]  Allowing NMAP module: Leave blank for True or put true/on/1 or false/off/0.
   --dig [blank/false]   Allowing DNS DIG module: Leave blank for True or put true/on/1 or false/off/0.
   --web [blank/false]   Allowing Web module: Leave blank for True or put true/on/1 or false/off/0.
-                        When single value input contains a web page, we could fetch it and add status (HTTP code) and text fields. Text is just mere text, no tags, style, script, or head. 
+                        When single value input contains a web page, we could fetch it and add status (HTTP code) and text fields. Text is just mere text, no tags, style, script, or head.
 
 Field computing options:
   --disable-external    Disable external function registered in config.ini to be imported.
@@ -292,7 +291,6 @@ Sending options:
 
 OTRS:
   --otrs_id OTRS_ID     Ticket id
-  --otrs_num OTRS_NUM   Ticket num
   --otrs_cookie OTRS_COOKIE
                         OTRSAgentInterface cookie
   --otrs_token OTRS_TOKEN

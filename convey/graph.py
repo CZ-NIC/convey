@@ -1,10 +1,12 @@
 import logging
 from collections import defaultdict
+from typing import Generic, TypeVar
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
-class Graph:
+class Graph(Generic[T]):
     def __init__(self):
         self.nodes = set()
         self.edges = defaultdict(list)
@@ -25,7 +27,7 @@ class Graph:
 
     # @lru_cache(maxsize=512) XX is it a good performance tip?
     # XX what if we cache every encountered path instead?
-    def dijkstra(self, target, start=None, ignore_private=False):
+    def dijkstra(self, target, start=None, ignore_private=False) -> dict[T, int] | list[T] | bool:
         """
         Performs Dijkstra's algorithm and returns
             [start node, ... , target node] or False (if start specified)

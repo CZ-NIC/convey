@@ -2,6 +2,8 @@ import json
 from collections import defaultdict
 from urllib import parse
 
+from mininterface import Mininterface
+
 from convey.config import Config
 from convey.controller import Controller
 from convey.parser import Parser
@@ -12,7 +14,7 @@ TypeGroup.init()
 Config.integrity_check()
 Config.init_verbosity(True, 30)
 Config.set("single_query", True)
-parser = Parser(prepare=False)
+parser = Parser(Mininterface(), prepare=False)
 controller = Controller(parser)
 unsafe_fields = [Types.code, Types.external]
 for target_type in Config.get("webservice_allow_unsafe_fields", section="FIELDS", get=list):

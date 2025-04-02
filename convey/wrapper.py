@@ -15,6 +15,7 @@ from time import time
 
 import ezodf
 import jsonpickle
+from mininterface import Mininterface, PathTag
 import openpyxl
 import xlrd
 from netaddr import IPRange
@@ -34,22 +35,9 @@ __date__ = "$Mar 23, 2015 8:33:24 PM$"
 WHOIS_CACHE = ".convey-whois-cache.json"
 
 
-def choose_file():
-    print("Set path to the source log file.")
-    print("? ", end="")
-
-    # XX in the future, let's get rid of Tkinter. And don't impose it now if not really needed
-    try:
-        import tkinter as tk
-        from tkinter.filedialog import askopenfilename
-        root = tk.Tk()
-        root.withdraw()  # show askopenfilename dialog without the Tkinter window
-        file = askopenfilename()  # default is all file types
-        print(file)
-        return file
-    except ImportError:
-        print("Error importing Tkinter. Please specify the file name in the parameter or install `apt install python3-tk`.")
-        return None
+def choose_file(m: Mininterface):
+    # NOTE it would be nice to directly open the file picker
+    return m.form({"Source file": PathTag(description="Set path to the source log file.")})["Source file"]
 
 
 def read_stdin():
@@ -60,17 +48,29 @@ def read_stdin():
 
 
 class Wrapper:
-    def __init__(self, file_or_input, force_file=False, force_input=False,
+    def __init__(self, m: Mininterface, file_or_input, file_given=False, input_given=False,
                  types=None, fresh=False, reprocess=False, delete_cache=False):
         if delete_cache and Path(config_dir, WHOIS_CACHE).exists():
             Path(config_dir, WHOIS_CACHE).unlink()
 
+        self.m = m
         self.parser: Parser = None
         self.file = file = None
         self.stdin = stdin = None
         self.types = types
         self.whois_not_loaded = fresh
         self.last_hash = None
+
+        force_file = force_input = False
+        if file_given:
+            force_file = True
+            if file_given is not True:
+                file_or_input = file_given
+        elif input_given:
+            force_input = True
+            if input_given is not True:
+                file_or_input = input_given
+
         try:
             case = int(Config.get("file_or_input"))
         except (ValueError, TypeError):
@@ -84,7 +84,7 @@ class Wrapper:
         if force_input:
             stdin = file_or_input.split("\n") if file_or_input else read_stdin()
         elif force_file:
-            file = file_or_input if file_or_input else choose_file()
+            file = file_or_input if file_or_input else choose_file(self.m)
         elif isinstance(file_or_input, Path) or (file_or_input and len(file_or_input) < 256 and Path(file_or_input).is_file()):
             # if longer than 255, it is most probably not a file but input
             file = file_or_input
@@ -92,17 +92,18 @@ class Wrapper:
             stdin = file_or_input.split("\n")
         else:  # choosing the file or input text
             if case == 0:
-                case = 1 if is_yes("Do you want to input text (otherwise you'll be asked to choose a file name)?") else 2
+                case = 1 if is_yes(
+                    "Do you want to input text (otherwise you'll be asked to choose a file name)?") else 2
             if case == 1:
                 stdin = read_stdin()
             elif case == 2:
-                file = choose_file()
+                file = choose_file(self.m)
             elif case == 3:
                 stdin = read_stdin()
                 if not stdin:
-                    file = choose_file()
+                    file = choose_file(self.m)
             elif case == 4:
-                file = choose_file()
+                file = choose_file(self.m)
                 if not file:
                     stdin = read_stdin()
 
@@ -113,7 +114,7 @@ class Wrapper:
             Config.set_cache_dir(Path.cwd())
             self.cache_file = None
             self.stdin = stdin
-            self.parser: Parser = Parser(stdin=stdin, types=self.types)
+            self.parser: Parser = Parser(self.m, stdin=stdin, types=self.types)
             return
 
         if not Path(file).is_file():
@@ -256,10 +257,10 @@ class Wrapper:
             # Unfortunately, I have not been able to simulate this behaviour with another simpler object than self.parser
             # so that I could raise an official issue.
             jsonpickle.decode(string, keys=True)
-        except Exception:
+        except Exception as e:
             hit_any_key("The program state is not picklable by 'jsonpickle' module. "
-                  "Continuing will provide a file that will have to be reanalysed. "
-                  "You may post this as a bug to the project issue tracker.")
+                        "Continuing will provide a file that will have to be reanalysed. "
+                        "You may post this as a bug to the project issue tracker.")
             Config.error_caught()
 
         # save cache file
@@ -287,8 +288,8 @@ class Wrapper:
                     except Exception:  # again, I met a strangely formed JSON
                         type_, value, tb = sys.exc_info()
                         body = f"```bash\n{traceback.format_exc()}```\n\n" \
-                               f"```json5\n{tb.tb_next.tb_frame.f_locals}\n```\n\n" \
-                               f"```json5\n{ip_seen}```\n\n```json5\n{ranges}```"
+                            f"```json5\n{tb.tb_next.tb_frame.f_locals}\n```\n\n" \
+                            f"```json5\n{ip_seen}```\n\n```json5\n{ranges}```"
                         print("The program will recover but without saving WHOIS cache.")
                         Config.github_issue("Cannot jsonpickle whois", body)
                     else:
@@ -300,7 +301,7 @@ class Wrapper:
     def clear(self):
         self.check_ods() or self.check_xlsx() or self.check_xls() or self.check_log()
 
-        self.parser = Parser(self.file, self.stdin, self.types)
+        self.parser = Parser(self.m, self.file, self.stdin, self.types)
         self.save()
 
     def check_log(self):
@@ -380,7 +381,6 @@ class Wrapper:
                     for row in sh.values:
                         target.writerow(row)
             return True
-
 
     @contextmanager
     def rework(self):

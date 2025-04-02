@@ -1,3 +1,5 @@
+from convey.dialogue import Cancelled
+from convey.controller import Controller
 from contextlib import redirect_stdout
 from io import StringIO
 import shlex
@@ -12,8 +14,6 @@ from unittest import TestCase
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from convey.controller import Controller
-from convey.dialogue import Cancelled
 
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 
@@ -24,6 +24,7 @@ PROJECT_DIR = Path.cwd()
 # os.chdir("tests")
 
 TESTDATA_DIR = Path("tests") / Path("test_data")
+
 
 def p(s):
     """all mentioned resources files are in the tests folder"""
@@ -135,8 +136,6 @@ class Convey:
 
 class TestAbstract(TestCase):
     maxDiff = None
-
-
 
     def check(
         self,

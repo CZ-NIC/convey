@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## unreleased
+* CHANGED: File or input must be the first argument, or specified by --file or --input
+    * You can now put the contents directly into the `--file FILE` or `--input STR` while `--file-or-input` detection stays the same.
+* CHANGED: removed `--no-header` in favour fo `--header False`;
+* Brand new CLI / UI by [mininterface](https://github.com/CZ-NIC/mininterface)
+* removed the dialog dependency
+
 ## 1.4.7 (2025-01-21)
 * drop Python3.9 support
 * fix: Setting field type by `--type` suppresses the auto-detection.

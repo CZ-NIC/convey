@@ -1,5 +1,6 @@
 # Source file parsing
 import csv
+from dataclasses import dataclass
 import datetime
 import logging
 import re
@@ -14,6 +15,7 @@ from pathlib import Path
 from shutil import move
 from typing import DefaultDict, List, Optional, Tuple, Union
 from sys import exit
+from mininterface.interfaces import get_interface
 
 from tabulate import tabulate
 
@@ -23,7 +25,7 @@ from .contacts import Contacts
 from .checker import Checker
 from .config import Config, get_terminal_size
 from .definition import Settings
-from .dialogue import Cancelled, is_yes, ask
+from .dialogue import Cancelled, is_yes
 from .field import Cell, Field
 from .identifier import Identifier
 from .informer import Informer
@@ -32,6 +34,10 @@ from .processor import Processor
 from .types import Types, Type, TypeGroup
 from .web import Web
 from .whois import Whois
+
+from mininterface import Mininterface
+
+from convey import attachment
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +53,8 @@ class Parser:
     "has already been processed"
     attachments: List[Attachment]
 
-    def __init__(self, source_file: Path = False, stdin=None, types=None, prepare=True):
+    def __init__(self, m: Mininterface, source_file: Path = False, stdin=None, types=None, prepare=True):
+        self.m = m
         self.is_formatted = False
         self.is_repeating = False
         self.dialect = None
@@ -72,14 +79,21 @@ class Parser:
         self.settings: Settings = defaultdict(list)
         "processing settings"
         self.redo_invalids = Config.get("redo_invalids")
+
         # OTRS attributes to be linked to CSV
-        self.otrs_cookie = False
-        self.otrs_id = Config.get("ticketid", "OTRS")
-        self.otrs_token = False
-        self.otrs_num = Config.get("ticketnum", "OTRS")
-        self.attachment_name = (source_file.name if source_file else "attachment.csv")
-        if not Path(self.attachment_name).suffix:
-            self.attachment_name += ".csv"
+        default_name = (source_file.name if source_file else "attachment.csv")
+        if not Path(default_name).suffix:
+            default_name += ".csv"
+
+        @dataclass
+        class SendingSettings:
+            otrs_cookie: str = ""
+            otrs_id: str = Config.get("ticketid", "OTRS") or ""
+            otrs_token: str = ""
+            attachment_name: str = default_name
+
+        self.sending = SendingSettings()
+
         self.ip_count_guess = None
         self.ip_count = None
         self.attachments = []
@@ -272,7 +286,7 @@ class Parser:
         self.is_formatted = True  # delimiter and header has been detected etc.
         return self
 
-    def get_fields_autodetection(self, append_values=True):
+    def get_fields_autodetection(self, append_values=True) -> list[tuple[Field, str]]:
         """ returns list of tuples [ (field, detection str), ("Url", "url, hostname") ]
         :type append_values: bool Append sample values to the informative result string.
         """
@@ -282,7 +296,7 @@ class Parser:
             if field.is_new:
                 s = f"computed from: {field.source_type}"
             elif field.type:
-                s = field.type
+                s = str(field.type)
             elif field.possible_types:
                 types = field.possible_types
                 if Types.any_ip in types and (Types.ip in types or Types.port_ip in types):
@@ -386,7 +400,7 @@ class Parser:
                     continue
                 elif target_type.group == TypeGroup.custom:
                     continue
-                fitting_type = self.identifier.get_fitting_type(0, target_type)
+                fitting_type = self.identifier.get_fitting_type(self.fields[0], target_type)
                 if fitting_type:
                     methods = self.identifier.get_methods_from(target_type, fitting_type, None)
                     if methods:
@@ -751,7 +765,7 @@ class Parser:
             else:
                 s = "Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them," \
                     " or hit n for ignoring them. [o]/y/n "
-                res = ask(s)
+                res = self.m.ask(s)
             if res == "n":
                 return False
             elif res == "y":
@@ -852,7 +866,7 @@ class Parser:
                         unique_sets[col_i].add(row[col_i][0])
 
             # colorize the line
-            g = lambda short: (field.color(cell, short, line_chosen) for cell, field in row)
+            def g(short): return (field.color(cell, short, line_chosen) for cell, field in row)
             rows.append([*g(True)])
             full_rows.append([*g(False)])
         return full_rows, rows
@@ -869,6 +883,7 @@ class Parser:
 
     def __getstate__(self):
         state = self.__dict__.copy()
+        del state['m']  # we get rid of the env, however, we might implement keeping it
         del state['informer']
         del state['processor']
         del state['identifier']
@@ -886,6 +901,7 @@ class Parser:
         return state
 
     def __setstate__(self, state):
+        self.m = get_interface()
         self.__dict__.update(state)
         self.informer = Informer(self)
         self.processor = Processor(self, rewrite=False)

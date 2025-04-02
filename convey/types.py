@@ -12,7 +12,7 @@ from enum import IntEnum
 from pathlib import Path
 from quopri import decodestring, encodestring
 from sys import exit
-from typing import List
+from typing import Callable, List
 from urllib.parse import unquote, quote
 
 from validate_email import validate_email
@@ -30,8 +30,8 @@ from .whois import Whois
 logger = logging.getLogger(__name__)
 
 types: List["Type"] = []  # all field types
-methods = {}
-graph = Graph()
+methods: dict[tuple["Type", "Type"], Callable] = {}
+graph: Graph["Type"] = Graph()
 methods_deleted = {}
 
 
@@ -374,7 +374,7 @@ class Types:
     path = Type("path", usual_names=["path"], identify_method=lambda x: False)
 
     @staticmethod
-    def get_computable_types(ignore_custom=False):
+    def get_computable_types(ignore_custom=False) -> list[Type]:
         """ List of all suitable fields that we may compute from a suitable output
         :type ignore_custom: bool Ignore types that may not be reachable because user input would be needed.
             These are TypeGroup.custom and instances of PickBase.
@@ -389,7 +389,7 @@ class Types:
         return sorted(s)
 
     @staticmethod
-    def get_guessable_types() -> List[Type]:
+    def get_guessable_types() -> list[Type]:
         """ these field types can be guessed from a string """
         return sorted([t for t in types if not t.is_disabled and (t.identify_method or t.usual_names)])
 

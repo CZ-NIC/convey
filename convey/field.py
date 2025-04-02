@@ -188,8 +188,8 @@ class Field:
                 key = source_line[self.merge_operation.local_column.col_i]
                 remote_lines: Optional[List[str]] = self.merge_operation.rows.get(key)
                 if remote_lines:
-                     # list only first line; user will not know that the line might be duplicated
-                     # if key exist multiple times
+                    # list only first line; user will not know that the line might be duplicated
+                    # if key exist multiple times
                     c = remote_lines[0][self.merged_from.col_i]
                 else:
                     c = "EMPTY"
@@ -197,7 +197,7 @@ class Field:
                 # Needed for this complicated case:
                 # convey "http://example.com" --web --field code,"x" --field text,code,url --field reg_m,text
                 return "NOT COMPUTED YET"
-        else: # we do not want the preview to be computed
+        else:  # we do not want the preview to be computed
             c = "..."
 
         # add a newly computed value to source_parsed

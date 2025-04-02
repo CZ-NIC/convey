@@ -27,6 +27,7 @@ def is_html(s):
 
 class MailDraft:
     """ Mail management data structure """
+
     def __init__(self, filename):
         self.text = False
         self.template_file = get_path(filename)
@@ -182,7 +183,7 @@ class MailDraft:
 
             # attach the split CSV file
             if attachment.path and not attachment.used_in_body and Config.get('attach_files', 'SMTP', get=bool):
-                e.attach(attachment.path, "text/csv", attachment.parser.attachment_name)
+                e.attach(attachment.path, "text/csv", attachment.parser.sending.attachment_name)
 
             # attach the paths from the path column (images, ...) in the split CSV file
             # If there is a trouble with an attachment,
@@ -192,7 +193,6 @@ class MailDraft:
                         e.attach(path)
                     except FileNotFoundError as e:
                         return f"Cannot find the attachment: {e}"
-
 
         if Config.is_testing():
             e.recipients(clear=True)

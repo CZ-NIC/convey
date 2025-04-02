@@ -17,7 +17,6 @@ from .aggregate import Aggregate
 from .action import Expandable
 from .attachment import Attachment
 from .config import Config
-from .dialogue import ask
 from .types import Types
 from .web import Web
 from .whois import Quota, UnknownValue
@@ -168,8 +167,8 @@ class Processor:
                     print(f"Keyboard interrupting on line number: {parser.line_count}")
                     s = "[a]utoskip LACNIC encounters" \
                         if self.parser.queued_lines_count and not Config.get("lacnic_quota_skip_lines", "FIELDS") else ""
-                    o = ask("Keyboard interrupt caught. Options: continue (default, do the line again), "
-                            "[s]kip the line, [d]ebug, [e]nd processing earlier, [q]uit: ")
+                    o = self.parser.m.ask("Keyboard interrupt caught. Options: continue (default, do the line again), "
+                                          "[s]kip the line, [d]ebug, [e]nd processing earlier, [q]uit: ")
                     inf.release()
                     if o == "a":
                         Config.set("lacnic_quota_skip_lines", True, "FIELDS")
