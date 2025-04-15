@@ -15,7 +15,8 @@ from time import time
 
 import ezodf
 import jsonpickle
-from mininterface import Mininterface, PathTag
+from mininterface import Mininterface
+from mininterface.tag import PathTag
 import openpyxl
 import xlrd
 from netaddr import IPRange
@@ -64,12 +65,10 @@ class Wrapper:
         force_file = force_input = False
         if file_given:
             force_file = True
-            if file_given is not True:
-                file_or_input = file_given
+            file_or_input = file_given
         elif input_given:
             force_input = True
-            if input_given is not True:
-                file_or_input = input_given
+            file_or_input = input_given
 
         try:
             case = int(Config.get("file_or_input"))

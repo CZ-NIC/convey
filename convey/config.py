@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import sys
+from typing import TYPE_CHECKING
 import webbrowser
 from pathlib import Path
 from shutil import copy
@@ -14,6 +15,9 @@ from time import sleep
 from urllib.parse import quote
 
 from appdirs import user_config_dir
+
+if TYPE_CHECKING:
+    from .args_controller import Env
 
 # setup logging
 # This cannot be in __init__.py so that we cannot reliably use logger in __init__.py, __main__.py and decorators.py.
@@ -129,6 +133,8 @@ class Config:
     ABROAD_MARK = "@@"
     PROJECT_SITE = "https://github.com/CZ-NIC/convey/"
     verbosity: int = logging.INFO  # standard python3 logging level int
+
+    cache_dir: str = ""
 
     @staticmethod
     def missing_dependency(library):
@@ -354,9 +360,6 @@ class Config:
         # else:
         Config.cache[key] = val
         # XX Config.config.set(section, key, str(val))
-
-    cache_dir = ""
-    output = None  # True, False, None or str (path)
 
     @staticmethod
     def set_cache_dir(path):

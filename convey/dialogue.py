@@ -8,7 +8,7 @@ from mininterface.interfaces import TextInterface
 from .config import Config
 
 logger = logging.getLogger(__name__)
-m = Mininterface()
+m: Mininterface
 
 
 def init_global_interface():
@@ -18,11 +18,15 @@ def init_global_interface():
     #
     # Alongside, there is prompt toolkit that we need to dynamic UI actions
     # (like del for deleting a column) which is something mininterface does not support.
-
     try:
         m = TextInterface()
     except ImportError:
         m = Mininterface()
+
+
+def get_global_interface():
+    global m
+    return m
 
 
 class Debugged(Exception):
@@ -34,7 +38,7 @@ def is_yes(text):
         return True
     if Config.get("daemon", get=bool):
         raise ConnectionAbortedError
-    return m.is_yes(text)
+    return m.confirm(text)
 
 
 def is_no(text):
@@ -42,7 +46,7 @@ def is_no(text):
         return True
     if Config.get("daemon", get=bool):
         raise ConnectionAbortedError
-    return m.is_no(text)
+    return m.confirm(text, False)
 
 
 def hit_any_key(text: str):
@@ -103,7 +107,7 @@ class Menu:
             try:
                 if self.fullscreen:
                     try:
-                        ans = m.choice({(it[0], it[1]): it[0] for it in l}, self.title, skippable=self.skippable)
+                        ans = m.select({(it[0], it[1]): it[0] for it in l}, self.title, skippable=self.skippable)
                     except Cancelled:
                         return
                 elif session:

@@ -1,9 +1,10 @@
 # CHANGELOG
 
 ## unreleased
-* CHANGED: File or input must be the first argument, or specified by --file or --input
-    * You can now put the contents directly into the `--file FILE` or `--input STR` while `--file-or-input` detection stays the same.
-* CHANGED: removed `--no-header` in favour fo `--header False`;
+* CHANGED:
+    * `file-or-input` must be the first argument, or specified by `--file PATH` or `--input STR`.
+    * CLI bool flags must be either `blank|True|False`. No more support for `on/off`, `1/0`, or case insensitivity.
+    * removed `--no-header` in favour to `--header False`;
 * Brand new CLI / UI by [mininterface](https://github.com/CZ-NIC/mininterface)
 * removed the dialog dependency
 

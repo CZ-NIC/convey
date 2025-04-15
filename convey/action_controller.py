@@ -6,7 +6,8 @@ from typing import List, Optional
 from pathlib import Path
 from sys import exit
 
-from mininterface import Mininterface, PathTag
+from mininterface import Mininterface
+from mininterface.tag import PathTag
 from prompt_toolkit.shortcuts import clear
 
 from .action import AggregateAction, MergeAction
@@ -79,7 +80,7 @@ class ActionController:
         self.parser.is_processable = True
 
     def add_filter(self):
-        self.m.choice({
+        self.m.select({
             "Unique filter": self.add_uniquing,
             "Include filter": self.add_filtering,
             "Exclude filter": lambda: self.add_filtering(False),
@@ -191,7 +192,7 @@ class ActionController:
 
     def choose_cols(self):
         # XX possibility un/check all
-        chosens = set(self.m.choice(self.parser.fields, "Choose columns to be included in the output file",
+        chosens = set(self.m.select(self.parser.fields, "Choose columns to be included in the output file",
                                     default=[f for f in self.parser.fields if f.is_chosen]))
         for f in self.parser.fields:
             f.is_chosen = f in chosens
@@ -199,7 +200,7 @@ class ActionController:
 
     def get_aggregation_fn(self, fn_name: str = None, exit_on_fail=False) -> AggregateMethod:
         if not fn_name:
-            fn_name = self.m.choice(aggregate_functions, "Choose aggregate function")
+            fn_name = self.m.select(aggregate_functions, "Choose aggregate function")
         fn = getattr(Aggregate, fn_name, None)
         if not fn:
             if exit_on_fail:
@@ -236,7 +237,7 @@ class ActionController:
                             s += "..."
                 fields[(f"new {type_}...", s)] = type_
 
-        col = self.m.choice(fields, dialog_title, tips=highlighted)
+        col = self.m.select(fields, dialog_title, tips=highlighted)
         if isinstance(col, Type):
             return self.source_new_column(col, add=add)
         return col
@@ -258,8 +259,8 @@ class ActionController:
             custom = []
         if not source_field or not source_type:
             print(f"\nWhat column we base {target_type} on?")
-            vals = {f"{k} - {v} ": k for k, v in self.parser.get_fields_autodetection()}
-            source_field = self.m.choice(vals, title="Searching source for " + str(target_type),
+            vals = {(k, v): k for k, v in self.parser.get_fields_autodetection()}
+            source_field = self.m.select(vals, title="Searching source for " + str(target_type),
                                          tips=[self.parser.fields[i] for i in self.parser.identifier.get_fitting_source_i(target_type)])
             source_col_i = self.parser.fields.index(source_field)
             source_type = self.parser.identifier.get_fitting_type(source_field, target_type, try_plaintext=True)
@@ -275,7 +276,7 @@ class ActionController:
                     title = (f"Choose the right method\n\nNo known method for making {target_type}"
                              f" from column {source_field} because the column type wasn't identified."
                              f" How should I treat the column?{s}")
-                    source_type: Type = self.m.choice(choices, title=title)
+                    source_type: Type = self.m.select(choices, title=title)
                 else:
                     self.m.alert(f"No known method for making {target_type}. Raise your usecase as"
                                  f" an issue at {Config.PROJECT_SITE}.")
@@ -297,7 +298,7 @@ class ActionController:
                             module = get_module_from_path(path)
                             if module:
                                 # inspect the .py file, extract methods and let the user choose one
-                                method_name = self.m.choice([x for x in dir(module) if not x.startswith(
+                                method_name = self.m.select([x for x in dir(module) if not x.startswith(
                                     "_")], title=f"What method should be used in the file {path}?")
                                 custom = path, method_name
                                 break
@@ -316,13 +317,13 @@ class ActionController:
                         pass
                     elif type(m) is PickMethod:
                         m: PickMethod
-                        c = self.m.choice({(k, v): k for k, v in m.get_options()}, f"Choose subtype")
+                        c = self.m.select({(k, v): k for k, v in m.get_options()}, f"Choose subtype")
                     elif type(m) is PickInput:
                         m: PickInput
                         c = Preview(source_field, source_type, target_type).pick_input(m)
                     custom.insert(0, c)
         if add is None:
-            if self.m.is_yes(f"New field added: {target_type}\n\nDo you want to include this field as a new column?"):
+            if self.m.confirm(f"New field added: {target_type}\n\nDo you want to include this field as a new column?"):
                 add = True
 
         f = Field(target_type, is_chosen=add,

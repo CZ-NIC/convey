@@ -25,7 +25,7 @@ from .contacts import Contacts
 from .checker import Checker
 from .config import Config, get_terminal_size
 from .definition import Settings
-from .dialogue import Cancelled, is_yes
+from .dialogue import Cancelled, is_yes, get_global_interface
 from .field import Cell, Field
 from .identifier import Identifier
 from .informer import Informer
@@ -37,9 +37,15 @@ from .whois import Whois
 
 from mininterface import Mininterface
 
-from convey import attachment
-
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SendingSettings:
+    otrs_cookie: str = ""
+    otrs_id: str = Config.get("ticketid", "OTRS") or ""
+    otrs_token: str = ""
+    attachment_name: str = "attachment.csv"
 
 
 class Parser:
@@ -85,14 +91,7 @@ class Parser:
         if not Path(default_name).suffix:
             default_name += ".csv"
 
-        @dataclass
-        class SendingSettings:
-            otrs_cookie: str = ""
-            otrs_id: str = Config.get("ticketid", "OTRS") or ""
-            otrs_token: str = ""
-            attachment_name: str = default_name
-
-        self.sending = SendingSettings()
+        self.sending = SendingSettings(attachment_name=default_name)
 
         self.ip_count_guess = None
         self.ip_count = None
@@ -901,10 +900,13 @@ class Parser:
         return state
 
     def __setstate__(self, state):
-        self.m = get_interface()
+        self.m = get_global_interface()
         self.__dict__.update(state)
         self.informer = Informer(self)
         self.processor = Processor(self, rewrite=False)
+        if not isinstance(self.sending, SendingSettings):
+            # Sometimes, we unpickle it as a mere dict. I don't know why.
+            self.sending = SendingSettings(**self.sending)
 
         # input CSV dialect
         self.dialect = csv.unix_dialect()

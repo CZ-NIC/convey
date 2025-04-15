@@ -532,10 +532,10 @@ class Controller:
     def send_menu(self, method="smtp", test_attachment=None, send_now=False):
         # choose method SMTP/OTRS
         # We prefer OTRS sending over SMTP because of the signing keys that an OTRS operator does not possess.
-        if Config.get("otrs_enabled", "OTRS") and self.args.otrs.otrs_id:
+        if Config.get("otrs_enabled", "OTRS") and self.args.otrs.id:
             method = "otrs"
         elif Config.get("otrs_enabled", "OTRS") and not Config.get("yes"):
-            method = self.m.choice({"Send by SMTP...": "smtp",
+            method = self.m.select({"Send by SMTP...": "smtp",
                                     "Send by OTRS...": "otrs"},
                                    "What sending method do we want to use?")
         if method == "otrs":
@@ -597,6 +597,7 @@ class Controller:
                 send_now = False  # while-loop must not re-send
             else:
                 clear()
+                # NOTE convert to Mininterface.select when mnemonics is implemented
                 menu = Menu("\n".join(info), callbacks=False, fullscreen=False, skippable=False)
 
                 if seen_local or seen_abroad:
@@ -687,7 +688,7 @@ class Controller:
                 elif option == "t":
                     # Choose an attachment
                     try:
-                        attachment = self.m.choice({o.mail: o for o in attachments},
+                        attachment = self.m.select({o.mail: o for o in attachments},
                                                    f"What attachment should serve as a test?")
                     except Cancelled:
                         continue
@@ -724,7 +725,7 @@ class Controller:
                                 check_smtp=False) else " (invalid)")): o for o in attachments}
                     default = [o.mail for o in attachments if not o.sent]
                     try:
-                        tags = set(self.m.choice(choices, "Toggle e-mails to be send", default=default))
+                        tags = set(self.m.select(choices, "Toggle e-mails to be send", default=default))
                     except Cancelled:
                         continue
                     else:
@@ -742,14 +743,13 @@ class Controller:
         def start_debugger():
             raise Debugged
 
-        menu = Menu(title="Config menu")
-        menu.add("Edit configuration", lambda: edit("config", 3, restart_when_done=True, blocking=True))
-        menu.add("Edit default e-mail template", lambda: edit("template", blocking=True))
-        menu.add("Edit default abroad e-mail template", lambda: edit("template_abroad", blocking=True))
-        menu.add("Edit uwsgi configuration", lambda: edit("uwsgi"))
-        menu.add("Fetch whois for an IP", self.debug_ip)
-        menu.add("Start debugger", start_debugger)
-        menu.sout()
+        self.m.select({"Edit configuration": lambda: edit("config", 3, restart_when_done=True, blocking=True),
+                       "Edit default e-mail template": lambda: edit("template", blocking=True),
+                       "Edit default abroad e-mail template": lambda: edit("template_abroad", blocking=True),
+                       "Edit uwsgi configuration": lambda: edit("uwsgi"),
+                       "Fetch whois for an IP": self.debug_ip,
+                       "Start debugger": start_debugger},
+                      title="Config menu")
 
     def debug_ip(self):
         ip = input("Debugging whois – get IP: ")
@@ -795,7 +795,7 @@ class Controller:
             return
 
         # Build dialog
-        values = self.m.choice({action: i+1 for i, action in enumerate(actions)},
+        values = self.m.select({action: i+1 for i, action in enumerate(actions)},
                                "What processing settings should be discarded?", multiple=True, skippable=False)
 
         # these processing settings should be removed
@@ -808,17 +808,16 @@ class Controller:
             del st["aggregate"]
 
     def redo_menu(self):
-        menu = Menu(title="What should be reprocessed?", fullscreen=True)
-        menu.add("Delete some processing settings", self.choose_settings)
-        menu.add("Delete all processing settings", self.parser.reset_settings)
-        menu.add("Delete whois cache", self.parser.reset_whois)
-        # XX note that aggregation generators were deleted (jsonpickling) → aggregation count will reset when re-resolving
+        self.m.select({f"Delete some processing settings": self.choose_settings,
+                       "Delete all processing settings": self.parser.reset_settings,
+                       "Delete whois cache": self.parser.reset_whois,
+                       "Resolve unknown abuse-mails": self.parser.resolve_unknown,
+                       "Resolve invalid lines": self.parser.resolve_invalid,
+                       "Resolve queued lines": self.parser.resolve_queued,
+                       "Rework whole file again": self.wrapper.clear},
+                      title="What should be reprocessed?")
+        # NOTE that aggregation generators were deleted (jsonpickling) → aggregation count will reset when re-resolving
         # See comment in the Aggregation class, concerning generator serialization.
-        menu.add("Resolve unknown abuse-mails", self.parser.resolve_unknown)
-        menu.add("Resolve invalid lines", self.parser.resolve_invalid)
-        menu.add("Resolve queued lines", self.parser.resolve_queued)
-        menu.add("Rework whole file again", self.wrapper.clear)
-        menu.sout()
 
     def close(self):
         self.wrapper.save(last_chance=True)  # re-save cache file
