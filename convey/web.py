@@ -27,8 +27,8 @@ class Web:
     def init(cls, store_text=True, store_html=True):
         cls.store_text = store_text
         cls.store_html = store_html
-        if Config.get("user_agent", "FIELDS"):
-            cls.headers = {"User-Agent": Config.get("user_agent", "FIELDS")}
+        if ua := Config.get_env().web.user_agent:
+            cls.headers = {"User-Agent": ua}
 
     def __init__(self, url):
         if url in self.cache:
@@ -39,7 +39,7 @@ class Web:
         while True:
             try:
                 logger.debug(f"Scrapping connection to {current_url}")
-                response = requests.get(current_url, timeout=Config.get("web_timeout", "FIELDS", get=int),
+                response = requests.get(current_url, timeout=Config.get_env().web.timeout,
                                         headers=self.headers,
                                         allow_redirects=False, verify=False)
             except IOError as e:

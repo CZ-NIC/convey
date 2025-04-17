@@ -19,6 +19,8 @@ from mininterface.interfaces import get_interface
 
 from tabulate import tabulate
 
+from .args_controller import Env
+
 from .action import AggregationGroupedRows
 from .attachment import Attachment
 from .contacts import Contacts
@@ -43,7 +45,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SendingSettings:
     otrs_cookie: str = ""
-    otrs_id: str = Config.get("ticketid", "OTRS") or ""
+    otrs_id: str = ""
     otrs_token: str = ""
     attachment_name: str = "attachment.csv"
 
@@ -59,8 +61,9 @@ class Parser:
     "has already been processed"
     attachments: List[Attachment]
 
-    def __init__(self, m: Mininterface, source_file: Path = False, stdin=None, types=None, prepare=True):
+    def __init__(self, m: Mininterface[Env], source_file: Path = False, stdin=None, types=None, prepare=True):
         self.m = m
+        self.env = m.env
         self.is_formatted = False
         self.is_repeating = False
         self.dialect = None
@@ -84,14 +87,14 @@ class Parser:
         "field types of the columns as given by the user"
         self.settings: Settings = defaultdict(list)
         "processing settings"
-        self.redo_invalids = Config.get("redo_invalids")
 
         # OTRS attributes to be linked to CSV
         default_name = (source_file.name if source_file else "attachment.csv")
         if not Path(default_name).suffix:
             default_name += ".csv"
 
-        self.sending = SendingSettings(attachment_name=default_name)
+        self.sending = SendingSettings(otrs_id=self.env.otrs.id,
+                                       attachment_name=default_name)
 
         self.ip_count_guess = None
         self.ip_count = None
@@ -123,12 +126,12 @@ class Parser:
         # load CSV
         self.source_file: Path = source_file or self.invent_file_str()
         self.stdin = []
-        self.stdout = Config.get("stdout")
+        self.stdout = self.env.io.stdout
         """When accepting input from stdin and not saving the output into a file
           or when setting this to True,
           the output will be here.
-        Config.get("output") - the file we should save to
-        Config.get("stdout") - stdout used"""
+        self.env.io.output - the file we should save to
+        self.env.io.stdout - stdout used"""
         self.stdout_sample = None
         self.target_file = None
         self.saved_to_disk = None
@@ -194,7 +197,7 @@ class Parser:
             elif not len_ or len_ > 1:
                 seems = False
 
-            if Config.get("single_query") or (seems and Config.get("single_query") is not False):
+            if self.env.io.single_query or (seems and self.env.io.single_query is not False):
                 # identify_fields some basic parameters
                 self.add_field([Field(self.stdin[0])])  # stdin has single field
                 self.dialect = False
@@ -203,20 +206,21 @@ class Parser:
                     # tell the user what type we think their input is
                     # access the detection message for the first (and supposedly only) field
                     detection = self.get_fields_autodetection(False)[0][1]
-                    if not detection and not Config.get("adding-new-fields"):
+
+                    if not detection and not self.env.comp.adding_new_fields:
                         # this is not a single cell despite it was probable, let's continue input parsing
                         logger.info("We could not parse the input text easily.")
                     else:
                         if not detection:
                             # we are adding new fields - there is a reason to continue single processing
                             logger.info("Input value seems to be plaintext.")
-                        elif Config.is_quiet() and Config.get("single_detect", get=bool):
+                        elif Config.is_quiet() and self.env.io.single_detect:
                             print(detection)  # print out detection even if we are quiet because explicitly asked for
                         else:
                             logger.info(f"Input value {detection}\n")
                         self.is_single_query = True
                         return self
-                if Config.get("single_query"):
+                if self.env.io.single_query:
                     logger.info("Forced single processing")
                     self.fields[0].possible_types = {Types.plaintext: 1}
                     self.is_single_query = True
@@ -232,8 +236,8 @@ class Parser:
             l = []
             if self.is_pandoc:
                 l.append("Pandoc table format detected (header were underlined by -------)")
-            if Config.get("delimiter", "CSV"):
-                self.dialect.delimiter = Config.get("delimiter", "CSV")
+            if self.env.csv.delimiter:
+                self.dialect.delimiter = self.env.csv.delimiter
                 l.append(f"Delimiter character set: '{self.dialect.delimiter}'")
                 self.dialect.delimiter = self.dialect.delimiter.replace(r"\t", "\t").replace("TAB", "\t").replace("tab",
                                                                                                                   "\t")
@@ -242,20 +246,20 @@ class Parser:
                 s = "proposed" if seems_single else "found"
                 l.append(f"Delimiter character {s}: '{self.dialect.delimiter}'")
 
-            if Config.get("quote_char", "CSV"):
-                self.dialect.quotechar = Config.get("quote_char", "CSV")
+            if self.env.csv.quote_char:
+                self.dialect.quotechar = self.env.csv.quote_char
                 l.append(f"Quoting character set: '{self.dialect.quotechar}'")
             else:
                 uncertain = True
                 l.append(f"Quoting character: '{self.dialect.quotechar}'")
 
-            if Config.get("header", "CSV") is not None:
-                self.has_header = Config.get("header", "CSV")
+            if self.env.csv.header is not None:
+                self.has_header = self.env.csv.header
             else:
                 uncertain = True
                 l.append(f"Header is present: " + ("yes" if self.has_header else "not used"))
 
-            if Config.get("yes"):
+            if self.m.env.cli.yes:
                 uncertain = False
             else:
                 print("\n".join(l))
@@ -394,7 +398,7 @@ class Parser:
             else:  # loop all existing methods
                 types = Types.get_computable_types(ignore_custom=True)
             for target_type in types:
-                if target_type in Config.get("single_query_ignored_fields", "FIELDS", get=list):
+                if target_type in Config.get_env().comp.single_query_ignored_fields:
                     # do not automatically compute ignored fields
                     continue
                 elif target_type.group == TypeGroup.custom:
@@ -433,7 +437,7 @@ class Parser:
                 append(field, val)
 
         # output in text, json or file
-        if Config.get("output"):
+        if self.env.io.output:
             logger.info(f"Writing to {self.target_file}...")
             self.target_file.write_text(dumps(data))
         if json:
@@ -555,7 +559,7 @@ class Parser:
             target_file = f"{'_'.join(l)}{self.source_file.suffix}"
         else:
             target_file = f"output_{time.strftime('%Y-%m-%d %H:%M:%S')}.csv"
-        output = Config.get("output")
+        output = self.env.io.output
         return Path(str(output)) if output else Path(Config.get_cache_dir(), target_file)
 
     def run_analysis(self, autoopen_editor=None):
@@ -565,7 +569,7 @@ class Parser:
         self.refresh()
         self._reset(hard=False)
 
-        if (autoopen_editor or autoopen_editor is None) and Config.get("autoopen_editor") and self.is_split:
+        if (autoopen_editor or autoopen_editor is None) and self.env.cli.autoopen_editor and self.is_split:
             Contacts.mail_draft["local"].edit_text(blocking=False)
             Contacts.mail_draft["abroad"].edit_text(blocking=False)
 
@@ -583,8 +587,8 @@ class Parser:
         if self.unknown_lines_count:
             self.resolve_unknown()
 
-        if self.queued_lines_count and Config.get("lacnic_quota_resolve_immediately", "FIELDS") is not False:
-            self.resolve_queued(Config.get("lacnic_quota_resolve_immediately", "FIELDS"))
+        if self.queued_lines_count and self.env.whois.lacnic_quota_resolve_immediately is not False:
+            self.resolve_queued(self.env.whois.lacnic_quota_resolve_immediately)
 
         self.line_count = 0
 
@@ -670,9 +674,6 @@ class Parser:
         That is the reason we are saying 'up to': "There are ... lines with up to ... IPs".
         """
 
-        # (self.is_split or Config.get("whois_reprocessable_unknown", "FIELDS", get=bool)) \
-        #    and (self.stats["prefix_local_unknown"] or self.stats["prefix_abroad_unknown"]):
-
         if not self.unknown_lines_count:
             # self.stats["ip_local_unknown"] and not self.stats["ip_abroad_unknown"]:
             input("No unknown abusemails. Press Enter to continue...")
@@ -740,7 +741,7 @@ class Parser:
 
     def resolve_invalid(self):
         """ Process all invalid rows. """
-        if Config.get("yes", get=bool) and Config.is_quiet():
+        if self.m.env.cli.yes and Config.is_quiet():
             return False
         if not self.invalid_lines_count:
             input("No invalid rows. Press Enter to continue...")
@@ -759,7 +760,7 @@ class Parser:
                 input("File {} not found, maybe resolving was run in the past and failed. Please rerun again.".format(
                     path))
                 return False
-            if Config.get("yes", get=bool):
+            if self.m.env.cli.yes:
                 res = "n"
             else:
                 s = "Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them," \

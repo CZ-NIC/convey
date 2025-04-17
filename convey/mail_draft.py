@@ -84,9 +84,9 @@ class MailDraft:
                 logger.warning(f"Template file {self.template_file} not found")
 
         # enrich e-mail text using the CLI variables `body`, `subject`, `references`
-        subject = Config.get("subject")
-        body = Config.get("body")
-        references = Config.get("references")
+        subject = Config.get_env().sending.subject
+        body = Config.get_env().sending.body
+        references = Config.get_env().sending.references
         if subject or body or references:
             e = Envelope.load(self.mail_file).date(False)
             if subject:
@@ -117,7 +117,7 @@ class MailDraft:
                 if not (references.startswith("<") and references.endswith(">")):
                     references = f"<{references}>"
                 e.header("Reference", references)
-                e.bcc(Config.get("email_from_name", "SMTP"))
+                e.bcc(Config.get_env().sending.email_from_name)
 
             # When a HTML is piped through --body flag, Content-Transfer-Encoding might change to ex: quoted-printable.
             # However when editing, we do not want to see quoted-printable garbage but plain text.
@@ -161,7 +161,7 @@ class MailDraft:
         if not self.text:  # user did not fill files in GUI
             return "Empty body text."
 
-        if attachment and Config.get("jinja", "SMTP", get=bool):
+        if attachment and Config.get_env().sending.jinja:
             if self.apply_jinja(attachment) is False:
                 return "Wrong jinja2 template."
 
@@ -170,7 +170,7 @@ class MailDraft:
              .signature("auto"))
 
         if not e.from_():
-            e.from_(Config.get("email_from_name", "SMTP"))
+            e.from_(Config.get_env().sending.email_from_name)
         if not e.message() or not e.message().strip():
             return "Missing body text. Try writing 'Subject: text', followed by a newline and a text."
         if not e.subject():
@@ -182,12 +182,12 @@ class MailDraft:
                 e.cc(attachment.cc)
 
             # attach the split CSV file
-            if attachment.path and not attachment.used_in_body and Config.get('attach_files', 'SMTP', get=bool):
+            if attachment.path and not attachment.used_in_body and Config.get_env().sending.attach_files:
                 e.attach(attachment.path, "text/csv", attachment.parser.sending.attachment_name)
 
             # attach the paths from the path column (images, ...) in the split CSV file
             # If there is a trouble with an attachment,
-            if Config.get('attach_paths_from_path_column', 'SMTP', get=bool):
+            if Config.get_env().sending.attach_paths_from_path_column:
                 for path in attachment.get_paths_from_path_column():
                     try:
                         e.attach(path)
@@ -197,7 +197,7 @@ class MailDraft:
         if Config.is_testing():
             e.recipients(clear=True)
             intended_to = attachment.mail if attachment else None
-            e.to(Config.get('testing_mail'))
+            e.to(Config.get_env().sending.testing_mail)
             # XX envelope might have method to delete message, like
             #  .message(False), .message(""), .message(text, alternative="replace")
             m = e.message()

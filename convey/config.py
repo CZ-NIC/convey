@@ -136,12 +136,15 @@ class Config:
 
     cache_dir: str = ""
 
+    env: "Env"
+
     @staticmethod
     def missing_dependency(library):
         logger.warning(f"Install {library} by `sudo apt install {library}` first or disable `--{library}` in config")
         input("Press any key...")
         raise KeyboardInterrupt
 
+    # TODO deprecated
     @staticmethod
     def integrity_check():
         from .dialogue import is_yes  # since Config should be the very first package file to be loaded, we postpone this import
@@ -230,13 +233,14 @@ class Config:
                 p = Popen(["xdg-open", Config.path], shell=False)
             exit()
 
+    # TODO mostly handled by mininterface
     @staticmethod
     def init_verbosity(yes=False, verbosity=None, daemon=None):
         # Set up logging and verbosity
         if daemon:
-            Config.set("daemon", True)
+            Config.get_env().process.daemon = True
         if yes:
-            Config.set("yes", True)
+            Config.get_env().cli.yes = True
         if verbosity:
             Config.verbosity = verbosity
         else:
@@ -288,7 +292,7 @@ class Config:
 
     @staticmethod
     def is_debug():
-        return Config.get('debug')
+        return Config.get_env().cli.debug
 
     @staticmethod
     def is_quiet():
@@ -300,48 +304,16 @@ class Config:
 
     @staticmethod
     def is_testing():
-        return Config.get('testing')
+        return Config.get_env().sending.testing
 
     @staticmethod
-    def get(key, section='CONVEY', get=None):
-        """
+    def set_env(env: "Env"):
+        Config.env = env
 
-        :type get: type
-                * if str, return value will always be str (ex: no conversion '1/true/on' to boolean happens)
-                * if list, value tries to be split by a comma
-                * if bool, it tries to convert to True/False from values 0/off/false 1/on/true
-                * if int, you get integer or 0 on error (which means 0 for on/true)
-                * if None
-                    * bool for text 0/off/false 1/on/true
-                    * None for text = '' or non-inserted value
-                    * or any inserted value if non-conforming to previous possibilities
-        """
-        if key not in Config.cache:
-            try:
-                val = Config.config[section][key]
-                if (get is None or get is bool) and val.lower() in BOOLEAN_STATES:
-                    val = BOOLEAN_STATES[val.lower()]
-                elif val == '':
-                    val = get() if get else None
-            except (configparser.Error, KeyError):
-                return get() if get else None
-            Config.cache[key] = val
-        val = Config.cache[key]
-        if get is str and type(val) is not str:
-            try:
-                return str(Config.config[section][key])
-            except KeyError:
-                return ''
-        elif get is list:
-            if val:
-                return [x.strip() for x in val.split(",")]
-            return []
-        elif get is int:
-            try:
-                return int(val)
-            except ValueError:
-                return 0
-        return val
+    @staticmethod
+    def get_env() -> "Env":
+        """ Allow migration from old configparser to the typed Env dataclass """
+        return Config.env
 
     @staticmethod
     def github_issue(title, body):
@@ -352,14 +324,6 @@ class Config:
         webbrowser.open(url)
         input(f"\nPlease submit a Github issue at {url}"
               "\nTrying to open issue tracker in a browser...")
-
-    @staticmethod
-    def set(key, val, section='CONVEY'):
-        # XX was this needed? if val is None:
-        #    Config.config.remove_option(section, key)
-        # else:
-        Config.cache[key] = val
-        # XX Config.config.set(section, key, str(val))
 
     @staticmethod
     def set_cache_dir(path):
@@ -383,7 +347,7 @@ def edit(path="config", mode=3, restart_when_done=False, blocking=False):
     """
     if type(mode) is str:  # from CLI
         mode = int(mode)
-    d = {"template": Config.get("mail_template"), "template_abroad": Config.get("mail_template_abroad"),
+    d = {"template": Config.get_env().sending.mail_template, "template_abroad": Config.get_env().sending.mail_template_abroad,
          "uwsgi": "uwsgi.ini", "config": "config.ini"}
     if path in d:
         path = get_path(d[path])

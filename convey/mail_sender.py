@@ -262,11 +262,11 @@ class MailSenderOtrs(MailSender):
             "ChallengeToken": self.parser.sending.otrs_token,
         }
 
-        try:  # XX as of Python3.8, convert "try" to if m := Config.get("signkeyid", "OTRS"):
+        try:  # XX as of Python3.8, convert "try" to if m := self.m.env.whois.signkeyid:
             if OTRS_VERSION == 6:
-                fields["EmailSecurityOptions"] = Config.get("signkeyid", "OTRS")
+                fields["EmailSecurityOptions"] = Config.get_env().otrs.signkeyid
             else:
-                fields["SignKeyID"] = Config.get("signkeyid", "OTRS")
+                fields["SignKeyID"] = Config.get_env().otrs.signkeyid
         except KeyError:
             pass
 
@@ -284,8 +284,8 @@ class MailSenderOtrs(MailSender):
             print(' ** Files: ', [(a.name, len(a.data)) for a in attachments])
             print(' ** Cookies: ' + str(cookies))
 
-        host = Config.get("otrs_host", "OTRS")
-        url = (host if "://" in host else f"https://{host}") + Config.get("baseuri", "OTRS")
+        host = Config.get_env().otrs.host
+        url = (host if "://" in host else f"https://{host}") + Config.get_env().otrs.baseuri
         try:
             res = self._post_multipart(url,
                                        fields=fields,
@@ -309,7 +309,7 @@ class MailSenderSmtp(MailSender):
 
     def start(self):
         try:
-            self.smtp = smtplib.SMTP(Config.get("smtp_host", "SMTP"))
+            self.smtp = smtplib.SMTP(Config.get_env().sending.smtp_host)
         except (gaierror, ConnectionRefusedError) as e:
             print("Can't connect to SMTP server", e)
             return False

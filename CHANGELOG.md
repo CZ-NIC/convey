@@ -2,9 +2,14 @@
 
 ## unreleased
 * CHANGED:
+    * config.ini file retired
+        * Migrate all custom options to YAML (TODO)
     * `file-or-input` must be the first argument, or specified by `--file PATH` or `--input STR`.
     * CLI bool flags must be either `blank|True|False`. No more support for `on/off`, `1/0`, or case insensitivity.
-    * removed `--no-header` in favour to `--header False`;
+    * CLI flags:
+        * renamed (grouped by sections), check `--help`
+            * removed `--no-header` in favour to `--header False`;
+        * Config file options ported to the same-named CLI flags. (With the exception of `file-or-input` renamed to `default_action` due to the name clash.)
 * Brand new CLI / UI by [mininterface](https://github.com/CZ-NIC/mininterface)
 * removed the dialog dependency
 

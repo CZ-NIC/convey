@@ -1,14 +1,15 @@
+from email.policy import default
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from dataclasses import field as field_orig
 from typing import Annotated, Any, List, Optional, Tuple
 
 from mininterface import run
 from mininterface.interfaces import TextInterface
 from mininterface.tag.flag import BlankTrue, Blank
-from tyro.conf import (FlagConversionOff, OmitArgPrefixes, Positional,
+from tyro.conf import (FlagConversionOff, OmitArgPrefixes, Positional, Suppress,
                        UseAppendAction, arg)
 from tyro.extras import get_parser as get_tyro_parser
 
@@ -58,16 +59,39 @@ class IO:
     csv_processing: Annotated[BlankTrue, arg(aliases=["-C"])] = None
     """Consider the input as a CSV, not a single."""
 
+    # TODO renamed from file_or_input
+    default_action: int = 1
+    """In the command line we specify a file name or input text (if file does not exist).
+    If this parameter is omitted what should convey do?
+    0 or empty ~ ask what to do
+    1 ~ input from stdin
+    2 ~ choose file name
+    3 ~ input from stdin, then choose file name
+    4 ~ choose file name, then input from stdin
+    5 ~ allow only input text (unless flag --file present), even if parameter omitted
+    6 ~ allow only file name (unless flag --input present), even if parameter omitted"""
+
+    save_stdin_output: int = 1
+    """
+    When processing input text (not a file on disk), should we save the output to a file at program exit?
+    4 or True ~ always save
+    3 ~ if processed, save, otherwise do not save
+    2 ~ always ask
+    1 ~ if processed, ask, otherwise do not save
+    0 or empty ~ do not save, just display
+    This value gets overwritten if --output flag is used to specify the destination file.
+    Note: We do not save single value input but only CSV STDIN input unless --output flag specified.
+    Ex: $ convey example.com # single value input - no output unless --output flag
+    Ex: $ convey < file.csv # CSV STDIN input - output savable"""
+
+    # TODO
+    # internal
+    stdout: Suppress[bool | None] = None
+
 
 @dataclass
 class CLI:
     """CLI experience"""
-
-    debug: BlankTrue = None
-    """Development only: increases verbosity and gets the prompt in the case of an exception."""
-
-    crash_post_mortem: BlankTrue = None
-    """Get prompt if program crashes"""
 
     verbose: Annotated[BlankTrue, arg(aliases=["-v"])] = None
     """Sets the verbosity to see DEBUG messages."""
@@ -84,8 +108,22 @@ class CLI:
     headless: Annotated[BlankTrue, arg(aliases=["-H"])] = None
     """Launch program in a headless mode which imposes --yes and --quiet. No menu is shown."""
 
-    compute_preview: BlankTrue = None
-    """When adding new columns, show few first computed values."""
+    github_crash_submit: bool = True
+    """ Submit crashes to GitHub """
+
+    debug: BlankTrue = None
+    """Development only: increases verbosity and gets the prompt in the case of an exception."""
+
+    crash_post_mortem: BlankTrue = None
+    """Get prompt if program crashes"""
+
+    autoopen_editor: bool = False
+    """ Open GUI editor with mail templates when analysis starts if splitting by a column """
+
+    write_statistics: bool = False
+    """ True if you want to write "statistics.txt" file next to the analyzed file, containing whois info, like:
+     "Totally 17 of unique IPs; information for 5 countries (16 unique IPs), no contact for 1 countries without national/government CSIRT (1 unique IPs)"
+     """
 
 
 @dataclass
@@ -113,8 +151,15 @@ class Environment:
 @dataclass
 class Processing:
     """ Processing """
-    threads: Annotated[Blank[str], arg(metavar="blank/False/auto/INT")] = None
-    """Set the thread processing number."""
+    threads: Annotated[Blank[int] | Literal["auto"], arg(metavar="bool/auto/INT")] = "auto"
+    """Set the thread processing number.
+
+    Processing threads
+    If set to threads = auto, threads will be used if convey think it is reasonable.
+    If True, threads will be always used when processing.
+    If number, that number of threads will be created.
+    If False, 0, no thread used.
+    """
 
     fresh: Annotated[BlankTrue, arg(aliases=["-F"])] = None
     """Do not attempt to load any previous settings / results.
@@ -137,6 +182,14 @@ class Processing:
       * status – print out the status of the daemon
       * restart – restart the daemon and continue
       * server – run the server in current process (I.E. for debugging)"""
+
+    daemonize: bool = True
+    """
+    To start up convey could take around 0.75 s notably because of the external libraries (pint (0.2 s), bs4, requests).
+    When doing a single query or a headless processing (no menu involved), we may reduce this time significantly (to cca 0.03 s) with a daemon that would parse our CLI arguments and if everything went ok print out the results.
+    True ~ start the daemon at the end of the first convey call
+    False ~ do not start the daemon automatically, just wait for `convey --daemon start` call.
+    """
 
 
 @dataclass
@@ -231,10 +284,27 @@ class EnablingModules:
 
 
 @dataclass
+class Web:
+    # Fields 'code' and 'external' are considered unsafe, an attacker might take possession of your server.
+    # With 'code', you can launch an arbitrary code on the machine.
+    # With 'external', you can load any file from your machine and launch it.
+    # These unsafe fields are not available via the web service.
+    # You may specifically allow them here, ex: webservice_allow_unsafe_fields = code, external
+    # Leave this field empty if you are not sure what are you doing!
+    webservice_allow_unsafe_fields: list | None = None
+
+    # Change user agent to be used when scraping a URL
+    user_agent: str = ""
+
+    # timeout used when scraping a URL
+    timeout: int = 3
+
+
+@dataclass
 class FieldComputingOptions:
     """ Field computing options """
     disable_external: BlankTrue = None
-    """Disable external function registered in config.ini to be imported."""
+    """Disable external function registered in config to be imported."""
 
     json: BlankTrue = None
     """When checking single value, prefer JSON output rather than text."""
@@ -251,24 +321,80 @@ class FieldComputingOptions:
     web_timeout: Annotated[int, arg(metavar="SECONDS")] = 30
     """Timeout used when scraping a URL."""
 
+    multiple_nmap_ports: bool = False
+    """ NMAP may generate a single string with ports and their services, ex:
+            53/tcp  open  domain
+            443/tcp open  https
+    or may generate a list of open ports as integers, ex: [53, 443]
+    False ~ take single string
+    True ~ take all of them and duplicate whole row"""
+
+    single_query_ignored_fields: list[str] = field(default_factory=lambda: ["html"])
+    """ These fields shall not be computed when using single value check """
+
+    compute_preview: BlankTrue = None
+    """When adding new columns, show few first computed values."""
+
+    # TODO
+    external_fields: list = field(default_factory=list)
+    """ You may define custom fields. Providing paths to the entrypoint Python files.
+    Methods in these files will be taken as the names for the custom fields.
+
+    Ex: `--external-fields /tmp/myfile.py /tmp/anotherfile.py`
+
+    /tmp/myfile.py may have the contents: `def hello_world(val): return "hello world"`
+
+    TODO
+    If you do not want to register all methods from the file,
+    list chosen methods as new parameters while delimiting the method names by a colon.
+    Ex: hello_world = /tmp/myfile.py:hello_world
+    """
+
+    # internal
+    adding_new_fields: Suppress[bool] = False
+
 
 @dataclass
 class WhoisModule:
     """ WHOIS module options """
-    whois_ttl: Annotated[int, arg(metavar="SECONDS")] = 86400
+    ttl: Annotated[int, arg(metavar="SECONDS")] = 86400
     """How many seconds will a WHOIS answer cache will be considered fresh."""
 
-    whois_delete: BlankTrue = None
+    delete: BlankTrue = None
     """Delete convey's global WHOIS cache."""
 
-    whois_delete_unknown: BlankTrue = None
+    delete_unknown: BlankTrue = None
     """Delete unknown prefixes from convey's global WHOIS cache."""
 
-    whois_reprocessable_unknown: BlankTrue = None
+    reprocessable_unknown: BlankTrue = None
     """Make unknown lines reprocessable while single file processing, do not leave unknown cells empty."""
 
-    whois_cache: BlankTrue = None
+    cache: BlankTrue = None
     """Use whois cache."""
+
+    mirror: Optional[str] = None
+
+    local_country: str = ""
+    """ whois country code abbreviation (or their list) for local country(countries),
+    other countries will be treated as "abroad" if listed in contacts_abroad
+    This is important for incident-contact field; when generating e-mail messages, "abroad" e-mails use another template.
+    * local country record uses whois abuse e-mail and template.eml
+    * abroad (non-local) record try to get the csirtmail from contacts_abroad and uses template_abroad.csv
+    * if the csirtmail is not available, it uses whois abuse e-mail and template_abroad.csv
+    Ex: cz """
+
+    lacnic_quota_skip_lines: bool = True
+    """ LACNIC has rate limits that lets the script wait for 5 minutes.
+     False ~ wait 5 minutes
+     True ~ skip lines and try to resolve them afterwards
+     """
+
+    lacnic_quota_resolve_immediately: bool = True
+    """
+    True ~ resolve after processing other lines
+    False ~ left skipped unprocessed (user have to launch reprocessing from menu)
+    empty ~ ask
+    """
 
 
 @dataclass
@@ -292,6 +418,9 @@ class SendingOptions:
     testing: BlankTrue = None
     """Do not be afraid, e-mail messages will not be sent. They will get forwarded to the testing e-mail."""
 
+    testing_mail: str = "example@example.com"
+    """ If testing is True, all e-mails will be forwarded to this testing e-mail. """
+
     subject: str = ""
     """E-mail subject. May be in BASE64 if started with "data:text/plain;base64,"."""
 
@@ -300,6 +429,21 @@ class SendingOptions:
 
     references: Annotated[str, arg(metavar="MESSAGE_ID")] = ""
     """E-mail references header (to send message within a thread)."""
+
+    mail_template: str = "template.eml"
+    """ Template for basic e-mails. """
+
+    mail_template_abroad: str = "template_abroad.eml"
+    """ Template for abroad e-mails. """
+
+    smtp_host: str = "localhost"
+    email_from_name: str = '"My cool mail" <example@example.com>'
+
+    contacts_cc: str = "contacts_cc.csv"
+    # Filepath to local country team contacts. CSV file is in the format: domain,cc. (Mails can be delimited by semicolon.)
+
+    contacts_abroad: str = "contacts_abroad.csv"
+    # Filepath to foreign countries contacts. CSV file is in the format: country,email
 
 
 @dataclass
@@ -322,25 +466,26 @@ class OTRS:
 
 @dataclass
 class Env:
-    io: IO
-    cli: CLI
-    env: Environment
-    process: Processing
-    csv: CSVDialect
-    action: Actions
-    mod: EnablingModules
-    comp: FieldComputingOptions
+    io: OmitArgPrefixes[IO]
+    cli: OmitArgPrefixes[CLI]
+    env: OmitArgPrefixes[Environment]
+    process: OmitArgPrefixes[Processing]
+    csv: OmitArgPrefixes[CSVDialect]
+    action: OmitArgPrefixes[Actions]
+    mod: OmitArgPrefixes[EnablingModules]
+    comp: OmitArgPrefixes[FieldComputingOptions]
     whois: WhoisModule
-    sending: SendingOptions
+    sending: OmitArgPrefixes[SendingOptions]
     otrs: OTRS
+    web: Web
 
 
 def get_parser():
-    return get_tyro_parser(OmitArgPrefixes[FlagConversionOff[Env]])
+    return get_tyro_parser(FlagConversionOff[Env])
 
 
 def parse_args(args=None):
-    m = run(OmitArgPrefixes[FlagConversionOff[Env]],
+    m = run(FlagConversionOff[Env],
             args=args,
             interface="tui",  # NOTE – we migrate to mininterface step by step
             add_verbosity=False,

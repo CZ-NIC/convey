@@ -52,13 +52,13 @@ def send_ipc(pipe, msg, refresh_stdout):
 
 def control_daemon(cmd, in_daemon=False):
     if cmd == "stop":
-        Config.set("daemonize", False)  # daemon should not be started at the end
+        Config.get_env().process.daemonize = False  # daemon should not be started at the end
         print("Convey daemon stopping.")
     if cmd in ["restart", "start"]:
         if in_daemon:
             raise ConnectionResetError("restart.")
         else:
-            Config.set("daemonize", True)
+            Config.get_env().process.daemonize = True
             control_daemon("kill")
         if cmd == "start":
             print("Convey daemon starting.")
@@ -84,7 +84,7 @@ def control_daemon(cmd, in_daemon=False):
         if in_daemon:
             raise ConnectionAbortedError("Daemon should not be used")
         else:
-            Config.set("daemonize", False)
+            Config.get_env().process.daemonize = False
     if cmd == "server":
         if in_daemon:
             raise ConnectionAbortedError("The new process will become the new server.")
@@ -101,13 +101,19 @@ class Controller:
         self.parser = parser
 
     def run(self, given_args: Optional[str] = None):
-        """ given_args - Input for ArgumentParser. Else sys.argv used. """
-        if "--disable-external" in sys.argv:
-            Config.set("disable_external", True)
-        Types.refresh()  # load types so that we can print out computable types in the help text
+        """
+        Args:
+            given_args - Input for ArgumentParser. Else sys.argv used.
+        """
+
+        # load types so that we can print out computable types in the help text
+        # Hence, we cannot use the Env object yet.
+        Types.refresh(True, "--disable-external" in sys.argv)
         self.m = parse_args(args=given_args)
+        Config.set_env(self.m.env)
         init_global_interface()
-        self.args = self.m.env
+        self.env = self.m.env
+
         self.see_menu = True
         self.check_server()
         is_daemon, stdout, server = self.check_daemon()
@@ -116,7 +122,7 @@ class Controller:
         self.run_menu(ac)
 
     def check_server(self):
-        if self.args.process.server:
+        if self.env.process.server:
             # XX not implemeneted: allow or disable fields via CLI by ex: `--web`
             print(f"Webserver configuration can be changed by `convey --config uwsgi`")
             print(get_path("uwsgi.ini").read_text())
@@ -125,12 +131,11 @@ class Controller:
             exit()
 
     def check_daemon(self):
-        daemon = self.args.process.daemon
-        cli = self.args.cli
+        daemon = self.env.process.daemon
+        cli = self.env.cli
         if daemon is not None and control_daemon(daemon) == "server":
             # XX :( after a thousand requests, we start to slow down. Memory leak must be somewhere
-            Config.set("daemonize",
-                       False)  # do not restart daemon when killed, there must be a reason this daemon was killed
+            Config.get_env().process.daemonize = False  # do not restart daemon when killed, there must be a reason this daemon was killed
             if Path(socket_file).exists():
                 Path(socket_file).unlink()
 
@@ -179,7 +184,7 @@ class Controller:
                 PromptSession.prompt = safe_prompt
 
             self.see_menu = False
-            self.args.cli.yes = True
+            self.env.cli.yes = True
 
     def process_args_from_daemon_or_locally(self, is_daemon, stdout, server):
         colorama_init()
@@ -208,7 +213,7 @@ class Controller:
                         continue
                     self.cleanup()  # reset new fields so that they will not be remembered in another query
                     try:
-                        self.args = parse_args(argv[2:]).env  # the daemon has receives a new command
+                        self.env = parse_args(argv[2:]).env  # the daemon has receives a new command
                     except SystemExit as e:
                         if not sys.stdout.getvalue():
                             # argparse sent usage to stderr, we do not have in in stdout instance will rerun the command
@@ -217,7 +222,7 @@ class Controller:
                             # argparse put everything in stdout
                             exit()
                     self.see_menu = True
-                    control_daemon(self.args.process.daemon, True)
+                    control_daemon(self.env.process.daemon, True)
                 ac = self.process_args(is_daemon)
                 if not ac:
                     continue
@@ -240,30 +245,18 @@ class Controller:
         return ac
 
     def process_args(self, is_daemon) -> Optional[ActionController]:
-        e = self.args
+        e = self.env
         # this try-block may send the results to the client convey processes when a daemon is used
         if e.process.server:
             raise ConnectionAbortedError("web server request")
         if e.env.config:
             edit(*e.env.config, restart_when_done=True)
             exit()
-        Config.set("stdout", e.io.output is True or None)
+        e.io.stdout = e.io.output is True or None
         if e.io.output is True:
-            # --output=True → no output file in favour of stdout (Config.get("stdout") -> parser.stdout set)
-            # --output=FILE → an output file generated (Config.get("output") -> parser.target_file set)
+            # --output=True → no output file in favour of stdout (.stdout -> parser.stdout set)
+            # --output=FILE → an output file generated (.output -> parser.target_file set)
             e.io.output = None
-        for flag in ["output", "web", "whois", "nmap", "dig", "delimiter", "quote_char", "compute_preview",
-                     "user_agent",
-                     "multiple_hostname_ip", "multiple_cidr_ip", "web_timeout", "whois_ttl", "disable_external",
-                     "debug", "crash_post_mortem",
-                     "testing", "attach_files", "attach_paths_from_path_column", "jinja", "subject", "body", "references",
-                     "whois_delete_unknown", "whois_reprocessable_unknown", "whois_cache"]:
-            for f in fields(e):
-                if hasattr(getattr(e, f.name), flag):
-                    val = getattr(getattr(e, f.name), flag)
-                    if val is not None:
-                        Config.set(flag, val)
-                    break
 
         if e.cli.headless or e.sending.send_test:
             e.cli.yes = True
@@ -287,22 +280,23 @@ class Controller:
         if not is_daemon:  # in daemon, we checked it earlier
             Config.integrity_check()
         if e.csv.header is not None:
-            Config.set("header", e.csv.header)
+            Config.get_env().csv.header = e.csv.header
         if e.io.csv_processing:
-            Config.set("single_query", False)
+            Config.get_env().io.single_query = False
         if e.io.single_query or e.io.single_detect:
-            Config.set("single_query", True)
+            Config.get_env().io.single_query = True
             if e.io.single_detect:
-                Config.set("single_detect", True)
-        Config.set("adding-new-fields", bool(new_fields))
+                Config.get_env().io.single_detect = True
+
+        self.m.env.comp.adding_new_fields = True
         self.wrapper = Wrapper(self.m, e.io.file_or_input, e.io.file, e.io.input,
                                e.action.type, e.process.fresh, e.process.reprocess,
-                               e.whois.whois_delete)
+                               e.whois.delete)
         self.parser: Parser = self.wrapper.parser
         ac = ActionController(self.parser, self.m, e.process.reprocess)
 
         if e.process.threads is not None:
-            Config.set("threads", e.process.threads)
+            Config.get_env().process.threads = e.process.threads
 
         def get_column_i(col, check):
             self.parser.is_processable = True
@@ -377,7 +371,7 @@ class Controller:
 
         def change_dialect(s, s2):
             # delimiter_output, quote_char_output
-            v = getattr(e.csv, s + "_output") or Config.get(s + "_output", "CSV")
+            v = getattr(e.csv, s + "_output") or getattr(self.env.csv, s + "_output")
             if v and v != getattr(dialect, s2):
                 v = v.replace(r"\t", "\t").replace("TAB", "\t").replace("tab", "\t")
                 if len(v) != 1:
@@ -394,7 +388,7 @@ class Controller:
             # However, this is such a small change, we will not turning parser.is_processable on.
             self.parser.settings["header"] = e.csv.header_output
 
-        if self.parser.is_processable and Config.get("yes"):
+        if self.parser.is_processable and self.m.env.cli.yes:
             self.process()
 
         if e.sending.send and self.parser.is_analyzed and self.parser.is_split and not self.parser.is_processable:
@@ -405,8 +399,8 @@ class Controller:
                 self.send_menu(send_now=True)
         if e.sending.send_test:
             c = Path(e.sending.send_test[1]).read_text()
-            Path(Config.get_cache_dir(), Config.get("mail_template")).write_text(c)
-            Path(Config.get_cache_dir(), Config.get("mail_template_abroad")).write_text(c)
+            Path(Config.get_cache_dir(), Config.get_env().sending.mail_template).write_text(c)
+            Path(Config.get_cache_dir(), Config.get_env().sending.mail_template_abroad).write_text(c)
             self.send_menu(test_attachment=e.sending.send_test[0])
 
         if not self.see_menu:
@@ -532,9 +526,9 @@ class Controller:
     def send_menu(self, method="smtp", test_attachment=None, send_now=False):
         # choose method SMTP/OTRS
         # We prefer OTRS sending over SMTP because of the signing keys that an OTRS operator does not possess.
-        if Config.get("otrs_enabled", "OTRS") and self.args.otrs.id:
+        if self.m.env.otrs.enabled and self.env.otrs.id:
             method = "otrs"
-        elif Config.get("otrs_enabled", "OTRS") and not Config.get("yes"):
+        elif self.m.env.otrs.enabled and not self.m.env.cli.yes:
             method = self.m.select({"Send by SMTP...": "smtp",
                                     "Send by OTRS...": "otrs"},
                                    "What sending method do we want to use?")
@@ -568,8 +562,8 @@ class Controller:
                     if c[1]:
                         info.append(f"Already sent ({c[1]}/{sum(c)}): "
                                     + ", ".join([o.mail for o in Attachment.get_all(abroad, True, 5, True)]))
-                    info.append(f"Attachment: " + (", ".join(filter(None, (Config.get('attach_files', 'SMTP', get=bool) and "split CSV file attached",
-                                                                           Config.get('attach_paths_from_path_column', 'SMTP', get=bool) and "files from the path column attached")))
+                    info.append(f"Attachment: " + (", ".join(filter(None, (self.env.sending.attach_files and "split CSV file attached",
+                                                                           self.env.sending.attach_paths_from_path_column and "files from the path column attached")))
                                                    or "nothing attached"))
                     info.append(f"\n{Contacts.mail_draft[draft].get_mail_preview()}\n")
                     return True
@@ -580,7 +574,7 @@ class Controller:
 
             if Config.is_testing():
                 info.append(
-                    f"\n\n\n*** TESTING MOD - mails will be sent to the address: {Config.get('testing_mail')} ***"
+                    f"\n\n\n*** TESTING MOD - mails will be sent to the address: {self.env.sending.testing_mail} ***"
                     f"\n (For turning off testing mode set `testing = False` in config.ini.)")
             info.append("*" * 50)
             sum_ = st['local'][0] + st['abroad'][0]
@@ -588,11 +582,11 @@ class Controller:
             if sum_ < 1:
                 everything_sent = True
                 info.append("No e-mail to be sent.")
-            method_s = "OTRS" if method == "otrs" else Config.get("smtp_host", "SMTP")
+            method_s = "OTRS" if method == "otrs" else self.m.env.sending.smtp_host
 
             if test_attachment:
                 option = "test"
-            elif send_now:  # XConfig.get("yes")
+            elif send_now:
                 option = "1"
                 send_now = False  # while-loop must not re-send
             else:
@@ -614,9 +608,9 @@ class Controller:
                 menu.add("Choose recipients...", key="r")
                 menu.add("Send test e-mail...", key="t", default=not everything_sent)
                 menu.add("Print e-mails to a file...", key="p")
-                menu.add(f"Attach files (toggle): {Config.get('attach_files', 'SMTP', get=bool)}", key="a")
+                menu.add(f"Attach files (toggle): {Config.get_env().sending.attach_files}", key="a")
                 menu.add("Attach paths from path column (toggle):"
-                         f" {Config.get('attach_paths_from_path_column', 'SMTP', get=bool)}", key="i")
+                         f" {Config.get_env().sending.attach_paths_from_path_column}", key="i")
                 menu.add("Go back...", key="x", default=everything_sent)
 
                 option = menu.sout()
@@ -637,7 +631,7 @@ class Controller:
                     print("Sending to abroad e-mails...")
                     sender.send_list(Attachment.get_all(True, False, l))
             if option in ["1", "2", "3"]:
-                if Config.get("yes"):
+                if self.m.env.cli.yes:
                     return
                 self.wrapper.save()  # save what message has been sent right now
                 input("\n\nPress Enter to continue...")
@@ -657,10 +651,9 @@ class Controller:
                 if limit < 0:
                     limit = float("inf")
             elif option == "a":
-                Config.set("attach_files", not Config.get('attach_files', 'SMTP', get=bool))
+                Config.get_env().sending.attach_files = not Config.get_env().sending.attach_files
             elif option == "i":
-                Config.set("attach_paths_from_path_column",
-                           not Config.get('attach_paths_from_path_column', 'SMTP', get=bool))
+                Config.get_env().sending.attach_paths_from_path_column = not Config.get_env().sending.attach_paths_from_path_column
             elif option in ["test", "t", "r", "p"]:
                 attachments = sorted(list(Attachment.get_all()), key=lambda x: x.mail.lower())
                 if option == "p":
@@ -698,7 +691,7 @@ class Controller:
                     print(attachment.get_envelope().preview())
 
                     # Define testing e-mail
-                    t = Config.get("testing_mail")
+                    t = self.m.env.sending.testing_mail
                     t = f" – type in or hit Enter to use {t}" if t else ""
                     try:
                         t = self.m.ask(
@@ -706,17 +699,17 @@ class Controller:
                     except KeyboardInterrupt:
                         continue
                     if not t:
-                        t = Config.get("testing_mail")
+                        t = self.m.env.sending.testing_mail
                     if not t:
                         input("No address written. Hit Enter...")
                         continue
 
                     # Send testing e-mail
-                    old_testing, old_sent, attachment.sent = Config.get('testing'), attachment.sent, None
-                    Config.set('testing', True)
-                    Config.set('testing_mail', t)
+                    old_testing, old_sent, attachment.sent = Config.get_env().sending.testing, attachment.sent, None
+                    Config.get_env().sending.testing = True
+                    Config.get_env().sending.testing_mail = t
                     sender.send_list([attachment])
-                    Config.set('testing', old_testing)
+                    Config.get_env().sending.testing = old_testing
                     input("\n\nTesting completed. Press Enter to continue...")
                     attachment.sent = old_sent
                 elif option == "r":
@@ -821,7 +814,7 @@ class Controller:
 
     def close(self):
         self.wrapper.save(last_chance=True)  # re-save cache file
-        if not Config.get("yes"):
+        if not self.m.env.cli.yes:
             if not Config.is_quiet():
                 # Build processing settings list
                 o = []

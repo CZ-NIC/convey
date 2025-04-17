@@ -77,10 +77,10 @@ class Whois:
         cls.unknown_mode = unknown_mode  # if True, we use b flag in abusemails
         cls.slow_mode = slow_mode  # due to LACNIC quota
         cls.queued_ips = set()
-        cls.ttl = Config.get("whois_ttl", "FIELDS", int)
+        cls.ttl = Config.get_env().whois.ttl
         cls.see = Config.verbosity <= logging.INFO
-        if Config.get("whois_mirror", "FIELDS"):  # try a fast local whois-mirror first
-            cls.servers["mirror"] = Config.get("whois_mirror", "FIELDS")
+        if mirr := Config.get_env().whois.mirror:  # try a fast local whois-mirror first
+            cls.servers["mirror"] = mirr
         cls.servers["general"] = None
         # Algorithm for querying custom servers:
         # for name, val in zip(["ripe", "arin", "lacnic", "apnic", "afrinic"],
@@ -174,7 +174,7 @@ class Whois:
                 self.csvstats[f"ip_csirtmail_{known}"].add(self.ip)
                 self.csvstats[f"csirtmail_{known}"].add(country)
 
-        if not mail and Config.get("whois_reprocessable_unknown", "FIELDS", get=bool):
+        if not mail and Config.get_env().whois.reprocessable_unknown:
             raise UnknownValue
 
     def resolve_unknown_mail(self):
@@ -289,7 +289,7 @@ class Whois:
                         continue
                     if self._match_response("query rate limit exceeded"):  # LACNIC gave me this - seems 300 s needed
                         self.quota.try_start()
-                        if Config.get("lacnic_quota_skip_lines", "FIELDS") and not self.slow_mode:
+                        if Config.get_env().whois.lacnic_quota_skip_lines and not self.slow_mode:
                             if self.see:
                                 print("LACNIC quota exceeded.")
                             self.queued_ips.add(self.ip)
@@ -369,7 +369,7 @@ class Whois:
         if Whois.unknown_mode and not ab:
             ab = self.resolve_unknown_mail()
 
-        local = Config.get("local_country", "FIELDS")
+        local = Config.get_env().whois.local_country
         if local and country not in local:
             mail = Contacts.country2mail[country] if country in Contacts.country2mail else ab
             get1 = "abroad"

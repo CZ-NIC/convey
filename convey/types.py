@@ -12,10 +12,11 @@ from enum import IntEnum
 from pathlib import Path
 from quopri import decodestring, encodestring
 from sys import exit
-from typing import Callable, List
+from typing import TYPE_CHECKING, Callable, List
 from urllib.parse import unquote, quote
 
 from validate_email import validate_email
+
 
 from .config import Config
 from .convert import any_ip_ip, port_ip_ip, port_ip_port, reAnyIp, reFqdn, reIpWithPort, reUrl, url_hostname, url_port, wrong_url_2_url, dig, nmap
@@ -27,6 +28,8 @@ from .infodicts import phone_country, address_country, country_codes
 from .web import Web
 from .whois import Whois
 
+if TYPE_CHECKING:
+    from .args_controller import Env
 logger = logging.getLogger(__name__)
 
 types: List["Type"] = []  # all field types
@@ -46,7 +49,7 @@ class TypeGroup(IntEnum):
     @staticmethod
     def init():
         for module in ["whois", "web", "nmap", "dig"]:
-            if Config.get(module, "FIELDS") is False:
+            if getattr(Config.get_env().mod, module) is False:
                 if module == "dig":
                     module = "dns"
                 getattr(TypeGroup, module).disable()
@@ -198,6 +201,26 @@ class Type:
         return score
 
 
+class _AlwaysFalse:
+    def __getattr__(self, name):
+        return self
+
+    def __getitem__(self, key):
+        return self
+
+    def __call__(self, *args, **kwargs):
+        return self
+
+    def __bool__(self):
+        return False
+
+    def __repr__(self):
+        return "False"
+
+    def __str__(self):
+        return "False"
+
+
 class Types:
     """
     Methods sourcing from private type should return a tuple, with the private type as the first
@@ -206,41 +229,36 @@ class Types:
     """
 
     @staticmethod
-    def refresh():
+    def refresh(init=False, disable_external=False):
         """ refreshes methods and import custom methods from files """
+        config = _AlwaysFalse() if init else Config.get_env()
+
         methods.clear()
-        methods.update(Types._get_methods())
+        methods.update(Types._get_methods(config))
         graph.clear()
         [graph.add_edge(to, from_) for to, from_ in methods if methods[to, from_] is not True]
         [t.init() for t in types]
 
-        if Config.get("disable_external", get=bool) is True:
+        if disable_external:  # we cannot use Config.get_env().comp.disable_external here as it is not ready:
             return
 
-        try:
-            externals = Config.config["EXTERNAL"]
-        except KeyError:
-            externals = []
-        for field_name in externals:
-            if field_name == "external_fields":  # this is a genuine field, user did not make it
-                continue
-            path, method_name = Config.config["EXTERNAL"][field_name].rsplit(":")
-            module = get_module_from_path(path)
-            Types.import_method(module, method_name, path, name=field_name)
-
-        for path in (x.strip() for x in Config.get("external_fields", "EXTERNAL", get=str).split(",") if x.strip()):
-            # noinspection PyBroadException
-            try:
+        for field_name in config.comp.external_fields:
+            if ":" in field_name:
+                path, method_name = field_name.rsplit(":")
                 module = get_module_from_path(path)
-                if module:
-                    for method_name in (x for x in dir(module) if not x.startswith("_")):
-                        Types.import_method(module, method_name, path)
-            except bdb.BdbQuit:
-                raise
-            except Exception as e:
-                s = f"Cannot import custom file from path: {path}"
-                input(s + ". Press any key...")
-                logger.warning(s)
+                Types.import_method(module, method_name, path, name=field_name)
+            else:
+                try:
+                    module = get_module_from_path(path)
+                    if module:
+                        for method_name in (x for x in dir(module) if not x.startswith("_")):
+                            Types.import_method(module, method_name, path)
+                except bdb.BdbQuit:
+                    raise
+                except Exception as e:
+                    s = f"Cannot import custom file from path: {path}"
+                    input(s + ". Press any key...")
+                    logger.warning(s)
 
     @staticmethod
     def import_method(module, method_name, path, name=None):
@@ -250,7 +268,7 @@ class Types:
         if isinstance(lambda_, ABCMeta):  # this is just an import statement of ex: PickBase
             return
         doc = lambda_.__doc__ if not isinstance(lambda_, PickBase) else lambda_.get_type_description()
-        # if Config.get("disable_external", get=bool) is True:
+        # if disable_external is True:
         #     # user do not want to allow externals to be added but we have added them before argparse was parsed
         #     # so that we could inform the user in the help text of the computable fields
         #     types.pop(types.index(getattr(Types, name)))
@@ -262,7 +280,7 @@ class Types:
         if lambda_ is not True:
             graph.add_edge(Types.plaintext, type_)
         type_.init()
-        # Xif Config.get("disable_external", get=bool) is False:
+        # Xif disable_external is False:
         # Xwhen "disable_external" is None it means this method is called before argparse flags are parsed,
         # Xwe do not know yet if "disable_external" will be set to True or False
         logger.debug(f"Successfully added method {method_name} from module {path}")
@@ -485,7 +503,7 @@ class Types:
         return "\n".join(l)
 
     @staticmethod
-    def _get_methods():
+    def _get_methods(config):
         """  These are known methods to compute a field from another field.
             They should return scalar or list.
 
@@ -498,6 +516,7 @@ class Types:
                     in other words we do not offer to compute a hostname from a hostname, however when selecting
                     an existing abusemail column, we offer conversion abusemail → (invisible email) → hostname
         """
+        # TODO config: "Env" | _AlwaysFalse
 
         t = Types
         return {
@@ -508,13 +527,12 @@ class Types:
             (t.port_ip, t.port): port_ip_port,
             (t.url, t.hostname): url_hostname,
             (t.url, t.port): url_port,
-            (t.hostname, t.ip): Checker.hostname_ips if Config.get("multiple_hostname_ip",
-                                                                   "FIELDS") else Checker.hostname_ip,
+            (t.hostname, t.ip): Checker.hostname_ips if config.comp.multiple_hostname_ip else Checker.hostname_ip,
             # (t.url, t.ip): Whois.url2ip,
             (t.ip, t.whois): Whois,
             (t.hostname, t.whoisdomain): lambda x: Whois(ip=None, hostname=x),
             # (t.asn, t.whois): Whois, # XX can be easily allowed, however Whois object will huff there is no IP prefix range
-            (t.cidr, t.ip): Checker.cidr_ips if Config.get("multiple_cidr_ip", "FIELDS") else
+            (t.cidr, t.ip): Checker.cidr_ips if config.comp.multiple_cidr_ip else
             lambda x: str(ipaddress.ip_interface(x).ip),
             (t.whois, t.prefix): lambda x: str(x.get[0]),
             (t.whois, t.asn): lambda x: x.get[3],

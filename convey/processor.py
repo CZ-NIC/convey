@@ -118,7 +118,7 @@ class Processor:
 
             # prepare thread processing
             threads = []
-            t = Config.get("threads")
+            t = self.parser.env.process.threads
             if t == "auto":
                 # XX since threads are experimental, make this disable threads
                 # In the future, enable it when using DNS and disable when using WHOIS (that may lead to duplicite calls)
@@ -166,12 +166,12 @@ class Processor:
                     inf.pause()
                     print(f"Keyboard interrupting on line number: {parser.line_count}")
                     s = "[a]utoskip LACNIC encounters" \
-                        if self.parser.queued_lines_count and not Config.get("lacnic_quota_skip_lines", "FIELDS") else ""
+                        if self.parser.queued_lines_count and not self.parser.env.whois.lacnic_quota_resolve_immediatel7y else ""
                     o = self.parser.m.ask("Keyboard interrupt caught. Options: continue (default, do the line again), "
                                           "[s]kip the line, [d]ebug, [e]nd processing earlier, [q]uit: ")
                     inf.release()
                     if o == "a":
-                        Config.set("lacnic_quota_skip_lines", True, "FIELDS")
+                        self.parser.env.whois.lacnic_quota_skip_lines = True
                     if o == "d":
                         # I dont know why.
                         print("Maybe you should hit n multiple times because pdb takes you to the wrong scope.")
@@ -264,7 +264,7 @@ class Processor:
                 # XX --output [file] does nothing while splitting. In parser.prepare_target_file, we set
                 #   self.is_split = True
                 #   self.target_file = None
-                # We may (a) print out a warning when setting target_file to None if Config.get("output") specified,
+                # We may (a) print out a warning when setting target_file to None if self.env.io.output specified,
                 # (b) set the target_file nevertheless and join the contents from split files here.
                 [[print(x) for x in (f"* Saved to {a.path.name}", "", a.path.read_text())]
                  for a in self.parser.attachments]

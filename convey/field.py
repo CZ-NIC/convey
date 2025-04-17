@@ -155,7 +155,7 @@ class Field:
 
     def compute_preview(self, source_line: List[Cell]) -> Cell:
         """ source_line is registered under parser.sample_parsed """
-        if Config.get("compute_preview") and self.source_field:
+        if Config.get_env().comp.compute_preview and self.source_field:
             try:
                 c = source_line[self.source_field.col_i]
             except IndexError:
@@ -182,7 +182,7 @@ class Field:
                 raise
             except Exception:
                 c = "INVALID"
-        elif Config.get("compute_preview") and self.merged_from:
+        elif Config.get_env().comp.compute_preview and self.merged_from:
             # this field is merged
             try:
                 key = source_line[self.merge_operation.local_column.col_i]

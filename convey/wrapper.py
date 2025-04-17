@@ -22,6 +22,8 @@ import xlrd
 from netaddr import IPRange
 from xlrd import XLRDError
 
+from .args_controller import Env
+
 from .config import Config, config_dir
 from .dialogue import hit_any_key, is_yes
 from .identifier import Identifier
@@ -42,19 +44,22 @@ def choose_file(m: Mininterface):
 
 
 def read_stdin():
-    if Config.get("daemon", get=bool):
+    if Config.get_env().process.daemon:
         raise ConnectionRefusedError("STDIN missing")
     print("Write something to stdin. (End of transmission 2× <Ctrl>+d or <Enter>+<Ctrl>+d.)")
     return sys.stdin.read().rstrip().split("\n")  # rstrip \n at the end of the input
 
 
 class Wrapper:
-    def __init__(self, m: Mininterface, file_or_input, file_given=False, input_given=False,
+    def __init__(self, m: Mininterface[Env], file_or_input, file_given=False, input_given=False,
                  types=None, fresh=False, reprocess=False, delete_cache=False):
         if delete_cache and Path(config_dir, WHOIS_CACHE).exists():
             Path(config_dir, WHOIS_CACHE).unlink()
 
         self.m = m
+        self.env = m.env
+        self.whois = m.env.whois
+
         self.parser: Parser = None
         self.file = file = None
         self.stdin = stdin = None
@@ -71,7 +76,7 @@ class Wrapper:
             file_or_input = input_given
 
         try:
-            case = int(Config.get("file_or_input"))
+            case = int(self.env.io.default_action)
         except (ValueError, TypeError):
             case = 0
 
@@ -178,14 +183,14 @@ class Wrapper:
     def load_whois_cache(self):
         """ restore whois cache and remove expired results """
         p = Path(config_dir, WHOIS_CACHE)
-        if Config.get("whois_cache", "FIELDS", get=bool) and p.exists():
+        if self.whois.cache and p.exists():
             # XX if it's long, postpone via a thread that would block analysis
             event = lazy_print("... loading big WHOIS cache ...")
             ip_seen, ranges = jsonpickle.decode(p.read_text(), keys=True)
             ranges = {IPRange(k[0], k[1]): v for k, v in ranges.items()
-                      if v[7] + Config.get("whois_ttl", "FIELDS", int) >= time()}
+                      if v[7] + self.whois.ttl >= time()}
             nothing_to_save = True
-            if Config.get("whois_delete_unknown", get=bool) and IPRange(0, 0) in ranges:
+            if self.whois.delete_unknown and IPRange(0, 0) in ranges:
                 # all IP addresses within an unknown prefix removed from cache
                 del ranges[IPRange(0, 0)]
                 nothing_to_save = False
@@ -219,15 +224,15 @@ class Wrapper:
             target_file = self.parser.target_file or self.parser.source_file
             if not target_file:  # we were splitting so no target file exist
                 target_file = self.parser.invent_file_str()
-            if Config.get("output") is None:
-                i = Config.get("save_stdin_output", get=int)
+            if self.env.io.output is None:
+                i = self.env.io.save_stdin_output
                 save = False
                 if i == 4 or (i == 3 and self.parser.is_analyzed):
                     save = True
                 elif i == 2 or (i == 1 and self.parser.is_analyzed) and last_chance:
                     save = is_yes(f"Save to an output file {target_file}?")
             else:
-                save = bool(Config.get("output"))
+                save = bool(self.env.io.output)
             if save:
                 if not self.parser.target_file:
                     # if a split files were generated, we lost the connection because cache dir will change right now
@@ -264,7 +269,7 @@ class Wrapper:
 
         # save cache file
         if self.cache_file:  # cache_file does not exist typically if reading from STDIN
-            if self.parser.ranges and Config.get("whois_cache", "FIELDS", get=bool):
+            if self.parser.ranges and self.env.whois.cache:
                 # we extract whois info from self.parser and save it apart for every convey instance
                 if self.whois_not_loaded:  # if we wanted a fresh result, global whois cache was not used and we have to merge it
                     ip_seen, ranges = self.load_whois_cache()

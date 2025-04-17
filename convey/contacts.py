@@ -18,8 +18,8 @@ class Contacts:
         Refreshes list of abusemails (for Cc of the mails in the results) (config key contacts_cc)
         and csirtmails (country contact) (config key contacts_abroad)
         """
-        cls.mail_draft = {"local": MailDraft(Config.get("mail_template")),
-                          "abroad": MailDraft(Config.get("mail_template_abroad"))}
+        cls.mail_draft = {"local": MailDraft(Config.get_env().sending.mail_template),
+                          "abroad": MailDraft(Config.get_env().sending.mail_template_abroad)}
         cls.mail2cc = cls._update("contacts_cc")
         cls.country2mail = cls._update("contacts_abroad")
 
@@ -35,7 +35,7 @@ class Contacts:
     @staticmethod
     def _update(key: Dict[str, str]) -> object:
         """ Update info from an external CSV file. """
-        file = get_path(Config.get(key))
+        file = get_path(getattr(Config.get_env().sending, key))
         if not Path(file).is_file():  # file with contacts
             print("(Contacts file {} not found on path {}.) ".format(key, file))
             input()

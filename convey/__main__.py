@@ -44,7 +44,7 @@ def main():
             except socket.timeout:
                 print("It seems daemon is stuck. You may kill it with pkill `convey`.")
                 from .config import Config
-                if Config.get("github_crash_submit"):
+                if Config.get_env().cli.github_crash_submit:
                     Config.github_issue(f"daemon stuck", "Command line:\n```bash\n" + repr(sys.argv) + "\n```")
             else:
                 # chr(4) at the end means this was not a single query check and we should load full convey libraries
@@ -68,7 +68,12 @@ def main():
         if daemonize_on_exit:
             from .config import Config
             try:
-                if Config.get("daemonize", get=bool) and not daemon_pid():
+                Config.get_env()
+            except AttributeError:
+                # User did --help so that the mininterface raise SystemExit without setting Config.env
+                raise e
+            try:
+                if Config.get_env().process.daemonize and not daemon_pid():
                     # we are sure there is no running instance of the daemon
                     import subprocess
                     subprocess.Popen([sys.argv[0], '--daemon', 'server'], stdout=subprocess.DEVNULL)
@@ -82,7 +87,7 @@ def main():
         debug = True
         try:
             from .config import Config
-            debug = Config.is_debug() or Config.get("crash_post_mortem")
+            debug = Config.is_debug() or Config.get_env().cli.crash_post_mortem
         except ImportError:
             Config = None
 
@@ -96,7 +101,7 @@ def main():
             # XX we should check the -3 line has something to do with the convey directory, otherwise print out other lines
             #   (we are not interested of the errors in other libraries)
             print(f"Convey crashed at {value} on {traceback.format_exc().splitlines()[-3].strip()}")
-            if Config.get("github_crash_submit"):
+            if Config.get_env().cli.github_crash_submit:
                 body = f"```bash\n{traceback.format_exc()}```\n\n```json5\n{tb.tb_next.tb_frame.f_locals}\n```"
                 Config.github_issue(f"crash: {value}", body)
 

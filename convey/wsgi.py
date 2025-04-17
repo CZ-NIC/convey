@@ -13,11 +13,11 @@ Types.refresh()
 TypeGroup.init()
 Config.integrity_check()
 Config.init_verbosity(True, 30)
-Config.set("single_query", True)
+Config.get_env().io.single_query = True
 parser = Parser(Mininterface(), prepare=False)
 controller = Controller(parser)
 unsafe_fields = [Types.code, Types.external]
-for target_type in Config.get("webservice_allow_unsafe_fields", section="FIELDS", get=list):
+for target_type in Config.get_env().web.webservice_allow_unsafe_fields or []:
     if hasattr(Types, target_type):
         unsafe_fields.remove(getattr(Types, target_type))
 

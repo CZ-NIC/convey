@@ -10,6 +10,8 @@ from mininterface import Mininterface
 from mininterface.tag import PathTag
 from prompt_toolkit.shortcuts import clear
 
+from .args_controller import Env
+
 from .action import AggregateAction, MergeAction
 from .aggregate import Aggregate, AggregateMethod, aggregate_functions_str, aggregate_functions
 from .config import Config
@@ -25,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class ActionController:
-    def __init__(self, parser: Parser, m: Mininterface, reprocess=False):
+    def __init__(self, parser: Parser, m: Mininterface[Env], reprocess=False):
         self.parser = parser
         self.reprocess = reprocess
         self.m = m
@@ -313,7 +315,7 @@ class ActionController:
                 m = methods[path[i], path[i + 1]]
                 if isinstance(m, PickBase):
                     c = None
-                    if Config.get("yes"):
+                    if self.m.env.cli.yes:
                         pass
                     elif type(m) is PickMethod:
                         m: PickMethod

@@ -34,24 +34,24 @@ class Debugged(Exception):
 
 
 def is_yes(text):
-    if Config.get("yes", get=bool):
+    if Config.get_env().cli.yes:
         return True
-    if Config.get("daemon", get=bool):
+    if Config.get_env().process.daemon:
         raise ConnectionAbortedError
     return m.confirm(text)
 
 
 def is_no(text):
-    if Config.get("yes", get=bool):
+    if Config.get_env().cli.yes:
         return True
-    if Config.get("daemon", get=bool):
+    if Config.get_env().process.daemon:
         raise ConnectionAbortedError
     return m.confirm(text, False)
 
 
 def hit_any_key(text: str):
     """ Display text and let the user hit any key. Skip when headless. """
-    if Config.get("yes", get=bool):
+    if Config.get_env().cli.yes:
         logger.info(text)
         return
     m.alert(text)

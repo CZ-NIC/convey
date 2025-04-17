@@ -41,7 +41,7 @@ class Informer:
 
         stdout = StringIO()
 
-        if clear and not Config.get("daemon", get=bool):
+        if clear and not Config.get_env().process.daemon:
             stdout.write("\x1b[2J\x1b[H")
 
         def print_s(s):
@@ -78,9 +78,6 @@ class Informer:
             else:
                 l.append("Aggregate: " + v)
 
-        # XX
-        # if self.parser.redo_invalids is not None:
-        #    l.append("Redo invalids: " + str(self.parser.redo_invalids))
         stdout.write(", ".join(l))
 
         l3 = []
@@ -158,7 +155,7 @@ class Informer:
                 for r in full_rows:
                     cw.writerow(r)
 
-        output = Config.get("output")
+        output = self.env.io.output
         if output:
             print_s(f"Output file specified: {output}")
 
@@ -188,16 +185,18 @@ class Informer:
                     if local[0] + abroad[0] == 0:
                         print_s(f"Already sent all {abroad[1]} abroad e-mails and {local[1]} local e-mails")
                     elif local[1] + abroad[1] > 1:
-                        print_s(f"Already sent {abroad[1]}/{sum(abroad)} abroad e-mails and {local[1]}/{sum(local)} local e-mails")
+                        print_s(
+                            f"Already sent {abroad[1]}/{sum(abroad)} abroad e-mails and {local[1]}/{sum(local)} local e-mails")
                     else:
-                        print_s(f"* {abroad[0]} files seem to be attachments for abroad e-mails\n* {local[0]} for local e-mails")
+                        print_s(
+                            f"* {abroad[0]} files seem to be attachments for abroad e-mails\n* {local[0]} for local e-mails")
                     if non_deliverable:
                         print_s(f"* {non_deliverable} files undeliverable")
 
-                if Config.get('testing'):
+                if self.parser.env.sending.testing:
                     print_s(
                         "\n*** TESTING MOD - mails will be send to mail {} ***\n (For turning off testing mode set `testing = False` in config.ini.)".format(
-                            Config.get('testing_mail')))
+                            self.parser.env.sending.testing_mail))
 
             stat = self.get_stats_phrase()
             if stat:
@@ -231,7 +230,8 @@ class Informer:
                                  {True: "✓", False: "error", None: "no"}[o.sent],
                                  humanize.naturalsize(o.path.stat().st_size),
                                  ))
-                print_s("\n\n** Generated files overview **\n" + tabulate(rows, headers=("file", "deliverable", "sent", "size")))
+                print_s("\n\n** Generated files overview **\n" +
+                        tabulate(rows, headers=("file", "deliverable", "sent", "size")))
             # else:
             #     print_s("Files overview not needed – everything have been processed into a single file.")
 
@@ -252,7 +252,7 @@ class Informer:
         @param nice: If true, tabulated result returned, else we get (header, rows) tuple.
         @return:
         """
-        form = lambda v, fmt: f"\033[{fmt}m{v}\033[0m" if color else v
+        def form(v, fmt): return f"\033[{fmt}m{v}\033[0m" if color else v
         header = []
         grouping = self.parser.settings["aggregate"].group_by is not None
         if grouping:
@@ -323,7 +323,7 @@ class Informer:
                 s = f"({ip_csirtmail_known} IP)"
             if ip_csirtmail_unofficial:
                 s2 = f", no official contact for {abusemail_unofficial} abroad e-mail addresses" \
-                     f" in {csirtmail_unofficial} countries ({ip_csirtmail_unofficial} IP in {prefix_csirtmail_unofficial} prefixes)"
+                    f" in {csirtmail_unofficial} countries ({ip_csirtmail_unofficial} IP in {prefix_csirtmail_unofficial} prefixes)"
             res.append(f"deliverable to {csirtmail_known} national/governmental CSIRTs {s}{s2}")
 
         # interesting if using either incident-contact or abusemail
@@ -426,7 +426,7 @@ class Informer:
             sleep(speed)
 
     def write_statistics(self):
-        if Config.get("write_statistics") and not self.parser.stdin:
+        if Config.get_env().cli.write_statistics and not self.parser.stdin:
             # we write statistics.txt only if we're sourcing from a file, not from stdin
             # XX move this to parser.run_analysis and _resolve_again or to Processor – do not rewrite it every time here!
             stat = self.get_stats_phrase()

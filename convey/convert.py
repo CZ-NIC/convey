@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 reIpWithPort = re.compile(r"((\d{1,3}\.){4})(\d+)")
 reAnyIp = re.compile(r"\"?((\d{1,3}\.){3}(\d{1,3}))")
 reFqdn = re.compile(
-    r"(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-_]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)")  # Xtoo long, infinite loop: ^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+){1,63}\.))+){1,255}$
+    # Xtoo long, infinite loop: ^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+){1,63}\.))+){1,255}$
+    r"(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-_]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)")
 reUrl = re.compile(r'[htps]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
 # reBase64 = re.compile('^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$')
 
@@ -51,6 +52,7 @@ def url_hostname(url):
     s = urlsplit(url)
     s = s.netloc or s.path.split("/")[:1][0]
     return s.split(":")[0]  # strips port
+
 
 def dig(rr):
     def dig_query(query):
@@ -100,7 +102,7 @@ def nmap(val, port=""):
     text = text[text.find("PORT"):]
     text = text[text.find("\n") + 1:]
     text = text[:text.find("\n\n")]
-    if Config.get("multiple_nmap_ports", "FIELDS"):
+    if Config.get_env().comp.multiple_nmap_ports:
         l = []
         for row in text.split("\n"):
             l.append(int(re.match(r"(\d+)", row).group(1)))
