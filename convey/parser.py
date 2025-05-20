@@ -44,8 +44,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SendingSettings:
-    otrs_cookie: str = ""
     otrs_id: str = ""
+    otrs_cookie: str = ""
     otrs_token: str = ""
     attachment_name: str = "attachment.csv"
 
@@ -94,6 +94,8 @@ class Parser:
             default_name += ".csv"
 
         self.sending = SendingSettings(otrs_id=self.env.otrs.id,
+                                       otrs_cookie=self.env.otrs.cookie,
+                                       otrs_token=self.env.otrs.token,
                                        attachment_name=default_name)
 
         self.ip_count_guess = None
@@ -901,7 +903,7 @@ class Parser:
         return state
 
     def __setstate__(self, state):
-        self.m = get_global_interface()
+        self.m = get_global_interface()  # NOTE will the have the right env?
         self.__dict__.update(state)
         self.informer = Informer(self)
         self.processor = Processor(self, rewrite=False)

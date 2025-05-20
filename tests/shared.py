@@ -78,11 +78,13 @@ class Convey:
             "--reprocess",
             "--headless",
             "--daemon",
-            "false",
+            "False",
             "--debug",
-            "false",
+            "False",
             "--crash-post-mortem",
-            "false",
+            "False",
+            "--github-crash-submit",
+            "False"
         ]
         if (
             filename is None
@@ -102,7 +104,7 @@ class Convey:
         self.has_filename = bool(filename)
         self.has_text = bool(text)
         if not whois:
-            self.cmd.extend(("--whois-cache", "false"))
+            self.cmd.extend(("--whois.cache", "False"))
         if args:
             self.cmd.extend(args)
 
@@ -122,7 +124,7 @@ class Convey:
         # run: blocking, output
         input_ = piped_text.encode() if piped_text else None
         lines = (
-            run(cmd, input=input_, stdout=PIPE, timeout=3)
+            run(cmd, input=input_, stdout=PIPE, timeout=10)  # earlier, 3 secs was enough
             .stdout.decode("utf-8")
             .splitlines()
         )
@@ -151,11 +153,13 @@ class TestAbstract(TestCase):
             "--reprocess",
             "--headless",
             "--daemon",
-            "false",
+            "False",
             "--debug",
-            "false",
+            "False",
             "--crash-post-mortem",
-            "false",
+            "False",
+            "--github-crash-submit",
+            "False"
         ]
         if filename:
             args.extend(("--file", str(filename)))

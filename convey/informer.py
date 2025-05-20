@@ -29,6 +29,7 @@ class Informer:
 
     def __init__(self, parser: Parser):
         self.parser = parser
+        self.env = parser.env
         self.queue = deque(maxlen=10)
         self.stdout = sys.stdout
         self.stats_stop = Event()
@@ -41,7 +42,7 @@ class Informer:
 
         stdout = StringIO()
 
-        if clear and not Config.get_env().process.daemon:
+        if clear and not self.env.process.daemon:
             stdout.write("\x1b[2J\x1b[H")
 
         def print_s(s):
@@ -193,10 +194,10 @@ class Informer:
                     if non_deliverable:
                         print_s(f"* {non_deliverable} files undeliverable")
 
-                if self.parser.env.sending.testing:
+                if self.env.sending.testing:
                     print_s(
                         "\n*** TESTING MOD - mails will be send to mail {} ***\n (For turning off testing mode set `testing = False` in config.ini.)".format(
-                            self.parser.env.sending.testing_mail))
+                            self.env.sending.testing_mail))
 
             stat = self.get_stats_phrase()
             if stat:
@@ -426,7 +427,7 @@ class Informer:
             sleep(speed)
 
     def write_statistics(self):
-        if Config.get_env().cli.write_statistics and not self.parser.stdin:
+        if self.env.cli.write_statistics and not self.parser.stdin:
             # we write statistics.txt only if we're sourcing from a file, not from stdin
             # XX move this to parser.run_analysis and _resolve_again or to Processor – do not rewrite it every time here!
             stat = self.get_stats_phrase()

@@ -1,4 +1,4 @@
-from dataclasses import fields
+from dataclasses import fields, is_dataclass
 import logging
 import os
 import socket
@@ -9,7 +9,7 @@ from io import StringIO
 from pathlib import Path
 from sys import exit
 from tempfile import NamedTemporaryFile
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 from attr import mutable
 from colorama import init as colorama_init, Fore
@@ -17,6 +17,8 @@ from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import clear
 from validate_email import validate_email
+from mininterface import Mininterface
+from mininterface.interfaces import TextInterface
 
 from .aggregate import Aggregate, aggregate_functions
 from .action import AggregateAction
@@ -94,8 +96,6 @@ def control_daemon(cmd, in_daemon=False):
 
 
 class Controller:
-    # m: Optional[Mininterface]
-    # args: Optional[Env]
 
     def __init__(self, parser=None):
         self.parser = parser
@@ -108,10 +108,15 @@ class Controller:
 
         # load types so that we can print out computable types in the help text
         # Hence, we cannot use the Env object yet.
-        Types.refresh(True, "--disable-external" in sys.argv)
+        Types.refresh(True)
         self.m = parse_args(args=given_args)
         Config.set_env(self.m.env)
-        init_global_interface()
+        try:
+            m = TextInterface()
+        except ImportError:
+            m = Mininterface()
+        finally:
+            init_global_interface(m)
         self.env = self.m.env
 
         self.see_menu = True
@@ -141,7 +146,6 @@ class Controller:
 
             try:
                 Config.init_verbosity(cli.yes, 30 if cli.quiet else (10 if cli.verbose else None), True)
-                Config.integrity_check()
             except ConnectionAbortedError:
                 print("Config file integrity check failed. Launch convey normally to upgrade config parameters.")
                 exit()
@@ -202,10 +206,10 @@ class Controller:
                     argv = literal_eval(msg)
                     if not argv:
                         raise ConnectionAbortedError("No arguments passed")
-                    elif "--disable-external" in argv:
-                        # Param "disable_external" is parsed before the help text normally
-                        # but we are in daemon and the help text has already been prepared with externals.
-                        raise ConnectionAbortedError("Disable externals might change the behaviour (help text, ...)")
+                    # elif "--disable-external" in argv:
+                    #     # Param "disable_external" is parsed before the help text normally
+                    #     # but we are in daemon and the help text has already been prepared with externals.
+                    #     raise ConnectionAbortedError("Disable externals might change the behaviour (help text, ...)")
                     try:
                         os.chdir(Path(argv[0]))
                     except OSError:
@@ -213,7 +217,9 @@ class Controller:
                         continue
                     self.cleanup()  # reset new fields so that they will not be remembered in another query
                     try:
-                        self.env = parse_args(argv[2:]).env  # the daemon has receives a new command
+                        env = parse_args(argv[2:]).env  # the daemon has received a new command
+                        # we have to copy the values into, to copy the values into self.env to keep references
+                        self.copy_into(self.env, env)
                     except SystemExit as e:
                         if not sys.stdout.getvalue():
                             # argparse sent usage to stderr, we do not have in in stdout instance will rerun the command
@@ -277,18 +283,14 @@ class Controller:
         if e.env.version:
             print(__version__)
             exit()
-        if not is_daemon:  # in daemon, we checked it earlier
-            Config.integrity_check()
-        if e.csv.header is not None:
-            Config.get_env().csv.header = e.csv.header
         if e.io.csv_processing:
-            Config.get_env().io.single_query = False
+            e.io.single_query = False
         if e.io.single_query or e.io.single_detect:
-            Config.get_env().io.single_query = True
+            e.io.single_query = True
             if e.io.single_detect:
-                Config.get_env().io.single_detect = True
+                e.io.single_detect = True
 
-        self.m.env.comp.adding_new_fields = True
+        self.m.env.comp.adding_new_fields = bool(new_fields)
         self.wrapper = Wrapper(self.m, e.io.file_or_input, e.io.file, e.io.input,
                                e.action.type, e.process.fresh, e.process.reprocess,
                                e.whois.delete)
@@ -296,7 +298,7 @@ class Controller:
         ac = ActionController(self.parser, self.m, e.process.reprocess)
 
         if e.process.threads is not None:
-            Config.get_env().process.threads = e.process.threads
+            e.process.threads = e.process.threads
 
         def get_column_i(col, check):
             self.parser.is_processable = True
@@ -842,7 +844,7 @@ class Controller:
         This method is called by ex: tests.
         """
         new_fields.clear()
-        Config.cache.clear()
+        # Config.cache.clear()
 
     def get_autocompletion(self, parser):
         actions = [x for action in parser._actions for x in action.option_strings]
@@ -879,3 +881,16 @@ class Controller:
              '',
              'complete -F _convey -o default convey']
         return "\n".join(a)
+
+    def copy_into(self, dst: Any, src: Any) -> None:
+        """
+        Recursively copy from src dataclass to dst dataclass.
+        """
+        for f in fields(dst):
+            val_src = getattr(src, f.name)
+            val_dst = getattr(dst, f.name)
+
+            if is_dataclass(val_src):
+                self.copy_into(val_dst, val_src)
+            else:
+                setattr(dst, f.name, val_src)

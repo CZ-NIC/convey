@@ -3,7 +3,6 @@ import logging
 
 from mininterface import Mininterface
 from mininterface.exceptions import Cancelled
-from mininterface.interfaces import TextInterface
 
 from .config import Config
 
@@ -11,17 +10,16 @@ logger = logging.getLogger(__name__)
 m: Mininterface
 
 
-def init_global_interface():
+def init_global_interface(interf):
     global m
     # For the global is_yes etc, we prefer a TextInterface,
     # so that text printed in the console is visible – Textual would hide it
     #
     # Alongside, there is prompt toolkit that we need to dynamic UI actions
     # (like del for deleting a column) which is something mininterface does not support.
-    try:
-        m = TextInterface()
-    except ImportError:
-        m = Mininterface()
+    #
+    # In the future, these might be unified into the single `controller.m`` interface.
+    m = interf
 
 
 def get_global_interface():

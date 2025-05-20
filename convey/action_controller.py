@@ -90,7 +90,7 @@ class ActionController:
 
     def add_merge(self, remote_path=None, remote_col_i: Optional[int] = None, local_col_i: Optional[int] = None):
         if not remote_path:
-            remote_path = self.m.form({f"What file we should merge the columns from?": PathTag(is_file=True)})
+            remote_path = self.m.ask("What file we should merge the columns from?", PathTag(is_file=True))
         wrapper2 = Wrapper(self.m, Path(remote_path), reprocess=self.reprocess)
         parser2 = wrapper2.parser
 

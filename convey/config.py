@@ -119,13 +119,12 @@ def get_path(file):
 
 
 class Config:
-    path = get_path("config.ini")
-    cache = {}
+    # path = get_path("config.ini")
+    # cache = {}
 
-    config = configparser.ConfigParser()
-    config.read(path)
-
-    # muted = False  # silence info text
+    # config = configparser.ConfigParser()
+    # config.read(path)
+    config_file: Path | bool | None = None
 
     QUEUED_NAME = ".queues_lines.tmp"
     INVALID_NAME = ".invalidlines.tmp"
@@ -144,96 +143,10 @@ class Config:
         input("Press any key...")
         raise KeyboardInterrupt
 
-    # TODO deprecated
-    @staticmethod
-    def integrity_check():
-        from .dialogue import is_yes  # since Config should be the very first package file to be loaded, we postpone this import
-        # Config file integrity check (we may upgrade Convey from but some new parameters needs to be added manually)
-        default_config = configparser.ConfigParser()
-        default_ini = Path(default_path, "config.ini")
-        default_config.read(default_ini)
-        passed = True
-        section_missing = []
-        section_superfluous = []
-        key_missing = {}  # [key] => section
-        key_superfluous = []
-        for section in default_config:
-            missing_section = False
-            if section not in Config.config:
-                print(f"Missing section: {section}")
-                section_missing.append(section)
-                passed = False
-                missing_section = True
-                # continue
-            for key in default_config[section]:
-                if missing_section or key not in Config.config[section]:
-                    print(
-                        f"Missing key {key} (defaulting to {repr(default_config[section][key])}) in section: {section}")
-                    key_missing[key] = section
-                    passed = False
-        for section in Config.config:
-            if section not in default_config:
-                print(f"(Config has an unused section: {section})")
-                section_superfluous.append(section)
-                continue
-            for key in Config.config[section]:
-                if key not in default_config[section]:
-                    print(f"Config has an unused key {key} in section: {section}")
-                    key_superfluous.append(key)
-        if not passed:
-            # analyze current config file and get its section start line numbers
-            config_lines = Config.path.read_text().splitlines(keepends=True)
-            section_lines = {}  # [section name] = section start line number
-            for i, line in enumerate(config_lines):
-                try:
-                    section = re.match(r"\[([^]]*)\]", line).group(1)
-                except AttributeError:
-                    pass
-                else:
-                    section_lines[section] = i
+    # In the past, we had an integrity check here.
+    # Convey checked the integrity of the config.ini to update it with new keys and remove the old ones.
+    # With the mininterface, the user is not obliged anymore to store the configuration in a file as it is more integrated.
 
-            # analyze the default config file
-            default_lines = default_ini.read_text().splitlines(keepends=True)
-
-            def get_key(iterable, match):
-                """
-                :rtype: yields tuple of (key name, slice start-stop line of the iterable)
-                """
-                comment = None
-                anchors = tuple(iterable)
-                for i, line in enumerate(iterable):  # add missing keys and sections
-                    if line.startswith("#"):
-                        if not comment:
-                            comment = i
-                        continue
-                    if line.startswith(anchors):
-                        key = re.match("[a-zA-Z0-9_]*", line).group(0)
-                        if key in match:  # we have found one of the matching keys
-                            yield key, slice(comment or i, i + 1)
-                    comment = None
-
-            # remove unused keys
-            for key, slice_ in get_key(config_lines, key_superfluous):
-                for i in range(slice_.start, slice_.stop):
-                    config_lines[i] = ""
-            # insert missing keys and sections
-            for key, slice_ in get_key(default_lines, key_missing):
-                block = default_lines[slice_]
-                try:
-                    start_line = section_lines[key_missing[key]]
-                except KeyError:  # insert missing section
-                    section_lines[key_missing[key]] = start_line = len(config_lines)
-                    config_lines.append(f"\n[{key_missing[key]}]")
-                config_lines[start_line] += "\n" + "".join(block)  # insert missing key
-            if is_yes("Should I add the missing keys (and remove the unused) from your config file?"):
-                Config.path.write_text("".join(config_lines))
-                print("Config file has been successfully modified. Restart Convey.")
-            else:
-                print("Please write missing items into the config file before continuing.\nOpening", Config.path, "...")
-                p = Popen(["xdg-open", Config.path], shell=False)
-            exit()
-
-    # TODO mostly handled by mininterface
     @staticmethod
     def init_verbosity(yes=False, verbosity=None, daemon=None):
         # Set up logging and verbosity
@@ -258,7 +171,10 @@ class Config:
         console_handler.setLevel(Config.verbosity)  # stream handler to debug level
         logging.getLogger().setLevel(min(Config.verbosity, logging.INFO))  # system sensitivity at least at INFO level
 
-        logger.debug("Config file loaded from: {}".format(Config.path))
+        if Config.config_file:
+            logger.debug("Config file loaded from %s", Config.config_file)
+        else:
+            logger.debug("Config file not found at %s", Config.config_file)
 
     @staticmethod
     def get_debugger():
@@ -313,6 +229,7 @@ class Config:
     @staticmethod
     def get_env() -> "Env":
         """ Allow migration from old configparser to the typed Env dataclass """
+        # This is due to migration from static config.ini. In the future, get rid of the static in favour of objects.
         return Config.env
 
     @staticmethod

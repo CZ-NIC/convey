@@ -10,7 +10,7 @@ class TestSending(TestCase):
         convey = Convey("--output", "False", filename=SHEET_CSV)
         cmd = """--field code,3,'x="example@example.com" if "example.com" in x else x+"@example.com"'""" \
               " --split code --send-test {mail} 'email_template.eml' --headless"
-        
+
         os.chdir(PROJECT_DIR / TESTDATA_DIR)
 
         lines = convey(cmd.format(mail="example@example.com"))
@@ -47,7 +47,7 @@ class TestSending(TestCase):
         os.chdir(PROJECT_DIR / TESTDATA_DIR)
 
         # Single image is attached
-        lines = convey(cmd.format(mail="john@example.com"))
+        lines = convey(cmd.format(mail="john@example.com"), debug=True)
         self.assertIn(BLACK, lines[0])
         lines = convey(cmd.format(mail="mary@example.com"))
         self.assertIn(WHITE, lines[0])

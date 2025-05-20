@@ -12,7 +12,7 @@ from enum import IntEnum
 from pathlib import Path
 from quopri import decodestring, encodestring
 from sys import exit
-from typing import TYPE_CHECKING, Callable, List
+from typing import TYPE_CHECKING, Callable, List, Union
 from urllib.parse import unquote, quote
 
 from validate_email import validate_email
@@ -229,8 +229,9 @@ class Types:
     """
 
     @staticmethod
-    def refresh(init=False, disable_external=False):
+    def refresh(init=False):
         """ refreshes methods and import custom methods from files """
+        # we cannot use Config.get_env() in the init phase
         config = _AlwaysFalse() if init else Config.get_env()
 
         methods.clear()
@@ -239,16 +240,14 @@ class Types:
         [graph.add_edge(to, from_) for to, from_ in methods if methods[to, from_] is not True]
         [t.init() for t in types]
 
-        if disable_external:  # we cannot use Config.get_env().comp.disable_external here as it is not ready:
-            return
-
-        for field_name in config.comp.external_fields:
+        for field_name in config.comp.external_fields or []:
             if ":" in field_name:
                 path, method_name = field_name.rsplit(":")
                 module = get_module_from_path(path)
-                Types.import_method(module, method_name, path, name=field_name)
+                Types.import_method(module, method_name, path)
             else:
                 try:
+                    path = field_name
                     module = get_module_from_path(path)
                     if module:
                         for method_name in (x for x in dir(module) if not x.startswith("_")):
@@ -503,7 +502,7 @@ class Types:
         return "\n".join(l)
 
     @staticmethod
-    def _get_methods(config):
+    def _get_methods(config: Union["Env", _AlwaysFalse]):
         """  These are known methods to compute a field from another field.
             They should return scalar or list.
 
@@ -516,7 +515,6 @@ class Types:
                     in other words we do not offer to compute a hostname from a hostname, however when selecting
                     an existing abusemail column, we offer conversion abusemail → (invisible email) → hostname
         """
-        # TODO config: "Env" | _AlwaysFalse
 
         t = Types
         return {

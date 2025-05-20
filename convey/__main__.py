@@ -19,7 +19,7 @@ if sys.version_info[0:2] < (3, 10):
 
 def main():
     if not sys.stdin.isatty():
-        # this is not a terminal - we may already nr receiving something through a pipe
+        # this is not a terminal - we may already be receiving something through a pipe
         # load it immediately and not in the wrapper because daemon could suck the pipe of the instance
         # however sys.stdin.read() is a blocking operation so that we stuck in a pipe without stdin
         #    ex: running tests from the IDE or launching subprocess.run("convey ...")
@@ -29,8 +29,22 @@ def main():
         # we have to explicitly state `subprocess.run("convey --file file.csv")`
         if not any(x in sys.argv for x in ['-i', '--input', '--file']):
             sys.argv.extend(["--input", sys.stdin.read().rstrip()])
-    daemonize_on_exit = True
-    if os.path.exists(socket_file):  # faster than importing Pathlib.path
+
+    try_daemon = True
+    if "--daemon" in sys.argv:
+        # Do not use the daemon due to '--daemon=False' in the CLI.
+        # However, when 'daemon:False' is in the config file, we contact the daemon nevertheless.
+        # It then correctly aborts with ConnectionAbortedError automatically.
+        # (It's fast, this statement is just a slight improvement.)
+        index = sys.argv.index("--daemon")
+        try:
+            if sys.argv[index + 1] == "False":
+                try_daemon = False
+        except IndexError:
+            pass
+    daemonize_on_exit = try_daemon
+
+    if try_daemon and os.path.exists(socket_file):  # faster than importing Pathlib.path
         try:
             pipe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             pipe.connect(socket_file)
@@ -42,10 +56,11 @@ def main():
             try:
                 response = recv(pipe)
             except socket.timeout:
-                print("It seems daemon is stuck. You may kill it with pkill `convey`.")
-                from .config import Config
-                if Config.get_env().cli.github_crash_submit:
-                    Config.github_issue(f"daemon stuck", "Command line:\n```bash\n" + repr(sys.argv) + "\n```")
+                print("It seems daemon is stuck. You may kill it with `pkill convey`.")
+                # TODO here, the config is not ready
+                # from .config import Config
+                # if Config.get_env().cli.github_crash_submit:
+                #     Config.github_issue(f"daemon stuck", "Command line:\n```bash\n" + repr(sys.argv) + "\n```")
             else:
                 # chr(4) at the end means this was not a single query check and we should load full convey libraries
                 if type(response) is str:

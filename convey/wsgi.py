@@ -11,7 +11,6 @@ from convey.types import Types, TypeGroup, Web
 
 Types.refresh()
 TypeGroup.init()
-Config.integrity_check()
 Config.init_verbosity(True, 30)
 Config.get_env().io.single_query = True
 parser = Parser(Mininterface(), prepare=False)

@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, Annotated, Any
+from dataclasses import dataclass
 from email.policy import default
 from pathlib import Path
 from typing import Annotated, Literal
@@ -7,7 +9,6 @@ from dataclasses import field as field_orig
 from typing import Annotated, Any, List, Optional, Tuple
 
 from mininterface import run
-from mininterface.interfaces import TextInterface
 from mininterface.tag.flag import BlankTrue, Blank
 from tyro.conf import (FlagConversionOff, OmitArgPrefixes, Positional, Suppress,
                        UseAppendAction, arg)
@@ -15,6 +16,7 @@ from tyro.extras import get_parser as get_tyro_parser
 
 from . import __version__
 from .types import Types
+from .config import config_dir, Config
 
 otrs_flags = [("otrs_id", "Ticket id"), ("otrs_cookie", "OTRSAgentInterface cookie"),
               ("otrs_token", "OTRS challenge token")]
@@ -59,7 +61,6 @@ class IO:
     csv_processing: Annotated[BlankTrue, arg(aliases=["-C"])] = None
     """Consider the input as a CSV, not a single."""
 
-    # TODO renamed from file_or_input
     default_action: int = 1
     """In the command line we specify a file name or input text (if file does not exist).
     If this parameter is omitted what should convey do?
@@ -84,7 +85,6 @@ class IO:
     Ex: $ convey example.com # single value input - no output unless --output flag
     Ex: $ convey < file.csv # CSV STDIN input - output savable"""
 
-    # TODO
     # internal
     stdout: Suppress[bool | None] = None
 
@@ -129,7 +129,9 @@ class CLI:
 @dataclass
 class Environment:
     """ Environment """
-    config: Annotated[list[str], arg(metavar=("FILE", "MODE"))] = field_orig(default_factory=list)
+
+    # TODO works bad
+    config: Annotated[Blank[tuple[str, int]], arg(metavar=("FILE", "MODE"))] = None
     """Open a config file and exit.
     File: config (default)/uwsgi/template/template_abroad
     Mode: 1 terminal / 2 GUI / 3 try both (default)"""
@@ -303,8 +305,6 @@ class Web:
 @dataclass
 class FieldComputingOptions:
     """ Field computing options """
-    disable_external: BlankTrue = None
-    """Disable external function registered in config to be imported."""
 
     json: BlankTrue = None
     """When checking single value, prefer JSON output rather than text."""
@@ -332,10 +332,9 @@ class FieldComputingOptions:
     single_query_ignored_fields: list[str] = field(default_factory=lambda: ["html"])
     """ These fields shall not be computed when using single value check """
 
-    compute_preview: BlankTrue = None
+    compute_preview: BlankTrue = True
     """When adding new columns, show few first computed values."""
 
-    # TODO
     external_fields: list = field(default_factory=list)
     """ You may define custom fields. Providing paths to the entrypoint Python files.
     Methods in these files will be taken as the names for the custom fields.
@@ -344,10 +343,9 @@ class FieldComputingOptions:
 
     /tmp/myfile.py may have the contents: `def hello_world(val): return "hello world"`
 
-    TODO
-    If you do not want to register all methods from the file,
+    If you do not want to register all methods from the file, delimit the chosen method by a colon
     list chosen methods as new parameters while delimiting the method names by a colon.
-    Ex: hello_world = /tmp/myfile.py:hello_world
+    Ex: `--external-fields /tmp/myfile.py:hello_world`
     """
 
     # internal
@@ -406,10 +404,10 @@ class SendingOptions:
     send_test: Optional[Annotated[tuple[str, str], arg(metavar=("E-MAIL", "TEMPLATE_FILE"))]] = None
     """Display e-mail message that would be generated for given e-mail."""
 
-    jinja: BlankTrue = None
+    jinja: BlankTrue = True
     """Process e-mail messages with jinja2 templating system."""
 
-    attach_files: BlankTrue = None
+    attach_files: BlankTrue = True
     """Split files are added as e-mail attachments."""
 
     attach_paths_from_path_column: BlankTrue = None
@@ -450,7 +448,7 @@ class SendingOptions:
 class OTRS:
     """ OTRS specific options. We may send all the e-mails by it. """
 
-    enabled: bool = False
+    enabled: bool = True
 
     id: str = ""
     """Ticket id"""
@@ -485,12 +483,27 @@ def get_parser():
 
 
 def parse_args(args=None):
+    config_file = Path(config_dir) / "convey.yaml"
+    if not config_file.exists():
+        config_file = False
+    Config.config_file = config_file
+
     m = run(FlagConversionOff[Env],
             args=args,
             interface="tui",  # NOTE – we migrate to mininterface step by step
-            add_verbosity=False,
-            description="Swiss knife for mutual conversion of the web related data types, like `base64` or outputs of the programs `whois`, `dig`, `curl`. Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.\n\nSee full docs at https://github.com/CZ-NIC/convey (ex. to launch a web service)."
+            add_verbose=False,
+            description="Swiss knife for mutual conversion of the web related data types, like `base64` or outputs of the programs `whois`, `dig`, `curl`. Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.\n\nSee full docs at https://github.com/CZ-NIC/convey (ex. to launch a web service).",
+            config_file=config_file
             )
     [new_fields.append((True, values)) for values in m.env.action.field]
     [new_fields.append((False, values)) for values in m.env.action.field_excluded]
     return m
+
+
+# TODO put to readme, how to do the config file
+# class Env:
+#     test: TODOtest
+#     mod: OmitArgPrefixes[EnablingModules]
+# config.yaml:
+# mod:
+#     whois: False
