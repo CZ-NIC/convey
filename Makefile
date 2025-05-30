@@ -1,7 +1,12 @@
-#export TAG := `grep version pyproject.toml | pz --search '"(\d+\.\d+\.\d+(?:rc\d+)?)?"'`
-export TAG := `grep version convey/__init__.py | pz --search '"(\d+\.\d+\.\d+(?:rc\d+)?)?"'`
+MANIFEST := convey/__init__.py
+TAG := $(shell grep "^__version" $(MANIFEST) | pz --search '"(\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)\.?\d+)?)?"')
+
+.PHONY: release validate pre-check
+default: release
 
 release:
+	@echo "Tagging release $(TAG)"
 	git tag $(TAG)
 	git push origin $(TAG)
-	#mkdocs gh-deploy
+	@#echo "Deploying documentation..."
+	@	#mkdocs gh-deploy

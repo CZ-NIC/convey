@@ -3,11 +3,11 @@ This is the output of the `--help` command.
 usage: convey [-h] [OPTIONS] [{None}|STR|PATH]
 
 Swiss knife for mutual conversion of the web related data types, like `base64`
-or outputs of the programs `whois`, `dig`, `curl`. Convenable way to quickly 
-gather all meaningful information or to process large files that might freeze 
+or outputs of the programs `whois`, `dig`, `curl`. Convenable way to quickly
+gather all meaningful information or to process large files that might freeze
 your spreadsheet processor.
 
-See full docs at https://github.com/CZ-NIC/convey (ex. to launch a web 
+See full docs at https://github.com/CZ-NIC/convey (ex. to launch a web
 service).
 
 ╭─ positional arguments ─────────────────────────────────────────────────────╮
@@ -118,8 +118,7 @@ service).
 │ --get-autocompletion blank=True|BOOL                                       │
 │     Get bash autocompletion. (default: None)                               │
 │ --version blank=True|BOOL                                                  │
-│     Show the version number (which is currently 1.5.0-beta1). (default:    │
-│     None)                                                                  │
+│     Show the version number (which is currently 1.5.0). (default: None)    │
 ╰────────────────────────────────────────────────────────────────────────────╯
 ╭─ process options ──────────────────────────────────────────────────────────╮
 │ Processing                                                                 │
