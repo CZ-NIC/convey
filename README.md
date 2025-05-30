@@ -120,7 +120,7 @@ Access in the browser: http://localhost:26683/?q=example.com
 
 ### Prerequisites
 If something is missing on your system, you may find help yourself with this command:
-`sudo apt install python3-pip python3-dev python3-tk git xdg-utils whois dnsutils nmap curl build-essential libssl-dev libpcre3 libpcre3-dev && pip3 install setuptools wheel uwsgi && pip3 install --upgrade ipython`
+`sudo apt install python3-pip python3-dev python3-tk git xdg-utils whois dnsutils nmap curl build-essential libssl-dev libpcre3 libpcre3-dev && pip3 install setuptools wheel uwsgi ipython`
     * `build-essential` is needed to build `uwsgi` and `envelope`
     * `libpcre3 libpcre3-dev` needed to suppress uWSGI warning `!!! no internal routing support, rebuild with pcre support !!!`
     * `libssl-dev` needed to be present before building `uwsgi` if you will need to use `--https`
@@ -164,10 +164,7 @@ pip3 install -r requirements.txt  --user
 
 ### Customisation
 * Launch convey with [`--help`](docs/convey-help-cmd-output.md) flag to see [further options](docs/convey-help-cmd-output.md).
-* A file [`config.ini`](convey/defaults/config.ini) is automatically created in [user config folder](convey/defaults/config.ini). This file may be edited for further customisation. Access it with `convey --config`.
-> * Convey tries to open the file in the default GUI editor or in the terminal editor if GUI is not an option.
-> * If `config.ini` is present at working directory, that one is used over the one in the user config folder.
-> * Configuration is updated automatically on upgrade.
+* The config file [`convey.yaml`](convey/defaults/convey.yaml) is automatically created in [user config folder](convey/defaults/convey.yaml). This file may be edited for further customisation. Access it with `convey --config`. Convey tries to open the file in the default GUI editor or in the terminal editor if GUI is not an option.
 
 ## Computing fields
 
