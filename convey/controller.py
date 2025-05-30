@@ -235,7 +235,7 @@ class Controller:
             except ConnectionRefusedError as e:
                 send_ipc(pipe, chr(3), f"Daemon has insufficient input: {e}\n")
                 continue
-            except ConnectionAbortedError as e:
+            except (ConnectionAbortedError, IOError) as e:
                 send_ipc(pipe, chr(4), "Daemon cannot help: " + (str(e) or "Probably a user dialog is needed.") + "\n")
                 continue
             except ConnectionResetError as e:
@@ -256,7 +256,9 @@ class Controller:
         if e.process.server:
             raise ConnectionAbortedError("web server request")
         if e.env.config:
-            edit(*e.env.config, restart_when_done=True)
+            if e.env.config is True:
+                e.env.config = "config"
+            edit(e.env.config, mode=3, restart_when_done=True)
             exit()
         e.io.stdout = e.io.output is True or None
         if e.io.output is True:

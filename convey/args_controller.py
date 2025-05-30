@@ -37,7 +37,7 @@ column_help = "COLUMN is ID of the column (1, 2, 3...), position from the right 
 class IO:
     """Input/Output"""
     file_or_input: Positional[Optional[str | Path]] = None
-    """File name to be parsed or input text. In nothing is given, user will input data through stdin."""
+    """File name to be parsed or input text. If nothing is given, user will input data through stdin."""
 
     file: Optional[str] = None
     """Parse file. (Instead of <file_or_input> parameter.)"""
@@ -130,11 +130,15 @@ class CLI:
 class Environment:
     """ Environment """
 
-    # TODO works bad
-    config: Annotated[Blank[tuple[str, int]], arg(metavar=("FILE", "MODE"))] = None
+    # NOTE this works bad. In the past, it was possible to specify the mode too
+    # but `Annotated[Blank[str|tuple[str,int]]]` does not work
+    # Old:
+    #    Mode: 1 terminal / 2 GUI / 3 try both (default)
+    #    metavar=("FILE", "MODE")
+    config: Annotated[Blank[str], arg(metavar="FILE")] = None
     """Open a config file and exit.
     File: config (default)/uwsgi/template/template_abroad
-    Mode: 1 terminal / 2 GUI / 3 try both (default)"""
+    """
 
     show_uml: Blank[int] = None
     """Show UML of fields and methods and exit.
@@ -273,7 +277,7 @@ class EnablingModules:
     whois: BlankTrue = None
     """Allowing Whois module: Leave blank for True or put true/on/1 or false/off/0."""
 
-    nmap: BlankTrue = None
+    nmap: BlankTrue = False
     """Allowing NMAP module: Leave blank for True or put true/on/1 or false/off/0."""
 
     dig: BlankTrue = None
@@ -483,10 +487,19 @@ def get_parser():
 
 
 def parse_args(args=None):
-    config_file = Path(config_dir) / "convey.yaml"
+    cd = Path(config_dir)
+    config_file = cd / "convey.yaml"
     if not config_file.exists():
         config_file = False
     Config.config_file = config_file
+
+    old_conf = cd / "config.ini"
+    backup_conf = cd / "config.ini.old"
+    if old_conf.exists() and not backup_conf.exists():
+        if run().confirm(f"The config.ini is deprecated. Can I rename it to {old_conf}.old?"):
+            old_conf.rename(backup_conf)
+            print("Renamed. Run `convey --config` to modify the program defaults now (you may possibly want to migrate some options that you have previously set to config.ini).")
+            quit()
 
     m = run(FlagConversionOff[Env],
             args=args,
@@ -498,12 +511,3 @@ def parse_args(args=None):
     [new_fields.append((True, values)) for values in m.env.action.field]
     [new_fields.append((False, values)) for values in m.env.action.field_excluded]
     return m
-
-
-# TODO put to readme, how to do the config file
-# class Env:
-#     test: TODOtest
-#     mod: OmitArgPrefixes[EnablingModules]
-# config.yaml:
-# mod:
-#     whois: False

@@ -265,11 +265,11 @@ def edit(path="config", mode=3, restart_when_done=False, blocking=False):
     if type(mode) is str:  # from CLI
         mode = int(mode)
     d = {"template": Config.get_env().sending.mail_template, "template_abroad": Config.get_env().sending.mail_template_abroad,
-         "uwsgi": "uwsgi.ini", "config": "config.ini"}
+         "uwsgi": "uwsgi.ini", "config": "convey.yaml"}
     if path in d:
         path = get_path(d[path])
     elif not isinstance(path, Path):
-        input(f"Not found: {path}. Hit Enter...")
+        input(f"Not found: {path}. Use one of {list(d)}. Hit Enter...")
         return
 
     if restart_when_done:

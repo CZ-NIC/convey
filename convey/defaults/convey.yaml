@@ -1,0 +1,22 @@
+# Run `convey --help` to see all the flags.
+# Put here anything you want to change to override the program defaults.
+# Some ideas below:
+#
+# sending:
+#   testing: False
+#   testing_mail: nobody@example.com
+#   email_from_name: My Name <nobody@example.com>
+# whois:
+#   local_country: cz
+#   ttl: 1000
+# cli:
+#   autoopen_editor: True
+#   write_statistics: True
+# otrs:
+#   host: otrs.example.com
+#   baseuri: /otrs/index.pl
+#   signkeyid: PGP::Sign::-
+# mod:
+#     nmap: True
+#     dig: False
+#     whois: False

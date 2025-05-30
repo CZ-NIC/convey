@@ -22,4 +22,4 @@ requests
 tabulate
 xlrd
 tldextract
-mininterface
+mininterface[ui]
