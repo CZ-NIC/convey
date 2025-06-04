@@ -141,7 +141,8 @@ class MailSenderOtrs(MailSender):
                               params={"ChallengeToken": self.parser.sending.otrs_token,
                                       "Action": "AgentTicketForward",
                                       "TicketID": str(self.parser.sending.otrs_id)},
-                              cookies=cookies
+                              cookies=cookies,
+                              verify=self.parser.env.sending.verify_ssl
                               )
             m = re.search(r'FormID" value="((\d|\.)*)"', upload_form.text)
             if m:
@@ -156,7 +157,8 @@ class MailSenderOtrs(MailSender):
                                  "ChallengeToken": self.parser.sending.otrs_token
                                  },
                          cookies=cookies,
-                         files={"Files": (a.name, a.data)}
+                         files={"Files": (a.name, a.data)},
+                         verify=self.parser.env.sending.verify_ssl
                          )
 
                 fields["FormID"] = form_id
@@ -166,7 +168,7 @@ class MailSenderOtrs(MailSender):
         # If we had a single file, we could upload it with a single request that way:
         # `files={"FileUpload": (a.name, a.data)}`
         logger.debug("Submitting mail")
-        r = post(url, data=fields, cookies=cookies)
+        r = post(url, data=fields, cookies=cookies, verify=self.parser.env.sending.verify_ssl)
 
         return r.text
 
@@ -187,15 +189,16 @@ class MailSenderOtrs(MailSender):
                 self._remove_attachment(data_file_id, form_id, url, cookies)
 
     def _remove_attachment(self, data_file_id, form_id, url, cookies):
-        logger.debug(f"Removing FileID={data_file_id} from the ticket article attachments")  # XXX
-        vv = post(url,
-                  params={"Action": "AjaxAttachment",
-                          "Subaction": "Delete",
-                          "FormID": form_id,
-                          "ChallengeToken": self.parser.sending.otrs_token,
-                          "FileID": data_file_id
-                          },
-                  cookies=cookies)
+        logger.debug(f"Removing FileID={data_file_id} from the ticket article attachments")
+        post(url,
+             params={"Action": "AjaxAttachment",
+                     "Subaction": "Delete",
+                     "FormID": form_id,
+                     "ChallengeToken": self.parser.sending.otrs_token,
+                     "FileID": data_file_id
+                     },
+             cookies=cookies,
+             verify=self.parser.env.sending.verify_ssl)
 
     @staticmethod
     def _check_record(record, lineno):

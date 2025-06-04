@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.5.1 (2025-06-04)
+* add: sending.verify_ssl
+
 ## 1.5.0 (2025-05-30)
 * CHANGED:
     * config.ini file retired

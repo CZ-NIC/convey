@@ -447,6 +447,9 @@ class SendingOptions:
     contacts_abroad: str = "contacts_abroad.csv"
     # Filepath to foreign countries contacts. CSV file is in the format: country,email
 
+    verify_ssl: bool = True
+    """ Verify SSL host when sending e-mails. """
+
 
 @dataclass
 class OTRS:
