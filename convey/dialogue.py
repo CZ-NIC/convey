@@ -18,13 +18,9 @@ def init_global_interface(interf):
     # Alongside, there is prompt toolkit that we need to dynamic UI actions
     # (like del for deleting a column) which is something mininterface does not support.
     #
-    # In the future, these might be unified into the single `controller.m`` interface.
+    # In the future, these might be unified into the single `controller.m` interface.
+    # Make mininterface textual keep the console text.
     m = interf
-
-
-def get_global_interface():
-    global m
-    return m
 
 
 class Debugged(Exception):

@@ -12,7 +12,6 @@ from validate_email import validate_email
 from envelope import Envelope
 
 
-from .dialogue import is_yes
 from .parser import Parser
 from .attachment import Attachment
 from .config import Config
@@ -126,12 +125,6 @@ class MailSenderOtrs(MailSender):
         # context = ssl._create_unverified_context()
         # context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         # context.options &= ~ssl.OP_NO_TLSv1
-
-        # if Config.is_debug():
-        # http.client.HTTPConnection.debuglevel = 1
-        # requests_log = logging.getLogger("requests.packages.urllib3")
-        # requests_log.setLevel(logging.INFO)
-        # requests_log.propagate = True
 
         # upload attachments before the main request
         if attachments:

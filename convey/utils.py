@@ -71,3 +71,9 @@ def lazy_print(msg: str, timeout: float = 1) -> Event:
     event = Event()
     Thread(target=_lazy_print, args=(timeout, msg, event)).start()
     return event
+
+
+class ErrorOnAccess:
+
+    def __getattr__(self, name):
+        raise AttributeError(f"Using cache failed. Env was not restored.")

@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.5.2
+* fix: cached version would prevail over the CLI flags
+
 ## 1.5.1 (2025-06-04)
 * add: sending.verify_ssl
 

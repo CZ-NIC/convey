@@ -130,6 +130,7 @@ class Wrapper:
             logger.info(f"File {self.file} has already been processed.")
             try:  # try to depickle
                 self.parser = jsonpickle.decode(self.cache_file.read_text(), keys=True)
+                self.parser.post_setstate(self.m)
             except:
                 print(traceback.format_exc())
                 if not Config.error_caught():

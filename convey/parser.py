@@ -15,25 +15,23 @@ from pathlib import Path
 from shutil import move
 from typing import DefaultDict, List, Optional, Tuple, Union
 from sys import exit
-from mininterface.interfaces import get_interface
-
 from tabulate import tabulate
 
-from .args_controller import Env
-
 from .action import AggregationGroupedRows
+from .args_controller import Env
 from .attachment import Attachment
 from .contacts import Contacts
 from .checker import Checker
 from .config import Config, get_terminal_size
 from .definition import Settings
-from .dialogue import Cancelled, is_yes, get_global_interface
+from .dialogue import Cancelled, is_yes
 from .field import Cell, Field
 from .identifier import Identifier
 from .informer import Informer
 from .mail_draft import MailDraft
 from .processor import Processor
 from .types import Types, Type, TypeGroup
+from .utils import ErrorOnAccess
 from .web import Web
 from .whois import Whois
 
@@ -885,7 +883,18 @@ class Parser:
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        del state['m']  # we get rid of the env, however, we might implement keeping it
+        # we get rid of the env and we restore it through .post_setstate.
+        # It might be cool to cache it too, however, we would not be able to distinguish the CLI args.
+        # Usecase:
+        # 1. We have --arg 1 in config defaults
+        # 2. We run with --arg 2
+        # 3. We cache arg=2
+        # 4. We run with --arg 3
+        # There is no easy way to determine, whether to use the config default 1, the cached 2, or the CLI 3.
+        del state['m']
+        del state['env']
+
+        # del other non-cachable objects
         del state['informer']
         del state['processor']
         del state['identifier']
@@ -903,10 +912,11 @@ class Parser:
         return state
 
     def __setstate__(self, state):
-        self.m = get_global_interface()  # NOTE will the have the right env?
+        self.m = ErrorOnAccess()
+        self.env = ErrorOnAccess()
+
         self.__dict__.update(state)
-        self.informer = Informer(self)
-        self.processor = Processor(self, rewrite=False)
+
         if not isinstance(self.sending, SendingSettings):
             # Sometimes, we unpickle it as a mere dict. I don't know why.
             self.sending = SendingSettings(**self.sending)
@@ -923,6 +933,13 @@ class Parser:
             for k, v in d.items():
                 setattr(self.settings["dialect"], k, v)
 
-        self.identifier = Identifier(self)
         self.ranges = {}
         self.ip_seen = {}
+
+    def post_setstate(self, m:Mininterface[Env]):
+        self.m = m
+        self.env = m.env
+
+        self.informer = Informer(self)
+        self.processor = Processor(self, rewrite=False)
+        self.identifier = Identifier(self)
