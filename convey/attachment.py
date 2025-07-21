@@ -14,6 +14,8 @@ from .types import Types
 if TYPE_CHECKING:
     from .parser import Parser
 
+class AttachmentExc(RuntimeError):
+    pass
 class Attachment:
     sent: bool
     "True => sent, False => error while sending, None => not yet sent"
@@ -41,21 +43,26 @@ class Attachment:
             that are quite limiting (and possibly be reduced in the future)
             so that a crafted CSV would not pull up ~/.ssh or /etc/ files.
 
-            :raises RuntimeError if there is security concern about an attachment
+            :raises AttachmentExc If there is a problem like path does not exist or a security concern about the attachment
         """
-        path = next((f for f in self.parser.fields if f.type == Types.path), None)
+        pcol = next((f for f in self.parser.fields if f.type == Types.path), None)
+        if not pcol:
+            raise AttachmentExc(f"No path column")
 
-        # NOTE When the path does not exist, it fails here.
         with self.path.open() as f:
             reader = csvreader(f, dialect=self.parser.settings["dialect"])
-            paths = [Path(row[path.col_i]) for row in reader]
-            for path in paths:
-                if str(path) != path.name:
-                    raise RuntimeError(f"For security reasons, path must be just a file name: {path}")
-                if not path.stat().st_mode & stat.S_IROTH:
-                    raise RuntimeError(f"For security reasons, path must be readable to others: {path}")
-                if path.is_symlink():
-                    raise RuntimeError(f"For security reasons, path must not be a symlink: {path}")
+            paths = [Path(row[pcol.col_i]) for row in reader]
+            if self.parser.has_header:
+                paths = paths[1:]
+            for path_ in paths:
+                if not path_.exists():
+                    raise AttachmentExc(f"Path {path_.absolute()} does not exist.")
+                if str(path_) != path_.name:
+                    raise AttachmentExc(f"For security reasons, path must be just a file name: {path_}")
+                if not path_.stat().st_mode & stat.S_IROTH:
+                    raise AttachmentExc(f"For security reasons, path must be readable to others: {path_}")
+                if path_.is_symlink():
+                    raise AttachmentExc(f"For security reasons, path must not be a symlink: {path_}")
             return paths
 
     @property
@@ -126,4 +133,5 @@ class Attachment:
         return Contacts.mail_draft[self.get_draft_name()]
 
     def get_envelope(self):
+        """ Raises: AttachmentExc """
         return self.get_draft().get_envelope(self)

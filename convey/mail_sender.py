@@ -13,7 +13,7 @@ from envelope import Envelope
 
 
 from .parser import Parser
-from .attachment import Attachment
+from .attachment import Attachment, AttachmentExc
 from .config import Config
 
 re_title = re.compile('<title>([^<]*)</title>')
@@ -51,10 +51,10 @@ class MailSender(ABC):
 
             try:
                 e: Envelope = attachment.get_envelope()
-            except RuntimeError as e:
+            except AttachmentExc as err:
                 # troubles with an attachment
                 total_count += 1
-                logging.error('Troubles sending the mail for %s. %s', attachment.mail, e)
+                logging.error('Troubles sending the mail for %s. %s', attachment.mail, err)
                 continue
 
             if e.message().strip() == "" or e.subject().strip() == "":

@@ -3,6 +3,7 @@
 ## 1.5.2
 * fix: cached version would prevail over the CLI flags
 * enh: prevent adding a field multiple times when invoking the same CLI command
+* enh: path column attachments better error handling
 
 ## 1.5.1 (2025-06-04)
 * add: sending.verify_ssl

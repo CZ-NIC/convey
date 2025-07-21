@@ -24,11 +24,12 @@ from .aggregate import Aggregate, aggregate_functions
 from .action import AggregateAction
 from .action_controller import ActionController
 from .args_controller import Env, get_parser, parse_args
-from .attachment import Attachment
+from .attachment import Attachment, AttachmentExc
 from .config import Config, console_handler, edit, get_path
 from .contacts import Contacts
 from .flag import MergeFlag, FlagController
 from .decorators import PickBase, PickMethod, PickInput
+from .dialogue import hit_any_key
 from .dialogue import Cancelled, Debugged, Menu, csv_split, init_global_interface
 from .field import Field
 from .ipc import socket_file, recv, send, daemon_pid
@@ -679,6 +680,9 @@ class Controller:
                             print("Done!")
                         except KeyboardInterrupt:
                             print("Interrupted!")
+                        except AttachmentExc as e:
+                            hit_any_key(str(e))
+                            continue
                         finally:
                             edit(Path(f.name), blocking=True)
                 elif option == "test":
@@ -686,7 +690,11 @@ class Controller:
                     if len(choices) != 1:
                         print(f"Invalid testing attachment {test_attachment}")
                     else:
-                        print(choices[0].get_envelope().preview())
+                        try:
+                            print(choices[0].get_envelope().preview())
+                        except AttachmentExc as e:
+                            hit_any_key(str(e))
+                            continue
                     return
                 elif option == "t":
                     # Choose an attachment
@@ -698,7 +706,11 @@ class Controller:
                     clear()
 
                     # Display generated attachment
-                    print(attachment.get_envelope().preview())
+                    try:
+                        print(attachment.get_envelope().preview())
+                    except AttachmentExc as e:
+                        hit_any_key(str(e))
+                        continue
 
                     # Define testing e-mail
                     t = self.m.env.sending.testing_mail

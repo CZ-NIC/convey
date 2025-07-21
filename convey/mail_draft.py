@@ -189,10 +189,7 @@ class MailDraft:
             # If there is a trouble with an attachment,
             if Config.get_env().sending.attach_paths_from_path_column:
                 for path in attachment.get_paths_from_path_column():
-                    try:
-                        e.attach(path)
-                    except FileNotFoundError as e:
-                        return f"Cannot find the attachment: {e}"
+                    e.attach(path)
 
         if Config.is_testing():
             e.recipients(clear=True)
