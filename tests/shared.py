@@ -185,8 +185,6 @@ class TestAbstract(TestCase):
                 print(str(e))
             except Exception as e:
                 raise Exception(*info) from e
-            finally:
-                c.cleanup()
             o = buf.getvalue().splitlines()
 
         try:

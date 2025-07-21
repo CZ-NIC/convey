@@ -2,6 +2,7 @@
 
 ## 1.5.2
 * fix: cached version would prevail over the CLI flags
+* enh: prevent adding a field multiple times when invoking the same CLI command
 
 ## 1.5.1 (2025-06-04)
 * add: sending.verify_ssl

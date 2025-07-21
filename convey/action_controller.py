@@ -129,10 +129,14 @@ class ActionController:
         :type task: str FIELD,[COLUMN],[SOURCE_TYPE], ex: `netname 3|"IP address" ip|sourceip`
         :type add: bool Add to the result.
         """
+        if task in self.parser.col_seen:
+            logger.debug(f"Column {task} already added, do not re-add.")
+            return
         target_type, source_field, source_type, custom = self._add_new_column(task)
         if not self.source_new_column(target_type, add, source_field, source_type, custom):
             print("Cancelled")
             exit()
+        self.parser.col_seen.add(task)
         self.parser.is_processable = True
         return target_type
 

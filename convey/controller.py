@@ -23,7 +23,7 @@ from mininterface.interfaces import TextInterface
 from .aggregate import Aggregate, aggregate_functions
 from .action import AggregateAction
 from .action_controller import ActionController
-from .args_controller import Env, get_parser, parse_args, otrs_flags, new_fields
+from .args_controller import Env, get_parser, parse_args
 from .attachment import Attachment
 from .config import Config, console_handler, edit, get_path
 from .contacts import Contacts
@@ -215,7 +215,8 @@ class Controller:
                     except OSError:
                         stdout.write("Invalid cwd\n")
                         continue
-                    self.cleanup()  # reset new fields so that they will not be remembered in another query
+                    # NOTE remove
+                    # self.cleanup()  # reset new fields so that they will not be remembered in another query
                     try:
                         env = parse_args(argv[2:]).env  # the daemon has received a new command
                         # we have to copy the values into, to copy the values into self.env to keep references
@@ -291,6 +292,11 @@ class Controller:
             e.io.single_query = True
             if e.io.single_detect:
                 e.io.single_detect = True
+
+        new_fields: list[tuple[bool, Any]] = []
+        "User has requested to compute these. Defined by tuples: add (whether to include the column in the result), field definition"
+        [new_fields.append((True, values)) for values in e.action.field]
+        [new_fields.append((False, values)) for values in e.action.field_excluded]
 
         self.m.env.comp.adding_new_fields = bool(new_fields)
         self.wrapper = Wrapper(self.m, e.io.file_or_input, e.io.file, e.io.input,
@@ -841,12 +847,13 @@ class Controller:
             print("Finished.")
         exit(0)
 
-    def cleanup(self):
-        """ Make `Controller.run()` calls independent.
-        This method is called by ex: tests.
-        """
-        new_fields.clear()
-        # Config.cache.clear()
+    # NOTE remove
+    # def cleanup(self):
+    #     """ Make `Controller.run()` calls independent.
+    #     This method is called by ex: tests.
+    #     """
+    #     new_fields.clear()
+    #     # Config.cache.clear()
 
     def get_autocompletion(self, parser):
         actions = [x for action in parser._actions for x in action.option_strings]

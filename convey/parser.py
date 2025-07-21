@@ -85,6 +85,8 @@ class Parser:
         "field types of the columns as given by the user"
         self.settings: Settings = defaultdict(list)
         "processing settings"
+        self.col_seen = set()
+        """ Prevent a column being added multiple time from CLI. """
 
         # OTRS attributes to be linked to CSV
         default_name = (source_file.name if source_file else "attachment.csv")

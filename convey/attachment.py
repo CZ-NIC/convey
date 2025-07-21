@@ -45,6 +45,7 @@ class Attachment:
         """
         path = next((f for f in self.parser.fields if f.type == Types.path), None)
 
+        # NOTE When the path does not exist, it fails here.
         with self.path.open() as f:
             reader = csvreader(f, dialect=self.parser.settings["dialect"])
             paths = [Path(row[path.col_i]) for row in reader]

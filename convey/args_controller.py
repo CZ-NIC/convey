@@ -21,14 +21,6 @@ from .config import config_dir, Config
 otrs_flags = [("otrs_id", "Ticket id"), ("otrs_cookie", "OTRSAgentInterface cookie"),
               ("otrs_token", "OTRS challenge token")]
 
-# NOTE config INI file should be converted into mininterface config. As now default CLI
-# As we must have CLI > config > default. As argparse had no defaults, now with mininterface, we have
-# CLI + default (if not set to None) > config. This might be confusing in the future.
-
-new_fields: List[Tuple[bool, Any]] = []
-"User has requested to compute these. Defined by tuples: add (whether to include the column in the result), field definition"
-
-
 column_help = "COLUMN is ID of the column (1, 2, 3...), position from the right (-1, ...),"\
     " the exact column name, field type name or its usual name."
 
@@ -511,6 +503,4 @@ def parse_args(args=None):
             description="Swiss knife for mutual conversion of the web related data types, like `base64` or outputs of the programs `whois`, `dig`, `curl`. Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.\n\nSee full docs at https://github.com/CZ-NIC/convey (ex. to launch a web service).",
             config_file=config_file
             )
-    [new_fields.append((True, values)) for values in m.env.action.field]
-    [new_fields.append((False, values)) for values in m.env.action.field_excluded]
     return m
