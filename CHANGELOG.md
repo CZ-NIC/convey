@@ -1,9 +1,10 @@
 # CHANGELOG
 
-## 1.5.2
+## 1.5.2 (2025-07-21)
 * fix: cached version would prevail over the CLI flags
 * enh: prevent adding a field multiple times when invoking the same CLI command
 * enh: path column attachments better error handling
+* reg: whois.cache by default True again
 
 ## 1.5.1 (2025-06-04)
 * add: sending.verify_ssl

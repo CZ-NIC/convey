@@ -363,7 +363,7 @@ class WhoisModule:
     reprocessable_unknown: BlankTrue = None
     """Make unknown lines reprocessable while single file processing, do not leave unknown cells empty."""
 
-    cache: BlankTrue = None
+    cache: BlankTrue = True
     """Use whois cache."""
 
     mirror: Optional[str] = None
