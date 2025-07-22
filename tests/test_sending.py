@@ -1,11 +1,13 @@
+from contextlib import redirect_stderr
+import io
 import os
 from pathlib import Path
 from unittest import TestCase
 
-from tests.shared import GIF_CSV, PROJECT_DIR, SHEET_CSV, TESTDATA_DIR, Convey, p
+from tests.shared import GIF_CSV, PROJECT_DIR, SHEET_CSV, TESTDATA_DIR, Convey, TestAbstract
 
 
-class TestSending(TestCase):
+class TestSending(TestAbstract):
     def test_dynamic_template(self):
         convey = Convey("--output", "False", filename=SHEET_CSV)
         cmd = """--field code,3,'x="example@example.com" if "example.com" in x else x+"@example.com"'""" \
@@ -39,38 +41,38 @@ class TestSending(TestCase):
         BLACK = "Attachment black.gif (image/gif)"
         WHITE = "Attachment white.gif (image/gif)"
         COLOURS = "Attachment gif.csv (text/csv)"
-        convey = Convey("--output", "False", filename=GIF_CSV)
         cmd_pattern = "-t abusemail,path --split abusemail --send-test {mail} 'bare_template.eml' "
-
         cmd = cmd_pattern + "--attach-files False --attach-paths-from-path-column True"
 
         os.chdir(PROJECT_DIR / TESTDATA_DIR)
 
+        def ch(c, logs=None):
+            return self.check(cmd=c.format(mail="john@example.com"), filename=GIF_CSV, logs=logs)
+
         # Single image is attached
-        lines = convey(cmd.format(mail="john@example.com"), debug=True)
-        self.assertIn(BLACK, lines[0])
-        lines = convey(cmd.format(mail="mary@example.com"))
-        self.assertIn(WHITE, lines[0])
+        lines = ch(cmd.format(mail="john@example.com")).stdout
+        self.assertIn(BLACK, lines[19])
+        lines = ch(cmd.format(mail="mary@example.com")).stdout
+        self.assertIn(WHITE, lines[19])
 
         # Two images are attached
-        lines = convey(cmd.format(mail="jack@example.com"))
-        self.assertIn(BLACK, lines[0])
-        self.assertIn(WHITE, lines[4])
+        lines = ch(cmd.format(mail="jack@example.com")).stdout
+        self.assertIn(BLACK, lines[19])
+        self.assertIn(WHITE, lines[23])
 
         # Image cannot be attached
-        lines = convey(cmd.format(mail="hyacint@example.com"))
-        self.assertIn(
-            "Convey crashed at For security reasons, path must be readable to others: red-permission.gif", lines[0])
+        ch(cmd.format(mail="hyacint@example.com"), logs='INFO:convey.dialogue:For security reasons, path must be readable to others: red-permission.gif')
 
         # Flags controlling attachments work
-        lines = convey(cmd_pattern.format(mail="john@example.com") +
-                       "--attach-files True --attach-paths-from-path-column False")
-        self.assertIn(COLOURS, lines[0])
-        lines = convey(cmd_pattern.format(mail="john@example.com") +
-                       "--attach-files True --attach-paths-from-path-column True")
-        self.assertIn(COLOURS, lines[0])
-        self.assertIn(BLACK, lines[1])
-        lines = convey(cmd_pattern.format(mail="john@example.com") +
-                       "--attach-files False --attach-paths-from-path-column False")
-        self.assertNotIn(COLOURS, lines[0])
-        self.assertNotIn(BLACK, lines[1])
+        lines = ch(cmd_pattern.format(mail="john@example.com") +
+                       "--attach-files True --attach-paths-from-path-column False").stdout
+        self.assertIn(COLOURS, lines[19])
+        lines = ch(cmd_pattern.format(mail="john@example.com") +
+                       "--attach-files True --attach-paths-from-path-column True").stdout
+        self.assertIn(COLOURS, lines[19])
+        self.assertIn(BLACK, lines[20])
+
+        lines = ch(cmd_pattern.format(mail="john@example.com") +
+                       "--attach-files False --attach-paths-from-path-column False").stdout
+        self.assertNotIn(COLOURS, lines[19])
+        self.assertNotIn(BLACK, lines[20])

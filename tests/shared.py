@@ -1,6 +1,7 @@
+from dataclasses import dataclass
 from convey.dialogue import Cancelled
 from convey.controller import Controller
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from io import StringIO
 import shlex
 from subprocess import PIPE, run
@@ -9,7 +10,7 @@ import os
 import logging
 from pathlib import Path
 from stat import S_IRGRP, S_IRUSR
-from typing import List, Union
+from typing import List, Optional, Union
 from unittest import TestCase
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -135,18 +136,61 @@ class Convey:
             lines = lines[:-1]
         return lines
 
+@dataclass
+class _CheckResult:
+    controller: Controller
+    stdout: list[str]
+    logs: list[str]
+
+@contextmanager
+def _log_capture(logger_name, level="INFO"):
+    logger = logging.getLogger(logger_name)
+    old_level = logger.level
+    logger.setLevel(level)
+
+    buffer = StringIO()
+    handler = logging.StreamHandler(buffer)
+    handler.setFormatter(logging.Formatter('%(levelname)s:%(name)s:%(message)s'))
+    logger.addHandler(handler)
+
+    try:
+        yield buffer
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(old_level)
+
 
 class TestAbstract(TestCase):
     maxDiff = None
 
     def check(
         self,
-        check: Union[List, str, None],
+        check: Optional[list | str] = None,
         cmd: str = "",
         text=None,
-        filename: Union[str, Path] = None,
+        filename: Optional[str | Path] = None,
         debug=None,
+        logs: Optional[list | str] = None
     ):
+        """ Check a convey run. Preferred method.
+
+        Args:
+            check: stdout to be checked
+            cmd: this would be the cli command
+            text: text input
+            filename: file input
+            debug: bool
+            logs: logs to be checked
+
+        Raises:
+            AssertionError: _description_
+            Exception: _description_
+            AssertionError: _description_
+            AssertionError: _description_
+
+        Returns:
+            _description_
+        """
         # o = Convey(filename=filename, text=text, debug=debug)(cmd)
         args = [
             "--output",
@@ -174,7 +218,7 @@ class TestAbstract(TestCase):
             print(check)
         info = ("Cmd", "convey " + " ".join(args), "Check", check)
 
-        with redirect_stdout(StringIO()) as buf:
+        with redirect_stdout(StringIO()) as buf, _log_capture("", level="INFO") as cm:
             c = Controller()
             try:
                 c.run(given_args=args)
@@ -185,20 +229,25 @@ class TestAbstract(TestCase):
                 print(str(e))
             except Exception as e:
                 raise Exception(*info) from e
-            o = buf.getvalue().splitlines()
+            stdout = buf.getvalue().splitlines()
+            logsout = cm.getvalue().splitlines()
 
         try:
-            if isinstance(check, list):
-                self.assertListEqual(check, o)
-            elif check == "":  # check empty output
-                self.assertFalse(o)
-            elif check is None:  # we do not want to do any checks
-                pass
-            elif not len(o):
-                raise AssertionError(f"Output too short: {o}")
-            else:
-                self.assertEqual(check, o[0])
+            self._check_input(check, stdout)
+            self._check_input(logs, logsout)
         except AssertionError as e:
             raise AssertionError(*info) from e
 
-        return c
+        return _CheckResult(c, stdout, logsout)
+
+    def _check_input(self,pattern, out):
+            if pattern is None:  # we do not want to do any checks
+                pass
+            elif isinstance(pattern, list):
+                self.assertListEqual(pattern, out)
+            elif pattern == "":  # check empty output
+                self.assertFalse(out)
+            elif not len(out):
+                raise AssertionError(f"Output too short: {out}")
+            else:
+                self.assertEqual(pattern, out[0])

@@ -112,6 +112,7 @@ class Controller:
         Types.refresh(True)
         self.m = parse_args(args=given_args)
         Config.set_env(self.m.env)
+
         try:
             m = TextInterface()
         except ImportError:
@@ -555,9 +556,13 @@ class Controller:
         # sending dialog loop
         st = self.parser.stats
         limit = float("inf")
+        first_run = True
         def limitable(max_): return f"limited to: {limit}/{max_}" if limit < max_ else max_
 
         while True:
+            if not first_run and self.env.cli.yes:
+                break
+            first_run = False
             # clear screen
             info = []
 
