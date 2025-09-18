@@ -11,6 +11,7 @@ class TestLaunching(TestAbstract):
         # just string specified, nothing else
         lines = convey(piped_text="3 kg")
         self.assertTrue(len(lines) == 1)
+        raise ValueError(str(lines[0])) # TODO
         self.assertTrue("'1.806642228624337e+27 dalton'" in lines[0])
 
         # field base64 specified
