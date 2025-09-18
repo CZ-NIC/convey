@@ -149,7 +149,8 @@ class Environment:
 @dataclass
 class Processing:
     """ Processing """
-    threads: Annotated[Blank[int] | Literal["auto"], arg(metavar="bool/auto/INT")] = "auto"
+
+    threads: Annotated[Blank[int | Literal["auto"] | bool], arg(metavar="[bool|auto|int]")] = "auto"
     """Set the thread processing number.
 
     Processing threads
@@ -171,7 +172,7 @@ class Processing:
     server: BlankTrue = None
     """Launches simple web server."""
 
-    daemon: Annotated[Blank[str], arg(metavar="start/restart/stop/status/server")] = None
+    daemon: Annotated[Blank[str], arg(metavar="[start|restart|stop|status|server|bool]")] = True
     """Run a UNIX socket daemon to speed up single query requests.
       * True – allow using the daemon
       * False – do not use the daemon

@@ -119,7 +119,7 @@ class Controller:
             m = Mininterface()
         finally:
             init_global_interface(m)
-        self.env = self.m.env
+        self.env:Env = self.m.env
 
         self.see_menu = True
         self.check_server()

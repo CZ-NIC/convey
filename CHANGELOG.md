@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.5.3
+* chore: update for compatibility with latest mininterface
+
 ## 1.5.2 (2025-07-21)
 * fix: cached version would prevail over the CLI flags
 * enh: prevent adding a field multiple times when invoking the same CLI command

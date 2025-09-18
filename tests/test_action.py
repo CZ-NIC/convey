@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from shared import (
     CONSUMPTION,
@@ -128,7 +127,9 @@ class TestAction(TestAbstract):
         # rows can be duplicated due to other fields
         self.check(
             COMBINED_LIST_METHOD,
-            f"--merge {PERSON_CSV},2,1 -f external,1," + str(p("external_pick_base.py")) + ",list_method",
+            f"--merge {PERSON_CSV},2,1 -f external,1,"
+            + str(p("external_pick_base.py"))
+            + ",list_method",
             filename=SHEET_CSV,
         )
 
