@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 1.5.3
+## 1.5.3 (2025-09-19)
 * chore: update for compatibility with latest mininterface
 
 ## 1.5.2 (2025-07-21)
