@@ -172,9 +172,9 @@ class Processing:
     server: BlankTrue = None
     """Launches simple web server."""
 
-    daemon: Annotated[Blank[str], arg(metavar="[start|restart|stop|status|server|bool]")] = True
+    daemon: Annotated[Blank[str], arg(metavar="[start|restart|stop|status|server|bool]")] = None
     """Run a UNIX socket daemon to speed up single query requests.
-      * True – allow using the daemon
+      * True/None – allow using the daemon
       * False – do not use the daemon
       * start – start the daemon and exit
       * stop – stop the daemon and exit
