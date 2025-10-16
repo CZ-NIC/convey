@@ -12,13 +12,21 @@ reIpWithPort = re.compile(r"((\d{1,3}\.){4})(\d+)")
 reAnyIp = re.compile(r"\"?((\d{1,3}\.){3}(\d{1,3}))")
 reFqdn = re.compile(
     # Xtoo long, infinite loop: ^(((([A-Za-z0-9]+){1,63}\.)|(([A-Za-z0-9]+(\-)+[A-Za-z0-9]+){1,63}\.))+){1,255}$
-    r"(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-_]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)")
-reUrl = re.compile(r'[htps]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
+    r"(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-_]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)"
+)
+reUrl = re.compile(
+    r"[htps]*://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+"
+)
 # reBase64 = re.compile('^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$')
 
 
 def wrong_url_2_url(s, make=True):
-    s = re.sub("^hxxp", 'http', s, flags=re.I).replace("[.]", ".").replace("(.)", ".").replace("[:]", ":")
+    s = (
+        re.sub("^hxxp", "http", s, flags=re.I)
+        .replace("[.]", ".")
+        .replace("(.)", ".")
+        .replace("[:]", ":")
+    )
     if make and not s.lower().startswith("http"):
         s = "http://" + s
     return s
@@ -48,7 +56,7 @@ def url_port(s):
 
 
 def url_hostname(url):
-    """ Covers both use cases "http://example.com..." and "example.com..." """
+    """Covers both use cases "http://example.com..." and "example.com..." """
     s = urlsplit(url)
     s = s.netloc or s.path.split("/")[:1][0]
     return s.split(":")[0]  # strips port
@@ -65,18 +73,22 @@ def dig(rr):
         else:
             t = rr
         try:
-            text = subprocess.check_output(["dig", "+short", "-t", t, query, "+timeout=1"]).decode("utf-8")
+            text = subprocess.check_output(
+                ["dig", "+short", "-t", t, query, "+timeout=1"]
+            ).decode("utf-8")
         except FileNotFoundError:
             Config.missing_dependency("dnsutils")
         if text.startswith(";;"):
             return None
         spl = text.split("\n")[:-1]
         if t == "TXT":
-            spl = [r[1:-1] for r in spl if r.startswith('"') and r.endswith('"')]  # row without " may be CNAME redirect
+            spl = [
+                r[1:-1] for r in spl if r.startswith('"') and r.endswith('"')
+            ]  # row without " may be CNAME redirect
             if rr == "SPF":
-                return [r for r in spl if r.startswith('v=spf')]
+                return [r for r in spl if r.startswith("v=spf")]
             elif rr == "TXT":
-                return [r for r in spl if not r.startswith('v=spf')]
+                return [r for r in spl if not r.startswith("v=spf")]
         logger.debug(f"Dug {spl}")
         return spl
 
@@ -99,9 +111,9 @@ def nmap(val, port=""):
         text = subprocess.run(cmd, stdout=subprocess.PIPE).stdout.decode("utf-8")
     except FileNotFoundError:
         Config.missing_dependency("nmap")
-    text = text[text.find("PORT"):]
-    text = text[text.find("\n") + 1:]
-    text = text[:text.find("\n\n")]
+    text = text[text.find("PORT") :]
+    text = text[text.find("\n") + 1 :]
+    text = text[: text.find("\n\n")]
     if Config.get_env().comp.multiple_nmap_ports:
         l = []
         for row in text.split("\n"):

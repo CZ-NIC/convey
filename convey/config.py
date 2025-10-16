@@ -25,31 +25,43 @@ if TYPE_CHECKING:
 # If user would hit tab when writing `python3 -m [LETTER].[TAB]` into terminal, empty convey.log would have been created in the dir.
 handlers = []
 console_handler = logging.StreamHandler()
-console_handler.setFormatter(logging.Formatter('%(message)s'))
+console_handler.setFormatter(logging.Formatter("%(message)s"))
 console_handler.setLevel(logging.INFO)
 handlers.append(console_handler)
 try:
     file_handler = logging.FileHandler("convey.log")
-    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
     file_handler.setLevel(logging.WARNING)
     handlers.append(file_handler)
 except PermissionError:
     file_handler = None
-    print("Cannot create convey.log here at " + str(os.path.abspath(".")) + " – change directory please.")
+    print(
+        "Cannot create convey.log here at "
+        + str(os.path.abspath("."))
+        + " – change directory please."
+    )
     exit()
-except FileNotFoundError:  # FileNotFoundError emitted when we are in a directory whose inode exists no more
+except (
+    FileNotFoundError
+):  # FileNotFoundError emitted when we are in a directory whose inode exists no more
     print("Current working directory doesn't exist.")
     exit()
 logging.basicConfig(level=logging.INFO, handlers=handlers)
 
 # mute noisy module (prints warning every time a validation fails which fails permanently when determining data type)
-logging.getLogger('validate_email').setLevel(logging.ERROR)
-logging.getLogger('filelock').setLevel(logging.WARNING)
+logging.getLogger("validate_email").setLevel(logging.ERROR)
+logging.getLogger("filelock").setLevel(logging.WARNING)
 
 # class init
 logger = logging.getLogger(__name__)
-Path.lexists = lambda self: self.is_symlink() or self.exists()  # not yet exist https://bugs.python.org/issue34137
-default_path = Path(Path(__file__).resolve().parent, "defaults")  # path to the 'defaults' folder with templates
+Path.lexists = (
+    lambda self: self.is_symlink() or self.exists()
+)  # not yet exist https://bugs.python.org/issue34137
+default_path = Path(
+    Path(__file__).resolve().parent, "defaults"
+)  # path to the 'defaults' folder with templates
 
 config_dir = user_config_dir("convey")
 BOOLEAN_STATES = configparser.RawConfigParser.BOOLEAN_STATES
@@ -57,7 +69,7 @@ console_handler, file_handler, *_ = *logging.root.handlers, None
 
 
 def get_path(file):
-    """ Assures the file is ready, or creates a new one from a default. """
+    """Assures the file is ready, or creates a new one from a default."""
     global config_dir
     exists = True
     try:
@@ -79,32 +91,36 @@ def get_path(file):
 
     if exists:
         while not Path(file).exists():
-            i = input(f"File on the path {file} may be a broken symlink. "
-                      f"Mount it and press any key / 'q' for program exit / 'c' for recreating files / 'i' temporarily ignore: ")
+            i = input(
+                f"File on the path {file} may be a broken symlink. "
+                f"Mount it and press any key / 'q' for program exit / 'c' for recreating files / 'i' temporarily ignore: "
+            )
             if i == "q":
                 print("Exiting.")
                 exit()
             elif i == "c":
                 exists = False
                 break
-            elif i == 'i':
+            elif i == "i":
                 return file
 
     if not exists or not Path(file).exists():
         # create INI file at user config folder or at program directory
         program_path = Path(sys.argv[0]).parent.resolve()
         # this is before Config file is load, we have to parse sys.argv directly
-        yes = any(x in sys.argv for x in ['-y', '--yes', '-H', '--headless'])
+        yes = any(x in sys.argv for x in ["-y", "--yes", "-H", "--headless"])
         if not yes:
-            yes = input(f"It seems this is a first run, since file {file} haven't been found."
-                        f"\nShould we create default config files at user config folder ({config_dir})?"
-                        f" Otherwise, they'll be created at program folder: {program_path} [Y/n] ") in ["", "Y", "y"]
+            yes = input(
+                f"It seems this is a first run, since file {file} haven't been found."
+                f"\nShould we create default config files at user config folder ({config_dir})?"
+                f" Otherwise, they'll be created at program folder: {program_path} [Y/n] "
+            ) in ["", "Y", "y"]
         if yes:
             Path(config_dir).mkdir(parents=True, exist_ok=True)
         else:
             config_dir = program_path
         try:
-            for filename in glob.glob(str(Path(default_path, '*.*'))):
+            for filename in glob.glob(str(Path(default_path, "*.*"))):
                 # do not overwrite existing files
                 #  – user just might have deleted EML templates and they would not be happy to see their config.ini wiped
                 if not Path(config_dir, Path(filename).name).exists():
@@ -139,7 +155,9 @@ class Config:
 
     @staticmethod
     def missing_dependency(library):
-        logger.warning(f"Install {library} by `sudo apt install {library}` first or disable `--{library}` in config")
+        logger.warning(
+            f"Install {library} by `sudo apt install {library}` first or disable `--{library}` in config"
+        )
         input("Press any key...")
         raise KeyboardInterrupt
 
@@ -162,14 +180,20 @@ class Config:
             # In the next request, they does not specify the verbosity. If not reset, the verbosity would still be logging.DEBUG.
             Config.verbosity = logging.INFO
         if Config.is_debug():
-            if not verbosity:  # if user has not say the verbosity level, make it the most verbose
+            if (
+                not verbosity
+            ):  # if user has not say the verbosity level, make it the most verbose
                 Config.verbosity = logging.DEBUG
             if file_handler:
                 file_handler.setLevel(logging.INFO)  # file handler to info level
-            logging.getLogger("chardet").setLevel(logging.WARNING)  # we are not interested in chardet debug logs
+            logging.getLogger("chardet").setLevel(
+                logging.WARNING
+            )  # we are not interested in chardet debug logs
 
         console_handler.setLevel(Config.verbosity)  # stream handler to debug level
-        logging.getLogger().setLevel(min(Config.verbosity, logging.INFO))  # system sensitivity at least at INFO level
+        logging.getLogger().setLevel(
+            min(Config.verbosity, logging.INFO)
+        )  # system sensitivity at least at INFO level
 
         if Config.config_file:
             logger.debug("Config file loaded from %s", Config.config_file)
@@ -189,7 +213,7 @@ class Config:
 
     @staticmethod
     def error_caught(force=False):
-        """ Return True if the user got the prompt (and possibly clean the error up then). """
+        """Return True if the user got the prompt (and possibly clean the error up then)."""
         if Config.is_debug() or force:
             import traceback
             import sys
@@ -228,7 +252,7 @@ class Config:
 
     @staticmethod
     def get_env() -> "Env":
-        """ Allow migration from old configparser to the typed Env dataclass """
+        """Allow migration from old configparser to the typed Env dataclass"""
         # This is due to migration from static config.ini. In the future, get rid of the static in favour of objects.
         return Config.env
 
@@ -237,10 +261,14 @@ class Config:
         url = f"https://github.com/CZ-NIC/convey/issues/new?title={quote(title)}&body={quote(body)}"
         if len(url) > 2000:
             # strip ending url-encoded character (because things like "%2" instead of "%20" would break the URL)
-            url = re.sub(r'%(\d{1,2})?$', '', url[:1987]) + "%7D%60%60%60"  # add newline and 3× backtick
+            url = (
+                re.sub(r"%(\d{1,2})?$", "", url[:1987]) + "%7D%60%60%60"
+            )  # add newline and 3× backtick
         webbrowser.open(url)
-        input(f"\nPlease submit a Github issue at {url}"
-              "\nTrying to open issue tracker in a browser...")
+        input(
+            f"\nPlease submit a Github issue at {url}"
+            "\nTrying to open issue tracker in a browser..."
+        )
 
     @staticmethod
     def set_cache_dir(path):
@@ -250,7 +278,7 @@ class Config:
 
     @staticmethod
     def get_cache_dir():
-        """ Cache dir with ending slash. """
+        """Cache dir with ending slash."""
         return Config.cache_dir
 
 
@@ -264,8 +292,12 @@ def edit(path="config", mode=3, restart_when_done=False, blocking=False):
     """
     if type(mode) is str:  # from CLI
         mode = int(mode)
-    d = {"template": Config.get_env().sending.mail_template, "template_abroad": Config.get_env().sending.mail_template_abroad,
-         "uwsgi": "uwsgi.ini", "config": "convey.yaml"}
+    d = {
+        "template": Config.get_env().sending.mail_template,
+        "template_abroad": Config.get_env().sending.mail_template_abroad,
+        "uwsgi": "uwsgi.ini",
+        "config": "convey.yaml",
+    }
     if path in d:
         path = get_path(d[path])
     elif not isinstance(path, Path):
@@ -280,12 +312,19 @@ def edit(path="config", mode=3, restart_when_done=False, blocking=False):
         # we cannot use xdg-open because template.eml would probably launch an e-mail client
         # app = Popen(['xdg-open', path], stdout=PIPE, stderr=PIPE)
         try:
-            editor = run(["xdg-mime", "query", "default", "text/plain"],
-                         stdout=PIPE).stdout.split()[0]  # run: blocking, output
-            app = Popen(["gtk-launch", editor, path], stdout=PIPE, stderr=PIPE)  # Popen: non blocking
+            editor = run(
+                ["xdg-mime", "query", "default", "text/plain"], stdout=PIPE
+            ).stdout.split()[
+                0
+            ]  # run: blocking, output
+            app = Popen(
+                ["gtk-launch", editor, path], stdout=PIPE, stderr=PIPE
+            )  # Popen: non blocking
         except FileNotFoundError:
             library = "xdg-utils libgtk-3-bin"
-            input(f"Install {library} by `sudo apt install {library}`. Hit Enter to launch CLI editor.")
+            input(
+                f"Install {library} by `sudo apt install {library}`. Hit Enter to launch CLI editor."
+            )
             gui = False
     elif mode & 1:
         gui = False
@@ -313,7 +352,7 @@ def get_terminal_size():
         # echo "434" | convey -f base64  --debug
         # stty: 'standard input': Inappropriate ioctl for device
         # I do not know how to suppress this warning.
-        height, width = (int(s) for s in os.popen('stty size', 'r').read().split())
+        height, width = (int(s) for s in os.popen("stty size", "r").read().split())
         return height, width
     except (OSError, ValueError):
         return 0, 0

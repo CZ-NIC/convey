@@ -16,7 +16,7 @@ from .parser import Parser
 from .attachment import Attachment, AttachmentExc
 from .config import Config
 
-re_title = re.compile('<title>([^<]*)</title>')
+re_title = re.compile("<title>([^<]*)</title>")
 logger = logging.getLogger(__name__)
 
 OTRS_VERSION = 6
@@ -37,7 +37,7 @@ class MailSender(ABC):
         pass
 
     def send_list(self, mails):
-        """ Send a bunch of e-mail messages
+        """Send a bunch of e-mail messages
         :type mails: Union[list, generator]
         """
         sent_mails = 0
@@ -46,7 +46,9 @@ class MailSender(ABC):
 
         if self.start() is False:
             return False
-        for attachment in iter(mails):  # make sure mails are generator to correctly count total_count
+        for attachment in iter(
+            mails
+        ):  # make sure mails are generator to correctly count total_count
             attachment: Attachment
 
             try:
@@ -54,7 +56,9 @@ class MailSender(ABC):
             except AttachmentExc as err:
                 # troubles with an attachment
                 total_count += 1
-                logging.error('Troubles sending the mail for %s. %s', attachment.mail, err)
+                logging.error(
+                    "Troubles sending the mail for %s. %s", attachment.mail, err
+                )
                 continue
 
             if e.message().strip() == "" or e.subject().strip() == "":
@@ -101,7 +105,9 @@ class MailSender(ABC):
         self.stop()
 
         if status == "interrupted":
-            print(f"Interrupted! We cannot be sure if the e-mail {attachment.mail} was sent but it is probable.")
+            print(
+                f"Interrupted! We cannot be sure if the e-mail {attachment.mail} was sent but it is probable."
+            )
 
         print("\nSent: {}/{} mails.".format(sent_mails, total_count))
         if sent_mails != total_count:
@@ -130,72 +136,96 @@ class MailSenderOtrs(MailSender):
         if attachments:
             # get FormID to pair attachments
             logger.debug("Receiving FormID")
-            upload_form = get(url,
-                              params={"ChallengeToken": self.parser.sending.otrs_token,
-                                      "Action": "AgentTicketForward",
-                                      "TicketID": str(self.parser.sending.otrs_id)},
-                              cookies=cookies,
-                              verify=self.parser.env.sending.verify_ssl
-                              )
+            upload_form = get(
+                url,
+                params={
+                    "ChallengeToken": self.parser.sending.otrs_token,
+                    "Action": "AgentTicketForward",
+                    "TicketID": str(self.parser.sending.otrs_id),
+                },
+                cookies=cookies,
+                verify=self.parser.env.sending.verify_ssl,
+            )
             m = re.search(r'FormID" value="((\d|\.)*)"', upload_form.text)
             if m:
                 form_id = m[1]
                 self._clean_attachments(upload_form, url, form_id, cookies)
                 for a in attachments:
                     logger.debug("Uploading %s", a.name)
-                    post(url,
-                         params={"Action": "AjaxAttachment",
-                                 "Subaction": "Upload",
-                                 "FormID": form_id,
-                                 "ChallengeToken": self.parser.sending.otrs_token
-                                 },
-                         cookies=cookies,
-                         files={"Files": (a.name, a.data)},
-                         verify=self.parser.env.sending.verify_ssl
-                         )
+                    post(
+                        url,
+                        params={
+                            "Action": "AjaxAttachment",
+                            "Subaction": "Upload",
+                            "FormID": form_id,
+                            "ChallengeToken": self.parser.sending.otrs_token,
+                        },
+                        cookies=cookies,
+                        files={"Files": (a.name, a.data)},
+                        verify=self.parser.env.sending.verify_ssl,
+                    )
 
                 fields["FormID"] = form_id
             else:
-                raise RuntimeError("Cannot get the FormID, unable to upload the attachments.")
+                raise RuntimeError(
+                    "Cannot get the FormID, unable to upload the attachments."
+                )
 
         # If we had a single file, we could upload it with a single request that way:
         # `files={"FileUpload": (a.name, a.data)}`
         logger.debug("Submitting mail")
-        r = post(url, data=fields, cookies=cookies, verify=self.parser.env.sending.verify_ssl)
+        r = post(
+            url, data=fields, cookies=cookies, verify=self.parser.env.sending.verify_ssl
+        )
 
         return r.text
 
     def _clean_attachments(self, upload_form, url, form_id, cookies):
-        """ Remove all the attachments, received in the first ticket article so that they are not forwareded. """
+        """Remove all the attachments, received in the first ticket article so that they are not forwareded."""
         REMOVE_ALL_ATTACHMENTS = True
-        def bs(): return BeautifulSoup(upload_form.text, features="html.parser")
+
+        def bs():
+            return BeautifulSoup(upload_form.text, features="html.parser")
 
         if REMOVE_ALL_ATTACHMENTS:
             # why reversed? When deleted, others data-file-id shift down.
-            for td in reversed(bs().find_all('a', {'class': 'AttachmentDelete'})):
-                self._remove_attachment(td['data-file-id'], form_id, url, cookies)
-        elif self.parser.source_file:  # remove at least the attachment we have been split from (avoid duplicity)
-            td = bs().find('td', {'class': 'Filename'}, lambda tag: tag.string == self.parser.source_file.name)
+            for td in reversed(bs().find_all("a", {"class": "AttachmentDelete"})):
+                self._remove_attachment(td["data-file-id"], form_id, url, cookies)
+        elif (
+            self.parser.source_file
+        ):  # remove at least the attachment we have been split from (avoid duplicity)
+            td = bs().find(
+                "td",
+                {"class": "Filename"},
+                lambda tag: tag.string == self.parser.source_file.name,
+            )
             if td:  # such attachment exists
                 tr = td.parent
-                data_file_id = tr.find('a', {'class': 'AttachmentDelete'})['data-file-id']
+                data_file_id = tr.find("a", {"class": "AttachmentDelete"})[
+                    "data-file-id"
+                ]
                 self._remove_attachment(data_file_id, form_id, url, cookies)
 
     def _remove_attachment(self, data_file_id, form_id, url, cookies):
-        logger.debug(f"Removing FileID={data_file_id} from the ticket article attachments")
-        post(url,
-             params={"Action": "AjaxAttachment",
-                     "Subaction": "Delete",
-                     "FormID": form_id,
-                     "ChallengeToken": self.parser.sending.otrs_token,
-                     "FileID": data_file_id
-                     },
-             cookies=cookies,
-             verify=self.parser.env.sending.verify_ssl)
+        logger.debug(
+            f"Removing FileID={data_file_id} from the ticket article attachments"
+        )
+        post(
+            url,
+            params={
+                "Action": "AjaxAttachment",
+                "Subaction": "Delete",
+                "FormID": form_id,
+                "ChallengeToken": self.parser.sending.otrs_token,
+                "FileID": data_file_id,
+            },
+            cookies=cookies,
+            verify=self.parser.env.sending.verify_ssl,
+        )
 
     @staticmethod
     def _check_record(record, lineno):
-        valid = ('CONTACTS' in record)
+        valid = "CONTACTS" in record
         if not valid:
             print(" Line {}: Record missing CONTACTS field ".format(lineno))
         return valid
@@ -215,15 +245,18 @@ class MailSenderOtrs(MailSender):
         #     logger.info("Got response\n" + response)
 
         title = mo.group(1)
-        if 'Předat - Tiket - ' in title or 'Forward - Ticket - ' in title:
+        if "Předat - Tiket - " in title or "Forward - Ticket - " in title:
             # XX we are not sure sending succeeded. Ex: if we do not include "To" recipient, we land on the same page
             #   but no message will be send because the page will just state recipient is missing.
             #   However, this is not a priority, this mostly works. You can always use SMTP via --references flag.
             return True
 
-        elif title == 'Login - OTRS':
+        elif title == "Login - OTRS":
             logger.warning("\n\n *** Not logged in or wrong session cookie ***")
-        elif title in ('Fatal Error - Frontend -  OTRS', 'Fatal Error - Rozhraní -  OTRS'):
+        elif title in (
+            "Fatal Error - Frontend -  OTRS",
+            "Fatal Error - Rozhraní -  OTRS",
+        ):
             logger.warning("\n\n *** Bad CSRF token ***")
         else:
             logger.warning(" Unrecognized response: " + title)
@@ -231,7 +264,7 @@ class MailSenderOtrs(MailSender):
         return False
 
     def assure_tokens(self):
-        """ Check and update by dialog OTRS credentials """
+        """Check and update by dialog OTRS credentials"""
         self.parser.m.form(self.parser.sending)
 
     def process(self, e: Envelope):
@@ -272,26 +305,34 @@ class MailSenderOtrs(MailSender):
             fields["Bcc"] = assure_str(e.bcc())
 
         attachments = e.attachments()
-        cookies = {('OTRSAgentInterface' if OTRS_VERSION == 6 else 'Session'): self.parser.sending.otrs_cookie}
+        cookies = {
+            (
+                "OTRSAgentInterface" if OTRS_VERSION == 6 else "Session"
+            ): self.parser.sending.otrs_cookie
+        }
 
         if Config.is_testing():
             print(" **** Testing info:")
-            print(' ** Fields: ' + str(fields))
-            print(' ** Files: ', [(a.name, len(a.data)) for a in attachments])
-            print(' ** Cookies: ' + str(cookies))
+            print(" ** Fields: " + str(fields))
+            print(" ** Files: ", [(a.name, len(a.data)) for a in attachments])
+            print(" ** Cookies: " + str(cookies))
 
         host = Config.get_env().otrs.host
-        url = (host if "://" in host else f"https://{host}") + Config.get_env().otrs.baseuri
+        url = (
+            host if "://" in host else f"https://{host}"
+        ) + Config.get_env().otrs.baseuri
         try:
-            res = self._post_multipart(url,
-                                       fields=fields,
-                                       cookies=cookies,
-                                       attachments=e.attachments())
+            res = self._post_multipart(
+                url, fields=fields, cookies=cookies, attachments=e.attachments()
+            )
         except Exception:
             import traceback
+
             logger.error(traceback.format_exc())
-            logger.error(f"\nE-mail could not be send to the host {url} with the fields {fields}."
-                         f" Are you allowed to send from this e-mail etc?")
+            logger.error(
+                f"\nE-mail could not be send to the host {url} with the fields {fields}."
+                f" Are you allowed to send from this e-mail etc?"
+            )
             raise
         if not res or not self._check_response(res):
             print("Sending failure, see convey.log.")

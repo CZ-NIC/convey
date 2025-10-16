@@ -35,10 +35,14 @@ def prod(iterable):  # XX as of Python3.8, replace with math.prod
 
 
 class Processor:
-    """ Opens the CSV file and processes the lines. """
+    """Opens the CSV file and processes the lines."""
 
-    descriptors: Dict[Union[int, str], Tuple[io.StringIO, _csv._writer]]  # location => file_descriptor, his csv-writer
-    descriptorsStatsOpen: Dict[str, int]  # {location: count} XX(performance) we may use a SortedDict object
+    descriptors: Dict[
+        Union[int, str], Tuple[io.StringIO, _csv._writer]
+    ]  # location => file_descriptor, his csv-writer
+    descriptorsStatsOpen: Dict[
+        str, int
+    ]  # {location: count} XX(performance) we may use a SortedDict object
 
     def __init__(self, parser, rewrite=True):
         """
@@ -66,14 +70,19 @@ class Processor:
         # apply setup
         # convert settings["add"] to lambdas
         # Ex: ... = [("netname", 20, [lambda x, lambda x...]), ...]
-        settings["addByMethod"] = [(f.name, f.source_field.col_i_original, f.get_methods()) for f in settings["add"]]
+        settings["addByMethod"] = [
+            (f.name, f.source_field.col_i_original, f.get_methods())
+            for f in settings["add"]
+        ]
         del settings["add"]
 
         # convert settings["merge"] to lambdas
         if settings["merge"]:
             settings["merging"] = True
-            settings["addByMethod"] += [("merged", op.local_column.col_i_original,
-                                         (lambda x: op.get(x),)) for op in settings["merge"]]
+            settings["addByMethod"] += [
+                ("merged", op.local_column.col_i_original, (lambda x: op.get(x),))
+                for op in settings["merge"]
+            ]
             del settings["merge"]
 
         # convert filter settings to pre (before line processing) and post that spare a lot of time
@@ -91,8 +100,14 @@ class Processor:
             settings["u_post" if parser.fields[col_i].is_new else "u_pre"].append(col_i)
         del settings["unique"]
 
-        if [f for f in self.parser.fields if (not f.is_chosen or f.col_i_original != f.col_i)]:
-            settings["chosen_cols"] = [f.col_i_original for f in self.parser.fields if f.is_chosen]
+        if [
+            f
+            for f in self.parser.fields
+            if (not f.is_chosen or f.col_i_original != f.col_i)
+        ]:
+            settings["chosen_cols"] = [
+                f.col_i_original for f in self.parser.fields if f.is_chosen
+            ]
 
         used_types = [f.type for f in self.parser.get_computed_fields()]
         Web.init(Types.text in used_types, Types.html in used_types)
@@ -110,7 +125,9 @@ class Processor:
             if parser.external_stdout:
                 settings["target_file"] = 2
             # with open(file, "r") as sourceF:
-            reader = csvreader(source_stream, skipinitialspace=parser.is_pandoc, dialect=parser.dialect)
+            reader = csvreader(
+                source_stream, skipinitialspace=parser.is_pandoc, dialect=parser.dialect
+            )
             if parser.has_header:  # skip header
                 reader.__next__()
                 if parser.is_pandoc:  # second line is just first line underlining
@@ -144,7 +161,9 @@ class Processor:
                 for index in range(thread_count):
                     t = Thread(target=x, daemon=True)
                     # prepend zeroes; 10 threads ~ 01..10, 100 threads ~ 001..100
-                    t.name = "0" * (len(str(thread_count)) - len(str(index + 1))) + str(index + 1)
+                    t.name = "0" * (len(str(thread_count)) - len(str(index + 1))) + str(
+                        index + 1
+                    )
                     t.start()
                     threads.append(t)
 
@@ -165,16 +184,24 @@ class Processor:
                 except KeyboardInterrupt:
                     inf.pause()
                     print(f"Keyboard interrupting on line number: {parser.line_count}")
-                    s = "[a]utoskip LACNIC encounters" \
-                        if self.parser.queued_lines_count and not self.parser.env.whois.lacnic_quota_resolve_immediatel7y else ""
-                    o = self.parser.m.ask("Keyboard interrupt caught. Options: continue (default, do the line again), "
-                                          "[s]kip the line, [d]ebug, [e]nd processing earlier, [q]uit: ")
+                    s = (
+                        "[a]utoskip LACNIC encounters"
+                        if self.parser.queued_lines_count
+                        and not self.parser.env.whois.lacnic_quota_resolve_immediatel7y
+                        else ""
+                    )
+                    o = self.parser.m.ask(
+                        "Keyboard interrupt caught. Options: continue (default, do the line again), "
+                        "[s]kip the line, [d]ebug, [e]nd processing earlier, [q]uit: "
+                    )
                     inf.release()
                     if o == "a":
                         self.parser.env.whois.lacnic_quota_skip_lines = True
                     if o == "d":
                         # I dont know why.
-                        print("Maybe you should hit n multiple times because pdb takes you to the wrong scope.")
+                        print(
+                            "Maybe you should hit n multiple times because pdb takes you to the wrong scope."
+                        )
                         Config.get_debugger().set_trace()
                     elif o == "s":
                         continue  # skip to the next line XXmaybe this is not true for threads
@@ -186,7 +213,9 @@ class Processor:
                             except Empty:
                                 pass
                             [q.put(False) for _ in threads]  # send kill signal
-                            [t.join() for t in threads]  # wait the threads to write descriptors
+                            [
+                                t.join() for t in threads
+                            ]  # wait the threads to write descriptors
                         return
                     elif o == "q":
                         self._close_descriptors()
@@ -210,16 +239,27 @@ class Processor:
                     [t.join() for t in threads]  # wait the threads to write descriptors
                     break
                 except KeyboardInterrupt:
-                    print("Cannot keyboard interrupt now, all events were sent to threads.")
+                    print(
+                        "Cannot keyboard interrupt now, all events were sent to threads."
+                    )
 
             # after processing changes
-            if settings["aggregate"]:  # write aggregation results now because we skipped it in process_line when aggregating
+            if settings[
+                "aggregate"
+            ]:  # write aggregation results now because we skipped it in process_line when aggregating
                 for location, data in self.parser.aggregation.items():
-                    if location == 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
-                        t = parser.external_stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
+                    if (
+                        location == 2
+                    ):  # this is a sign that we store raw data to stdout (not through a CSVWriter)
+                        t = (
+                            parser.external_stdout
+                        )  # custom object simulate CSVWriter - it adopts .writerow and .close methods
                     elif location == 1:  # this is a sign we output csv data to stdout
                         t = io.StringIO()
-                        self.descriptors[1] = t, None  # put the aggregated data to the place we would attend them
+                        self.descriptors[1] = (
+                            t,
+                            None,
+                        )  # put the aggregated data to the place we would attend them
                     else:
                         t = open(Path(Config.get_cache_dir(), location), "w")
                         if len(self.parser.aggregation) > 1:
@@ -233,14 +273,19 @@ class Processor:
             if not stdin:
                 source_stream.close()
             if not self.parser.is_split:
-                if 1 in self.descriptors:  # we have all data in a io.TextBuffer, not in a regular file
+                if (
+                    1 in self.descriptors
+                ):  # we have all data in a io.TextBuffer, not in a regular file
                     # the data are in the self.descriptors[1]
                     if Config.verbosity <= logging.INFO:
                         print("\n\n** Completed! **\n")
                     result = self.descriptors[1][0].getvalue()
                     print(result.strip())
                     parser.stdout = result
-                    parser.stdout_sample = [row.split(parser.dialect.delimiter) for row in result.split("\n", 10)[:10]]
+                    parser.stdout_sample = [
+                        row.split(parser.dialect.delimiter)
+                        for row in result.split("\n", 10)[:10]
+                    ]
                     self.parser.saved_to_disk = False
                 else:
                     self.parser.saved_to_disk = True
@@ -253,9 +298,13 @@ class Processor:
         if self.parser.is_split:
             # set that a mail with this attachment have not yet been sent
             existing = {a.filename for a in self.parser.attachments}
-            self.parser.attachments.extend(Attachment(f) for f in parser.files_created
-                                           if f not in existing  # not existing yet
-                                           and f not in (Config.INVALID_NAME, Config.UNKNOWN_NAME, Config.QUEUED_NAME))
+            self.parser.attachments.extend(
+                Attachment(f)
+                for f in parser.files_created
+                if f not in existing  # not existing yet
+                and f
+                not in (Config.INVALID_NAME, Config.UNKNOWN_NAME, Config.QUEUED_NAME)
+            )
 
             if self.parser.is_split and self.parser.stdout is True:
                 # Even though the --output True flag was on, nothing was printed out
@@ -266,16 +315,27 @@ class Processor:
                 #   self.target_file = None
                 # We may (a) print out a warning when setting target_file to None if self.env.io.output specified,
                 # (b) set the target_file nevertheless and join the contents from split files here.
-                [[print(x) for x in (f"* Saved to {a.path.name}", "", a.path.read_text())]
-                 for a in self.parser.attachments]
+                [
+                    [
+                        print(x)
+                        for x in (f"* Saved to {a.path.name}", "", a.path.read_text())
+                    ]
+                    for a in self.parser.attachments
+                ]
         inf.write_statistics()
 
     def _close_descriptors(self):
-        """ Descriptors have to be closed (flushed) """
+        """Descriptors have to be closed (flushed)"""
         for f in self.descriptors.values():
             f[0].close()
 
-    def process_line(self, parser: Parser, line: List, settings: Settings, fields: Union[Tuple, List] = None):
+    def process_line(
+        self,
+        parser: Parser,
+        line: List,
+        settings: Settings,
+        fields: Union[Tuple, List] = None,
+    ):
         """
         Parses line – compute fields while adding, perform filters, pick or delete cols, split and write to a file.
         """
@@ -284,7 +344,9 @@ class Processor:
             if not fields:
                 fields = line.copy()
                 if len(fields) is not len(parser.first_line_fields):
-                    raise RuntimeWarning(f"Invalid number of line fields ({len(fields)})")
+                    raise RuntimeWarning(
+                        f"Invalid number of line fields ({len(fields)})"
+                    )
                 add = True
 
             # pre filtering
@@ -305,32 +367,51 @@ class Processor:
             # add fields
             if add:
                 list_lengths = []
-                for _, col_i, lambdas in settings["addByMethod"]:  # [("netname", 20, [lambda x, lambda x...]), ...]
+                for _, col_i, lambdas in settings[
+                    "addByMethod"
+                ]:  # [("netname", 20, [lambda x, lambda x...]), ...]
                     val = fields[col_i]
                     for l in lambdas:
                         if isinstance(val, list):
                             # resolve all items, while flattening any list encountered
-                            val = [y for x in (l(v) for v in val) for y in (x if type(x) is list else [x])]
+                            val = [
+                                y
+                                for x in (l(v) for v in val)
+                                for y in (x if type(x) is list else [x])
+                            ]
                         else:
                             val = l(val)
                     fields.append(val)
                     if isinstance(val, list):
                         list_lengths.append(len(val) or 1)
-                if list_lengths:  # duplicate rows because we received lists amongst scalars
+                if (
+                    list_lengths
+                ):  # duplicate rows because we received lists amongst scalars
                     row_count = prod(list_lengths)
-                    for i, f in enumerate(fields):  # 1st col returns 3 values, 2nd 2 values → both should have 3*2 = 6 values
+                    for i, f in enumerate(
+                        fields
+                    ):  # 1st col returns 3 values, 2nd 2 values → both should have 3*2 = 6 values
                         if type(f) is not list:
                             fields[i] = [f]
                         # if we received empty list, row is invalid
                         # ex: missing IP of a hostname
                         if not fields[i]:
                             raise RuntimeWarning(
-                                f"Column {i + 1} cannot be determined and the row was marked as invalid")
+                                f"Column {i + 1} cannot be determined and the row was marked as invalid"
+                            )
                         fields[i] *= row_count // len(fields[i])
                     it = zip(*fields)
-                    fields = it.__next__()  # now we are sure fields has only scalar values
-                    for v in it:  # duplicate row because one of lambdas produced a multiple value list
-                        self.process_line(parser, line, settings, v)  # new row with scalar values only
+                    fields = (
+                        it.__next__()
+                    )  # now we are sure fields has only scalar values
+                    for (
+                        v
+                    ) in (
+                        it
+                    ):  # duplicate row because one of lambdas produced a multiple value list
+                        self.process_line(
+                            parser, line, settings, v
+                        )  # new row with scalar values only
 
             if settings["merging"]:
                 fields = tuple(Expandable.flatten(fields))
@@ -352,7 +433,9 @@ class Processor:
 
             # pick or delete columns
             if settings["chosen_cols"]:
-                chosen_fields = [fields[i] for i in settings["chosen_cols"]]  # chosen_cols = [3, 9, 12]
+                chosen_fields = [
+                    fields[i] for i in settings["chosen_cols"]
+                ]  # chosen_cols = [3, 9, 12]
             else:
                 chosen_fields = fields
 
@@ -370,34 +453,50 @@ class Processor:
 
             # aggregation: count column
             if settings["aggregate"]:
-                grp = fields[settings["aggregate"].group_by.col_i] if settings["aggregate"].group_by else None
+                grp = (
+                    fields[settings["aggregate"].group_by.col_i]
+                    if settings["aggregate"].group_by
+                    else None
+                )
                 for i, (fn, col_data) in enumerate(settings["aggregate"].actions):
                     # loc[grouped row] = [Aggregate(sum generator, count),]
                     loc = self.parser.aggregation[location]
 
-                    if grp:  # it makes sense to compute total row because we are grouping
+                    if (
+                        grp
+                    ):  # it makes sense to compute total row because we are grouping
                         if len(loc[None]) <= i:
                             loc[None].append(Aggregate(fn))
                         if fn.__name__ == "list":
-                            loc[None][i].count = "(all)"  # we do not want to enlist whole table
+                            loc[None][
+                                i
+                            ].count = "(all)"  # we do not want to enlist whole table
                         else:
-                            loc[None][i].count = loc[None][i].generator.send(fields[col_data.col_i])
+                            loc[None][i].count = loc[None][i].generator.send(
+                                fields[col_data.col_i]
+                            )
 
                     if len(loc[grp]) <= i:
                         loc[grp].append(Aggregate(fn))
-                    loc[grp][i].count = loc[grp][i].generator.send(fields[col_data.col_i])
+                    loc[grp][i].count = loc[grp][i].generator.send(
+                        fields[col_data.col_i]
+                    )
                 return  # we will not write anything right know, aggregation results are not ready yet
         except Quota.QuotaExceeded:
             parser.queued_lines_count += 1
             location = Config.QUEUED_NAME
-            chosen_fields = line  # reset the original line (location will be reprocessed)
+            chosen_fields = (
+                line  # reset the original line (location will be reprocessed)
+            )
         except UnknownValue:  # `whois_reprocessable_unknown` is True
             # we do want to reprocess such lines at the end no matter single or split processing
             # (When split processing, this behaviour is obligatory,
             # such lines will be marked unknowns above when determining file location)
             parser.unknown_lines_count += 1
             location = Config.UNKNOWN_NAME
-            chosen_fields = line  # reset the original line (location will be reprocessed)
+            chosen_fields = (
+                line  # reset the original line (location will be reprocessed)
+            )
         except BdbQuit:  # prevent BdbQuit to be caught by general Exception below
             raise
         except Exception as e:
@@ -412,7 +511,9 @@ class Processor:
                 logger.warning(e, exc_info=True)
             parser.invalid_lines_count += 1
             location = Config.INVALID_NAME
-            chosen_fields = line  # reset the original line (location will be reprocessed)
+            chosen_fields = (
+                line  # reset the original line (location will be reprocessed)
+            )
 
         if not location:
             return
@@ -426,14 +527,20 @@ class Processor:
         # choose the right file descriptor for saving
         # (we do not close descriptors immediately, if needed we close the one the least used)
         if location not in self.descriptorsStatsOpen:
-            if self.descriptors_count >= self.descriptors_max:  # too many descriptors open, we have to close the least used
+            if (
+                self.descriptors_count >= self.descriptors_max
+            ):  # too many descriptors open, we have to close the least used
                 key = min(self.descriptorsStatsOpen, key=self.descriptorsStatsOpen.get)
                 self.descriptors[key][0].close()
                 del self.descriptorsStatsOpen[key]
                 self.descriptors_count -= 1
 
-            if location == 2:  # this is a sign that we store raw data to stdout (not through a CSVWriter)
-                t = w = parser.external_stdout  # custom object simulate CSVWriter - it adopts .writerow and .close methods
+            if (
+                location == 2
+            ):  # this is a sign that we store raw data to stdout (not through a CSVWriter)
+                t = w = (
+                    parser.external_stdout
+                )  # custom object simulate CSVWriter - it adopts .writerow and .close methods
             else:
                 if location == 1:  # this is a sign we output csv data to stdout
                     t = io.StringIO()
@@ -448,7 +555,11 @@ class Processor:
         with self._lock:
             if method == "w" and settings["header"]:
                 # write original header (stored unchanged in parser.first_line_fields) if line to be reprocessed or modified header
-                if location in (Config.INVALID_NAME, Config.UNKNOWN_NAME, Config.QUEUED_NAME):
+                if location in (
+                    Config.INVALID_NAME,
+                    Config.UNKNOWN_NAME,
+                    Config.QUEUED_NAME,
+                ):
                     f[1].writerow(parser.first_line_fields)
                 else:
                     f[0].write(parser.header)

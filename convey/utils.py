@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 def print_atomic(s):
-    """ print not atomic, \n trailed when threading
-        If in thread, prints its name.
-        If quiet, no output is given.
+    """print not atomic, \n trailed when threading
+    If in thread, prints its name.
+    If quiet, no output is given.
     """
     if Config.is_quiet():
         return
@@ -48,7 +48,7 @@ def timeout(seconds: int, function: Callable, *args, **kwargs):
     thread.start()
     thread.join(seconds)
     if thread.is_alive():
-        raise TimeoutError(f'Timeout {seconds} of {function}')
+        raise TimeoutError(f"Timeout {seconds} of {function}")
     else:
         if exception:
             raise exception[0] from None

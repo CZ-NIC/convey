@@ -14,7 +14,7 @@ from .infodicts import address_country_lowered
 
 logger = logging.getLogger(__name__)
 
-whole_space = IPRange('0.0.0.0', '255.255.255.255')
+whole_space = IPRange("0.0.0.0", "255.255.255.255")
 
 Ttl = int
 Asn = NetName = Country = str
@@ -24,7 +24,9 @@ AbuseMail = Email
 IncidentContact = AbuseMail | CountryMail
 Location = Literal["local", "abroad"]
 Prefix = str
-AnalysisResult = tuple[Prefix, Location, IncidentContact, Asn, NetName, Country, AbuseMail, Ttl]
+AnalysisResult = tuple[
+    Prefix, Location, IncidentContact, Asn, NetName, Country, AbuseMail, Ttl
+]
 
 
 class Quota:
@@ -36,7 +38,7 @@ class Quota:
             self._time = datetime.now() + timedelta(seconds=300)
 
     def time(self):
-        return self._time.strftime('%H:%M')
+        return self._time.strftime("%H:%M")
 
     def is_running(self):
         return self._time and self._time > datetime.now()
@@ -66,7 +68,9 @@ class Whois:
     see: int
 
     @classmethod
-    def init(cls, stats, ranges, ip_seen, csvstats, slow_mode=False, unknown_mode=False):
+    def init(
+        cls, stats, ranges, ip_seen, csvstats, slow_mode=False, unknown_mode=False
+    ):
         cls.quota = Quota()
         cls.csvstats = csvstats
         cls.stats = stats
@@ -87,7 +91,7 @@ class Whois:
         #     Whois.servers[name] = val
 
     def __init__(self, ip, hostname=None):
-        """ Access self.get for AnalyzisResult. """
+        """Access self.get for AnalyzisResult."""
         self.ip = ip
         self.hostname = hostname
         self.whois_response = []
@@ -101,7 +105,9 @@ class Whois:
         if self.ip:
             prefix = self.cache_load()  # try load prefix from earlier WHOIS responses
             if prefix:
-                if (self.ttl != -1 and self.get[7] + self.ttl < time()) or (Whois.unknown_mode and not self.get[6]):
+                if (self.ttl != -1 and self.get[7] + self.ttl < time()) or (
+                    Whois.unknown_mode and not self.get[6]
+                ):
                     # the TTL is too old, we cannot guarantee IP stayed in the same prefix, let's get rid of the old results
                     # OR we are in unknown_mode which means we want abusemail. If not here, maybe another IP claimed
                     # a range superset without abuse e-mail. Delete this possible superset
@@ -113,12 +119,16 @@ class Whois:
                     return
 
         if self.see:
-            print(f"Whois {self.ip or self.hostname_registerable}... ", end="", flush=True)
+            print(
+                f"Whois {self.ip or self.hostname_registerable}... ", end="", flush=True
+            )
         if Whois.slow_mode:
             if self.see:
                 print("waiting 7 seconds... ", end="", flush=True)
             sleep(7)
-        get: AnalysisResult = self.analyze()  # AnalyzisResult: prefix, location, mail, asn, netname, country...
+        get: AnalysisResult = (
+            self.analyze()
+        )  # AnalyzisResult: prefix, location, mail, asn, netname, country...
         if self.see:
             print(get[2] or "no incident contact.")
         prefix = get[0]
@@ -164,8 +174,12 @@ class Whois:
                 known = "known"
             elif mail:
                 known = "unofficial"
-                self.csvstats[f"abusemail_{known}"].add(mail)  # subset of abusemail_abroad
-                self.csvstats[f"prefix_csirtmail_{known}"].add(self.get[0])  # subset of prefix_abroad_un/known
+                self.csvstats[f"abusemail_{known}"].add(
+                    mail
+                )  # subset of abusemail_abroad
+                self.csvstats[f"prefix_csirtmail_{known}"].add(
+                    self.get[0]
+                )  # subset of prefix_abroad_un/known
             else:  # we do not track the amount of unknown IP addresses that should be delivered to countries
                 known = None
 
@@ -177,7 +191,7 @@ class Whois:
             raise UnknownValue
 
     def resolve_unknown_mail(self):
-        """ Forces to load abusemail for an IP.
+        """Forces to load abusemail for an IP.
         We try first omit -r flag and then add -B flag.
 
         XX -B flag disabled (at least temporarily). Document.
@@ -198,8 +212,8 @@ class Whois:
 
     @staticmethod
     def _str2prefix(s):
-        """ Accepts formats:
-            88.174.0.0 - 88.187.255.255, 216.245.0.0/18, 2000::/7 ...
+        """Accepts formats:
+        88.174.0.0 - 88.187.255.255, 216.245.0.0/18, 2000::/7 ...
         """
         # We have to strip it because of
         #   whois 172.97.38.164
@@ -240,7 +254,7 @@ class Whois:
 
                 if match:
                     if last_word:  # returns only last word
-                        return re.search(r'[^\s]*$', match[0]).group(0)
+                        return re.search(r"[^\s]*$", match[0]).group(0)
                     else:
                         return match[len(match.groups())]
         return ""  # no pattern result found
@@ -265,7 +279,7 @@ class Whois:
                 #   network:IP-Network:154.48.224.0/19
                 #   network:Country:DE
                 # 82.175.175.231 'country: NL # BE GB DE LU' -> 'NL'
-                country = self._match_response(r'country(-code)?:\s*([a-z]{2})')
+                country = self._match_response(r"country(-code)?:\s*([a-z]{2})")
                 if country == "eu":
                     # "EU # Worldwide" (2a0d:f407:1003::/48)
                     # 'EU # Country is really world wide' (64.9.241.202)
@@ -273,7 +287,9 @@ class Whois:
                     country = ""
 
                 if country == "nl" and server == "general":
-                    if self._match_response("these addresses have been further assigned to users in the ripe ncc region"):
+                    if self._match_response(
+                        "these addresses have been further assigned to users in the ripe ncc region"
+                    ):
                         # whois 138.124.52.0 returns ripe as the abuse contact but we can address to the RIPE directly
                         self._exec(server="ripe", server_url="whois.ripe.net")
                         continue
@@ -283,7 +299,8 @@ class Whois:
                         self._exec(server="ripe", server_url="whois.ripe.net")
                         continue
                     if self._match_response(
-                            "the whois is temporary unable to query arin for the requested resource. please try again later"):
+                        "the whois is temporary unable to query arin for the requested resource. please try again later"
+                    ):
                         # whois 154.48.234.95 sometimes ends up like this - when we ask ARIN, we can hang too
                         self._exec(server="arin", server_url="whois.arin.net")
                         continue
@@ -291,23 +308,34 @@ class Whois:
                         # whois 109.244.112.0 replies RIPE that they don't manage the block
                         self._exec(server="apnic", server_url="whois.apnic.net")
                         continue
-                    if self._match_response("query rate limit exceeded"):  # LACNIC gave me this - seems 300 s needed
+                    if self._match_response(
+                        "query rate limit exceeded"
+                    ):  # LACNIC gave me this - seems 300 s needed
                         self.quota.try_start()
-                        if Config.get_env().whois.lacnic_quota_skip_lines and not self.slow_mode:
+                        if (
+                            Config.get_env().whois.lacnic_quota_skip_lines
+                            and not self.slow_mode
+                        ):
                             if self.see:
                                 print("LACNIC quota exceeded.")
                             self.queued_ips.add(self.ip)
                             raise self.quota.QuotaExceeded
                         else:
-                            logger.warning(f"Whois server {self.last_server} query rate limit exceeded for: {self.ip}."
-                                           f" Sleeping for 300 s till {self.quota.time()}... (you may howevec Ctrl-C to skip)")
+                            logger.warning(
+                                f"Whois server {self.last_server} query rate limit exceeded for: {self.ip}."
+                                f" Sleeping for 300 s till {self.quota.time()}... (you may howevec Ctrl-C to skip)"
+                            )
                             sleep(300)
                             self._exec(server=server)
                             continue
                     if self.last_server == "rwhois.gin.ntt.net":  # 204.2.250.0
                         self._exec(server="arin", server_url="whois.arin.net")
                         continue
-                    if self.last_server in ["whois.twnic.net", "whois.nic.ad.jp", "whois.nic.or.kr"]:
+                    if self.last_server in [
+                        "whois.twnic.net",
+                        "whois.nic.ad.jp",
+                        "whois.nic.or.kr",
+                    ]:
                         # twnic
                         # 210.241.57.0
                         # whois 203.66.23.2 replies whois.twnic.net.tw with "The IP address not belong to TWNIC"
@@ -317,17 +345,20 @@ class Whois:
                         continue
 
                 # loads prefix
-                match = self._match_response(["% abuse contact for '([^']*)'",
-                                              "% information related to '([^']*)'",
-                                              # ip 151.80.121.243 needed this , % information related to
-                                              # \'151.80.121.224 - 151.80.121.255\'\n\n% no abuse contact registered
-                                              # for 151.80.121.224 - 151.80.121.255
-                                              r"inetnum:\s*(.*)",  # inetnum:        151.80.121.224 - 151.80.121.255
-                                              r"netrange:\s*(.*)",  # NetRange:       216.245.0.0 - 216.245.63.255
-                                              r"cidr:\s*(.*)",  # CIDR:           216.245.0.0/18
-                                              r"network:ip-network:\s*(.*)"
-                                              # whois 154.48.250.2 "network:IP-Network:154.48.224.0/19"
-                                              ])
+                match = self._match_response(
+                    [
+                        "% abuse contact for '([^']*)'",
+                        "% information related to '([^']*)'",
+                        # ip 151.80.121.243 needed this , % information related to
+                        # \'151.80.121.224 - 151.80.121.255\'\n\n% no abuse contact registered
+                        # for 151.80.121.224 - 151.80.121.255
+                        r"inetnum:\s*(.*)",  # inetnum:        151.80.121.224 - 151.80.121.255
+                        r"netrange:\s*(.*)",  # NetRange:       216.245.0.0 - 216.245.63.255
+                        r"cidr:\s*(.*)",  # CIDR:           216.245.0.0/18
+                        r"network:ip-network:\s*(.*)",
+                        # whois 154.48.250.2 "network:IP-Network:154.48.224.0/19"
+                    ]
+                )
                 if match:
                     prefix = self._str2prefix(match)
                     if prefix and prefix == whole_space:
@@ -352,7 +383,9 @@ class Whois:
                 break
             if not country:
                 fail = None
-                if self._match_response("network is unreachable") or self._match_response("name or service not known"):
+                if self._match_response(
+                    "network is unreachable"
+                ) or self._match_response("name or service not known"):
                     fail = f"Whois server {self.servers[server]} is unreachable. Disabling for this session."
                 if self._match_response("access denied"):  # RIPE gave me this
                     fail = f"Whois server {self.servers[server]} access denied. Disabling for this session."
@@ -366,8 +399,10 @@ class Whois:
             else:
                 break
 
-        asn = self._match_response(r'\norigin(.*)\d+', last_word=True)
-        netname = self._match_response([r'netname:\s*([^\s]*)', r'network:network-name:\s*([^\s]*)'])
+        asn = self._match_response(r"\norigin(.*)\d+", last_word=True)
+        netname = self._match_response(
+            [r"netname:\s*([^\s]*)", r"network:network-name:\s*([^\s]*)"]
+        )
 
         ab = self.get_abusemail()
         if Whois.unknown_mode and not ab:
@@ -375,7 +410,11 @@ class Whois:
 
         local = Config.get_env().whois.local_country
         if local and country not in local:
-            mail = Contacts.country2mail[country] if country in Contacts.country2mail else ab
+            mail = (
+                Contacts.country2mail[country]
+                if country in Contacts.country2mail
+                else ab
+            )
             get1 = "abroad"
             get2 = f"{country}{Config.ABROAD_MARK}{mail}" if mail else ""
         else:
@@ -397,22 +436,29 @@ class Whois:
     reAbuse = re.compile(email_regex)
 
     def get_abusemail(self):
-        """ Loads abusemail from last whois response """
-        match = self.reAbuse.search(self._match_response(['% abuse contact for.*',
-                                                          'orgabuseemail.*',
-                                                          'abuse-mailbox.*',
-                                                          "e-mail:.*",  # whois 179.50.80.0/21,
-                                                          "email:.*"  # ex: 'Registrar Abuse Contact Email: domainabuse@tucows.com',
-                                                          ]))
+        """Loads abusemail from last whois response"""
+        match = self.reAbuse.search(
+            self._match_response(
+                [
+                    "% abuse contact for.*",
+                    "orgabuseemail.*",
+                    "abuse-mailbox.*",
+                    "e-mail:.*",  # whois 179.50.80.0/21,
+                    "email:.*",  # ex: 'Registrar Abuse Contact Email: domainabuse@tucows.com',
+                ]
+            )
+        )
         return match.group(0) if match else ""
 
     def get_registrar_abusemail(self):
         """Loads registrar's abusemail from last whois response.
-           Grep a line where both 'abuse', 'registrar' and e-mail are present.
+        Grep a line where both 'abuse', 'registrar' and e-mail are present.
         """
 
         abuse_line_pattern = r"^(?=.*\babuse\b)(?=.*\bregistrar\b).*"
-        matches = re.findall(abuse_line_pattern, self.whois_response[0], flags=re.MULTILINE)
+        matches = re.findall(
+            abuse_line_pattern, self.whois_response[0], flags=re.MULTILINE
+        )
 
         for match in matches:
             abusemail = re.search(self.email_regex, match)
@@ -447,13 +493,26 @@ class Whois:
         try:
             # in case wrong env is set to whois, we get `147.32.106.205` country NL and not CZ
             # because we will not find string "found a referral to " in the WHOIS response
-            p = Popen(cmd, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE, env=subprocess_env)
-            response = p.stdout.read().decode("unicode_escape").strip().lower()  # .replace("\n", " ")
+            p = Popen(
+                cmd,
+                shell=False,
+                stdin=PIPE,
+                stdout=PIPE,
+                stderr=PIPE,
+                env=subprocess_env,
+            )
+            response = (
+                p.stdout.read().decode("unicode_escape").strip().lower()
+            )  # .replace("\n", " ")
             response += p.stderr.read().decode("unicode_escape").strip().lower()
         except UnicodeDecodeError:
             # ip address 94.230.155.109 had this string 'Jan Krivsky Hl\xc3\x83\x83\xc3\x82\xc2\xa1dkov' and everything failed
             self.whois_response = []
-            logger.warning("Whois response for IP {} on server {} cannot be parsed.".format(target, server))
+            logger.warning(
+                "Whois response for IP {} on server {} cannot be parsed.".format(
+                    target, server
+                )
+            )
         except TypeError:  # could not resolve host
             self.whois_response = []
         except FileNotFoundError:

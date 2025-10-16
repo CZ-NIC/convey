@@ -8,12 +8,15 @@ socket_file = "/tmp/convey_socket"
 
 def daemon_pid():
     import subprocess
-    return subprocess.run(["lsof", "-t", socket_file], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.strip()
+
+    return subprocess.run(
+        ["lsof", "-t", socket_file], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+    ).stdout.strip()
 
 
 def send(pipe, msg):
     d = msg.encode("utf-8")
-    msg = struct.pack('>I', len(d)) + d
+    msg = struct.pack(">I", len(d)) + d
     try:
         pipe.sendall(msg)
     except BrokenPipeError:
@@ -24,7 +27,7 @@ def send(pipe, msg):
 def recv(pipe):
     def recv(n):
         # Helper function to recv n bytes or return None if EOF is hit
-        data = b''
+        data = b""
         while len(data) < n:
             packet = pipe.recv(n - len(data))
             if not packet:
@@ -36,4 +39,4 @@ def recv(pipe):
     if not raw_msglen:
         pipe.close()
         return False
-    return recv(struct.unpack('>I', raw_msglen)[0]).decode("utf-8")
+    return recv(struct.unpack(">I", raw_msglen)[0]).decode("utf-8")

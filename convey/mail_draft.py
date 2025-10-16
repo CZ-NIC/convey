@@ -26,7 +26,7 @@ def is_html(s):
 
 
 class MailDraft:
-    """ Mail management data structure """
+    """Mail management data structure"""
 
     def __init__(self, filename):
         self.text = False
@@ -50,24 +50,26 @@ class MailDraft:
         base64_text = "data:text/plain;base64,"
         if t.startswith(base64_text):
             try:
-                return b64decode(t[len(base64_text):]).decode("utf-8", "ignore")
+                return b64decode(t[len(base64_text) :]).decode("utf-8", "ignore")
             except binascii.Error:
-                raise RuntimeError(f"Cannot decode text and create e-mail template: {t}")
+                raise RuntimeError(
+                    f"Cannot decode text and create e-mail template: {t}"
+                )
         return t
 
     def edit_text(self, blocking=True):
-        """ Opens file for mail text to GUI editing.
-            Create the e-mail file from the template if had not existed before.
-            If --subject, --body and --reference flags are used, they get re-merged into the template.
+        """Opens file for mail text to GUI editing.
+        Create the e-mail file from the template if had not existed before.
+        If --subject, --body and --reference flags are used, they get re-merged into the template.
         """
         self._assure_file()
         edit(self.mail_file, mode=2, blocking=blocking)
 
     def _assure_file(self):
-        """ Create the e-mail file from the template if had not existed before.
-            If --subject, --body and --reference flags are used, they get re-merged into the template.
-            :rtype: bool True if the e-mail file was newly created.
-            """
+        """Create the e-mail file from the template if had not existed before.
+        If --subject, --body and --reference flags are used, they get re-merged into the template.
+        :rtype: bool True if the e-mail file was newly created.
+        """
         if self.file_assured:
             return False
 
@@ -103,16 +105,19 @@ class MailDraft:
                 if template_message:
                     # add / remove HTML from the template message
                     if is_html(template_message) and not is_html(message):
-                        template_message = template_message.replace("<br>", PLAIN_DELIMITER)
+                        template_message = template_message.replace(
+                            "<br>", PLAIN_DELIMITER
+                        )
                     elif not is_html(template_message) and is_html(message):
-                        template_message = template_message.replace(PLAIN_DELIMITER, HTML_DELIMITER)
+                        template_message = template_message.replace(
+                            PLAIN_DELIMITER, HTML_DELIMITER
+                        )
                     delimiter = HTML_DELIMITER if is_html(message) else PLAIN_DELIMITER
                     message = template_message + delimiter * 2 + message
 
-                e.message("", alternative="auto") \
-                    .message("", alternative="plain") \
-                    .message("", alternative="html") \
-                    .message(message)
+                e.message("", alternative="auto").message(
+                    "", alternative="plain"
+                ).message("", alternative="html").message(message)
             if references:
                 if not (references.startswith("<") and references.endswith(">")):
                     references = f"<{references}>"
@@ -122,7 +127,11 @@ class MailDraft:
             # When a HTML is piped through --body flag, Content-Transfer-Encoding might change to ex: quoted-printable.
             # However when editing, we do not want to see quoted-printable garbage but plain text.
             # XX test should be added
-            headers = [f"{k}: {v}" for k, v in e.as_message().items() if k.lower() != "content-transfer-encoding"]
+            headers = [
+                f"{k}: {v}"
+                for k, v in e.as_message().items()
+                if k.lower() != "content-transfer-encoding"
+            ]
             self.mail_file.write_text(PLAIN_DELIMITER.join((*headers, "", e.message())))
 
             # XDEPRECATED
@@ -144,14 +153,14 @@ class MailDraft:
         return just_created
 
     def _make_envelope(self, attachment: Attachment):
-        """ The format of the mail template is:
-                Header: value
-                Another-header: value
-                Subject: value
+        """The format of the mail template is:
+            Header: value
+            Another-header: value
+            Subject: value
 
-                Body text begins after space.
+            Body text begins after space.
 
-            :raises RuntimeError if there is security concern about an attachment
+        :raises RuntimeError if there is security concern about an attachment
         """
         try:
             self.text = self.mail_file.read_text()
@@ -165,16 +174,16 @@ class MailDraft:
             if self.apply_jinja(attachment) is False:
                 return "Wrong jinja2 template."
 
-        e = (Envelope
-             .load(self.text)
-             .signature("auto"))
+        e = Envelope.load(self.text).signature("auto")
 
         if not e.from_():
             e.from_(Config.get_env().sending.email_from_name)
         if not e.message() or not e.message().strip():
             return "Missing body text. Try writing 'Subject: text', followed by a newline and a text."
         if not e.subject():
-            return "Missing subject. Try writing 'Subject: text', followed by a newline."
+            return (
+                "Missing subject. Try writing 'Subject: text', followed by a newline."
+            )
         if attachment:
             # set recipients
             e.to(attachment.mail)
@@ -182,8 +191,16 @@ class MailDraft:
                 e.cc(attachment.cc)
 
             # attach the split CSV file
-            if attachment.path and not attachment.used_in_body and Config.get_env().sending.attach_files:
-                e.attach(attachment.path, "text/csv", attachment.parser.sending.attachment_name)
+            if (
+                attachment.path
+                and not attachment.used_in_body
+                and Config.get_env().sending.attach_files
+            ):
+                e.attach(
+                    attachment.path,
+                    "text/csv",
+                    attachment.parser.sending.attachment_name,
+                )
 
             # attach the paths from the path column (images, ...) in the split CSV file
             # If there is a trouble with an attachment,
@@ -198,21 +215,24 @@ class MailDraft:
             # XX envelope might have method to delete message, like
             #  .message(False), .message(""), .message(text, alternative="replace")
             m = e.message()
-            e.message("", alternative="auto") \
-                .message("", alternative="plain") \
-                .message("", alternative="html") \
-                .message(f"This is testing mail only from Convey."
-                         f" Don't be afraid, it was not delivered to: {intended_to}\r\n{m}")
+            e.message("", alternative="auto").message("", alternative="plain").message(
+                "", alternative="html"
+            ).message(
+                f"This is testing mail only from Convey."
+                f" Don't be afraid, it was not delivered to: {intended_to}\r\n{m}"
+            )
 
         return e
 
     def get_envelope(self, attachment: Attachment = None) -> Envelope:
-        """ :raises RuntimeError if there is security concern about an attachment """
+        """:raises RuntimeError if there is security concern about an attachment"""
         while True:
             just_created = self._assure_file()
             e = self._make_envelope(attachment)
             if isinstance(e, Envelope):
-                if not just_created:  # even if Envelope is well generated, we invoke editing
+                if (
+                    not just_created
+                ):  # even if Envelope is well generated, we invoke editing
                     return e
                 e = "Editing just created file"
             # user fills GUI file, saves it and we get back to the method
@@ -222,15 +242,15 @@ class MailDraft:
     def apply_jinja(self, attachment: Attachment):
 
         def print_attachment():
-            """ Prints the attachment contents and prevent it to be attached.
-                # XX may have header=False parameter to skip header.
+            """Prints the attachment contents and prevent it to be attached.
+            # XX may have header=False parameter to skip header.
             """
             attachment.used_in_body = True
             return attachment.path.read_text()
 
         def amount(count=2):
-            """ Check if the attachment has at least count number of lines.
-                Header is not counted.
+            """Check if the attachment has at least count number of lines.
+            Header is not counted.
             """
             if self.parser.settings["header"]:
                 count += 1  # we skip header, so we must increment the count
@@ -241,7 +261,7 @@ class MailDraft:
             return False
 
         def row():
-            """ Generate attachment row by row. Header is skipped. """
+            """Generate attachment row by row. Header is skipped."""
             with attachment.path.open() as f:
                 if self.parser.settings["header"]:
                     next(f)
@@ -249,17 +269,19 @@ class MailDraft:
                     yield line.strip().split(self.parser.settings["dialect"].delimiter)
 
         def joined(column: int, delimiter=", "):
-            """ Return a column joined by delimiter  """
+            """Return a column joined by delimiter"""
             return delimiter.join(r[column] for r in row())
 
         # Access first line fields
         first_row = next(row())
         try:
-            self.text = Template(self.text).render(first_row=first_row,
-                                                   row=row,
-                                                   joined=joined,
-                                                   amount=amount,
-                                                   attachment=print_attachment)
+            self.text = Template(self.text).render(
+                first_row=first_row,
+                row=row,
+                joined=joined,
+                amount=amount,
+                attachment=print_attachment,
+            )
         except exceptions.TemplateError as e:
             print(f"Template error: {e}")
             return False

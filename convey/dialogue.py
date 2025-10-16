@@ -44,7 +44,7 @@ def is_no(text):
 
 
 def hit_any_key(text: str):
-    """ Display text and let the user hit any key. Skip when headless. """
+    """Display text and let the user hit any key. Skip when headless."""
     if Config.get_env().cli.yes:
         logger.info(text)
         return
@@ -54,7 +54,7 @@ def hit_any_key(text: str):
 
 class Menu:
     def __init__(self, title=None, callbacks=True, fullscreen=False, skippable=True):
-        """ self.menu of tuples [(key, title, f), ("1", "First option", lambda), ...]
+        """self.menu of tuples [(key, title, f), ("1", "First option", lambda), ...]
         :type skippable: bool If True and there is single option, the dialog returns 'Ok' without asking user.
         """
         self.title = title
@@ -66,15 +66,15 @@ class Menu:
         self.default = None
 
     def add(self, title, fn=None, key=None, default=False):
-        """ Add new item to the menu.
+        """Add new item to the menu.
 
-            key - available through this letter
-                - if no key set, it will be available through the add order number
-                - if False, not available
+        key - available through this letter
+            - if no key set, it will be available through the add order number
+            - if False, not available
 
-            default - If user hits enter, the last item with default=True will be triggered.
+        default - If user hits enter, the last item with default=True will be triggered.
 
-            """
+        """
         if default:
             self.default = key
             title += " ←←←←←"
@@ -101,7 +101,11 @@ class Menu:
             try:
                 if self.fullscreen:
                     try:
-                        ans = m.select({(it[0], it[1]): it[0] for it in l}, self.title, skippable=self.skippable)
+                        ans = m.select(
+                            {(it[0], it[1]): it[0] for it in l},
+                            self.title,
+                            skippable=self.skippable,
+                        )
                     except Cancelled:
                         return
                 elif session:
@@ -135,5 +139,5 @@ class Menu:
 
 
 def csv_split(val):
-    """ Sometimes ",".split is not enough, they can use quotes and commas in our mighty CLI. """
+    """Sometimes ",".split is not enough, they can use quotes and commas in our mighty CLI."""
     return list(csv.reader([val]))[0]

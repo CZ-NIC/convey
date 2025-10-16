@@ -10,24 +10,36 @@ from typing import Annotated, Any, List, Optional, Tuple
 
 from mininterface import run
 from mininterface.tag.flag import BlankTrue, Blank
-from tyro.conf import (FlagConversionOff, OmitArgPrefixes, Positional, Suppress,
-                       UseAppendAction, arg)
+from tyro.conf import (
+    FlagConversionOff,
+    OmitArgPrefixes,
+    Positional,
+    Suppress,
+    UseAppendAction,
+    arg,
+)
 from tyro.extras import get_parser as get_tyro_parser
 
 from . import __version__
 from .types import Types
 from .config import config_dir, Config
 
-otrs_flags = [("otrs_id", "Ticket id"), ("otrs_cookie", "OTRSAgentInterface cookie"),
-              ("otrs_token", "OTRS challenge token")]
+otrs_flags = [
+    ("otrs_id", "Ticket id"),
+    ("otrs_cookie", "OTRSAgentInterface cookie"),
+    ("otrs_token", "OTRS challenge token"),
+]
 
-column_help = "COLUMN is ID of the column (1, 2, 3...), position from the right (-1, ...),"\
+column_help = (
+    "COLUMN is ID of the column (1, 2, 3...), position from the right (-1, ...),"
     " the exact column name, field type name or its usual name."
+)
 
 
 @dataclass
 class IO:
     """Input/Output"""
+
     file_or_input: Positional[Optional[str | Path]] = None
     """File name to be parsed or input text. If nothing is given, user will input data through stdin."""
 
@@ -120,7 +132,7 @@ class CLI:
 
 @dataclass
 class Environment:
-    """ Environment """
+    """Environment"""
 
     # NOTE this works bad. In the past, it was possible to specify the mode too
     # but `Annotated[Blank[str|tuple[str,int]]]` does not work
@@ -142,15 +154,22 @@ class Environment:
     get_autocompletion: BlankTrue = None
     """Get bash autocompletion."""
 
-    version: Annotated[BlankTrue, arg(help=f"""Show the version number (which is currently {
-        __version__}).""")] = None
+    version: Annotated[
+        BlankTrue,
+        arg(
+            help=f"""Show the version number (which is currently {
+        __version__})."""
+        ),
+    ] = None
 
 
 @dataclass
 class Processing:
-    """ Processing """
+    """Processing"""
 
-    threads: Annotated[Blank[int | Literal["auto"] | bool], arg(metavar="[bool|auto|int]")] = "auto"
+    threads: Annotated[
+        Blank[int | Literal["auto"] | bool], arg(metavar="[bool|auto|int]")
+    ] = "auto"
     """Set the thread processing number.
 
     Processing threads
@@ -172,7 +191,9 @@ class Processing:
     server: BlankTrue = None
     """Launches simple web server."""
 
-    daemon: Annotated[Blank[str], arg(metavar="[start|restart|stop|status|server|bool]")] = None
+    daemon: Annotated[
+        Blank[str], arg(metavar="[start|restart|stop|status|server|bool]")
+    ] = None
     """Run a UNIX socket daemon to speed up single query requests.
       * True/None – allow using the daemon
       * False – do not use the daemon
@@ -193,7 +214,7 @@ class Processing:
 
 @dataclass
 class CSVDialect:
-    """ CSV dialect """
+    """CSV dialect"""
 
     delimiter: str = ""
     """Treat file as having this delimiter. For tab use either \\t or tab."""
@@ -216,26 +237,43 @@ class CSVDialect:
 
 @dataclass
 class Actions:
-    """ Actions """
-    delete: Annotated[str, arg(aliases=["-d"], metavar="COLUMN,[COLUMN]",
-                               help="Delete a column. You may comma separate multiple columns. " + column_help)] = ""
+    """Actions"""
 
-    field: Annotated[UseAppendAction[list[str]], arg(aliases=["-f"],
-                                                     metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]",
-                                                     help="Compute field."
-                                                     "\n* FIELD is a field type (see below) that may be appended with a [CUSTOM] in square brackets."
-                                                     "\n* " + column_help +
-                                                     "\n* SOURCE_TYPE is either field type or usual field type. "
-                                                     "That way, you may specify processing method."
-                                                     "\n* CUSTOM is any string dependent on the new FIELD type (if not provided, will be asked it for)."
-                                                     "\nEx: --field tld[gTLD]  # would add TLD from probably a hostname, filtered by CUSTOM=gTLD"
-                                                     "\nEx: --field netname,ip  # would add netname column from any IP column"
-                                                     "\n    (Note the comma without space behind 'netname'.)"
-                                                     "\n\nComputable fields: " + "".join(
-        "\n* " + t.doc() for t in Types.get_computable_types()) + "\n\nThis flag May be used multiple times.")] = field_orig(default_factory=list)
+    delete: Annotated[
+        str,
+        arg(
+            aliases=["-d"],
+            metavar="COLUMN,[COLUMN]",
+            help="Delete a column. You may comma separate multiple columns. "
+            + column_help,
+        ),
+    ] = ""
 
-    field_excluded: Annotated[UseAppendAction[list[str]], arg(aliases=["-fe"],
-                                                              metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]")] = field_orig(default_factory=list)
+    field: Annotated[
+        UseAppendAction[list[str]],
+        arg(
+            aliases=["-f"],
+            metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]",
+            help="Compute field."
+            "\n* FIELD is a field type (see below) that may be appended with a [CUSTOM] in square brackets."
+            "\n* "
+            + column_help
+            + "\n* SOURCE_TYPE is either field type or usual field type. "
+            "That way, you may specify processing method."
+            "\n* CUSTOM is any string dependent on the new FIELD type (if not provided, will be asked it for)."
+            "\nEx: --field tld[gTLD]  # would add TLD from probably a hostname, filtered by CUSTOM=gTLD"
+            "\nEx: --field netname,ip  # would add netname column from any IP column"
+            "\n    (Note the comma without space behind 'netname'.)"
+            "\n\nComputable fields: "
+            + "".join("\n* " + t.doc() for t in Types.get_computable_types())
+            + "\n\nThis flag May be used multiple times.",
+        ),
+    ] = field_orig(default_factory=list)
+
+    field_excluded: Annotated[
+        UseAppendAction[list[str]],
+        arg(aliases=["-fe"], metavar="FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]"),
+    ] = field_orig(default_factory=list)
     """The same as field but its column will not be added to the output."""
 
     type: Annotated[str, arg(aliases=["-t"], metavar="[TYPE],...")] = ""
@@ -256,17 +294,24 @@ class Actions:
     include_filter: Annotated[str, arg(aliases=["-if"], metavar="COLUMN,VALUE")] = ""
     """Filter include this COLUMN by a VALUE."""
 
-    aggregate: Annotated[str, arg(aliases=["-a"],
-                                  metavar="[COLUMN, FUNCTION], ..., [group-by-COLUMN]")] = ""
+    aggregate: Annotated[
+        str, arg(aliases=["-a"], metavar="[COLUMN, FUNCTION], ..., [group-by-COLUMN]")
+    ] = ""
     """Aggregate"""
 
-    merge: Annotated[str, arg(metavar="[REMOTE_PATH],[REMOTE_COLUMN],[LOCAL_COLUMN]",
-                              help="""Merge another file here. """ + column_help)] = ""
+    merge: Annotated[
+        str,
+        arg(
+            metavar="[REMOTE_PATH],[REMOTE_COLUMN],[LOCAL_COLUMN]",
+            help="""Merge another file here. """ + column_help,
+        ),
+    ] = ""
 
 
 @dataclass
 class EnablingModules:
-    """ Enabling modules """
+    """Enabling modules"""
+
     whois: BlankTrue = None
     """Allowing Whois module: Leave blank for True or put true/on/1 or false/off/0."""
 
@@ -301,7 +346,7 @@ class Web:
 
 @dataclass
 class FieldComputingOptions:
-    """ Field computing options """
+    """Field computing options"""
 
     json: BlankTrue = None
     """When checking single value, prefer JSON output rather than text."""
@@ -351,7 +396,8 @@ class FieldComputingOptions:
 
 @dataclass
 class WhoisModule:
-    """ WHOIS module options """
+    """WHOIS module options"""
+
     ttl: Annotated[int, arg(metavar="SECONDS")] = 86400
     """How many seconds will a WHOIS answer cache will be considered fresh."""
 
@@ -394,11 +440,14 @@ class WhoisModule:
 
 @dataclass
 class SendingOptions:
-    """ Sending options """
+    """Sending options"""
+
     send: Annotated[Blank[str], arg(metavar="blank/smtp/otrs")] = ""
     """Automatically send e-mails when split."""
 
-    send_test: Optional[Annotated[tuple[str, str], arg(metavar=("E-MAIL", "TEMPLATE_FILE"))]] = None
+    send_test: Optional[
+        Annotated[tuple[str, str], arg(metavar=("E-MAIL", "TEMPLATE_FILE"))]
+    ] = None
     """Display e-mail message that would be generated for given e-mail."""
 
     jinja: BlankTrue = True
@@ -446,7 +495,7 @@ class SendingOptions:
 
 @dataclass
 class OTRS:
-    """ OTRS specific options. We may send all the e-mails by it. """
+    """OTRS specific options. We may send all the e-mails by it."""
 
     enabled: bool = True
 
@@ -493,16 +542,21 @@ def parse_args(args=None, interface="tui"):
     old_conf = cd / "config.ini"
     backup_conf = cd / "config.ini.old"
     if old_conf.exists() and not backup_conf.exists():
-        if run().confirm(f"The config.ini is deprecated. Can I rename it to {old_conf}.old?"):
+        if run().confirm(
+            f"The config.ini is deprecated. Can I rename it to {old_conf}.old?"
+        ):
             old_conf.rename(backup_conf)
-            print("Renamed. Run `convey --config` to modify the program defaults now (you may possibly want to migrate some options that you have previously set to config.ini).")
+            print(
+                "Renamed. Run `convey --config` to modify the program defaults now (you may possibly want to migrate some options that you have previously set to config.ini)."
+            )
             quit()
 
-    m = run(FlagConversionOff[Env],
-            args=args,
-            interface=interface,
-            add_verbose=False,
-            description="Swiss knife for mutual conversion of the web related data types, like `base64` or outputs of the programs `whois`, `dig`, `curl`. Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.\n\nSee full docs at https://github.com/CZ-NIC/convey (ex. to launch a web service).",
-            config_file=config_file
-            )
+    m = run(
+        FlagConversionOff[Env],
+        args=args,
+        interface=interface,
+        add_verbose=False,
+        description="Swiss knife for mutual conversion of the web related data types, like `base64` or outputs of the programs `whois`, `dig`, `curl`. Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.\n\nSee full docs at https://github.com/CZ-NIC/convey (ex. to launch a web service).",
+        config_file=config_file,
+    )
     return m

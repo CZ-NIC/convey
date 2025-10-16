@@ -14,8 +14,11 @@ from .types import Types
 if TYPE_CHECKING:
     from .parser import Parser
 
+
 class AttachmentExc(RuntimeError):
     pass
+
+
 class Attachment:
     sent: bool
     "True => sent, False => error while sending, None => not yet sent"
@@ -27,7 +30,7 @@ class Attachment:
         self.abroad = Config.ABROAD_MARK in filename
         self._sent = None
         self.filename = filename
-        self.used_in_body : bool = False
+        self.used_in_body: bool = False
         "Whether the file contents should be added as an e-mail attachment. If set, we suppose, the attachment has been pasted to the body text via jinja template."
 
         st = self.parser.stats
@@ -39,11 +42,11 @@ class Attachment:
         st["totals"] += 1
 
     def get_paths_from_path_column(self):
-        """ Load a column that was marked being of the path Type. Checks the file meet some security standards
-            that are quite limiting (and possibly be reduced in the future)
-            so that a crafted CSV would not pull up ~/.ssh or /etc/ files.
+        """Load a column that was marked being of the path Type. Checks the file meet some security standards
+        that are quite limiting (and possibly be reduced in the future)
+        so that a crafted CSV would not pull up ~/.ssh or /etc/ files.
 
-            :raises AttachmentExc If there is a problem like path does not exist or a security concern about the attachment
+        :raises AttachmentExc If there is a problem like path does not exist or a security concern about the attachment
         """
         pcol = next((f for f in self.parser.fields if f.type == Types.path), None)
         if not pcol:
@@ -58,16 +61,22 @@ class Attachment:
                 if not path_.exists():
                     raise AttachmentExc(f"Path {path_.absolute()} does not exist.")
                 if str(path_) != path_.name:
-                    raise AttachmentExc(f"For security reasons, path must be just a file name: {path_}")
+                    raise AttachmentExc(
+                        f"For security reasons, path must be just a file name: {path_}"
+                    )
                 if not path_.stat().st_mode & stat.S_IROTH:
-                    raise AttachmentExc(f"For security reasons, path must be readable to others: {path_}")
+                    raise AttachmentExc(
+                        f"For security reasons, path must be readable to others: {path_}"
+                    )
                 if path_.is_symlink():
-                    raise AttachmentExc(f"For security reasons, path must not be a symlink: {path_}")
+                    raise AttachmentExc(
+                        f"For security reasons, path must not be a symlink: {path_}"
+                    )
             return paths
 
     @property
     def path(self):
-        """ Path of the split CSV file (that contain rows having the same value in the split column). """
+        """Path of the split CSV file (that contain rows having the same value in the split column)."""
         return Path(Config.get_cache_dir(), self.filename)
 
     @property
@@ -87,7 +96,7 @@ class Attachment:
 
     @classmethod
     def init(cls, parser):
-        cls.parser : Parser = parser
+        cls.parser: Parser = parser
 
     @classmethod
     def reset(cls, stats):
@@ -102,7 +111,9 @@ class Attachment:
             # we want to filter either sent or not-sent attachments only
             if sent is not None and sent is not bool(o.sent):
                 continue
-            if abroad is not None and any((abroad and not o.abroad, not abroad and o.abroad)):
+            if abroad is not None and any(
+                (abroad and not o.abroad, not abroad and o.abroad)
+            ):
                 # filtering abroad/local attachments only
                 continue
             if limit == 0:
@@ -116,13 +127,13 @@ class Attachment:
     @property
     def mail(self):
         if self.abroad:
-            return self.filename[self.filename.index(Config.ABROAD_MARK) + 2:]
+            return self.filename[self.filename.index(Config.ABROAD_MARK) + 2 :]
         return self.filename
 
     @property
     def cc(self):
-        """ Return cc header from Contacts.
-            This has nothing in common with possible Cc header in the mail_draft template!
+        """Return cc header from Contacts.
+        This has nothing in common with possible Cc header in the mail_draft template!
         """
         return Types.get_method(Types.abusemail, Types.cc_contact)(self.mail)
 
@@ -133,5 +144,5 @@ class Attachment:
         return Contacts.mail_draft[self.get_draft_name()]
 
     def get_envelope(self):
-        """ Raises: AttachmentExc """
+        """Raises: AttachmentExc"""
         return self.get_draft().get_envelope(self)

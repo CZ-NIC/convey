@@ -11,13 +11,16 @@ from .config import Config
 
 logger = logging.getLogger(__name__)
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # seen due to web module requests.get(verify=False)
+urllib3.disable_warnings(
+    urllib3.exceptions.InsecureRequestWarning
+)  # seen due to web module requests.get(verify=False)
 
 
 class Web:
     """
     :return: self.get = [http status | error, shortened text, original html, redirects, x-frame-options, csp, form_names]
     """
+
     cache = {}
     store_html = True
     store_text = True
@@ -39,9 +42,13 @@ class Web:
         while True:
             try:
                 logger.debug(f"Scrapping connection to {current_url}")
-                response = requests.get(current_url, timeout=Config.get_env().web.timeout,
-                                        headers=self.headers,
-                                        allow_redirects=False, verify=False)
+                response = requests.get(
+                    current_url,
+                    timeout=Config.get_env().web.timeout,
+                    headers=self.headers,
+                    allow_redirects=False,
+                    verify=False,
+                )
             except IOError as e:
                 if isinstance(e, requests.exceptions.HTTPError):
                     s = 0
@@ -53,7 +60,15 @@ class Web:
                     s = -3
                 else:
                     s = e
-                self.cache[url] = self.get = str(s), None, None, redirects, None, None, None
+                self.cache[url] = self.get = (
+                    str(s),
+                    None,
+                    None,
+                    redirects,
+                    None,
+                    None,
+                    None,
+                )
                 print_atomic(f"Scrapping {url} failed: {e}")
                 break
             if response.headers.get("Location") and len(redirects) < 10:
@@ -61,7 +76,9 @@ class Web:
                 redirects.append(current_url)
                 continue
             else:
-                response.encoding = response.apparent_encoding  # https://stackoverflow.com/a/52615216/2036148
+                response.encoding = (
+                    response.apparent_encoding
+                )  # https://stackoverflow.com/a/52615216/2036148
                 if self.store_text:
                     soup = BeautifulSoup(response.text, features="html.parser")
                     # check redirect
@@ -74,15 +91,19 @@ class Web:
                             redirects.append(current_url)
                             continue
                     # prepare content to be shortened
-                    [s.extract() for s in
-                     soup(["style", "script", "head"])]  # remove tags with low probability of content
-                    text = re.sub(r'\n\s*\n', '\n', soup.text)  # reduce multiple new lines to singles
-                    text = re.sub(r'[^\S\r\n][^\S\r\n]*[^\S\r\n]', ' ',
-                                  text)  # reduce multiple spaces (not new lines) to singles
+                    [
+                        s.extract() for s in soup(["style", "script", "head"])
+                    ]  # remove tags with low probability of content
+                    text = re.sub(
+                        r"\n\s*\n", "\n", soup.text
+                    )  # reduce multiple new lines to singles
+                    text = re.sub(
+                        r"[^\S\r\n][^\S\r\n]*[^\S\r\n]", " ", text
+                    )  # reduce multiple spaces (not new lines) to singles
 
                     # if the form tag like <input> or <select> has no attribute "name", print out its tag name and value or options
                     def get_info(el):
-                        """ This element has no "name" attribute """
+                        """This element has no "name" attribute"""
                         n = el.name
                         r = [n]
                         if n == "select":
@@ -92,7 +113,10 @@ class Web:
                             r.append(el.attrs.get("value", ""))
                         return " ".join(r)
 
-                    form_names = [s.attrs.get("name", get_info(s)) for s in soup(("input", "select", "textarea"))]
+                    form_names = [
+                        s.attrs.get("name", get_info(s))
+                        for s in soup(("input", "select", "textarea"))
+                    ]
                 else:
                     form_names = None
                     text = ""
@@ -101,12 +125,15 @@ class Web:
                 #     redirects.append(res.url)
 
                 print_atomic(f"Scrapped {url} ({len(response.text)} bytes)")
-                self.cache[
-                    url] = self.get = response.status_code, text.strip(), response.text if self.store_html else None, \
-                    redirects, \
-                    response.headers.get('X-Frame-Options', None), \
-                    response.headers.get('Content-Security-Policy', None), \
-                    form_names
+                self.cache[url] = self.get = (
+                    response.status_code,
+                    text.strip(),
+                    response.text if self.store_html else None,
+                    redirects,
+                    response.headers.get("X-Frame-Options", None),
+                    response.headers.get("Content-Security-Policy", None),
+                    form_names,
+                )
                 break
                 # if current_url == url:
                 #     break

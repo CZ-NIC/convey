@@ -3,6 +3,7 @@ from typing import Callable, Generator, Union
 AggregateMethod = Callable
 "A method of the Aggregate class, ex: Aggregate.sum"
 
+
 class Aggregate:
 
     def __init__(self, factory: AggregateMethod):

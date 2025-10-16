@@ -47,7 +47,9 @@ logger = logging.getLogger(__name__)
 
 
 def send_ipc(pipe, msg, refresh_stdout):
-    sys.stdout = sys.stderr = StringIO()  # creating a new one is faster than truncating the old
+    sys.stdout = sys.stderr = (
+        StringIO()
+    )  # creating a new one is faster than truncating the old
     console_handler.setStream(sys.stdout)
     sys.stdout_real.write(refresh_stdout)
     return send(pipe, msg)
@@ -55,7 +57,9 @@ def send_ipc(pipe, msg, refresh_stdout):
 
 def control_daemon(cmd, in_daemon=False):
     if cmd == "stop":
-        Config.get_env().process.daemonize = False  # daemon should not be started at the end
+        Config.get_env().process.daemonize = (
+            False  # daemon should not be started at the end
+        )
         print("Convey daemon stopping.")
     if cmd in ["restart", "start"]:
         if in_daemon:
@@ -119,7 +123,7 @@ class Controller:
             m = Mininterface()
         finally:
             init_global_interface(m)
-        self.env:Env = self.m.env
+        self.env: Env = self.m.env
 
         self.see_menu = True
         self.check_server()
@@ -133,7 +137,13 @@ class Controller:
             # XX not implemeneted: allow or disable fields via CLI by ex: `--web`
             print(f"Webserver configuration can be changed by `convey --config uwsgi`")
             print(get_path("uwsgi.ini").read_text())
-            cmd = ["uwsgi", "--ini", get_path("uwsgi.ini"), "--wsgi-file", Path(Path(__file__).parent, "wsgi.py")]
+            cmd = [
+                "uwsgi",
+                "--ini",
+                get_path("uwsgi.ini"),
+                "--wsgi-file",
+                Path(Path(__file__).parent, "wsgi.py"),
+            ]
             try:
                 subprocess.run(cmd)
             except FileNotFoundError as e:
@@ -151,9 +161,13 @@ class Controller:
                 Path(socket_file).unlink()
 
             try:
-                Config.init_verbosity(cli.yes, 30 if cli.quiet else (10 if cli.verbose else None), True)
+                Config.init_verbosity(
+                    cli.yes, 30 if cli.quiet else (10 if cli.verbose else None), True
+                )
             except ConnectionAbortedError:
-                print("Config file integrity check failed. Launch convey normally to upgrade config parameters.")
+                print(
+                    "Config file integrity check failed. Launch convey normally to upgrade config parameters."
+                )
                 exit()
 
             print("Opening socket...")
@@ -164,12 +178,15 @@ class Controller:
             sys.stdout = sys.stderr = StringIO()
             console_handler.setStream(sys.stdout)
             PromptSession.__init__ = lambda _, *ar, **kw: (_ for _ in ()).throw(
-                ConnectionAbortedError('Prompt raised.'))
+                ConnectionAbortedError("Prompt raised.")
+            )
             return True, stdout, server
         return None, None, None
 
     def assure_terminal(self, is_daemon):
-        if not is_daemon and not sys.stdin.isatty():  # piping to the process, no terminal
+        if (
+            not is_daemon and not sys.stdin.isatty()
+        ):  # piping to the process, no terminal
             try:
                 sys.stdin = open("/dev/tty")
             except OSError:
@@ -183,11 +200,16 @@ class Controller:
                 # see https://github.com/prompt-toolkit/python-prompt-toolkit/issues/502
                 # and menu does not work good
                 def safe_prompt_2(*ar, **kw):
-                    return input(ar[1] if len(ar) > 1 else kw["message"] if "message" in kw else "?")
+                    return input(
+                        ar[1]
+                        if len(ar) > 1
+                        else kw["message"] if "message" in kw else "?"
+                    )
 
                 def safe_prompt(*ar, **kw):
                     print(
-                        "This is just an emergency input mode because convey interactivity works bad when piping into.")
+                        "This is just an emergency input mode because convey interactivity works bad when piping into."
+                    )
                     PromptSession.prompt = safe_prompt_2
                     return safe_prompt_2(*ar, **kw)
 
@@ -222,7 +244,9 @@ class Controller:
                         stdout.write("Invalid cwd\n")
                         continue
                     try:
-                        env = parse_args(argv[2:]).env  # the daemon has received a new command
+                        env = parse_args(
+                            argv[2:]
+                        ).env  # the daemon has received a new command
                         # we have to copy the values into, to copy the values into self.env to keep references
                         self.copy_into(self.env, env)
                     except SystemExit as e:
@@ -241,7 +265,13 @@ class Controller:
                 send_ipc(pipe, chr(3), f"Daemon has insufficient input: {e}\n")
                 continue
             except (ConnectionAbortedError, IOError) as e:
-                send_ipc(pipe, chr(4), "Daemon cannot help: " + (str(e) or "Probably a user dialog is needed.") + "\n")
+                send_ipc(
+                    pipe,
+                    chr(4),
+                    "Daemon cannot help: "
+                    + (str(e) or "Probably a user dialog is needed.")
+                    + "\n",
+                )
                 continue
             except ConnectionResetError as e:
                 send_ipc(pipe, chr(17), f"Daemon killed: {e}\n")
@@ -275,8 +305,9 @@ class Controller:
             e.cli.yes = True
             e.cli.quiet = True
             self.see_menu = False
-        Config.init_verbosity(e.cli.yes, 30 if e.cli.quiet else (
-            10 if e.cli.verbose else None), is_daemon)
+        Config.init_verbosity(
+            e.cli.yes, 30 if e.cli.quiet else (10 if e.cli.verbose else None), is_daemon
+        )
         if is_daemon:
             logger.debug("This result comes from the daemon.")
         Types.refresh()  # reload Types for the second time so that the methods reflect CLI flags
@@ -303,9 +334,16 @@ class Controller:
         [new_fields.append((False, values)) for values in e.action.field_excluded]
 
         self.m.env.comp.adding_new_fields = bool(new_fields)
-        self.wrapper = Wrapper(self.m, e.io.file_or_input, e.io.file, e.io.input,
-                               e.action.type, e.process.fresh, e.process.reprocess,
-                               e.whois.delete)
+        self.wrapper = Wrapper(
+            self.m,
+            e.io.file_or_input,
+            e.io.file,
+            e.io.input,
+            e.action.type,
+            e.process.fresh,
+            e.process.reprocess,
+            e.whois.delete,
+        )
         self.parser: Parser = self.wrapper.parser
         ac = ActionController(self.parser, self.m, e.process.reprocess)
 
@@ -351,21 +389,32 @@ class Controller:
 
         if e.action.aggregate:
             params = csv_split(e.action.aggregate)
-            group: Optional[Field] = self.parser.fields[get_column_i(params.pop(), "to be grouped by")] \
-                if len(params) % 2 else None
+            group: Optional[Field] = (
+                self.parser.fields[get_column_i(params.pop(), "to be grouped by")]
+                if len(params) % 2
+                else None
+            )
             if not params:
                 ac.add_aggregation(Aggregate.count.__name__, group, exit_on_fail=True)
             else:
                 for i in range(0, len(params), 2):
-                    column_task, fn_name = params[i:i + 2]
-                    ac.add_aggregation(fn_name, column_task, group, grouping_probably_wanted=False, exit_on_fail=True)
+                    column_task, fn_name = params[i : i + 2]
+                    ac.add_aggregation(
+                        fn_name,
+                        column_task,
+                        group,
+                        grouping_probably_wanted=False,
+                        exit_on_fail=True,
+                    )
 
         if e.action.sort:
             self.parser.resort(csv_split(e.action.sort))
             self.parser.is_processable = True
 
         if e.action.split:
-            self.parser.settings["split"] = get_column_i(e.action.split, "to be split with")
+            self.parser.settings["split"] = get_column_i(
+                e.action.split, "to be split with"
+            )
 
         if e.action.include_filter:
             col, val = csv_split(e.action.include_filter)
@@ -380,7 +429,7 @@ class Controller:
 
         # set output dialect
         # Taken from config.ini or flags. If differs from the current one, parser marked as processable.
-        self.parser.settings["dialect"] = dialect = type('', (), {})()
+        self.parser.settings["dialect"] = dialect = type("", (), {})()
         for k, v in self.parser.dialect.__dict__.copy().items():
             setattr(dialect, k, v)
 
@@ -406,7 +455,12 @@ class Controller:
         if self.parser.is_processable and self.m.env.cli.yes:
             self.process()
 
-        if e.sending.send and self.parser.is_analyzed and self.parser.is_split and not self.parser.is_processable:
+        if (
+            e.sending.send
+            and self.parser.is_analyzed
+            and self.parser.is_split
+            and not self.parser.is_processable
+        ):
             self.see_menu = False
             if e.sending.send is not True:
                 self.send_menu(e.sending.send, send_now=True)
@@ -414,13 +468,19 @@ class Controller:
                 self.send_menu(send_now=True)
         if e.sending.send_test:
             c = Path(e.sending.send_test[1]).read_text()
-            Path(Config.get_cache_dir(), Config.get_env().sending.mail_template).write_text(c)
-            Path(Config.get_cache_dir(), Config.get_env().sending.mail_template_abroad).write_text(c)
+            Path(
+                Config.get_cache_dir(), Config.get_env().sending.mail_template
+            ).write_text(c)
+            Path(
+                Config.get_cache_dir(), Config.get_env().sending.mail_template_abroad
+            ).write_text(c)
             self.send_menu(test_attachment=e.sending.send_test[0])
 
         if not self.see_menu:
             self.close()
-        if is_daemon:  # if in daemon, everything important has been already sent to STDOUT
+        if (
+            is_daemon
+        ):  # if in daemon, everything important has been already sent to STDOUT
             exit()
         return ac
 
@@ -456,13 +516,22 @@ class Controller:
                 menu.add("process  (choose some actions)")
             if self.parser.is_analyzed and self.parser.is_split:
                 if self.parser.is_processed:
-                    menu.add("send...", self.send_menu, key="s", default=not self.parser.is_processable)
+                    menu.add(
+                        "send...",
+                        self.send_menu,
+                        key="s",
+                        default=not self.parser.is_processable,
+                    )
                 else:
                     menu.add("send (process first)")
             else:
                 menu.add("send (split first)")
             if self.parser.is_analyzed:
-                menu.add("show all details", lambda: (self.parser.informer.sout_info(full=True), input()), key="d")
+                menu.add(
+                    "show all details",
+                    lambda: (self.parser.informer.sout_info(full=True), input()),
+                    key="d",
+                )
             else:
                 menu.add("show all details (process first)")
             menu.add("redo...", self.redo_menu, key="r")
@@ -477,45 +546,49 @@ class Controller:
                     # exiting the app makes the main menu redraw again
                     session.app.exit(session.layout.current_buffer.text or "refresh")
 
-                @bindings.add('right')  # select column
+                @bindings.add("right")  # select column
                 def _(_):
                     self.parser.move_selection(1)
                     refresh()
 
-                @bindings.add('left')  # select column
+                @bindings.add("left")  # select column
                 def _(_):
                     self.parser.move_selection(-1)
                     refresh()
 
-                @bindings.add('c-right')  # control-right to move the column
+                @bindings.add("c-right")  # control-right to move the column
                 def _(_):
                     self.parser.move_selection(1, True)
                     refresh()
                     self.parser.is_processable = True
 
-                @bindings.add('c-left')  # control-left to move the column
+                @bindings.add("c-left")  # control-left to move the column
                 def _(_):
                     self.parser.move_selection(-1, True)
                     refresh()
                     self.parser.is_processable = True
 
-                @bindings.add('delete')  # enter to toggle selected field
+                @bindings.add("delete")  # enter to toggle selected field
                 def _(_):
                     [f.toggle_chosen() for f in self.parser.fields if f.is_selected]
                     refresh()
                     self.parser.is_processable = True
 
-                @bindings.add('escape', 'a')  # alt-a to aggregate
+                @bindings.add("escape", "a")  # alt-a to aggregate
                 def _(_):
                     for f in self.parser.fields:
                         if f.is_selected:
-                            self.parser.settings["aggregate"] = AggregateAction(f, [(Aggregate.count, f)])
+                            self.parser.settings["aggregate"] = AggregateAction(
+                                f, [(Aggregate.count, f)]
+                            )
                             self.parser.is_processable = True
                             session.process = True
                             break
                     else:
                         # I cannot use a mere `input()` here, it would interfere with promtpt_toolkit and freeze
-                        self.m.alert("No column selected to aggregate with.\nUse arrows to select a column first.")
+                        self.m.alert(
+                            "No column selected to aggregate with.\nUse arrows to select a column first."
+                        )
                     refresh()
 
                 # @bindings.add('escape', 'n')  # alt-n to rename header
@@ -525,12 +598,15 @@ class Controller:
                 #             break
                 #     refresh()
 
-                options = {'key_bindings': bindings,
-                           "bottom_toolbar": HTML("Ctrl+<b>←/→</b> arrows for column manipulation,"
-                                                  " <b>Delete</b> for exclusion,"
-                                                  " <b>Alt+a</b> to aggregate count"),
-                           "style": bottom_plain_style
-                           }
+                options = {
+                    "key_bindings": bindings,
+                    "bottom_toolbar": HTML(
+                        "Ctrl+<b>←/→</b> arrows for column manipulation,"
+                        " <b>Delete</b> for exclusion,"
+                        " <b>Alt+a</b> to aggregate count"
+                    ),
+                    "style": bottom_plain_style,
+                }
                 menu.sout(session, options)
             except Cancelled as e:
                 print(e)
@@ -544,9 +620,10 @@ class Controller:
         if self.m.env.otrs.enabled and self.env.otrs.id:
             method = "otrs"
         elif self.m.env.otrs.enabled and not self.m.env.cli.yes:
-            method = self.m.select({"Send by SMTP...": "smtp",
-                                    "Send by OTRS...": "otrs"},
-                                   "What sending method do we want to use?")
+            method = self.m.select(
+                {"Send by SMTP...": "smtp", "Send by OTRS...": "otrs"},
+                "What sending method do we want to use?",
+            )
         if method == "otrs":
             sender = MailSenderOtrs(self.parser)
             sender.assure_tokens()
@@ -560,7 +637,9 @@ class Controller:
         st = self.parser.stats
         limit = float("inf")
         first_run = True
-        def limitable(max_): return f"limited to: {limit}/{max_}" if limit < max_ else max_
+
+        def limitable(max_):
+            return f"limited to: {limit}/{max_}" if limit < max_ else max_
 
         while True:
             if not first_run and self.env.cli.yes:
@@ -576,14 +655,42 @@ class Controller:
                 if sum(c) > 0:
                     info.append(f"{text}")
                     if c[0]:
-                        info.append(f"Recipient list ({c[0]}/{sum(c)}): "
-                                    + ", ".join([o.mail for o in Attachment.get_all(abroad, False, 5, True)]))
+                        info.append(
+                            f"Recipient list ({c[0]}/{sum(c)}): "
+                            + ", ".join(
+                                [
+                                    o.mail
+                                    for o in Attachment.get_all(abroad, False, 5, True)
+                                ]
+                            )
+                        )
                     if c[1]:
-                        info.append(f"Already sent ({c[1]}/{sum(c)}): "
-                                    + ", ".join([o.mail for o in Attachment.get_all(abroad, True, 5, True)]))
-                    info.append(f"Attachment: " + (", ".join(filter(None, (self.env.sending.attach_files and "split CSV file attached",
-                                                                           self.env.sending.attach_paths_from_path_column and "files from the path column attached")))
-                                                   or "nothing attached"))
+                        info.append(
+                            f"Already sent ({c[1]}/{sum(c)}): "
+                            + ", ".join(
+                                [
+                                    o.mail
+                                    for o in Attachment.get_all(abroad, True, 5, True)
+                                ]
+                            )
+                        )
+                    info.append(
+                        f"Attachment: "
+                        + (
+                            ", ".join(
+                                filter(
+                                    None,
+                                    (
+                                        self.env.sending.attach_files
+                                        and "split CSV file attached",
+                                        self.env.sending.attach_paths_from_path_column
+                                        and "files from the path column attached",
+                                    ),
+                                )
+                            )
+                            or "nothing attached"
+                        )
+                    )
                     info.append(f"\n{Contacts.mail_draft[draft].get_mail_preview()}\n")
                     return True
                 return False
@@ -594,9 +701,10 @@ class Controller:
             if Config.is_testing():
                 info.append(
                     f"\n\n\n*** TESTING MOD - mails will be sent to the address: {self.env.sending.testing_mail} ***"
-                    f"\n (For turning off testing mode set `testing = False` in config.ini.)")
+                    f"\n (For turning off testing mode set `testing = False` in config.ini.)"
+                )
             info.append("*" * 50)
-            sum_ = st['local'][0] + st['abroad'][0]
+            sum_ = st["local"][0] + st["abroad"][0]
             everything_sent = False
             if sum_ < 1:
                 everything_sent = True
@@ -611,13 +719,21 @@ class Controller:
             else:
                 clear()
                 # NOTE convert to Mininterface.select when mnemonics is implemented
-                menu = Menu("\n".join(info), callbacks=False, fullscreen=False, skippable=False)
+                menu = Menu(
+                    "\n".join(info), callbacks=False, fullscreen=False, skippable=False
+                )
 
                 if seen_local or seen_abroad:
-                    menu.add(f"Send all e-mails ({limitable(sum_)}) via {method_s}", key="1")
+                    menu.add(
+                        f"Send all e-mails ({limitable(sum_)}) via {method_s}", key="1"
+                    )
                 if seen_local and seen_abroad:
-                    menu.add(f"Send local e-mails ({limitable(st['local'][0])})", key="2")
-                    menu.add(f"Send abroad e-mails ({limitable(st['abroad'][0])})", key="3")
+                    menu.add(
+                        f"Send local e-mails ({limitable(st['local'][0])})", key="2"
+                    )
+                    menu.add(
+                        f"Send abroad e-mails ({limitable(st['abroad'][0])})", key="3"
+                    )
                 if len(menu.menu) == 0:
                     print("No e-mails in the set. Cannot send.")
 
@@ -627,9 +743,15 @@ class Controller:
                 menu.add("Choose recipients...", key="r")
                 menu.add("Send test e-mail...", key="t", default=not everything_sent)
                 menu.add("Print e-mails to a file...", key="p")
-                menu.add(f"Attach files (toggle): {Config.get_env().sending.attach_files}", key="a")
-                menu.add("Attach paths from path column (toggle):"
-                         f" {Config.get_env().sending.attach_paths_from_path_column}", key="i")
+                menu.add(
+                    f"Attach files (toggle): {Config.get_env().sending.attach_files}",
+                    key="a",
+                )
+                menu.add(
+                    "Attach paths from path column (toggle):"
+                    f" {Config.get_env().sending.attach_paths_from_path_column}",
+                    key="i",
+                )
                 menu.add("Go back...", key="x", default=everything_sent)
 
                 option = menu.sout()
@@ -637,11 +759,11 @@ class Controller:
                     return
 
             # sending menu processing - all, abuse and abroad e-mails
-            limit_csirtmails_when_all = limit - st['local'][0]
-            if option in ("1", "2") and st['local'][0] > 0:
+            limit_csirtmails_when_all = limit - st["local"][0]
+            if option in ("1", "2") and st["local"][0] > 0:
                 print("Sending e-mails...")
                 sender.send_list(Attachment.get_all(False, False, limit))
-            if option in ("1", "3") and st['abroad'][0] > 0:
+            if option in ("1", "3") and st["abroad"][0] > 0:
                 # decrease the limit by the number of e-mails that was just send in basic list
                 l = {"1": limit_csirtmails_when_all, "3": limit}[option]
                 if l < 1:
@@ -658,28 +780,37 @@ class Controller:
 
             # other menu options
             if option == "e":
-                local, abroad = st['local'][0], st['abroad'][0]
+                local, abroad = st["local"][0], st["abroad"][0]
                 if local:
                     Contacts.mail_draft["local"].edit_text()
                 if abroad:
                     Contacts.mail_draft["abroad"].edit_text()
                 if not (local or abroad):
-                    print("Neither local nor abroad e-mails are to be sent, no editor was opened.")
+                    print(
+                        "Neither local nor abroad e-mails are to be sent, no editor was opened."
+                    )
             elif option == "l":
                 limit = self.m.ask_number("How many e-mails should be send at once: ")
                 if limit < 0:
                     limit = float("inf")
             elif option == "a":
-                Config.get_env().sending.attach_files = not Config.get_env().sending.attach_files
+                Config.get_env().sending.attach_files = (
+                    not Config.get_env().sending.attach_files
+                )
             elif option == "i":
-                Config.get_env().sending.attach_paths_from_path_column = not Config.get_env().sending.attach_paths_from_path_column
+                Config.get_env().sending.attach_paths_from_path_column = (
+                    not Config.get_env().sending.attach_paths_from_path_column
+                )
             elif option in ["test", "t", "r", "p"]:
-                attachments = sorted(list(Attachment.get_all()), key=lambda x: x.mail.lower())
+                attachments = sorted(
+                    list(Attachment.get_all()), key=lambda x: x.mail.lower()
+                )
                 if option == "p":
                     with NamedTemporaryFile(mode="w+") as f:
                         try:
                             print(
-                                f"The messages are being temporarily generated to the file (stop by Ctrl+C): {f.name}")
+                                f"The messages are being temporarily generated to the file (stop by Ctrl+C): {f.name}"
+                            )
                             for attachment in attachments:
                                 print(".", end="")
                                 sys.stdout.flush()
@@ -707,8 +838,10 @@ class Controller:
                 elif option == "t":
                     # Choose an attachment
                     try:
-                        attachment = self.m.select({o.mail: o for o in attachments},
-                                                   f"What attachment should serve as a test?")
+                        attachment = self.m.select(
+                            {o.mail: o for o in attachments},
+                            f"What attachment should serve as a test?",
+                        )
                     except Cancelled:
                         continue
                     clear()
@@ -725,7 +858,10 @@ class Controller:
                     t = f" – type in or hit Enter to use {t}" if t else ""
                     try:
                         t = self.m.ask(
-                            Fore.YELLOW + f"Testing e-mail address to be sent to{t} (Ctrl+C to go back): " + Fore.RESET).strip()
+                            Fore.YELLOW
+                            + f"Testing e-mail address to be sent to{t} (Ctrl+C to go back): "
+                            + Fore.RESET
+                        ).strip()
                     except KeyboardInterrupt:
                         continue
                     if not t:
@@ -735,7 +871,11 @@ class Controller:
                         continue
 
                     # Send testing e-mail
-                    old_testing, old_sent, attachment.sent = Config.get_env().sending.testing, attachment.sent, None
+                    old_testing, old_sent, attachment.sent = (
+                        Config.get_env().sending.testing,
+                        attachment.sent,
+                        None,
+                    )
                     Config.get_env().sending.testing = True
                     Config.get_env().sending.testing_mail = t
                     sender.send_list([attachment])
@@ -744,11 +884,27 @@ class Controller:
                     attachment.sent = old_sent
                 elif option == "r":
                     # choose recipient list
-                    choices = {(o.mail, o.get_draft_name() + ("" if validate_email(o.mail, check_dns=False,
-                                check_smtp=False) else " (invalid)")): o for o in attachments}
+                    choices = {
+                        (
+                            o.mail,
+                            o.get_draft_name()
+                            + (
+                                ""
+                                if validate_email(
+                                    o.mail, check_dns=False, check_smtp=False
+                                )
+                                else " (invalid)"
+                            ),
+                        ): o
+                        for o in attachments
+                    }
                     default = [o.mail for o in attachments if not o.sent]
                     try:
-                        tags = set(self.m.select(choices, "Toggle e-mails to be send", default=default))
+                        tags = set(
+                            self.m.select(
+                                choices, "Toggle e-mails to be send", default=default
+                            )
+                        )
                     except Cancelled:
                         continue
                     else:
@@ -766,18 +922,27 @@ class Controller:
         def start_debugger():
             raise Debugged
 
-        self.m.select({"Edit configuration": lambda: edit("config", 3, restart_when_done=True, blocking=True),
-                       "Edit default e-mail template": lambda: edit("template", blocking=True),
-                       "Edit default abroad e-mail template": lambda: edit("template_abroad", blocking=True),
-                       "Edit uwsgi configuration": lambda: edit("uwsgi"),
-                       "Fetch whois for an IP": self.debug_ip,
-                       "Start debugger": start_debugger},
-                      title="Config menu")
+        self.m.select(
+            {
+                "Edit configuration": lambda: edit(
+                    "config", 3, restart_when_done=True, blocking=True
+                ),
+                "Edit default e-mail template": lambda: edit("template", blocking=True),
+                "Edit default abroad e-mail template": lambda: edit(
+                    "template_abroad", blocking=True
+                ),
+                "Edit uwsgi configuration": lambda: edit("uwsgi"),
+                "Fetch whois for an IP": self.debug_ip,
+                "Start debugger": start_debugger,
+            },
+            title="Config menu",
+        )
 
     def debug_ip(self):
         ip = input("Debugging whois – get IP: ")
         if ip:
             from .whois import Whois
+
             self.parser.reset_whois(assure_init=True)
             whois = Whois(ip.strip())
             print(whois.analyze())
@@ -785,7 +950,7 @@ class Controller:
         input()
 
     def choose_settings(self):
-        """ Remove some of the processing settings """
+        """Remove some of the processing settings"""
         actions = []  # description
         discard = []  # lambda to remove the setting
         st = self.parser.settings
@@ -805,11 +970,16 @@ class Controller:
             elif type_ == "add":
                 add_list(f"add {f} (from {str(f.source_field)})" for f in items)
             elif type_ == "filter":
-                add_list(f"filter {fields[f].name} {'' if include else '!'}= {val}" for include, f, val in items)
+                add_list(
+                    f"filter {fields[f].name} {'' if include else '!'}= {val}"
+                    for include, f, val in items
+                )
             elif type_ == "unique":
                 add_list(f"unique {fields[f].name}" for f in items)
             elif type_ == "aggregate":
-                actions.extend(f"{fn.__name__}({fields[col].name})" for fn, col in items[1])
+                actions.extend(
+                    f"{fn.__name__}({fields[col].name})" for fn, col in items[1]
+                )
                 discard.extend((st[type_][1].pop, i) for i, _ in enumerate(items[1]))
                 self.parser.aggregation.clear()  # remove possible aggregation results
 
@@ -818,8 +988,12 @@ class Controller:
             return
 
         # Build dialog
-        values = self.m.select({action: i+1 for i, action in enumerate(actions)},
-                               "What processing settings should be discarded?", multiple=True, skippable=False)
+        values = self.m.select(
+            {action: i + 1 for i, action in enumerate(actions)},
+            "What processing settings should be discarded?",
+            multiple=True,
+            skippable=False,
+        )
 
         # these processing settings should be removed
         # we reverse the list, we need to pop bigger indices first without shifting lower indices
@@ -831,14 +1005,18 @@ class Controller:
             del st["aggregate"]
 
     def redo_menu(self):
-        self.m.select({f"Delete some processing settings": self.choose_settings,
-                       "Delete all processing settings": self.parser.reset_settings,
-                       "Delete whois cache": self.parser.reset_whois,
-                       "Resolve unknown abuse-mails": self.parser.resolve_unknown,
-                       "Resolve invalid lines": self.parser.resolve_invalid,
-                       "Resolve queued lines": self.parser.resolve_queued,
-                       "Rework whole file again": self.wrapper.clear},
-                      title="What should be reprocessed?")
+        self.m.select(
+            {
+                f"Delete some processing settings": self.choose_settings,
+                "Delete all processing settings": self.parser.reset_settings,
+                "Delete whois cache": self.parser.reset_whois,
+                "Resolve unknown abuse-mails": self.parser.resolve_unknown,
+                "Resolve invalid lines": self.parser.resolve_invalid,
+                "Resolve queued lines": self.parser.resolve_queued,
+                "Rework whole file again": self.wrapper.clear,
+            },
+            title="What should be reprocessed?",
+        )
         # NOTE that aggregation generators were deleted (jsonpickling) → aggregation count will reset when re-resolving
         # See comment in the Aggregation class, concerning generator serialization.
 
@@ -855,14 +1033,25 @@ class Controller:
                 if col := st["split"]:
                     o.append(f"--split {fields[col]}")
                 o.extend(f"--field {f},{str(f.source_field)}" for f in st["add"])
-                o.extend(f"--{'include' if include else 'exclude'}-filter {fields[f].name},{val}"
-                         for include, f, val in st["filter"])
+                o.extend(
+                    f"--{'include' if include else 'exclude'}-filter {fields[f].name},{val}"
+                    for include, f, val in st["filter"]
+                )
                 o.extend(f"--unique {fields[f].name}" for f in st["unique"])
                 if col := st["aggregate"]:
-                    o.append(f"--aggregate " + ",".join(f"{col.name},{fn.__name__}" for fn, col in col.actions)
-                             + (f",{col.group_by}" if col.group_by else ""))
+                    o.append(
+                        f"--aggregate "
+                        + ",".join(
+                            f"{col.name},{fn.__name__}" for fn, col in col.actions
+                        )
+                        + (f",{col.group_by}" if col.group_by else "")
+                    )
                 if o:
-                    print(f" Settings cached:\n convey {self.parser.source_file} " + " ".join(o) + "\n")
+                    print(
+                        f" Settings cached:\n convey {self.parser.source_file} "
+                        + " ".join(o)
+                        + "\n"
+                    )
 
             print("Finished.")
         exit(0)
@@ -870,37 +1059,38 @@ class Controller:
     def get_autocompletion(self, parser):
         actions = [x for action in parser._actions for x in action.option_strings]
 
-        a = ["#!/usr/bin/env bash",
-             "# bash completion for convey",
-             ""
-             '_convey()',
-             '{',
-             '  local cur',
-             '  local cmd',
-             '',
-             '  cur=${COMP_WORDS[$COMP_CWORD]}',
-             '  prev="${COMP_WORDS[COMP_CWORD-1]}";',
-             '  cmd=( ${COMP_WORDS[@]} )',
-             '',
-             '  if [[ "$prev" == -f ]] || [[ "$prev" == --field ]] ||' +
-             '  [[ "$prev" == -fe ]] || [[ "$prev" == --field-excluded ]]; then',
-             f'        COMPREPLY=( $( compgen -W "{" ".join(t.name for t in Types.get_computable_types())}"  -- "$cur" ) )',
-             '        return 0',
-             '    fi',
-             '',
-             '  if [[ "$prev" == -a ]] || [[ "$prev" == --aggregate ]]; then',
-             '    param=(${cur//,/ })',
-             f'        COMPREPLY=( $( compgen -W "{" ".join("${param[0]}," + s for s in aggregate_functions)}"  -- "$cur" ) )',
-             '        return 0',
-             '    fi',
-             '',
-             '  if [[ "$cur" == -* ]]; then',
-             f'    COMPREPLY=( $( compgen -W "{" ".join(actions)}" -- $cur ) )',
-             '    return 0',
-             '  fi',
-             '}',
-             '',
-             'complete -F _convey -o default convey']
+        a = [
+            "#!/usr/bin/env bash",
+            "# bash completion for convey",
+            "" "_convey()",
+            "{",
+            "  local cur",
+            "  local cmd",
+            "",
+            "  cur=${COMP_WORDS[$COMP_CWORD]}",
+            '  prev="${COMP_WORDS[COMP_CWORD-1]}";',
+            "  cmd=( ${COMP_WORDS[@]} )",
+            "",
+            '  if [[ "$prev" == -f ]] || [[ "$prev" == --field ]] ||'
+            + '  [[ "$prev" == -fe ]] || [[ "$prev" == --field-excluded ]]; then',
+            f'        COMPREPLY=( $( compgen -W "{" ".join(t.name for t in Types.get_computable_types())}"  -- "$cur" ) )',
+            "        return 0",
+            "    fi",
+            "",
+            '  if [[ "$prev" == -a ]] || [[ "$prev" == --aggregate ]]; then',
+            "    param=(${cur//,/ })",
+            f'        COMPREPLY=( $( compgen -W "{" ".join("${param[0]}," + s for s in aggregate_functions)}"  -- "$cur" ) )',
+            "        return 0",
+            "    fi",
+            "",
+            '  if [[ "$cur" == -* ]]; then',
+            f'    COMPREPLY=( $( compgen -W "{" ".join(actions)}" -- $cur ) )',
+            "    return 0",
+            "  fi",
+            "}",
+            "",
+            "complete -F _convey -o default convey",
+        ]
         return "\n".join(a)
 
     def copy_into(self, dst: Any, src: Any) -> None:

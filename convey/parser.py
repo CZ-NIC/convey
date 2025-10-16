@@ -59,7 +59,16 @@ class Parser:
     "has already been processed"
     attachments: List[Attachment]
 
-    def __init__(self, m: Mininterface[Env], source_file: Path = False, stdin=None, types=None, prepare=True, ip_seen=None, ranges=None):
+    def __init__(
+        self,
+        m: Mininterface[Env],
+        source_file: Path = False,
+        stdin=None,
+        types=None,
+        prepare=True,
+        ip_seen=None,
+        ranges=None,
+    ):
         self.m = m
         self.env = m.env
         self.is_formatted = False
@@ -89,14 +98,16 @@ class Parser:
         """ Prevent a column being added multiple time from CLI. """
 
         # OTRS attributes to be linked to CSV
-        default_name = (source_file.name if source_file else "attachment.csv")
+        default_name = source_file.name if source_file else "attachment.csv"
         if not Path(default_name).suffix:
             default_name += ".csv"
 
-        self.sending = SendingSettings(otrs_id=self.env.otrs.id,
-                                       otrs_cookie=self.env.otrs.cookie,
-                                       otrs_token=self.env.otrs.token,
-                                       attachment_name=default_name)
+        self.sending = SendingSettings(
+            otrs_id=self.env.otrs.id,
+            otrs_cookie=self.env.otrs.cookie,
+            otrs_token=self.env.otrs.token,
+            attachment_name=default_name,
+        )
 
         self.ip_count_guess = None
         self.ip_count = None
@@ -115,7 +126,9 @@ class Parser:
         "CSV processing vs single_query check usage"
         self.ranges = {}  # XX should be refactored as part of Whois
         self.ip_seen = {}  # XX should be refactored as part of Whois
-        self.aggregation: DefaultDict[str, AggregationGroupedRows] = defaultdict(lambda: defaultdict(list))
+        self.aggregation: DefaultDict[str, AggregationGroupedRows] = defaultdict(
+            lambda: defaultdict(list)
+        )
         "set by processor [location file][grouped row] = [AggregationCounter,]"
         self.refresh()
         self.stats = defaultdict(set)
@@ -145,8 +158,12 @@ class Parser:
         if stdin:  # we're analysing an input text
             self.set_stdin(stdin)
         elif source_file:  # we're analysing a file on disk
-            self.first_line, self.sample, self.is_pandoc = self.identifier.get_sample(self.source_file)
-            self.lines_total, self.size = self.informer.source_file_len(self.source_file)
+            self.first_line, self.sample, self.is_pandoc = self.identifier.get_sample(
+                self.source_file
+            )
+            self.lines_total, self.size = self.informer.source_file_len(
+                self.source_file
+            )
         self.set_types(types)
         # otherwise we are running a webservice which has no stdin nor source_file
 
@@ -176,10 +193,19 @@ class Parser:
                 return "".join(s).replace("\n", "").replace("\r", "")
 
             def join_quo(s):
-                return "\n".join(s).replace("=\n", "").replace("=\r", "").replace("\n", r"\n").replace("\r", r"\r")
+                return (
+                    "\n".join(s)
+                    .replace("=\n", "")
+                    .replace("=\r", "")
+                    .replace("\n", r"\n")
+                    .replace("\r", r"\r")
+                )
 
             len_ = len(self.sample)
-            if len_ > 1 and re.search("[^A-Za-z0-9+/=]", join_base(self.sample)) is None:
+            if (
+                len_ > 1
+                and re.search("[^A-Za-z0-9+/=]", join_base(self.sample)) is None
+            ):
                 # in the sample, there is just base64-chars
                 s = join_base(self.stdin)
                 seems = False
@@ -199,7 +225,9 @@ class Parser:
             elif not len_ or len_ > 1:
                 seems = False
 
-            if self.env.io.single_query or (seems and self.env.io.single_query is not False):
+            if self.env.io.single_query or (
+                seems and self.env.io.single_query is not False
+            ):
                 # identify_fields some basic parameters
                 self.add_field([Field(self.stdin[0])])  # stdin has single field
                 self.dialect = False
@@ -217,7 +245,9 @@ class Parser:
                             # we are adding new fields - there is a reason to continue single processing
                             logger.info("Input value seems to be plaintext.")
                         elif Config.is_quiet() and self.env.io.single_detect:
-                            print(detection)  # print out detection even if we are quiet because explicitly asked for
+                            print(
+                                detection
+                            )  # print out detection even if we are quiet because explicitly asked for
                         else:
                             logger.info(f"Input value {detection}\n")
                         self.is_single_query = True
@@ -232,17 +262,24 @@ class Parser:
         self.informer.sout_info()
         try:
             # Dialog to obtain basic information about CSV - delimiter, header
-            self.dialect, self.has_header, seems_single = self.identifier.guess_dialect(self.sample)
+            self.dialect, self.has_header, seems_single = self.identifier.guess_dialect(
+                self.sample
+            )
             uncertain = False
 
             l = []
             if self.is_pandoc:
-                l.append("Pandoc table format detected (header were underlined by -------)")
+                l.append(
+                    "Pandoc table format detected (header were underlined by -------)"
+                )
             if self.env.csv.delimiter:
                 self.dialect.delimiter = self.env.csv.delimiter
                 l.append(f"Delimiter character set: '{self.dialect.delimiter}'")
-                self.dialect.delimiter = self.dialect.delimiter.replace(r"\t", "\t").replace("TAB", "\t").replace("tab",
-                                                                                                                  "\t")
+                self.dialect.delimiter = (
+                    self.dialect.delimiter.replace(r"\t", "\t")
+                    .replace("TAB", "\t")
+                    .replace("tab", "\t")
+                )
             else:
                 uncertain = True
                 s = "proposed" if seems_single else "found"
@@ -259,7 +296,9 @@ class Parser:
                 self.has_header = self.env.csv.header
             else:
                 uncertain = True
-                l.append(f"Header is present: " + ("yes" if self.has_header else "not used"))
+                l.append(
+                    f"Header is present: " + ("yes" if self.has_header else "not used")
+                )
 
             if self.m.env.cli.yes:
                 uncertain = False
@@ -268,21 +307,42 @@ class Parser:
 
             if uncertain and not is_yes("\nCould you confirm this?"):
                 while True:
-                    s = "What is delimiter " + (
-                        f"(default '{self.dialect.delimiter}')" if self.dialect.delimiter else "") + ": "
+                    s = (
+                        "What is delimiter "
+                        + (
+                            f"(default '{self.dialect.delimiter}')"
+                            if self.dialect.delimiter
+                            else ""
+                        )
+                        + ": "
+                    )
                     self.dialect.delimiter = input(s) or self.dialect.delimiter
                     if len(self.dialect.delimiter) != 1:
-                        print("Delimiter must be a 1-character string. Invent one (like ',').")
+                        print(
+                            "Delimiter must be a 1-character string. Invent one (like ',')."
+                        )
                         continue
-                    s = "What is quoting char " + (
-                        f"(default '{self.dialect.quotechar}')" if self.dialect.quotechar else "") + ": "
+                    s = (
+                        "What is quoting char "
+                        + (
+                            f"(default '{self.dialect.quotechar}')"
+                            if self.dialect.quotechar
+                            else ""
+                        )
+                        + ": "
+                    )
                     self.dialect.quotechar = input(s) or self.dialect.quotechar
                     break
-                self.dialect.quoting = csv.QUOTE_NONE if not self.dialect.quotechar else csv.QUOTE_MINIMAL
-                if not is_yes("Header " + ("" if self.has_header else "not found; ok?")):
+                self.dialect.quoting = (
+                    csv.QUOTE_NONE if not self.dialect.quotechar else csv.QUOTE_MINIMAL
+                )
+                if not is_yes(
+                    "Header " + ("" if self.has_header else "not found; ok?")
+                ):
                     self.has_header = not self.has_header
-            self.first_line_fields = csv.reader([self.first_line], skipinitialspace=self.is_pandoc,
-                                                dialect=self.dialect).__next__()
+            self.first_line_fields = csv.reader(
+                [self.first_line], skipinitialspace=self.is_pandoc, dialect=self.dialect
+            ).__next__()
             self.reset_settings()
         except Cancelled:
             print("Cancelled.")
@@ -292,7 +352,7 @@ class Parser:
         return self
 
     def get_fields_autodetection(self, append_values=True) -> list[tuple[Field, str]]:
-        """ returns list of tuples [ (field, detection str), ("Url", "url, hostname") ]
+        """returns list of tuples [ (field, detection str), ("Url", "url, hostname") ]
         :type append_values: bool Append sample values to the informative result string.
         """
         fields = []
@@ -304,7 +364,9 @@ class Parser:
                 s = str(field.type)
             elif field.possible_types:
                 types = field.possible_types
-                if Types.any_ip in types and (Types.ip in types or Types.port_ip in types):
+                if Types.any_ip in types and (
+                    Types.ip in types or Types.port_ip in types
+                ):
                     del types[Types.any_ip]
                 if Types.url in types and Types.wrong_url in types:
                     del types[Types.url]
@@ -314,7 +376,9 @@ class Parser:
             fields.append((field, s))
         return fields
 
-    def add_field(self, replace: Optional[List[Field]] = None, append: Optional[Field] = None):
+    def add_field(
+        self, replace: Optional[List[Field]] = None, append: Optional[Field] = None
+    ):
         """
         :param replace: Replace fields by the new field list.
         :param append: Append new field to the current list.
@@ -358,7 +422,7 @@ class Parser:
         return self
 
     def run_single_query(self, json=False):
-        """ Print out meaningful details about the single-value contents.
+        """Print out meaningful details about the single-value contents.
         :param json: If true, returns json.
         """
         # prepare the result variables
@@ -370,11 +434,17 @@ class Parser:
             """
             :type target_type: Field|Type If Field, it is added on purpose. If Type, convey just tries to add all.
             """
-            data[str(target_type.name)] = [str(v) for v in val] if type(val) is list else (str(val) if val else "")
+            data[str(target_type.name)] = (
+                [str(v) for v in val]
+                if type(val) is list
+                else (str(val) if val else "")
+            )
             if type(val) is list and len(val) == 1:
                 val = val[0]
             elif val is None or val == [] or (type(val) is str and val.strip() == ""):
-                if Config.is_verbose() or not hasattr(target_type, "group" or target_type.group == TypeGroup.general):
+                if Config.is_verbose() or not hasattr(
+                    target_type, "group" or target_type.group == TypeGroup.general
+                ):
                     # if not verbose and target_type is Type and no result, show just TypeGroup.general basic types
                     val = "×"
                 else:
@@ -384,7 +454,9 @@ class Parser:
             rows.append([str(target_type.name), val])
 
         # get fields and their methods to be computed
-        fields = [(f, f.get_methods()) for f in self.fields if f.is_new]  # get new fields only
+        fields = [
+            (f, f.get_methods()) for f in self.fields if f.is_new
+        ]  # get new fields only
         if fields and not any(1 for f in fields if f[0].is_chosen):
             print("All fields are excluded. Do not know what to display.")
             return
@@ -405,9 +477,13 @@ class Parser:
                     continue
                 elif target_type.group == TypeGroup.custom:
                     continue
-                fitting_type = self.identifier.get_fitting_type(self.fields[0], target_type)
+                fitting_type = self.identifier.get_fitting_type(
+                    self.fields[0], target_type
+                )
                 if fitting_type:
-                    methods = self.identifier.get_methods_from(target_type, fitting_type, None)
+                    methods = self.identifier.get_methods_from(
+                        target_type, fitting_type, None
+                    )
                     if methods:
                         fields.append((target_type, methods))
 
@@ -421,17 +497,21 @@ class Parser:
                 val = row[field.source_field.col_i]
             try:
                 for i, l in enumerate(methods):
-                    if (repr((val, methods[:i + 1]))) in method_cache:
-                        val = method_cache[(repr((val, methods[:i + 1])))]
+                    if (repr((val, methods[: i + 1]))) in method_cache:
+                        val = method_cache[(repr((val, methods[: i + 1])))]
                         continue
                     if isinstance(val, list):
                         # resolve all items, while flattening any list encountered
-                        val = [y for x in (l(v) for v in val) for y in (x if type(x) is list else [x])]
+                        val = [
+                            y
+                            for x in (l(v) for v in val)
+                            for y in (x if type(x) is list else [x])
+                        ]
                     else:
                         val = l(val)
                     # We cache this value so that it will not be recomputed when crawling the same path on the graph again.
                     # Ex: `hostame → ip → country` and `hostname → ip → asn` will not call method `hostname → ip` twice (for each).
-                    method_cache[(repr((val, methods[:i + 1])))] = val
+                    method_cache[(repr((val, methods[: i + 1])))] = val
             except Exception as e:
                 val = str(e)
             row.append(val)
@@ -454,15 +534,27 @@ class Parser:
                 width -= max(len(row[0]) for row in rows) + 10
                 for i, row in enumerate(rows):
                     val = row[1]
-                    if width and len(str(val)) > width:  # split the long text by new lines
-                        row[1] = "\n".join([val[i:i + width] for i in range(0, len(val), width)])
+                    if (
+                        width and len(str(val)) > width
+                    ):  # split the long text by new lines
+                        row[1] = "\n".join(
+                            [val[i : i + width] for i in range(0, len(val), width)]
+                        )
             if not rows and custom_fields:
                 s = ", ".join([str(f) for f in fields])
                 print(f"Cannot compute {s}")
             else:
                 print(tabulate(rows, headers=("field", "value")))
 
-    def reset_whois(self, hard=True, assure_init=False, slow_mode=False, unknown_mode=False, ip_seen=None, ranges=None):
+    def reset_whois(
+        self,
+        hard=True,
+        assure_init=False,
+        slow_mode=False,
+        unknown_mode=False,
+        ip_seen=None,
+        ranges=None,
+    ):
         """
 
         :type assure_init: Just assure the connection between picklable Parser and current Whois class.
@@ -472,18 +564,28 @@ class Parser:
                 self.whois_stats = defaultdict(int)
                 self.ranges = ranges or {}
                 self.ip_seen = ip_seen or {}
-        Whois.init(self.whois_stats, self.ranges, self.ip_seen, self.stats, slow_mode=slow_mode,
-                   unknown_mode=unknown_mode)
+        Whois.init(
+            self.whois_stats,
+            self.ranges,
+            self.ip_seen,
+            self.stats,
+            slow_mode=slow_mode,
+            unknown_mode=unknown_mode,
+        )
 
     def reset_settings(self):
         self.settings.clear()
         # when resetting settings, we free up any finished aggregation
         # (because informer wants to display it but the self.parser.settings["aggregate"] is gone
         self.aggregation.clear()
-        self.sample_parsed = [x for x in
-                              csv.reader(self.sample[slice(1 if self.has_header else 0, None)],
-                                         skipinitialspace=self.is_pandoc,
-                                         dialect=self.dialect)]
+        self.sample_parsed = [
+            x
+            for x in csv.reader(
+                self.sample[slice(1 if self.has_header else 0, None)],
+                skipinitialspace=self.is_pandoc,
+                dialect=self.dialect,
+            )
+        ]
         self.add_field([Field(f) for f in self.first_line_fields])
         self.identifier.identify_fields()
 
@@ -492,15 +594,18 @@ class Parser:
         self.velocity = 0
 
     def _reset(self, hard=True, reset_header=True, ip_seen=None, ranges=None):
-        """ Reset variables before new analysis.
+        """Reset variables before new analysis.
         @type reset_header: False if we are in the constructor and added fields is not ready yet.
         """
         self.stats.clear()
         Attachment.reset(self.stats)
-        self.queued_lines_count = self.invalid_lines_count = self.unknown_lines_count = 0
+        self.queued_lines_count = self.invalid_lines_count = (
+            self.unknown_lines_count
+        ) = 0
         self.aggregation.clear()
 
         if reset_header:
+
             class Wr:  # very ugly way to correctly get the output from csv.writer
                 def write(self, row):
                     self.written = row
@@ -522,7 +627,9 @@ class Parser:
         self.reset_whois(hard=hard, ip_seen=ip_seen, ranges=ranges)
 
     def prepare_target_file(self):
-        if not self.settings["split"] and self.settings["split"] != 0:  # 0 is a valid column
+        if (
+            not self.settings["split"] and self.settings["split"] != 0
+        ):  # 0 is a valid column
             self.is_split = False
             self.target_file = self.invent_file_str()
         else:
@@ -537,8 +644,10 @@ class Parser:
             l.append("filter")
         if se["unique"]:
             l.append("uniqued")
-        if se["dialect"] and (se["dialect"].delimiter != self.dialect.delimiter
-                              or se["dialect"].quotechar != self.dialect.quotechar):
+        if se["dialect"] and (
+            se["dialect"].delimiter != self.dialect.delimiter
+            or se["dialect"].quotechar != self.dialect.quotechar
+        ):
             l.append("dialect")
         if se["header"] is False:
             l.append("noheader")
@@ -562,16 +671,22 @@ class Parser:
         else:
             target_file = f"output_{time.strftime('%Y-%m-%d %H:%M:%S')}.csv"
         output = self.env.io.output
-        return Path(str(output)) if output else Path(Config.get_cache_dir(), target_file)
+        return (
+            Path(str(output)) if output else Path(Config.get_cache_dir(), target_file)
+        )
 
     def run_analysis(self, autoopen_editor=None):
-        """ Run main analysis of the file.
+        """Run main analysis of the file.
         :type autoopen_editor: bool May shadow config file value "autoopen_editor"
         """
         self.refresh()
         self._reset(hard=False)
 
-        if (autoopen_editor or autoopen_editor is None) and self.env.cli.autoopen_editor and self.is_split:
+        if (
+            (autoopen_editor or autoopen_editor is None)
+            and self.env.cli.autoopen_editor
+            and self.is_split
+        ):
             Contacts.mail_draft["local"].edit_text(blocking=False)
             Contacts.mail_draft["abroad"].edit_text(blocking=False)
 
@@ -579,7 +694,9 @@ class Parser:
         self.prepare_target_file()
         self.processor.process_file(self.source_file, rewrite=True, stdin=self.stdin)
         self.time_end = datetime.datetime.now().replace(microsecond=0)
-        self.lines_total = self.line_count  # if we guessed the total of lines, fix the guess now
+        self.lines_total = (
+            self.line_count
+        )  # if we guessed the total of lines, fix the guess now
         self.is_analyzed = True
         self.is_processed = True
         self.informer.sout_info()
@@ -589,13 +706,16 @@ class Parser:
         if self.unknown_lines_count:
             self.resolve_unknown()
 
-        if self.queued_lines_count and self.env.whois.lacnic_quota_resolve_immediately is not False:
+        if (
+            self.queued_lines_count
+            and self.env.whois.lacnic_quota_resolve_immediately is not False
+        ):
             self.resolve_queued(self.env.whois.lacnic_quota_resolve_immediately)
 
         self.line_count = 0
 
     def _guess_ip_count(self):
-        """ Determine how many IPs there are in the file.
+        """Determine how many IPs there are in the file.
         XX not used and not right (doesnt implement dialect but only delimiter) (doesnt implement stdin instead of source_file)
         """
         if self.urlColumn is None:
@@ -604,7 +724,7 @@ class Parser:
                 i = 0
                 ipSet = set()
                 fraction = None
-                with open(self.source_file, 'r') as csvfile:
+                with open(self.source_file, "r") as csvfile:
                     for line in csvfile:
                         i += 1
                         if self.has_header and i == 1:
@@ -619,30 +739,53 @@ class Parser:
                     self.ip_count = len(ipSet)
                     print("There are {} IPs.".format(self.ip_count))
                 else:
-                    delta = len(ipSet) - fraction  # determine new IPs in the last portion of the sample
-                    self.ip_count_guess = len(ipSet) + ceil((self.lines_total - i) * delta / i)
+                    delta = (
+                        len(ipSet) - fraction
+                    )  # determine new IPs in the last portion of the sample
+                    self.ip_count_guess = len(ipSet) + ceil(
+                        (self.lines_total - i) * delta / i
+                    )
                     print(
                         "In the first {} lines, there are {} unique IPs. There might be around {} IPs in the file.".format(
-                            i, len(ipSet), self.ip_count_guess))
+                            i, len(ipSet), self.ip_count_guess
+                        )
+                    )
             except Exception:
                 print("Can't guess IP count.")
 
-    def _resolve_again(self, path, basename, var, key, reprocess_method, slow_mode=False, unknown_mode=False):
+    def _resolve_again(
+        self,
+        path,
+        basename,
+        var,
+        key,
+        reprocess_method,
+        slow_mode=False,
+        unknown_mode=False,
+    ):
         count = getattr(self, var)  # ex: `count = self.invalid_lines_count`
         setattr(self, var, 0)
-        self.reset_whois(assure_init=True, slow_mode=slow_mode, unknown_mode=unknown_mode)
+        self.reset_whois(
+            assure_init=True, slow_mode=slow_mode, unknown_mode=unknown_mode
+        )
         temp = str(path) + ".running.tmp"
         try:
             move(path, temp)
         except FileNotFoundError:
-            input("File {} not found, maybe resolving was run in the past and failed. Please rerun again.".format(path))
+            input(
+                "File {} not found, maybe resolving was run in the past and failed. Please rerun again.".format(
+                    path
+                )
+            )
             return False
 
         self._reset_output()
         lines_total, size = self.lines_total, self.size
         self.lines_total, self.size = self.informer.source_file_len(temp)
         if basename in self.files_created:
-            self.files_created.remove(basename)  # this file exists no more, if recreated, include header
+            self.files_created.remove(
+                basename
+            )  # this file exists no more, if recreated, include header
         dialect_tmp = self.dialect
         self.dialect = self.settings["dialect"]
         # XX missing start time reset here
@@ -655,15 +798,19 @@ class Parser:
 
         if getattr(self, var):
             solved = count - getattr(self, var)
-            print(f"\nNo {key} row resolved." if solved == 0 else f"\nOnly {solved}/{count} {key} rows were resolved.")
+            print(
+                f"\nNo {key} row resolved."
+                if solved == 0
+                else f"\nOnly {solved}/{count} {key} rows were resolved."
+            )
             reprocess_method()
 
     def stat(self, key):
-        """ self.stats reader shorthand (no need to call len(...))"""
+        """self.stats reader shorthand (no need to call len(...))"""
         return len(self.stats[key])
 
     def resolve_unknown(self):
-        """ Process all prefixes with unknown abusemails.
+        """Process all prefixes with unknown abusemails.
 
         When split processing, unknown file is always generated; when single file processing,
         it is generated only if whois_reprocessable_unknown is True, otherwise cells remain empty
@@ -683,21 +830,35 @@ class Parser:
 
         l = []
         if self.stats["ip_local_unknown"]:
-            l.append(f"{self.stat('ip_local_unknown')} IPs in {self.stat('prefix_local_unknown')} unknown prefixes")
+            l.append(
+                f"{self.stat('ip_local_unknown')} IPs in {self.stat('prefix_local_unknown')} unknown prefixes"
+            )
         if self.stats["ip_abroad_unknown"]:
             l.append(
-                f"{self.stat('ip_abroad_unknown')} IPs in {self.stat('prefix_abroad_unknown')} unknown abroad prefixes")
-        s = f"There are {self.unknown_lines_count} lines with up to {' and '.join(l)}. Should I proceed additional search" \
+                f"{self.stat('ip_abroad_unknown')} IPs in {self.stat('prefix_abroad_unknown')} unknown abroad prefixes"
+            )
+        s = (
+            f"There are {self.unknown_lines_count} lines with up to {' and '.join(l)}. Should I proceed additional search"
             f" for these {self.stat('ip_local_unknown') + self.stat('ip_abroad_unknown')} IPs?"
+        )
         if not is_yes(s):
             return
 
         path = Path(Config.get_cache_dir(), Config.UNKNOWN_NAME)
-        [self.stats[f"{a}_{b}_unknown"].clear() for a in ("ip", "prefix") for b in
-         ("local", "abroad")]  # reset the stats matrix
+        [
+            self.stats[f"{a}_{b}_unknown"].clear()
+            for a in ("ip", "prefix")
+            for b in ("local", "abroad")
+        ]  # reset the stats matrix
         # res = self._resolve_again(path, Config.UNKNOWN_NAME, unknown_mode=True)
-        self._resolve_again(path, Config.UNKNOWN_NAME, "unknown_lines_count", "unknown", self.resolve_unknown,
-                            unknown_mode=True)
+        self._resolve_again(
+            path,
+            Config.UNKNOWN_NAME,
+            "unknown_lines_count",
+            "unknown",
+            self.resolve_unknown,
+            unknown_mode=True,
+        )
         Whois.unknown_mode = False
         # if res is False:
         #     return False
@@ -708,7 +869,9 @@ class Parser:
             return True
         print(f"There are {count} queued rows")
         if Whois.quota.remains():
-            print(f"We will have to wait {Whois.quota.remains()} s before LACNIC quota is over.")
+            print(
+                f"We will have to wait {Whois.quota.remains()} s before LACNIC quota is over."
+            )
         if not (force or is_yes(f"Reanalyse them?")):
             return False
         if Whois.quota.remains():
@@ -726,8 +889,14 @@ class Parser:
         path = Path(Config.get_cache_dir(), Config.QUEUED_NAME)
         Whois.queued_ips.clear()
 
-        self._resolve_again(path, Config.QUEUED_NAME, "queued_lines_count", "queued", self.resolve_queued,
-                            slow_mode=True)
+        self._resolve_again(
+            path,
+            Config.QUEUED_NAME,
+            "queued_lines_count",
+            "queued",
+            self.resolve_queued,
+            slow_mode=True,
+        )
         # self.queued_lines_count = 0
         # res = self._resolve_again(path, Config.QUEUED_NAME, slow_mode=True)
         # if res is False:
@@ -742,7 +911,7 @@ class Parser:
         #     self.resolve_queued()
 
     def resolve_invalid(self):
-        """ Process all invalid rows. """
+        """Process all invalid rows."""
         if self.m.env.cli.yes and Config.is_quiet():
             return False
         if not self.invalid_lines_count:
@@ -753,20 +922,25 @@ class Parser:
         print("There are {0} invalid rows".format(self.invalid_lines_count))
         while True:
             try:
-                with open(path, 'r') as f:
+                with open(path, "r") as f:
                     for i, row in enumerate(f):
                         print(row.strip())
                         if i > 5:
                             break
             except FileNotFoundError:
-                input("File {} not found, maybe resolving was run in the past and failed. Please rerun again.".format(
-                    path))
+                input(
+                    "File {} not found, maybe resolving was run in the past and failed. Please rerun again.".format(
+                        path
+                    )
+                )
                 return False
             if self.m.env.cli.yes:
                 res = "n"
             else:
-                s = "Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them," \
+                s = (
+                    "Open the file in text editor (o) and make the rows valid, when done, hit y for reanalysing them,"
                     " or hit n for ignoring them. [o]/y/n "
+                )
                 res = self.m.ask(s)
             if res == "n":
                 return False
@@ -774,9 +948,17 @@ class Parser:
                 break
             else:
                 print("Opening the editor...")
-                subprocess.Popen(['xdg-open', path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.Popen(
+                    ["xdg-open", path], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                )
 
-        self._resolve_again(path, Config.INVALID_NAME, "invalid_lines_count", "invalid", self.resolve_invalid)
+        self._resolve_again(
+            path,
+            Config.INVALID_NAME,
+            "invalid_lines_count",
+            "invalid",
+            self.resolve_invalid,
+        )
         # invalids = self.invalid_lines_count
         # self.invalid_lines_count = 0
         # if self._resolve_again(path, Config.INVALID_NAME) is False:
@@ -800,7 +982,9 @@ class Parser:
         excluded = [f for f in l if f in set(l) - set(chosens)]
         transposed = list(zip(*self.sample_parsed))
         sp = []
-        for i, (col, is_chosen) in enumerate([(col, True) for col in chosens] + [(col, False) for col in excluded]):
+        for i, (col, is_chosen) in enumerate(
+            [(col, True) for col in chosens] + [(col, False) for col in excluded]
+        ):
             col_i = self.identifier.get_column_i(col, check="to be re-sorted")
             self.fields[col_i].col_i = i
             if self.fields[col_i].is_new:
@@ -812,9 +996,9 @@ class Parser:
         self.sample_parsed = list(map(list, zip(*sp)))  # force list preventing tuples
 
     def move_selection(self, direction=0, move_contents=False):
-        """ Move cursor or whole columns
-            :type move_contents: bool Move whole columns, not only cursor.
-            :type direction: int +1 right, -1 left
+        """Move cursor or whole columns
+        :type move_contents: bool Move whole columns, not only cursor.
+        :type direction: int +1 right, -1 left
         """
         selected = [f for f in self.fields if f.is_selected]
         if not selected:  # initial value is on an either border
@@ -859,7 +1043,9 @@ class Parser:
                     line_chosen = False
 
             if settings["unique"]:  # unique columns
-                for col_i in settings["unique"]:  # list of uniqued columns [2, 3, 5, ...]
+                for col_i in settings[
+                    "unique"
+                ]:  # list of uniqued columns [2, 3, 5, ...]
                     if row[col_i][0] in unique_sets[col_i]:  # skip line
                         line_chosen = False
                         break
@@ -868,20 +1054,24 @@ class Parser:
                         unique_sets[col_i].add(row[col_i][0])
 
             # colorize the line
-            def g(short): return (field.color(cell, short, line_chosen) for cell, field in row)
+            def g(short):
+                return (field.color(cell, short, line_chosen) for cell, field in row)
+
             rows.append([*g(True)])
             full_rows.append([*g(False)])
         return full_rows, rows
 
     def get_similar(self, fields2: Union[Field, List[Field]]):
-        """ Recommend which fields might be similar in different parsers.
-            Based on the same column type.
+        """Recommend which fields might be similar in different parsers.
+        Based on the same column type.
 
-            (In the future, we might implement comparing the similarity by the parser sample values too.)
+        (In the future, we might implement comparing the similarity by the parser sample values too.)
         """
         if isinstance(fields2, Field):
             fields2 = [fields2]
-        return [f1 for f1 in self.fields if f1.type for f2 in fields2 if f1.type == f2.type]
+        return [
+            f1 for f1 in self.fields if f1.type for f2 in fields2 if f1.type == f2.type
+        ]
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -893,24 +1083,24 @@ class Parser:
         # 3. We cache arg=2
         # 4. We run with --arg 3
         # There is no easy way to determine, whether to use the config default 1, the cached 2, or the CLI 3.
-        del state['m']
-        del state['env']
+        del state["m"]
+        del state["env"]
 
         # del other non-cachable objects
-        del state['informer']
-        del state['processor']
-        del state['identifier']
-        del state['ip_seen']  # delete whois dicts
-        del state['ranges']
+        del state["informer"]
+        del state["processor"]
+        del state["identifier"]
+        del state["ip_seen"]  # delete whois dicts
+        del state["ranges"]
         # counters generators may be removed (their state is not jsonpicklable)
         # however that means that when re-resolving after main processing, generators counts will reset
         # See comment in the Aggregation class, concerning generator serialization.
         # counters[location file][grouped row][order in aggregation settings] = [sum generator, count]
-        for l in state['aggregation'].values():
+        for l in state["aggregation"].values():
             for g in l.values():
                 for o in g:
                     o[0] = None
-        state['dialect'] = self.dialect.__dict__.copy()
+        state["dialect"] = self.dialect.__dict__.copy()
         return state
 
     def __setstate__(self, state):
@@ -938,7 +1128,7 @@ class Parser:
         self.ranges = {}
         self.ip_seen = {}
 
-    def post_setstate(self, m:Mininterface[Env]):
+    def post_setstate(self, m: Mininterface[Env]):
         self.m = m
         self.env = m.env
 

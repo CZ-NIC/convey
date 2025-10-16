@@ -22,7 +22,7 @@ pint = UnitRegistry()
 
 
 class Checker:
-    """ To not pollute the namespace, we put the methods here """
+    """To not pollute the namespace, we put the methods here"""
 
     hostname_ips_cache = {}
     hostname_cache = {}
@@ -32,7 +32,8 @@ class Checker:
         if val not in Checker.hostname_ips_cache:
             try:
                 Checker.hostname_ips_cache[val] = list(
-                    {addr[4][0] for addr in timeout(15, socket.getaddrinfo, val, None)})
+                    {addr[4][0] for addr in timeout(15, socket.getaddrinfo, val, None)}
+                )
             except (TimeoutError, OSError, ValueError) as e:
                 Checker.hostname_ips_cache[val] = []
         return Checker.hostname_ips_cache[val]
@@ -60,12 +61,14 @@ class Checker:
 
     @staticmethod
     def is_base64(x):
-        """ We prefer as base64-encoded only such strings that could be decoded to UTF-8.
-            Because otherwise nearly any ASCII input with the correct padding
-            would be considered as base64 (ex: port number), even when well readable at first sight.
-            If not UTF-8 decodable, we check the minimal length and penalize.
+        """We prefer as base64-encoded only such strings that could be decoded to UTF-8.
+        Because otherwise nearly any ASCII input with the correct padding
+        would be considered as base64 (ex: port number), even when well readable at first sight.
+        If not UTF-8 decodable, we check the minimal length and penalize.
         """
-        if not re.match(r"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$", x):
+        if not re.match(
+            r"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$", x
+        ):
             return False
 
         try:
@@ -86,7 +89,7 @@ class Checker:
 
     @staticmethod
     def is_ip(ip):
-        """ True, if IP is well formatted IPv4 or IPv6 """
+        """True, if IP is well formatted IPv4 or IPv6"""
         try:
             ipaddress.ip_address(ip)
             return True
@@ -121,7 +124,11 @@ class Checker:
 
     @staticmethod
     def check_wrong_url(wrong):
-        if (reUrl.match(wrong) and "[.]" not in wrong) or reFqdn.match(wrong) or Checker.is_ip(wrong):
+        if (
+            (reUrl.match(wrong) and "[.]" not in wrong)
+            or reFqdn.match(wrong)
+            or Checker.is_ip(wrong)
+        ):
             # input "example[.]com" would be admitted as a valid URL)
             return False
         s = wrong_url_2_url(wrong, make=False)
@@ -199,7 +206,11 @@ class Checker:
         # identify straight textual representation (ex: 2021-02-12), easily parsable by not-fuzzy `dateutil`
         try:
             o = dateutil.parser.parse(val)
-            if not (o.second == o.minute == o.hour == 0 and o.day == reference.day and o.month == reference.month):
+            if not (
+                o.second == o.minute == o.hour == 0
+                and o.day == reference.day
+                and o.month == reference.month
+            ):
                 # if parser accepts a plain number, ex: 1920,
                 # it thinks this is a year without time (assigns midnight) and without date (assigns current date)
                 # -> 1920-05-05 00:00 (on 5th May) – we try to skip such result.
@@ -213,7 +224,9 @@ class Checker:
         # identify random textual representation of a timestamp
         try:
             o = Checker.parse_timestamp(val)
-            if 2100 > o.year > 1900 and not (o.second == o.minute == o.hour == 0 and o.day == o.month == 1):
+            if 2100 > o.year > 1900 and not (
+                o.second == o.minute == o.hour == 0 and o.day == o.month == 1
+            ):
                 # this year seems reasonable and it is not suspicious
                 # fuzzy search often return crazy things like year from port number - these records have 1 Jan midnight
                 return True
@@ -233,7 +246,9 @@ class Checker:
 
         # random textual representation of a timestamp
         try:
-            return dateutil.parser.parse(val, fuzzy=True, default=Checker.default_datetime)
+            return dateutil.parser.parse(
+                val, fuzzy=True, default=Checker.default_datetime
+            )
         except OverflowError:
             return Checker.default_datetime
 
@@ -257,20 +272,20 @@ class Checker:
     class HostnameTld:
         @staticmethod
         def all(x):
-            """ take all TLD """
-            x = x[x.rindex(".") + 1:]
+            """take all TLD"""
+            x = x[x.rindex(".") + 1 :]
             if not x.isdigit():
                 return x
 
         @classmethod
         def ccTLD(cls, x):
-            """ country code only """
+            """country code only"""
             x = cls.all(x)
             return x if len(x) == 2 else ""
 
         @classmethod
         def gTLD(cls, x):
-            """ generic only """
+            """generic only"""
             x = cls.all(x)
             return x if len(x) != 2 else ""
 

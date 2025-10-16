@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 
 class Informer:
-    """ Prints analysis data in nice manner. """
+    """Prints analysis data in nice manner."""
 
     def __init__(self, parser: Parser):
         self.parser = parser
@@ -36,7 +36,7 @@ class Informer:
         "if ._flag=True → ends, ._flag=1 → pauses, ._flag=False → runs"
 
     def sout_info(self, clear=True, full=False):
-        """ Prints file information on the display. """
+        """Prints file information on the display."""
         if Config.is_quiet():
             return
 
@@ -55,7 +55,7 @@ class Informer:
         if p.dialect:
             s = p.dialect.delimiter.replace("\t", "TAB")
             if se["dialect"] and p.dialect.delimiter != se["dialect"].delimiter:
-                s2 = se['dialect'].delimiter.replace("\t", "TAB")
+                s2 = se["dialect"].delimiter.replace("\t", "TAB")
                 s = f"{s} → {s2}"
             l.append(f"delimiter: '{Fore.YELLOW}{s}{Fore.RESET}'")
 
@@ -64,16 +64,34 @@ class Informer:
                 s = f"{s} → {se['dialect'].quotechar}"
             l.append(f"quoting: '{Fore.YELLOW}{s}{Fore.RESET}'")
         if p.has_header is not None:
-            l.append("header: " + (("remove" if se["header"] is False else "used") if p.has_header else "not used"))
+            l.append(
+                "header: "
+                + (
+                    ("remove" if se["header"] is False else "used")
+                    if p.has_header
+                    else "not used"
+                )
+            )
         if se["filter"]:
-            l.append("Filter: " + ", ".join([f"{p.fields[f].name} {'' if include else '!'}= {val}"
-                                             for include, f, val in se["filter"]]))
+            l.append(
+                "Filter: "
+                + ", ".join(
+                    [
+                        f"{p.fields[f].name} {'' if include else '!'}= {val}"
+                        for include, f, val in se["filter"]
+                    ]
+                )
+            )
         if se["unique"]:
-            l.append("Unique col: " + ", ".join([p.fields[f].name for f in se["unique"]]))
+            l.append(
+                "Unique col: " + ", ".join([p.fields[f].name for f in se["unique"]])
+            )
         if se["split"] or se["split"] == 0:
             l.append("Split by: {}".format(p.fields[se["split"]]))
         if se["aggregate"]:
-            v = ", ".join(f"{fn.__name__}({col.name})" for fn, col in se["aggregate"].actions)
+            v = ", ".join(
+                f"{fn.__name__}({col.name})" for fn, col in se["aggregate"].actions
+            )
             if se["aggregate"].group_by is not None:
                 l.append(f"Group by {se['aggregate'].group_by}: " + v)
             else:
@@ -90,7 +108,10 @@ class Informer:
         if se["add"] or se["merge"]:
             l2 = []
             l2.extend(f.color(f"{f} (from {str(f.source_field)})") for f in se["add"])
-            l2.extend(f"{ma.remote_parser.source_file} (from {str(ma.local_column)})" for ma in se["merge"])
+            l2.extend(
+                f"{ma.remote_parser.source_file} (from {str(ma.local_column)})"
+                for ma in se["merge"]
+            )
             stdout.write("\nComputed columns: " + ", ".join(l2))
         l = []
         progress = 0
@@ -99,8 +120,13 @@ class Informer:
                 stdout.write(", {} IPs".format(p.ip_count))
             elif p.ip_count_guess:
                 stdout.write(", around {} IPs".format(p.ip_count_guess))
-            l.append("Log lines processed: {}/{}, {} %".format(p.line_count, p.lines_total,
-                                                               ceil(100 * p.line_count / p.lines_total)))
+            l.append(
+                "Log lines processed: {}/{}, {} %".format(
+                    p.line_count,
+                    p.lines_total,
+                    ceil(100 * p.line_count / p.lines_total),
+                )
+            )
             progress = p.line_count / p.lines_total
         else:
             l.append("Log lines: {}".format(p.lines_total))
@@ -132,20 +158,29 @@ class Informer:
             r = f"\033[7m{r[:progress]}\033[0m" + r[progress:]
         stdout.write("\n" + r + "\n")
         if p.whois_stats:
-            print_s("Whois servers asked: " + ", ".join(key + " (" + str(val) + "×)" for key, val in p.whois_stats.items())
-                    + f"; {len(p.ranges)} prefixes discovered")
+            print_s(
+                "Whois servers asked: "
+                + ", ".join(
+                    key + " (" + str(val) + "×)" for key, val in p.whois_stats.items()
+                )
+                + f"; {len(p.ranges)} prefixes discovered"
+            )
 
         print_s("\nSample:\n" + "".join(p.sample[:4]))  # show first 3rd lines
 
         if p.is_formatted:  # show how would the result be alike
             full_rows, rows = p.get_sample_values()
 
-            first_line_length = tabulate(rows, headers=[f.get(True, color=False) for f in p.fields]).split("\n")[0]
+            first_line_length = tabulate(
+                rows, headers=[f.get(True, color=False) for f in p.fields]
+            ).split("\n")[0]
             if rows and len(first_line_length) <= get_terminal_size()[1]:
                 # print big and nice table because we do not care about the dialect and terminal is wide enough
                 # we do not display dialect change in the big preview
                 print_s("\033[0;36mPreview:\033[0m")
-                header = [f.get(True, line_chosen=se["header"] is not False) for f in p.fields]
+                header = [
+                    f.get(True, line_chosen=se["header"] is not False) for f in p.fields
+                ]
                 print_s(tabulate(rows, headers=header))
             else:
                 # print the rows in the same way so that they optically match the Sample above
@@ -163,41 +198,62 @@ class Informer:
         if p.aggregation:  # an aggregation has finished
             print_s("\n")
             if len(p.aggregation) == 1:
-                print_s(self.get_aggregation(next(iter(p.aggregation.values())), color=True, limit=8))
+                print_s(
+                    self.get_aggregation(
+                        next(iter(p.aggregation.values())), color=True, limit=8
+                    )
+                )
             else:
                 print_s("Aggregating in split files...")
 
         if p.is_analyzed:
             if p.saved_to_disk is False:
-                print_s("\n** Processing completed, results were not saved to a file yet.")
-                print_s(tabulate(p.stdout_sample, headers="firstrow" if p.has_header else ()))
+                print_s(
+                    "\n** Processing completed, results were not saved to a file yet."
+                )
+                print_s(
+                    tabulate(
+                        p.stdout_sample, headers="firstrow" if p.has_header else ()
+                    )
+                )
             elif p.saved_to_disk:
                 print_s(f"\n** Processing completed: Result file in {p.target_file}")
             else:
-                abroad, local, non_deliverable, totals = map(p.stats.get, (
-                    'abroad', 'local', 'non_deliverable', 'totals'))
+                abroad, local, non_deliverable, totals = map(
+                    p.stats.get, ("abroad", "local", "non_deliverable", "totals")
+                )
 
-                print_s(f"** Processing completed: {totals} result files in {Config.get_cache_dir()}")
+                print_s(
+                    f"** Processing completed: {totals} result files in {Config.get_cache_dir()}"
+                )
                 # local = Contacts.count_mails(self.attachments.keys(), abusemails_only=True)
                 # abroad = Contacts.count_mails(self.attachments.keys(), abroads_only=True)
                 if totals == non_deliverable:
-                    print_s("* It seems no file is meant to serve as an e-mail attachment.")
+                    print_s(
+                        "* It seems no file is meant to serve as an e-mail attachment."
+                    )
                 else:
                     if local[0] + abroad[0] == 0:
-                        print_s(f"Already sent all {abroad[1]} abroad e-mails and {local[1]} local e-mails")
+                        print_s(
+                            f"Already sent all {abroad[1]} abroad e-mails and {local[1]} local e-mails"
+                        )
                     elif local[1] + abroad[1] > 1:
                         print_s(
-                            f"Already sent {abroad[1]}/{sum(abroad)} abroad e-mails and {local[1]}/{sum(local)} local e-mails")
+                            f"Already sent {abroad[1]}/{sum(abroad)} abroad e-mails and {local[1]}/{sum(local)} local e-mails"
+                        )
                     else:
                         print_s(
-                            f"* {abroad[0]} files seem to be attachments for abroad e-mails\n* {local[0]} for local e-mails")
+                            f"* {abroad[0]} files seem to be attachments for abroad e-mails\n* {local[0]} for local e-mails"
+                        )
                     if non_deliverable:
                         print_s(f"* {non_deliverable} files undeliverable")
 
                 if self.env.sending.testing:
                     print_s(
                         "\n*** TESTING MOD - mails will be send to mail {} ***\n (For turning off testing mode set `testing = False` in config.ini.)".format(
-                            self.env.sending.testing_mail))
+                            self.env.sending.testing_mail
+                        )
+                    )
 
             stat = self.get_stats_phrase()
             if stat:
@@ -216,23 +272,44 @@ class Informer:
             if len(p.ranges.items()):
                 rows = []
                 for prefix, o in p.ranges.items():
-                    prefix, location, incident, asn, netname, country, abusemail, timestamp = o
-                    rows.append((prefix, location, incident or "-", asn or "-", netname or "-"))
-                print_s("\n\n** Whois information overview **\n" +
-                        tabulate(rows, headers=("prefix", "location", "contact", "asn", "netname")))
+                    (
+                        prefix,
+                        location,
+                        incident,
+                        asn,
+                        netname,
+                        country,
+                        abusemail,
+                        timestamp,
+                    ) = o
+                    rows.append(
+                        (prefix, location, incident or "-", asn or "-", netname or "-")
+                    )
+                print_s(
+                    "\n\n** Whois information overview **\n"
+                    + tabulate(
+                        rows,
+                        headers=("prefix", "location", "contact", "asn", "netname"),
+                    )
+                )
             else:
                 print_s("No whois information available.")
 
             if p.is_split:
                 rows = []
                 for o in p.attachments:
-                    rows.append((o.filename,
-                                 {True: "abroad", False: "✓", None: "×"}[o.abroad],
-                                 {True: "✓", False: "error", None: "no"}[o.sent],
-                                 humanize.naturalsize(o.path.stat().st_size),
-                                 ))
-                print_s("\n\n** Generated files overview **\n" +
-                        tabulate(rows, headers=("file", "deliverable", "sent", "size")))
+                    rows.append(
+                        (
+                            o.filename,
+                            {True: "abroad", False: "✓", None: "×"}[o.abroad],
+                            {True: "✓", False: "error", None: "no"}[o.sent],
+                            humanize.naturalsize(o.path.stat().st_size),
+                        )
+                    )
+                print_s(
+                    "\n\n** Generated files overview **\n"
+                    + tabulate(rows, headers=("file", "deliverable", "sent", "size"))
+                )
             # else:
             #     print_s("Files overview not needed – everything have been processed into a single file.")
 
@@ -240,11 +317,15 @@ class Informer:
 
         # atomic print out
         self.stdout.write(stdout.getvalue())
-        if self.queue:  # what has been printed out during processing stays on the screen
+        if (
+            self.queue
+        ):  # what has been printed out during processing stays on the screen
             self.stdout.write("".join(self.queue))
             # XX if random true, pops out an element so that it wont stay forever
 
-    def get_aggregation(self, data: AggregationGroupedRows, color=False, limit=None, nice=True):
+    def get_aggregation(
+        self, data: AggregationGroupedRows, color=False, limit=None, nice=True
+    ):
         """
 
         @param data:
@@ -253,17 +334,27 @@ class Informer:
         @param nice: If true, tabulated result returned, else we get (header, rows) tuple.
         @return:
         """
-        def form(v, fmt): return f"\033[{fmt}m{v}\033[0m" if color else v
+
+        def form(v, fmt):
+            return f"\033[{fmt}m{v}\033[0m" if color else v
+
         header = []
         grouping = self.parser.settings["aggregate"].group_by is not None
         if grouping:
             header.append(form(self.parser.settings["aggregate"].group_by.name, 36))
-        header.extend([form(f"{fn.__name__}({col})", 33) for fn, col in self.parser.settings["aggregate"].actions])
+        header.extend(
+            [
+                form(f"{fn.__name__}({col})", 33)
+                for fn, col in self.parser.settings["aggregate"].actions
+            ]
+        )
 
         rows = []
         generators = cycle(g[0] for g in self.parser.settings["aggregate"].actions)
         # sorting by first column (may be a bottleneck, re-sorting every time)
-        for i, (grouped_el, counters) in enumerate(sorted(data.items(), key=lambda x: x[1][0].count, reverse=True)):
+        for i, (grouped_el, counters) in enumerate(
+            sorted(data.items(), key=lambda x: x[1][0].count, reverse=True)
+        ):
             if limit and i == limit:
                 rows.append(["..." for _ in counters])
                 if grouping:
@@ -278,12 +369,14 @@ class Informer:
 
             rows.append([form(c.get(), 33) for c in counters])
             if grouping:
-                rows[-1].insert(0, form("total" if grouped_el is None else grouped_el, 36))
+                rows[-1].insert(
+                    0, form("total" if grouped_el is None else grouped_el, 36)
+                )
         # floatfmt - display numbers longers than 15 as the scientific 1e+15, not numbers bigger than a million only
         return tabulate(rows, header, floatfmt=".15g") if nice else (header, rows)
 
     def get_stats_phrase(self, generate=False):
-        """ Prints phrase "Totally {} of unique IPs in {} countries...": """
+        """Prints phrase "Totally {} of unique IPs in {} countries...":"""
         st = self.parser.stat
 
         ip_unique = st("ip_unique")
@@ -323,9 +416,13 @@ class Informer:
             if ip_csirtmail_known:
                 s = f"({ip_csirtmail_known} IP)"
             if ip_csirtmail_unofficial:
-                s2 = f", no official contact for {abusemail_unofficial} abroad e-mail addresses" \
+                s2 = (
+                    f", no official contact for {abusemail_unofficial} abroad e-mail addresses"
                     f" in {csirtmail_unofficial} countries ({ip_csirtmail_unofficial} IP in {prefix_csirtmail_unofficial} prefixes)"
-            res.append(f"deliverable to {csirtmail_known} national/governmental CSIRTs {s}{s2}")
+                )
+            res.append(
+                f"deliverable to {csirtmail_known} national/governmental CSIRTs {s}{s2}"
+            )
 
         # interesting if using either incident-contact or abusemail
         if ip_local_known or ip_local_unknown:
@@ -333,7 +430,9 @@ class Informer:
             if ip_local_known:
                 l.append(f"{ip_local_known} IP in {prefix_local_known} prefixes")
             if ip_local_unknown:
-                l.append(f"unknown contact for {ip_local_unknown} IP in {prefix_local_unknown} prefixes")
+                l.append(
+                    f"unknown contact for {ip_local_unknown} IP in {prefix_local_unknown} prefixes"
+                )
             res.append(f"{abusemail_local} e-mail addresses ({', '.join(l)})")
 
         # interesting if using abusemail
@@ -342,7 +441,9 @@ class Informer:
             if ip_abroad_known:
                 l.append(f"{ip_abroad_known} IP in {prefix_abroad_known} prefixes")
             if ip_abroad_unknown:
-                l.append(f"unknown contact for {ip_abroad_unknown} IP in {prefix_abroad_unknown} prefixes")
+                l.append(
+                    f"unknown contact for {ip_abroad_unknown} IP in {prefix_abroad_unknown} prefixes"
+                )
             res.append(f"{abusemail_abroad} abroad e-mail addresses ({', '.join(l)})")
 
         r = "; ".join(res) + "." if res else ""
@@ -353,20 +454,31 @@ class Informer:
         return r
 
     def source_file_len(self, source_file):
-        """ When a source file is reasonably small (100 MB), count the lines by `wc -l`. Otherwise, guess a value.
-            XIf we are using stdin instead of a file, determine the value by enlist all the lines.
+        """When a source file is reasonably small (100 MB), count the lines by `wc -l`. Otherwise, guess a value.
+        XIf we are using stdin instead of a file, determine the value by enlist all the lines.
         """
         size = Path(source_file).stat().st_size
-        if size < 100 * 10 ** 6:
-            p = subprocess.Popen(['wc', '-l', source_file], stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
+        if size < 100 * 10**6:
+            p = subprocess.Popen(
+                ["wc", "-l", source_file],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
             result, err = p.communicate()
             if p.returncode != 0:
                 raise IOError(err)
             return int(result.strip().split()[0]), size
         else:
             # bytes / average number of characters on line in sample
-            return ceil(size / (len("".join(self.parser.sample)) / len(self.parser.sample)) / 1000000) * 1000000, size
+            return (
+                ceil(
+                    size
+                    / (len("".join(self.parser.sample)) / len(self.parser.sample))
+                    / 1000000
+                )
+                * 1000000,
+                size,
+            )
 
     def start(self):
         q = self.queue
@@ -406,8 +518,12 @@ class Informer:
                 return
             # do not refresh when stuck (ex: pdb debugging) (as a side effect, clock does not run on the screen)
             if self.stats_stop._flag != 1 and last_count != parser.line_count:
-                v = (parser.line_count - last_count) / speed  # current velocity (lines / second) since last time
-                if tick < 20:  # in the beginning, refresh quickly; great look & lower performance
+                v = (
+                    parser.line_count - last_count
+                ) / speed  # current velocity (lines / second) since last time
+                if (
+                    tick < 20
+                ):  # in the beginning, refresh quickly; great look & lower performance
                     speed = 0.2
                 elif v == 0:
                     speed = 1  # refresh in 1 sec when processing so heavy no line processed since last time
@@ -416,7 +532,9 @@ class Informer:
                     # 10^2 lines/s = 1 s, 10^3 ~ 2, 10^4 ~ 3...
                     # But to make the transition more smoothly, make the avg with the last speed (which is weighted 3 times)
                     speed = (log10(v) - 1 + speed * 3) / 4
-                    if speed < 0.3:  # but if going too slow, we will not refresh in such a quick interval
+                    if (
+                        speed < 0.3
+                    ):  # but if going too slow, we will not refresh in such a quick interval
                         speed = 0.3
 
                 parser.velocity = round(v) if v > 1 else round(v, 3)

@@ -8,14 +8,15 @@ class PickBase(ABC):
     subtype: Callable
 
     @abstractmethod
-    def get_lambda(self): pass
+    def get_lambda(self):
+        pass
 
     def get_type_description(self):
         return self.subtype.__doc__.strip()
 
 
 class PickMethod(PickBase):
-    """ If you need to ask a question before computing values,
+    """If you need to ask a question before computing values,
     make a class with methods that will be considered as options.
     User will be asked what computing option they tend to use,
     whilst the description is taken directly from the methods' __doc__ string.
@@ -44,11 +45,16 @@ class PickMethod(PickBase):
             if name == custom:
                 return getattr(self.subtype, name)
         else:
-            raise NotImplementedError(f"Option {custom} has not been implemented for {self.subtype}, only {self._get_options()}.")
+            raise NotImplementedError(
+                f"Option {custom} has not been implemented for {self.subtype}, only {self._get_options()}."
+            )
 
     def get_options(self):
-        """ Return generator of options name and description tuples """
-        return ((name, getattr(self.subtype, name).__doc__.strip()) for name in self._get_options())
+        """Return generator of options name and description tuples"""
+        return (
+            (name, getattr(self.subtype, name).__doc__.strip())
+            for name in self._get_options()
+        )
 
     def _get_options(self):
         return (name for name in self.subtype.__dict__ if not name.startswith("_"))
@@ -62,7 +68,7 @@ class PickMethod(PickBase):
 
 
 class PickInput(PickBase):
-    """ If your external function need to be setup with a variable first,
+    """If your external function need to be setup with a variable first,
      decorate with @PickInput and register a function having two parameters. The second may have a default value.
 
     In this example, we let the user decide what should be the value of `format` before processing.
@@ -85,11 +91,16 @@ class PickInput(PickBase):
         # since it takes about 5 ms and this is loaded directly from __init__.py, we postpone the loading here
         # another solution would be to implement a lazy loading from __init__.py:all
         import inspect
+
         self.subtype = subtype
         par = list(inspect.signature(subtype).parameters)
         if len(par) != 2:
-            raise RuntimeError(f"Cannot import {subtype.__name__}, it has not got two parameters.")
+            raise RuntimeError(
+                f"Cannot import {subtype.__name__}, it has not got two parameters."
+            )
         p = inspect.signature(subtype).parameters[par[1]]
         self.default = None if p.default is p.empty else p.default
-        self.description = subtype.__doc__ or (f"Input {subtype.__name__} variable " + par[1])
+        self.description = subtype.__doc__ or (
+            f"Input {subtype.__name__} variable " + par[1]
+        )
         self.parameter_name = par[1]

@@ -27,7 +27,9 @@ class Graph(Generic[T]):
 
     # @lru_cache(maxsize=512) XX is it a good performance tip?
     # XX what if we cache every encountered path instead?
-    def dijkstra(self, target, start=None, ignore_private=False) -> dict[T, int] | list[T] | bool:
+    def dijkstra(
+        self, target, start=None, ignore_private=False
+    ) -> dict[T, int] | list[T] | bool:
         """
         Performs Dijkstra's algorithm and returns
             [start node, ... , target node] or False (if start specified)
@@ -90,7 +92,7 @@ class Graph(Generic[T]):
                 if node.is_private:
                     del visited[node]
         distance_from_type = {}
-        for (k, v) in visited.items():
+        for k, v in visited.items():
             if v > 0:  # skip the same node
                 for b in k.equals:
                     distance_from_type[b] = v

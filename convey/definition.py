@@ -1,12 +1,22 @@
 from csv import Dialect
 from sys import version_info
-from typing import Callable, Dict, TYPE_CHECKING, List, Optional, Tuple, Union, TypedDict
+from typing import (
+    Callable,
+    Dict,
+    TYPE_CHECKING,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    TypedDict,
+)
 
 from .action import AggregateAction, MergeAction
 from .field import Field
 
 Unique = Optional[List[int]]
 Filter = Optional[List[Tuple[bool, int, str]]]
+
 
 class Settings(TypedDict):
     # XX Convert more to Actions, get rid of complex fields

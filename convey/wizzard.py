@@ -45,79 +45,88 @@ def red(s):
 
 class RegularLexer(RegexLexer):
     tokens = {
-        'root': [
-            (r'\\^', Token.START_TEXT),
-            (r'\$', Token.END_TEXT),
-            (r'(\[\^)', Token.SQUARE_NEGATIVE, 'square-negative'),
-            (r'(\[)', Token.SQUARE, 'square'),
-            (r'\(', Token.ROUND, 'round'),
-            (r'\{', Token.CURLY, 'curly'),
-            include("grammar")
-        ],
-        'grammar': [
-            (r'\\w', Token.W),
-            (r'\\d', Token.D),
-            (r'\.', Token.DOT),
-            (r'\*', Token.ASTERISK),
-            (r'\+', Token.PLUS),
-            (r'\?', Token.QUESTION),
-            (r'\//', Token.SLASH),
-            (r'\|', Token.PIPE),
-            (r'.', Token.TEXT),
-        ],
-        'round': [
-            (r'\)', Token.ROUND, '#pop'),
+        "root": [
+            (r"\\^", Token.START_TEXT),
+            (r"\$", Token.END_TEXT),
+            (r"(\[\^)", Token.SQUARE_NEGATIVE, "square-negative"),
+            (r"(\[)", Token.SQUARE, "square"),
+            (r"\(", Token.ROUND, "round"),
+            (r"\{", Token.CURLY, "curly"),
             include("grammar"),
         ],
-        'curly': [
-            (r'\}', Token.CURLY, '#pop'),
-            (r'.', Token.CURLY_TEXT),
+        "grammar": [
+            (r"\\w", Token.W),
+            (r"\\d", Token.D),
+            (r"\.", Token.DOT),
+            (r"\*", Token.ASTERISK),
+            (r"\+", Token.PLUS),
+            (r"\?", Token.QUESTION),
+            (r"\//", Token.SLASH),
+            (r"\|", Token.PIPE),
+            (r".", Token.TEXT),
         ],
-        'square': [
-            (r'\]', Token.SQUARE, '#pop'),
-            (r'.', Token.SQUARE_TEXT),
+        "round": [
+            (r"\)", Token.ROUND, "#pop"),
+            include("grammar"),
         ],
-        'square-negative': [
-            (r'\]', Token.SQUARE_NEGATIVE, '#pop'),
-            (r'.', Token.SQUARE_TEXT_NEGATIVE),
-        ]
+        "curly": [
+            (r"\}", Token.CURLY, "#pop"),
+            (r".", Token.CURLY_TEXT),
+        ],
+        "square": [
+            (r"\]", Token.SQUARE, "#pop"),
+            (r".", Token.SQUARE_TEXT),
+        ],
+        "square-negative": [
+            (r"\]", Token.SQUARE_NEGATIVE, "#pop"),
+            (r".", Token.SQUARE_TEXT_NEGATIVE),
+        ],
     }
 
 
 # test_regex = "\w\d.*+?//| (abc)  [abc] [^abc] {abc}"
 
 # reg_style = style_from_pygments_cls(get_style_by_name('colorful'))
-reg_style = style_from_pygments_cls(get_style_by_name('friendly'))
-reg_style = merge_styles([reg_style, Style.from_dict({
-    'pygments.start_text': '#F00',
-    'pygments.end_text': '#F00',
-    'pygments.text': '#fff bg:#005',
-    'pygments.w': '#000 bg:#00ffd7',
-    'pygments.d': '#000 bg:#005fff',
-    'pygments.dot': '#000 bg:#ffff00',
-    'pygments.asterisk': '#000 bg:#ff5522',
-    'pygments.plus': '#000 bg:#ff7755',
-    'pygments.question': '#000 bg:#ff9977',
-    'pygments.slash': '#f00 bg:#000',
-    'pygments.pipe': '#0F0',
-    'pygments.round': '#0F0',
-    'pygments.curly': '#000 bg:#ffff55',
-    'pygments.curly_text': '#000 bg:#ffff55',
-    'pygments.square': '#fff bg:#0000ff',
-    'pygments.square_text': '#fff bg:#0000ff',
-    'pygments.square_negative': '#fff bg:#870000',
-    'pygments.square_text_negative': '#fff bg:#870000',
-})])
-bottom_plain_style = Style.from_dict({
-    'bottom-toolbar': 'noreverse',
-})
+reg_style = style_from_pygments_cls(get_style_by_name("friendly"))
+reg_style = merge_styles(
+    [
+        reg_style,
+        Style.from_dict(
+            {
+                "pygments.start_text": "#F00",
+                "pygments.end_text": "#F00",
+                "pygments.text": "#fff bg:#005",
+                "pygments.w": "#000 bg:#00ffd7",
+                "pygments.d": "#000 bg:#005fff",
+                "pygments.dot": "#000 bg:#ffff00",
+                "pygments.asterisk": "#000 bg:#ff5522",
+                "pygments.plus": "#000 bg:#ff7755",
+                "pygments.question": "#000 bg:#ff9977",
+                "pygments.slash": "#f00 bg:#000",
+                "pygments.pipe": "#0F0",
+                "pygments.round": "#0F0",
+                "pygments.curly": "#000 bg:#ffff55",
+                "pygments.curly_text": "#000 bg:#ffff55",
+                "pygments.square": "#fff bg:#0000ff",
+                "pygments.square_text": "#fff bg:#0000ff",
+                "pygments.square_negative": "#fff bg:#870000",
+                "pygments.square_text_negative": "#fff bg:#870000",
+            }
+        ),
+    ]
+)
+bottom_plain_style = Style.from_dict(
+    {
+        "bottom-toolbar": "noreverse",
+    }
+)
 
 
 def _code_method(e, x):
-    """ simulate real code execution in the Identifier """
+    """simulate real code execution in the Identifier"""
     l = locals()
     try:
-        exec(compile(e, '', 'exec'), l)
+        exec(compile(e, "", "exec"), l)
     except:
         return ""
     x = l["x"]
@@ -125,7 +134,7 @@ def _code_method(e, x):
 
 
 def _reg_method(line, search, replace=None):
-    """ simulate real reg ex matching in the Identifier """
+    """simulate real reg ex matching in the Identifier"""
     match = search.search(line)
     reg_s = ""
 
@@ -135,7 +144,9 @@ def _reg_method(line, search, replace=None):
     if not groups:
         groups_preview = [match.group(0)]
     else:
-        groups_preview = ["{0}: " + str(match.group(0))] + ["{" + str(i + 1) + "}: " + g for i, g in enumerate(groups)]
+        groups_preview = ["{0}: " + str(match.group(0))] + [
+            "{" + str(i + 1) + "}: " + g for i, g in enumerate(groups)
+        ]
 
     if not replace:
         if not groups:
@@ -155,7 +166,12 @@ def _reg_method(line, search, replace=None):
         except IndexError:
             reg_m = ""
     span = match.span(0)
-    return groups_preview, reg_m, reg_s, blue(line[0:span[0]]) + red(line[slice(*span)]) + blue(line[span[1]:])
+    return (
+        groups_preview,
+        reg_m,
+        reg_s,
+        blue(line[0 : span[0]]) + red(line[slice(*span)]) + blue(line[span[1] :]),
+    )
 
 
 class ReValidator(Validator):
@@ -171,35 +187,41 @@ class ReValidator(Validator):
                     pass
                 else:
                     break
-            raise ValidationError(message='Cannot be used as a regexp.', cursor_position=len(text) - 1)
+            raise ValidationError(
+                message="Cannot be used as a regexp.", cursor_position=len(text) - 1
+            )
 
 
 class TypeValidator(Validator):
     def validate(self, document):
         if document.text not in ["reg_m", "reg_s"]:
-            raise ValidationError(message='Type reg_m or reg_s')
+            raise ValidationError(message="Type reg_m or reg_s")
 
 
 class Preview:
 
-    def __init__(self, source_field: Field, source_type: Type, target_type: Type = None):
+    def __init__(
+        self, source_field: Field, source_type: Type, target_type: Type = None
+    ):
         self.source_field = source_field
         self.source_type = source_type
         self.target_type = target_type
         # common part of every preview
-        self.samples = source_field.get_samples(supposed_type=source_type, target_type=target_type)
+        self.samples = source_field.get_samples(
+            supposed_type=source_type, target_type=target_type
+        )
 
         # define key self.bindings
         self.session = self.reset_session()
         self.bindings = KeyBindings()
 
         # cancel on control-c (escape inaccessible, waits for another keystroke)
-        @self.bindings.add('c-c')
+        @self.bindings.add("c-c")
         def _(_):
             get_app().exit(False)
 
         # exit on control+d (because the default exit command alt-enter seems unintuitive) (control+enter unacessible)
-        @self.bindings.add('c-d')
+        @self.bindings.add("c-d")
         def _(_):
             get_app().exit(self.session.layout.current_buffer.text)
 
@@ -207,22 +229,31 @@ class Preview:
         self.style = merge_styles([reg_style, bottom_plain_style])
 
         # Init variables that may be used in methods
-        self.get_toolbar_row = self.search = self.replace = self.phase = self.chosen_type =  None
+        self.get_toolbar_row = self.search = self.replace = self.phase = (
+            self.chosen_type
+        ) = None
 
     def standard_toolbar(self):
-        """ define bottom preview toolbar """
+        """define bottom preview toolbar"""
         rows = []
-        level = Config.verbosity  # temporarily suppress info messages like 'NMAPing...' that would break up the wizzard layout
+        level = (
+            Config.verbosity
+        )  # temporarily suppress info messages like 'NMAPing...' that would break up the wizzard layout
         console_handler.setLevel(logging.WARNING)
         for line in self.samples:
             val = self.get_toolbar_row(self.session.layout.current_buffer.text, line)
-            rows.append((f"\033[0;36m{line}\033[0m", f"\033[0;33m{val}\033[0m"))  # blue and yellow
+            rows.append(
+                (f"\033[0;36m{line}\033[0m", f"\033[0;33m{val}\033[0m")
+            )  # blue and yellow
         console_handler.setLevel(level)
 
-        return ANSI('\nPreview\n' + tabulate(rows, headers=("original", "result"), tablefmt="github"))
+        return ANSI(
+            "\nPreview\n"
+            + tabulate(rows, headers=("original", "result"), tablefmt="github")
+        )
 
     def code(self):
-        """ code preview specific part """
+        """code preview specific part"""
 
         def get_toolbar_row_code(text, line):
             return _code_method(text, line)
@@ -230,16 +261,26 @@ class Preview:
         self.get_toolbar_row = get_toolbar_row_code
 
         def get_prompt():
-            s = '<b>Ctrl+D</b>' if "\n" in self.session.layout.current_buffer.text else 'Ctrl+D'
-            return HTML(f'Code <i>({s} to confirm)</i>: ')
+            s = (
+                "<b>Ctrl+D</b>"
+                if "\n" in self.session.layout.current_buffer.text
+                else "Ctrl+D"
+            )
+            return HTML(f"Code <i>({s} to confirm)</i>: ")
 
         # prints the application
-        text = self.reset_session().prompt(get_prompt, bottom_toolbar=self.standard_toolbar, style=self.style,
-                                           lexer=PygmentsLexer(Python3Lexer), multiline=True, key_bindings=self.bindings)
+        text = self.reset_session().prompt(
+            get_prompt,
+            bottom_toolbar=self.standard_toolbar,
+            style=self.style,
+            lexer=PygmentsLexer(Python3Lexer),
+            multiline=True,
+            key_bindings=self.bindings,
+        )
         return text
 
     def pick_input(self, o: PickInput):
-        """ code preview specific part """
+        """code preview specific part"""
 
         def get_toolbar_row_pick_input(text, line):
             try:
@@ -254,23 +295,33 @@ class Preview:
             return HTML(o.description + ": ")
 
         # prints the application
-        text = self.reset_session().prompt(get_prompt, bottom_toolbar=self.standard_toolbar, style=self.style,
-                                           default=o.default or "", lexer=PygmentsLexer(Python3Lexer), key_bindings=self.bindings)
+        text = self.reset_session().prompt(
+            get_prompt,
+            bottom_toolbar=self.standard_toolbar,
+            style=self.style,
+            default=o.default or "",
+            lexer=PygmentsLexer(Python3Lexer),
+            key_bindings=self.bindings,
+        )
         if text is False:
             raise Cancelled
         return text
 
     def reg(self):
-        """ regex preview specific part """
+        """regex preview specific part"""
         # self.ask_search = True
         self.phase = None
         self.search = ""
         self.replace = ""
-        self.target_type = [self.target_type] if self.target_type != Types.reg else [Types.reg_m, Types.reg_s]
+        self.target_type = (
+            [self.target_type]
+            if self.target_type != Types.reg
+            else [Types.reg_m, Types.reg_s]
+        )
         self.chosen_type = None
 
         # @self.bindings.add('escape', 'left')  # alt-left
-        @self.bindings.add('c-i')  # tab to jump back
+        @self.bindings.add("c-i")  # tab to jump back
         def _(_):
             if self.phase > 1:
                 clear()
@@ -278,37 +329,53 @@ class Preview:
             self.session.app.exit(self.session.layout.current_buffer.text)
 
         if len(self.target_type) > 1:
+
             def toggle_type(default):
                 if self.chosen_type is None:
                     self.chosen_type = default
                 else:
-                    self.chosen_type = Types.reg_m if self.chosen_type == Types.reg_s else Types.reg_s
+                    self.chosen_type = (
+                        Types.reg_m if self.chosen_type == Types.reg_s else Types.reg_s
+                    )
                 if self.phase == 3:
                     self.session.layout.current_buffer.text = str(self.chosen_type)
 
-            @self.bindings.add('escape', 'left')  # cycle preferred method
+            @self.bindings.add("escape", "left")  # cycle preferred method
             def _(_):
                 toggle_type(Types.reg_s)
 
-            @self.bindings.add('escape', 'right')  # cycle preferred method
+            @self.bindings.add("escape", "right")  # cycle preferred method
             def _(_):
                 toggle_type(Types.reg_m)
 
         # prints the application
-        options = {"bottom_toolbar": self.reg_toolbar, "style": self.style,
-                   "lexer": PygmentsLexer(RegularLexer), "multiline": False, "key_bindings": self.bindings}
+        options = {
+            "bottom_toolbar": self.reg_toolbar,
+            "style": self.style,
+            "lexer": PygmentsLexer(RegularLexer),
+            "multiline": False,
+            "key_bindings": self.bindings,
+        }
         while True:
             # self.ask_search = False
             self.phase = 1
-            self.search = self.reset_session().prompt('Regular match: ', **options, default=self.search,
-                                                      validator=ReValidator())
+            self.search = self.reset_session().prompt(
+                "Regular match: ",
+                **options,
+                default=self.search,
+                validator=ReValidator(),
+            )
             if self.search is False:
                 raise Cancelled
             if self.phase == "continue":
                 continue
             self.phase = 2
-            self.replace = self.reset_session().prompt('Regular replace: ', **options, default=self.replace,
-                                                       rprompt=HTML('hit <b>tab</b> to jump back'))
+            self.replace = self.reset_session().prompt(
+                "Regular replace: ",
+                **options,
+                default=self.replace,
+                rprompt=HTML("hit <b>tab</b> to jump back"),
+            )
             if self.replace is False:
                 raise Cancelled
             if self.phase == "continue":
@@ -317,10 +384,18 @@ class Preview:
             if len(self.target_type) > 1:  # we have to choose the column
                 if self.chosen_type is None:
                     # we are not using groups, match has no sense
-                    self.chosen_type = Types.reg_s if "{" not in self.replace and self.replace else Types.reg_m
-                type_ = self.reset_session().prompt('Do you prefer match or substitution? ', **options,
-                                                    default=str(self.chosen_type),
-                                                    rprompt=HTML('choose with <b>Alt+←/→</b>'), validator=TypeValidator())
+                    self.chosen_type = (
+                        Types.reg_s
+                        if "{" not in self.replace and self.replace
+                        else Types.reg_m
+                    )
+                type_ = self.reset_session().prompt(
+                    "Do you prefer match or substitution? ",
+                    **options,
+                    default=str(self.chosen_type),
+                    rprompt=HTML("choose with <b>Alt+←/→</b>"),
+                    validator=TypeValidator(),
+                )
                 if self.phase == "continue":
                     continue
                 if type_:
@@ -335,10 +410,10 @@ class Preview:
         return self.search, self.replace, self.target_type
 
     def reset_session(self):
-        """ Calling
-            self.session = PromptSession()
-            self.session.prompt(validator=V)
-            self.session.prompt(validator=None) → would still have previous validator
+        """Calling
+        self.session = PromptSession()
+        self.session.prompt(validator=V)
+        self.session.prompt(validator=None) → would still have previous validator
 
         """
         self.session = PromptSession()
@@ -362,8 +437,12 @@ class Preview:
                         text = text[:-1]
                         error = True
                         continue
-                    match, reg_m_preview, reg_s_preview, line = _reg_method(line, search_re, self.replace)
-                    row.append("\n".join([yellow(m) for m in match]))  # colorize lines separately
+                    match, reg_m_preview, reg_s_preview, line = _reg_method(
+                        line, search_re, self.replace
+                    )
+                    row.append(
+                        "\n".join([yellow(m) for m in match])
+                    )  # colorize lines separately
                     if error:
                         row[-1] += red("!")
                     reg_m_preview = blue(self.highlight(reg_m_preview, Types.reg_m))
@@ -373,16 +452,21 @@ class Preview:
                     contents = self.search
                     search_re = re.compile(contents)
                     try:
-                        match, reg_m_preview, reg_s_preview, line = _reg_method(line, search_re,
-                                                                                text if self.phase == 2 else self.replace)
+                        match, reg_m_preview, reg_s_preview, line = _reg_method(
+                            line, search_re, text if self.phase == 2 else self.replace
+                        )
                     except ValueError:
                         text = text[:-1]
                         error = True
                         continue
                     # blue, blue, yellow
                     row.append("\n".join([blue(m) for m in match]))
-                    reg_m_preview = yellow(self.highlight(reg_m_preview, Types.reg_m), error)
-                    reg_s_preview = yellow(self.highlight(reg_s_preview, Types.reg_s), error)
+                    reg_m_preview = yellow(
+                        self.highlight(reg_m_preview, Types.reg_m), error
+                    )
+                    reg_s_preview = yellow(
+                        self.highlight(reg_s_preview, Types.reg_s), error
+                    )
                     helper = "Access matched parts with {0}, ex: string {1} string."
                 if Types.reg_m in self.target_type:
                     row.append(reg_m_preview)
@@ -400,7 +484,12 @@ class Preview:
         if Types.reg_s in self.target_type:
             headers.append(self.highlight("substitution", Types.reg_s))
             # 'grid' handles multiline rows well, 'github' handles them bad, despite the documentation
-        return ANSI('\n\nPreview\n' + tabulate(rows, headers=headers, tablefmt="grid") + "\n\n" + helper)
+        return ANSI(
+            "\n\nPreview\n"
+            + tabulate(rows, headers=headers, tablefmt="grid")
+            + "\n\n"
+            + helper
+        )
 
     def highlight(self, s, current):
         if self.chosen_type is None:
