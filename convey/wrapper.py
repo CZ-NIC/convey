@@ -118,7 +118,8 @@ class Wrapper:
             Config.set_cache_dir(Path.cwd())
             self.cache_file = None
             self.stdin = stdin
-            self.parser: Parser = Parser(self.m, stdin=stdin, types=self.types)
+            ip_seen, ranges = self.load_whois_cache()
+            self.parser: Parser = Parser(self.m, stdin=stdin, types=self.types, ranges=ranges, ip_seen=ip_seen)
             return
 
         if not Path(file).is_file():
@@ -161,16 +162,9 @@ class Wrapper:
             self.clear()
 
         if not fresh:
-            self.parser.ip_seen, self.parser.ranges = self.load_whois_cache()
+            self.parser.ip_seen, self.parser.ranges = self.load_whois_cache(fix=True)
             self.parser.refresh()
             self.parser.reset_whois(assure_init=True)
-            # correction of a wrongly pickling: instead of {IPNetwork('...'): (IPNetwork('...'),
-            # we see {IPNetwork('...'): (<jsonpickle.unpickler._IDProxy object at 0x...>,
-            # Note that IPRange is pickled correctly.
-            for prefix, o in self.parser.ranges.items():
-                l = list(o)
-                l[0] = prefix
-                self.parser.ranges[prefix] = tuple(l)
 
     def assure_cache_file(self, file):
         self.file = Path(file).resolve()
@@ -181,7 +175,7 @@ class Wrapper:
         Config.set_cache_dir(Path(self.file.parent, self.file.name + "_convey" + hash_))
         self.cache_file = Path(Config.get_cache_dir(), self.file.name + ".cache")
 
-    def load_whois_cache(self):
+    def load_whois_cache(self, fix=False):
         """ restore whois cache and remove expired results """
         p = Path(config_dir, WHOIS_CACHE)
         if self.whois.cache and p.exists():
@@ -199,6 +193,15 @@ class Wrapper:
             if nothing_to_save:  # count hash now so that we do not re-save whois cache if not changed while processing
                 self._whois_changed(ranges, ip_seen)
             event.set()
+
+            if fix:
+                # correction of a wrongly pickling: instead of {IPNetwork('...'): (IPNetwork('...'),
+                # we see {IPNetwork('...'): (<jsonpickle.unpickler._IDProxy object at 0x...>,
+                # Note that IPRange is pickled correctly.
+                # NOTE: I don't know whether this still happen.
+                for prefix, o in ranges.items():
+                    ranges[prefix] = (prefix, *o[1:])
+
             return ip_seen, ranges
         return {}, {}
 
@@ -270,38 +273,41 @@ class Wrapper:
 
         # save cache file
         if self.cache_file:  # cache_file does not exist typically if reading from STDIN
-            if self.parser.ranges and self.env.whois.cache:
+            self.save_whois_cache()
+            self.cache_file.write_text(string)
+
+    def save_whois_cache(self):
+        if self.parser.ranges and self.env.whois.cache:
                 # we extract whois info from self.parser and save it apart for every convey instance
-                if self.whois_not_loaded:  # if we wanted a fresh result, global whois cache was not used and we have to merge it
-                    ip_seen, ranges = self.load_whois_cache()
-                    ip_seen = {**ip_seen, **self.parser.ip_seen}
-                    ranges = {**ranges, **self.parser.ranges}
-                    self.whois_not_loaded = False
-                else:
-                    ip_seen, ranges = self.parser.ip_seen, self.parser.ranges
-                if self._whois_changed(ranges, ip_seen):
+            if self.whois_not_loaded:  # if we wanted a fresh result, global whois cache was not used and we have to merge it
+                ip_seen, ranges = self.load_whois_cache()
+                ip_seen = {**ip_seen, **self.parser.ip_seen}
+                ranges = {**ranges, **self.parser.ranges}
+                self.whois_not_loaded = False
+            else:
+                ip_seen, ranges = self.parser.ip_seen, self.parser.ranges
+            if self._whois_changed(ranges, ip_seen):
                     # note that ip_seen MUST be placed before ranges due to https://github.com/jsonpickle/jsonpickle/issues/280
                     # That way, a netaddr object (IPNetwork, IPRange) are defined as value in ip_seen and not as key in range.
                     # Update version 1.3.1: However this was not enough, serializing object as dict keys was still a problem.
                     # So we are manually converting them to int-tuples.
-                    event = lazy_print("... saving big WHOIS cache ...")
-                    ranges_serializable = {(k.first, k.last): v for k, v in ranges.items()}
-                    encoded = jsonpickle.encode([ip_seen, ranges_serializable], keys=True)
+                event = lazy_print("... saving big WHOIS cache ...")
+                ranges_serializable = {(k.first, k.last): v for k, v in ranges.items()}
+                encoded = jsonpickle.encode([ip_seen, ranges_serializable], keys=True)
                     # noinspection PyBroadException
-                    try:
-                        jsonpickle.decode(encoded, keys=True)
-                    except Exception:  # again, I met a strangely formed JSON
-                        type_, value, tb = sys.exc_info()
-                        body = f"```bash\n{traceback.format_exc()}```\n\n" \
+                try:
+                    jsonpickle.decode(encoded, keys=True)
+                except Exception:  # again, I met a strangely formed JSON
+                    type_, value, tb = sys.exc_info()
+                    body = f"```bash\n{traceback.format_exc()}```\n\n" \
                             f"```json5\n{tb.tb_next.tb_frame.f_locals}\n```\n\n" \
                             f"```json5\n{ip_seen}```\n\n```json5\n{ranges}```"
-                        print("The program will recover but without saving WHOIS cache.")
-                        Config.github_issue("Cannot jsonpickle whois", body)
-                    else:
-                        Path(config_dir, WHOIS_CACHE).write_text(encoded)
-                    finally:
-                        event.set()
-            self.cache_file.write_text(string)  # save cache
+                    print("The program will recover but without saving WHOIS cache.")
+                    Config.github_issue("Cannot jsonpickle whois", body)
+                else:
+                    Path(config_dir, WHOIS_CACHE).write_text(encoded)
+                finally:
+                    event.set() # save cache
 
     def clear(self):
         self.check_ods() or self.check_xlsx() or self.check_xls() or self.check_log()

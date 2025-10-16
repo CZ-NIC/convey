@@ -221,8 +221,6 @@ class Controller:
                     except OSError:
                         stdout.write("Invalid cwd\n")
                         continue
-                    # NOTE remove
-                    # self.cleanup()  # reset new fields so that they will not be remembered in another query
                     try:
                         env = parse_args(argv[2:]).env  # the daemon has received a new command
                         # we have to copy the values into, to copy the values into self.env to keep references
@@ -346,6 +344,7 @@ class Controller:
             res = self.parser.run_single_query(json=e.comp.json)
             if res:
                 print(res)
+            self.wrapper.save_whois_cache()
             exit()
         if is_daemon and self.see_menu:  # if we will need menu, daemon must stop here
             raise ConnectionAbortedError("displaying a menu is too complex")
@@ -867,14 +866,6 @@ class Controller:
 
             print("Finished.")
         exit(0)
-
-    # NOTE remove
-    # def cleanup(self):
-    #     """ Make `Controller.run()` calls independent.
-    #     This method is called by ex: tests.
-    #     """
-    #     new_fields.clear()
-    #     # Config.cache.clear()
 
     def get_autocompletion(self, parser):
         actions = [x for action in parser._actions for x in action.option_strings]

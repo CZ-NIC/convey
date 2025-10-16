@@ -1,6 +1,5 @@
 import logging
 import re
-from collections import OrderedDict
 from datetime import datetime, timedelta
 from subprocess import PIPE, Popen
 from time import time, sleep
@@ -73,7 +72,7 @@ class Whois:
         cls.stats = stats
         cls.ranges = ranges
         cls.ip_seen = ip_seen  # ip_seen[ip] = prefix
-        cls.servers = OrderedDict()
+        cls.servers = {}
         cls.unknown_mode = unknown_mode  # if True, we use b flag in abusemails
         cls.slow_mode = slow_mode  # due to LACNIC quota
         cls.queued_ips = set()
@@ -273,6 +272,11 @@ class Whois:
                     # 'EU' (89.41.60.38) (RIPE returned this value)
                     country = ""
 
+                if country == "nl" and server == "general":
+                    if self._match_response("these addresses have been further assigned to users in the ripe ncc region"):
+                        # whois 138.124.52.0 returns ripe as the abuse contact but we can address to the RIPE directly
+                        self._exec(server="ripe", server_url="whois.ripe.net")
+                        continue
                 if not country and server == "general":
                     if self._match_response("no match found for n +"):
                         # whois 141.138.197.0/24 ends with this phrase and does not try RIPE which works

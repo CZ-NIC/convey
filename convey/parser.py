@@ -59,7 +59,7 @@ class Parser:
     "has already been processed"
     attachments: List[Attachment]
 
-    def __init__(self, m: Mininterface[Env], source_file: Path = False, stdin=None, types=None, prepare=True):
+    def __init__(self, m: Mininterface[Env], source_file: Path = False, stdin=None, types=None, prepare=True, ip_seen=None, ranges=None):
         self.m = m
         self.env = m.env
         self.is_formatted = False
@@ -119,7 +119,7 @@ class Parser:
         "set by processor [location file][grouped row] = [AggregationCounter,]"
         self.refresh()
         self.stats = defaultdict(set)
-        self._reset(reset_header=False)
+        self._reset(reset_header=False, ip_seen=ip_seen, ranges=ranges)
         self.selected: List[int] = []
         "list of selected fields col_i that may be in/excluded and moved in the menu"
         self.files_created = set()
@@ -462,7 +462,7 @@ class Parser:
             else:
                 print(tabulate(rows, headers=("field", "value")))
 
-    def reset_whois(self, hard=True, assure_init=False, slow_mode=False, unknown_mode=False):
+    def reset_whois(self, hard=True, assure_init=False, slow_mode=False, unknown_mode=False, ip_seen=None, ranges=None):
         """
 
         :type assure_init: Just assure the connection between picklable Parser and current Whois class.
@@ -470,8 +470,8 @@ class Parser:
         if not assure_init:
             if hard:
                 self.whois_stats = defaultdict(int)
-                self.ranges = {}
-                self.ip_seen = {}
+                self.ranges = ranges or {}
+                self.ip_seen = ip_seen or {}
         Whois.init(self.whois_stats, self.ranges, self.ip_seen, self.stats, slow_mode=slow_mode,
                    unknown_mode=unknown_mode)
 
@@ -491,7 +491,7 @@ class Parser:
         self.line_count = 0
         self.velocity = 0
 
-    def _reset(self, hard=True, reset_header=True):
+    def _reset(self, hard=True, reset_header=True, ip_seen=None, ranges=None):
         """ Reset variables before new analysis.
         @type reset_header: False if we are in the constructor and added fields is not ready yet.
         """
@@ -519,7 +519,7 @@ class Parser:
         self.is_processable = False
         self.is_processed = False
         self.attachments.clear()
-        self.reset_whois(hard=hard)
+        self.reset_whois(hard=hard, ip_seen=ip_seen, ranges=ranges)
 
     def prepare_target_file(self):
         if not self.settings["split"] and self.settings["split"] != 0:  # 0 is a valid column

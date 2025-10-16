@@ -1,7 +1,9 @@
 # CHANGELOG
 
 ## 1.5.4
+* feat: whois cache for single query
 * fix: `convey --server`
+* enh: whois ARIN block that belong to RIPE
 
 ## 1.5.3 (2025-09-19)
 * chore: update for compatibility with latest mininterface
