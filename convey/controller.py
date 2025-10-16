@@ -134,7 +134,11 @@ class Controller:
             print(f"Webserver configuration can be changed by `convey --config uwsgi`")
             print(get_path("uwsgi.ini").read_text())
             cmd = ["uwsgi", "--ini", get_path("uwsgi.ini"), "--wsgi-file", Path(Path(__file__).parent, "wsgi.py")]
-            subprocess.run(cmd)
+            try:
+                subprocess.run(cmd)
+            except FileNotFoundError as e:
+                print("Is uwsgi installed? Try: `pip install uwsgi`")
+                raise
             exit()
 
     def check_daemon(self):

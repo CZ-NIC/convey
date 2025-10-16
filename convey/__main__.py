@@ -57,10 +57,12 @@ def main():
                 response = recv(pipe)
             except socket.timeout:
                 print("It seems daemon is stuck. You may kill it with `pkill convey`.")
-                # TODO here, the config is not ready
-                # from .config import Config
-                # if Config.get_env().cli.github_crash_submit:
-                #     Config.github_issue(f"daemon stuck", "Command line:\n```bash\n" + repr(sys.argv) + "\n```")
+                from .config import Config
+                from .args_controller import parse_args
+                m = parse_args(interface="min")
+                Config.set_env(m.env)
+                if Config.get_env().cli.github_crash_submit:
+                    Config.github_issue(f"daemon stuck", "Command line:\n```bash\n" + repr(sys.argv) + "\n```")
             else:
                 # chr(4) at the end means this was not a single query check and we should load full convey libraries
                 if type(response) is str:

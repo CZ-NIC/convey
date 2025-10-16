@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.5.4
+* fix: `convey --server`
+
 ## 1.5.3 (2025-09-19)
 * chore: update for compatibility with latest mininterface
 

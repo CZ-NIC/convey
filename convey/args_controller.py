@@ -482,7 +482,8 @@ def get_parser():
     return get_tyro_parser(FlagConversionOff[Env])
 
 
-def parse_args(args=None):
+def parse_args(args=None, interface="tui"):
+    # NOTE – Why interface=tui by default? We migrate to mininterface step by step.
     cd = Path(config_dir)
     config_file = cd / "convey.yaml"
     if not config_file.exists():
@@ -499,7 +500,7 @@ def parse_args(args=None):
 
     m = run(FlagConversionOff[Env],
             args=args,
-            interface="tui",  # NOTE – we migrate to mininterface step by step
+            interface=interface,
             add_verbose=False,
             description="Swiss knife for mutual conversion of the web related data types, like `base64` or outputs of the programs `whois`, `dig`, `curl`. Convenable way to quickly gather all meaningful information or to process large files that might freeze your spreadsheet processor.\n\nSee full docs at https://github.com/CZ-NIC/convey (ex. to launch a web service).",
             config_file=config_file
