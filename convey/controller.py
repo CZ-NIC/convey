@@ -40,8 +40,6 @@ from .wizzard import bottom_plain_style
 from .wrapper import Wrapper
 from . import __version__
 
-if TYPE_CHECKING:
-    from socket import socket
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +60,8 @@ def control_daemon(cmd, in_daemon=False):
         )
         print("Convey daemon stopping.")
     if cmd in ["restart", "start"]:
+        # NOTE `$ convey daemon --restart` works bad. As there is no other argument,
+        # it exists with connection refused error and the daemon stops instead of restarting.
         if in_daemon:
             raise ConnectionResetError("restart.")
         else:
@@ -221,11 +221,18 @@ class Controller:
     def process_args_from_daemon_or_locally(self, is_daemon, stdout, server):
         colorama_init()
         while True:
+            pipe = None
             try:
                 if is_daemon:
                     stdout.write("Listening...\n")
                     stdout.flush()
                     pipe, _addr = server.accept()
+            except Exception as e:
+                stdout.write("Daemon cannot accept pipe\n")
+                raise
+
+            try:
+                if is_daemon:
                     msg = recv(pipe)
                     if not msg:
                         continue
@@ -244,9 +251,8 @@ class Controller:
                         stdout.write("Invalid cwd\n")
                         continue
                     try:
-                        env = parse_args(
-                            argv[2:]
-                        ).env  # the daemon has received a new command
+                        # the daemon has received a new command
+                        env = parse_args(argv[2:]).env
                         # we have to copy the values into, to copy the values into self.env to keep references
                         self.copy_into(self.env, env)
                     except SystemExit as e:
@@ -262,20 +268,29 @@ class Controller:
                 if not ac:
                     continue
             except ConnectionRefusedError as e:
-                send_ipc(pipe, chr(3), f"Daemon has insufficient input: {e}\n")
-                continue
+                if is_daemon:
+                    send_ipc(pipe, chr(3), f"Daemon has insufficient input: {e}\n")
+                    continue
+                else:
+                    raise
             except (ConnectionAbortedError, IOError) as e:
-                send_ipc(
-                    pipe,
-                    chr(4),
-                    "Daemon cannot help: "
-                    + (str(e) or "Probably a user dialog is needed.")
-                    + "\n",
-                )
-                continue
+                if is_daemon:
+                    send_ipc(
+                        pipe,
+                        chr(4),
+                        "Daemon cannot help: "
+                        + (str(e) or "Probably a user dialog is needed.")
+                        + "\n",
+                    )
+                    continue
+                else:
+                    raise
             except ConnectionResetError as e:
-                send_ipc(pipe, chr(17), f"Daemon killed: {e}\n")
-                exit()
+                if is_daemon:
+                    send_ipc(pipe, chr(17), f"Daemon killed: {e}\n")
+                    exit()
+                else:
+                    raise
             except SystemExit:
                 if is_daemon:
                     send_ipc(pipe, sys.stdout.getvalue(), "Result sent.\n")
@@ -478,9 +493,8 @@ class Controller:
 
         if not self.see_menu:
             self.close()
-        if (
-            is_daemon
-        ):  # if in daemon, everything important has been already sent to STDOUT
+        if is_daemon:
+            # if in daemon, everything important has been already sent to STDOUT
             exit()
         return ac
 

@@ -126,17 +126,16 @@ class Whois:
             if self.see:
                 print("waiting 7 seconds... ", end="", flush=True)
             sleep(7)
-        get: AnalysisResult = (
-            self.analyze()
-        )  # AnalyzisResult: prefix, location, mail, asn, netname, country...
+        self.get = get = self.analyze()
         if self.see:
             print(get[2] or "no incident contact.")
         prefix = get[0]
         if not prefix and self.ip:
             logger.info(f"No prefix found for IP {ip}")
-            prefix = IPRange(0, 0)  # make key consistent when saving into cache
-        self.ip_seen[ip] = prefix
-        self.get = self.ranges[prefix] = get
+        elif prefix:
+            self.ip_seen[ip] = prefix
+            self.ranges[prefix] = get
+
         self.count_stats()
 
     def cache_load(self):
