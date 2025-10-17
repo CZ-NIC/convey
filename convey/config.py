@@ -168,6 +168,12 @@ class Config:
     @staticmethod
     def init_verbosity(yes=False, verbosity=None, daemon=None):
         # Set up logging and verbosity
+        if verbosity is None:
+            e = Config.get_env()
+            if e.cli.quiet:
+                verbosity = 30
+            elif e.cli.verbose:
+                verbosity = 10
         if daemon:
             Config.get_env().process.daemon = True
         if yes:
@@ -194,7 +200,6 @@ class Config:
         logging.getLogger().setLevel(
             min(Config.verbosity, logging.INFO)
         )  # system sensitivity at least at INFO level
-
         if Config.config_file:
             logger.debug("Config file loaded from %s", Config.config_file)
         else:

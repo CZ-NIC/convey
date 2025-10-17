@@ -377,24 +377,41 @@ class Whois:
                             server = "disabled apnic"
                             continue
 
+                ab = self.get_abusemail()
+                if ab == "abuse@ripe.net" and server == "general":
+                    self._exec(server="ripe", server_url="whois.ripe.net")
+                    continue
+
                 if not country:
                     country = self._load_country_from_addresses()
                 break
             if not country:
-                fail = None
-                if self._match_response(
-                    "network is unreachable"
-                ) or self._match_response("name or service not known"):
-                    fail = f"Whois server {self.servers[server]} is unreachable. Disabling for this session."
+                # fail = None
+                if self._match_response("network is unreachable"):
+                    logger.warning(
+                        f"Whois {server}: network is unreachable, waiting 1 sec..."
+                    )
+                    sleep(1)
+                    continue
+                if self._match_response("name or service not known"):
+                    # fail = f"Whois server {self.servers[server]} is unreachable. Disabling for this session."
+                    logger.warning(
+                        f"Whois {server}: name or service not known, waiting 1 sec..."
+                    )
+                    sleep(1)
+                    continue
                 if self._match_response("access denied"):  # RIPE gave me this
-                    fail = f"Whois server {self.servers[server]} access denied. Disabling for this session."
+                    # fail = f"Whois server {self.servers[server]} access denied. Disabling for this session."
+                    logger.warning(f"Whois {server}: access denied, waiting 1 sec...")
+                    sleep(1)
+                    continue
                 if self._match_response("invalid search key"):
                     logger.warning(f"Invalid search key for: {self.ip}")
 
-                if fail:
-                    logger.warning(fail)
-                    Whois.servers.pop(server)
-                    continue
+                # if fail:
+                #     logger.warning(fail)
+                #     Whois.servers.pop(server)
+                #     continue
             else:
                 break
 
@@ -403,7 +420,6 @@ class Whois:
             [r"netname:\s*([^\s]*)", r"network:network-name:\s*([^\s]*)"]
         )
 
-        ab = self.get_abusemail()
         if Whois.unknown_mode and not ab:
             ab = self.resolve_unknown_mail()
 

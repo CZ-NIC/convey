@@ -1,9 +1,10 @@
 # CHANGELOG
 
-## 1.5.4
+## 1.5.4 (2025-10-17)
 * feat: whois cache for single query
+* enh: whois ARIN blocks that belong to RIPE
+* fix: whois silent failure on timeout
 * fix: `convey --server`
-* enh: whois ARIN block that belong to RIPE
 
 ## 1.5.3 (2025-09-19)
 * chore: update for compatibility with latest mininterface

@@ -15,7 +15,8 @@ init_global_interface(m)
 
 Types.refresh()
 TypeGroup.init()
-Config.init_verbosity(True, 30)
+# note that we cannot fetch the original CLI so the user cannot set `convey --server --verbose`
+Config.init_verbosity(True)
 Config.get_env().io.single_query = True
 parser = Parser(m, prepare=False)
 controller = Controller(parser)
