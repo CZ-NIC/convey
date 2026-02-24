@@ -3,7 +3,7 @@ import re
 from datetime import datetime, timedelta
 from subprocess import PIPE, Popen
 from time import time, sleep
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from netaddr import IPRange, IPNetwork
 from tldextract import tldextract
@@ -11,6 +11,9 @@ from tldextract import tldextract
 from .contacts import Contacts
 from .config import Config, subprocess_env
 from .infodicts import address_country_lowered
+
+if TYPE_CHECKING:
+    from .args_controller import WhoisModule
 
 logger = logging.getLogger(__name__)
 
@@ -69,9 +72,10 @@ class Whois:
 
     @classmethod
     def init(
-        cls, stats, ranges, ip_seen, csvstats, slow_mode=False, unknown_mode=False
+        cls, env: "WhoisModule", stats, ranges, ip_seen, csvstats, slow_mode=False, unknown_mode=False
     ):
         cls.quota = Quota()
+        cls.env = env
         cls.csvstats = csvstats
         cls.stats = stats
         cls.ranges = ranges
@@ -80,9 +84,9 @@ class Whois:
         cls.unknown_mode = unknown_mode  # if True, we use b flag in abusemails
         cls.slow_mode = slow_mode  # due to LACNIC quota
         cls.queued_ips = set()
-        cls.ttl = Config.get_env().whois.ttl
+        cls.ttl = env.ttl
         cls.see = Config.verbosity <= logging.INFO
-        if mirr := Config.get_env().whois.mirror:  # try a fast local whois-mirror first
+        if mirr := env.mirror:  # try a fast local whois-mirror first
             cls.servers["mirror"] = mirr
         cls.servers["general"] = None
         # Algorithm for querying custom servers:
@@ -186,7 +190,7 @@ class Whois:
                 self.csvstats[f"ip_csirtmail_{known}"].add(self.ip)
                 self.csvstats[f"csirtmail_{known}"].add(country)
 
-        if not mail and Config.get_env().whois.reprocessable_unknown:
+        if not mail and Whois.env.reprocessable_unknown:
             raise UnknownValue
 
     def resolve_unknown_mail(self):
@@ -312,7 +316,7 @@ class Whois:
                     ):  # LACNIC gave me this - seems 300 s needed
                         self.quota.try_start()
                         if (
-                            Config.get_env().whois.lacnic_quota_skip_lines
+                            Whois.env.lacnic_quota_skip_lines
                             and not self.slow_mode
                         ):
                             if self.see:
@@ -423,7 +427,7 @@ class Whois:
         if Whois.unknown_mode and not ab:
             ab = self.resolve_unknown_mail()
 
-        local = Config.get_env().whois.local_country
+        local = Whois.env.local_country
         if local and country not in local:
             mail = (
                 Contacts.country2mail[country]
@@ -498,12 +502,13 @@ class Whois:
         """Query whois server"""
         target = self.hostname_registerable if self.hostname else self.ip
 
+        cmd = ["timeout", str(Whois.env.timeout), "whois", "--verbose"]
         if server == "general":
-            cmd = ["whois", "--verbose", target]
+            cmd.append(target)
         else:
             if not server_url:
                 server_url = Whois.servers[server]
-            cmd = ["whois", "--verbose", "-h", server_url, "--", target]
+            cmd.extend(["-h", server_url, "--", target])
         self.last_server = None  # check what registry whois asks - may use a strange LIR that returns non-senses
         try:
             # in case wrong env is set to whois, we get `147.32.106.205` country NL and not CZ
@@ -518,7 +523,7 @@ class Whois:
             )
             response = (
                 p.stdout.read().decode("unicode_escape").strip().lower()
-            )  # .replace("\n", " ")
+            )
             response += p.stderr.read().decode("unicode_escape").strip().lower()
         except UnicodeDecodeError:
             # ip address 94.230.155.109 had this string 'Jan Krivsky Hl\xc3\x83\x83\xc3\x82\xc2\xa1dkov' and everything failed

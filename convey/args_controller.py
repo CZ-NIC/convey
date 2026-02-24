@@ -437,6 +437,9 @@ class WhoisModule:
     empty ~ ask
     """
 
+    timeout: Annotated[int, arg(metavar="SECONDS")] = 5
+    """How many seconds to wait for a response from a WHOIS server before giving up."""
+
 
 @dataclass
 class SendingOptions:

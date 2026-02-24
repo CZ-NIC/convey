@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.5.5 (2026-02-24)
+* enh: whois timeout
+* enh: default uWSGI multiprocessing
+
 ## 1.5.4 (2025-10-17)
 * feat: whois cache for single query
 * enh: whois ARIN blocks that belong to RIPE

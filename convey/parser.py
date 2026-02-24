@@ -565,12 +565,13 @@ class Parser:
                 self.ranges = ranges or {}
                 self.ip_seen = ip_seen or {}
         Whois.init(
+            self.env.whois,
             self.whois_stats,
             self.ranges,
             self.ip_seen,
             self.stats,
             slow_mode=slow_mode,
-            unknown_mode=unknown_mode,
+            unknown_mode=unknown_mode
         )
 
     def reset_settings(self):
