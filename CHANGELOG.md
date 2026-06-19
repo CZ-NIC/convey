@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.5.6
+* fix(tests): stable chardet
+
 ## 1.5.5 (2026-02-24)
 * enh: whois timeout
 * enh: default uWSGI multiprocessing

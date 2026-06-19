@@ -115,8 +115,14 @@ class Checker:
             # results in turkish {'encoding': 'ISO-8859-9', 'confidence': 0.47567063613812527, 'language': 'Turkish'}
             # which is not perfect but better than nothing.
             if enc:
-                return x.decode(enc)
-            return x
+                try:
+                    return x.decode(enc)
+                except UnicodeDecodeError:
+                    pass
+            # chardet could not reliably guess the charset (ex: short input);
+            # fall back to latin-1 which maps every byte 1:1, so we always return a
+            # printable string instead of leaking the raw bytes repr (b'...') to the output.
+            return x.decode("latin-1")
 
     @staticmethod
     def is_urlencode(x):
