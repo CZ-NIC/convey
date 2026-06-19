@@ -5,7 +5,7 @@ import socket
 import sys
 from sys import exit
 
-from .ipc import send, recv, socket_file, daemon_pid
+from .ipc import send, recv, socket_file, socket_is_ours, daemon_pid
 
 __doc__ = """Convey – CSV swiss knife brought by CSIRT.cz"""
 __author__ = "Edvard Rejthar, CSIRT.CZ"
@@ -47,7 +47,9 @@ def main():
             pass
     daemonize_on_exit = try_daemon
 
-    if try_daemon and os.path.exists(socket_file):  # faster than importing Pathlib.path
+    if (
+        try_daemon and os.path.exists(socket_file) and socket_is_ours(socket_file)
+    ):  # os.path.exists is faster than importing Pathlib.path; socket_is_ours rejects a squatted socket
         try:
             pipe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             pipe.connect(socket_file)

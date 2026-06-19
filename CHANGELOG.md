@@ -1,6 +1,7 @@
 # CHANGELOG
 
 ## 1.5.6
+* fix(security): daemon socket moved from the world-reachable `/tmp/convey_socket` to a private per-user directory (prevents a local user from capturing convey's argv, spoofing its output, or driving the daemon)
 * fix(tests): stable chardet
 
 ## 1.5.5 (2026-02-24)

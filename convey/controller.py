@@ -32,7 +32,7 @@ from .decorators import PickBase, PickMethod, PickInput
 from .dialogue import hit_any_key
 from .dialogue import Cancelled, Debugged, Menu, csv_split, init_global_interface
 from .field import Field
-from .ipc import socket_file, recv, send, daemon_pid
+from .ipc import socket_file, socket_dir, ensure_socket_dir, recv, send, daemon_pid
 from .mail_sender import MailSenderOtrs, MailSenderSmtp
 from .parser import Parser
 from .types import Types, TypeGroup
@@ -157,6 +157,11 @@ class Controller:
         if daemon is not None and control_daemon(daemon) == "server":
             # XX :( after a thousand requests, we start to slow down. Memory leak must be somewhere
             Config.get_env().process.daemonize = False  # do not restart daemon when killed, there must be a reason this daemon was killed
+            if not ensure_socket_dir():
+                print(
+                    f"Refusing to start the daemon: {socket_dir} is not a directory private to this user."
+                )
+                exit()
             if Path(socket_file).exists():
                 Path(socket_file).unlink()
 
@@ -173,6 +178,7 @@ class Controller:
             print("Opening socket...")
             server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             server.bind(socket_file)
+            os.chmod(socket_file, 0o600)  # only the owner may talk to the daemon
             server.listen()
             sys.stdout_real = stdout = sys.stdout
             sys.stdout = sys.stderr = StringIO()
