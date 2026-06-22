@@ -25,6 +25,7 @@ from xlrd import XLRDError
 
 from .args_controller import Env
 
+from .cache import whois_dumps, whois_loads, assert_safe_jsonpickle, UnsafeCache
 from .config import Config, config_dir
 from .dialogue import hit_any_key, is_yes
 from .identifier import Identifier
@@ -153,8 +154,19 @@ class Wrapper:
         if self.cache_file.is_file() and not (fresh or reprocess):
             logger.info(f"File {self.file} has already been processed.")
             try:  # try to depickle
-                self.parser = jsonpickle.decode(self.cache_file.read_text(), keys=True)
+                text = self.cache_file.read_text()
+                # jsonpickle.decode() can run arbitrary code via py/reduce if the cache file is
+                # attacker-controlled; refuse anything referencing classes outside convey's own first
+                assert_safe_jsonpickle(text)
+                self.parser = jsonpickle.decode(text, keys=True)
                 self.parser.post_setstate(self.m)
+            except UnsafeCache as e:
+                logger.warning(
+                    "Ignoring cache file that references unexpected classes (%s); "
+                    "possible tampering - reprocessing.",
+                    e,
+                )
+                self.parser = None
             except:
                 print(traceback.format_exc())
                 if not Config.error_caught():
@@ -210,11 +222,16 @@ class Wrapper:
         if self.whois.cache and p.exists():
             # XX if it's long, postpone via a thread that would block analysis
             event = lazy_print("... loading big WHOIS cache ...")
-            ip_seen, ranges = jsonpickle.decode(p.read_text(), keys=True)
+            try:
+                ip_seen, ranges = whois_loads(p.read_text())
+            except Exception:
+                logger.info(
+                    "Ignoring unreadable or legacy WHOIS cache; it will be regenerated."
+                )
+                event.set()
+                return {}, {}
             ranges = {
-                IPRange(k[0], k[1]): v
-                for k, v in ranges.items()
-                if v[7] + self.whois.ttl >= time()
+                k: v for k, v in ranges.items() if v[7] + self.whois.ttl >= time()
             }
             nothing_to_save = True
             if self.whois.delete_unknown and IPRange(0, 0) in ranges:
@@ -329,25 +346,18 @@ class Wrapper:
             else:
                 ip_seen, ranges = self.parser.ip_seen, self.parser.ranges
             if self._whois_changed(ranges, ip_seen):
-                # note that ip_seen MUST be placed before ranges due to https://github.com/jsonpickle/jsonpickle/issues/280
-                # That way, a netaddr object (IPNetwork, IPRange) are defined as value in ip_seen and not as key in range.
-                # Update version 1.3.1: However this was not enough, serializing object as dict keys was still a problem.
-                # So we are manually converting them to int-tuples.
                 event = lazy_print("... saving big WHOIS cache ...")
-                ranges_serializable = {(k.first, k.last): v for k, v in ranges.items()}
-                encoded = jsonpickle.encode([ip_seen, ranges_serializable], keys=True)
-                # noinspection PyBroadException
+                # the whois cache is plain data, so we serialize it with stdlib json (via cache.py):
+                # much faster than jsonpickle on a multi-MB cache, and safe to load (no arbitrary
+                # object instantiation, unlike jsonpickle.decode - CWE-502).
                 try:
-                    jsonpickle.decode(encoded, keys=True)
-                except Exception:  # again, I met a strangely formed JSON
-                    type_, value, tb = sys.exc_info()
-                    body = (
-                        f"```bash\n{traceback.format_exc()}```\n\n"
-                        f"```json5\n{tb.tb_next.tb_frame.f_locals}\n```\n\n"
-                        f"```json5\n{ip_seen}```\n\n```json5\n{ranges}```"
+                    encoded = whois_dumps(ip_seen, ranges)
+                    whois_loads(encoded)  # sanity round-trip before persisting
+                except Exception:
+                    logger.warning(
+                        "Could not serialize WHOIS cache; recovering without saving it.",
+                        exc_info=True,
                     )
-                    print("The program will recover but without saving WHOIS cache.")
-                    Config.github_issue("Cannot jsonpickle whois", body)
                 else:
                     Path(config_dir, WHOIS_CACHE).write_text(encoded)
                 finally:

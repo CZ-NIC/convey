@@ -2,6 +2,8 @@
 
 ## 1.5.6
 * fix(security): daemon socket moved from the world-reachable `/tmp/convey_socket` to a private per-user directory (prevents a local user from capturing convey's argv, spoofing its output, or driving the daemon)
+* fix(security): cache files can no longer execute code on load (a tampered cache used to be a deserialization RCE via jsonpickle)
+* enh: whois cache stored as plain JSON – ~10× faster to write, ~3× to read, ~⅓ smaller
 * fix(tests): stable chardet
 
 ## 1.5.5 (2026-02-24)

@@ -571,7 +571,7 @@ class Parser:
             self.ip_seen,
             self.stats,
             slow_mode=slow_mode,
-            unknown_mode=unknown_mode
+            unknown_mode=unknown_mode,
         )
 
     def reset_settings(self):
@@ -1102,6 +1102,26 @@ class Parser:
                 for o in g:
                     o[0] = None
         state["dialect"] = self.dialect.__dict__.copy()
+        # The output dialect (settings["dialect"]) is otherwise serialized as an opaque object with a
+        # garbled class name; store it as a plain dict of attributes so the cache stays plain data.
+        out_dialect = self.settings.get("dialect")
+        if out_dialect and not isinstance(out_dialect, dict):
+            state["settings"] = {
+                **self.settings,
+                "dialect": {
+                    a: getattr(out_dialect, a)
+                    for a in (
+                        "delimiter",
+                        "quotechar",
+                        "escapechar",
+                        "doublequote",
+                        "skipinitialspace",
+                        "lineterminator",
+                        "quoting",
+                    )
+                    if hasattr(out_dialect, a)
+                },
+            }
         return state
 
     def __setstate__(self, state):
