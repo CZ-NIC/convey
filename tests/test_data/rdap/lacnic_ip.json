@@ -1,0 +1,26 @@
+{
+  "objectClassName": "ip network",
+  "handle": "200.40.0.0/16",
+  "startAddress": "200.40.0.0",
+  "endAddress": "200.40.255.255",
+  "ipVersion": "v4",
+  "name": "ANTEL-URUGUAY",
+  "entities": [
+    {
+      "objectClassName": "entity",
+      "handle": "ANTEL",
+      "roles": ["registrant"],
+      "vcardArray": ["vcard", [
+        ["version", {}, "text", "4.0"],
+        ["fn", {}, "text", "Administracion Nacional de Telecomunicaciones"],
+        ["adr", {}, "text", ["", "", "Av. Brasil 2925", "Montevideo", "", "11300", "Uruguay"]]
+      ]]
+    }
+  ],
+  "remarks": [
+    {
+      "title": "Abuse contact",
+      "description": ["Please report abuse to abuse@antel.net.uy"]
+    }
+  ]
+}

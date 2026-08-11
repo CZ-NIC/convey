@@ -13,6 +13,7 @@
 /tests/**
 !/tests/*
 !/tests/test_data/*
+!/tests/test_data/rdap/*
 /tests/statistics.txt
 convey.log
 output_*

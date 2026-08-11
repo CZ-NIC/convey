@@ -9,6 +9,8 @@
 # whois:
 #   local_country: cz
 #   ttl: 1000
+#   backend: auto  # auto|rdap|whois – RDAP first and whois as a fallback, or force one of them
+#   asn_lookup: True  # RDAP has no ASN; resolve it from Cymru over DNS
 # cli:
 #   autoopen_editor: True
 #   write_statistics: True

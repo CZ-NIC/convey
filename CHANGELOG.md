@@ -1,6 +1,7 @@
 # CHANGELOG
 
-## 1.5.6
+## 1.5.6 (2026-08-11)
+* feat: RDAP support – registries are asked over RDAP first, whois stays as a fallback (`--whois.backend auto|rdap|whois`); the ASN missing in RDAP is resolved from the Cymru DNS zone (`--whois.asn-lookup`)
 * fix(security): daemon socket moved from the world-reachable `/tmp/convey_socket` to a private per-user directory (prevents a local user from capturing convey's argv, spoofing its output, or driving the daemon)
 * fix(security): cache files can no longer execute code on load (a tampered cache used to be a deserialization RCE via jsonpickle)
 * enh: whois cache stored as plain JSON – ~10× faster to write, ~3× to read, ~⅓ smaller

@@ -1,0 +1,38 @@
+{
+  "objectClassName": "domain",
+  "handle": "2336799_DOMAIN_COM-VRSN",
+  "ldhName": "EXAMPLE.COM",
+  "entities": [
+    {
+      "objectClassName": "entity",
+      "handle": "376",
+      "roles": ["registrar"],
+      "publicIds": [{"type": "IANA Registrar ID", "identifier": "376"}],
+      "vcardArray": ["vcard", [
+        ["version", {}, "text", "4.0"],
+        ["fn", {}, "text", "RESERVED-Internet Assigned Numbers Authority"]
+      ]],
+      "entities": [
+        {
+          "objectClassName": "entity",
+          "roles": ["technical"],
+          "vcardArray": ["vcard", [
+            ["version", {}, "text", "4.0"],
+            ["fn", {}, "text", "Technical"],
+            ["email", {}, "text", "tech@registrar.example"]
+          ]]
+        },
+        {
+          "objectClassName": "entity",
+          "roles": ["abuse"],
+          "vcardArray": ["vcard", [
+            ["version", {}, "text", "4.0"],
+            ["fn", {}, "text", "Abuse Department"],
+            ["email", {}, "text", "Domainabuse@Registrar.Example"],
+            ["tel", {"type": "voice"}, "uri", "tel:+1.5555555555"]
+          ]]
+        }
+      ]
+    }
+  ]
+}

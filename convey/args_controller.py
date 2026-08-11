@@ -398,6 +398,17 @@ class FieldComputingOptions:
 class WhoisModule:
     """WHOIS module options"""
 
+    backend: Literal["auto", "rdap", "whois"] = "auto"
+    """ Which protocol asks the registries.
+    * rdap ~ the JSON successor of whois (RFC 9082); gTLD registries may already have dropped port 43
+    * whois ~ the legacy port 43 text protocol; needed for most ccTLDs (.cz, .de, …)
+    * auto ~ try RDAP first, fall back to whois when it does not answer or the answer is incomplete
+    """
+
+    asn_lookup: BlankTrue = True
+    """ RDAP does not carry the announcing ASN (whois has it in the `origin:` route object).
+    When True, the ASN is resolved over DNS from Cymru's IP-to-ASN zone. Needs `dig`. """
+
     ttl: Annotated[int, arg(metavar="SECONDS")] = 86400
     """How many seconds will a WHOIS answer cache will be considered fresh."""
 

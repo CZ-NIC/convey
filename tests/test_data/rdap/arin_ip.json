@@ -1,0 +1,36 @@
+{
+  "objectClassName": "ip network",
+  "handle": "NET-8-8-8-0-2",
+  "startAddress": "8.8.8.0",
+  "endAddress": "8.8.8.255",
+  "ipVersion": "v4",
+  "name": "GOGL",
+  "cidr0_cidrs": [
+    {"v4prefix": "8.0.0.0", "length": 9},
+    {"v4prefix": "8.8.8.0", "length": 24}
+  ],
+  "entities": [
+    {
+      "objectClassName": "entity",
+      "handle": "GOGL",
+      "roles": ["registrant"],
+      "vcardArray": ["vcard", [
+        ["version", {}, "text", "4.0"],
+        ["fn", {}, "text", "Google LLC"],
+        ["adr", {}, "text", ["", "", "1600 Amphitheatre Parkway", "Mountain View", "CA", "94043", "United States"]]
+      ]],
+      "entities": [
+        {
+          "objectClassName": "entity",
+          "handle": "ABUSE5250-ARIN",
+          "roles": ["abuse"],
+          "vcardArray": ["vcard", [
+            ["version", {}, "text", "4.0"],
+            ["fn", {}, "text", "Abuse"],
+            ["email", {}, "text", "network-abuse@google.com"]
+          ]]
+        }
+      ]
+    }
+  ]
+}

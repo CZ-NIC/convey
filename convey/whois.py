@@ -11,6 +11,7 @@ from tldextract import tldextract
 from .contacts import Contacts
 from .config import Config, subprocess_env
 from .infodicts import address_country_lowered
+from .rdap import Rdap, Record, RdapError, RdapRateLimited
 
 if TYPE_CHECKING:
     from .args_controller import WhoisModule
@@ -69,10 +70,18 @@ class Whois:
     quota: Quota
     queued_ips: set
     see: int
+    rdap: Rdap | None = None
 
     @classmethod
     def init(
-        cls, env: "WhoisModule", stats, ranges, ip_seen, csvstats, slow_mode=False, unknown_mode=False
+        cls,
+        env: "WhoisModule",
+        stats,
+        ranges,
+        ip_seen,
+        csvstats,
+        slow_mode=False,
+        unknown_mode=False,
     ):
         cls.quota = Quota()
         cls.env = env
@@ -84,6 +93,7 @@ class Whois:
         cls.unknown_mode = unknown_mode  # if True, we use b flag in abusemails
         cls.slow_mode = slow_mode  # due to LACNIC quota
         cls.queued_ips = set()
+        cls.rdap = None  # built lazily, the whois-only backend needs no HTTP client
         cls.ttl = env.ttl
         cls.see = Config.verbosity <= logging.INFO
         if mirr := env.mirror:  # try a fast local whois-mirror first
@@ -271,7 +281,86 @@ class Whois:
         #             return line
         # return ""  # no grep result found
 
+    @staticmethod
+    def _backend() -> str:
+        """auto | rdap | whois (getattr: a cache pickled by an older version may lack the field)"""
+        return getattr(Whois.env, "backend", "auto")
+
     def analyze(self) -> AnalysisResult:
+        """Query the registries with the configured backend and compose the resulting tuple."""
+        backend = self._backend()
+        for_domain = not self.ip
+        record = Record()
+
+        if backend in ("auto", "rdap"):
+            try:
+                record = self._analyze_rdap()
+            except RdapRateLimited as e:
+                logger.info(f"RDAP rate limited: {e}")
+                if backend == "rdap":
+                    self._quota_exceeded()  # may raise QuotaExceeded or sleep 300 s
+                    try:
+                        record = self._analyze_rdap()
+                    except RdapError as e:
+                        logger.info(f"RDAP: {e}")
+            except RdapError as e:
+                logger.info(f"RDAP: {e}")
+
+        if backend == "whois" or (
+            backend == "auto" and not record.is_sufficient(for_domain)
+        ):
+            record = record.merge(self._analyze_whois())
+        return self._compose(record)
+
+    def _analyze_rdap(self) -> Record:
+        if Whois.rdap is None:
+            Whois.rdap = Rdap(
+                timeout=Whois.env.timeout,
+                asn_lookup=getattr(Whois.env, "asn_lookup", True),
+                stats=Whois.stats,
+            )
+        if self.ip:
+            return Whois.rdap.ip(self.ip)
+        return Whois.rdap.domain(self.hostname_registerable)
+
+    def _quota_exceeded(self):
+        """Shared by both backends: LACNIC-style rate limiting lasts about 5 minutes."""
+        self.quota.try_start()
+        if Whois.env.lacnic_quota_skip_lines and not self.slow_mode:
+            if self.see:
+                print("Quota exceeded.")
+            self.queued_ips.add(self.ip)
+            raise self.quota.QuotaExceeded
+        logger.warning(
+            f"Query rate limit exceeded for: {self.ip}."
+            f" Sleeping for 300 s till {self.quota.time()}... (you may however Ctrl-C to skip)"
+        )
+        sleep(300)
+
+    def _compose(self, record: Record) -> AnalysisResult:
+        """Record -> AnalysisResult; decides whether the contact is local or abroad."""
+        ab = record.abusemail
+        if Whois.unknown_mode and not ab and self._backend() != "rdap":
+            # the last resort is whois-only (RIPE without the -r flag)
+            ab = self.resolve_unknown_mail()
+        country = record.country
+
+        local = Whois.env.local_country
+        if local and country not in local:
+            mail = (
+                Contacts.country2mail[country]
+                if country in Contacts.country2mail
+                else ab
+            )
+            get1 = "abroad"
+            get2 = f"{country}{Config.ABROAD_MARK}{mail}" if mail else ""
+        else:
+            get1 = "local"
+            get2 = ab
+        prefix = record.prefix if record.prefix is not None else ""
+        return prefix, get1, get2, record.asn, record.netname, country, ab, int(time())
+
+    def _analyze_whois(self) -> Record:
         prefix = country = ""
 
         for server in list(self.servers):
@@ -314,23 +403,9 @@ class Whois:
                     if self._match_response(
                         "query rate limit exceeded"
                     ):  # LACNIC gave me this - seems 300 s needed
-                        self.quota.try_start()
-                        if (
-                            Whois.env.lacnic_quota_skip_lines
-                            and not self.slow_mode
-                        ):
-                            if self.see:
-                                print("LACNIC quota exceeded.")
-                            self.queued_ips.add(self.ip)
-                            raise self.quota.QuotaExceeded
-                        else:
-                            logger.warning(
-                                f"Whois server {self.last_server} query rate limit exceeded for: {self.ip}."
-                                f" Sleeping for 300 s till {self.quota.time()}... (you may howevec Ctrl-C to skip)"
-                            )
-                            sleep(300)
-                            self._exec(server=server)
-                            continue
+                        self._quota_exceeded()
+                        self._exec(server=server)
+                        continue
                     if self.last_server == "rwhois.gin.ntt.net":  # 204.2.250.0
                         self._exec(server="arin", server_url="whois.arin.net")
                         continue
@@ -424,22 +499,14 @@ class Whois:
             [r"netname:\s*([^\s]*)", r"network:network-name:\s*([^\s]*)"]
         )
 
-        if Whois.unknown_mode and not ab:
-            ab = self.resolve_unknown_mail()
-
-        local = Whois.env.local_country
-        if local and country not in local:
-            mail = (
-                Contacts.country2mail[country]
-                if country in Contacts.country2mail
-                else ab
-            )
-            get1 = "abroad"
-            get2 = f"{country}{Config.ABROAD_MARK}{mail}" if mail else ""
-        else:
-            get1 = "local"
-            get2 = ab
-        return prefix, get1, get2, asn, netname, country, ab, int(time())
+        return Record(
+            prefix=prefix or None,
+            country=country,
+            netname=netname,
+            abusemail=ab,
+            asn=asn,
+            source=self.last_server or "whois",
+        )
 
     def _load_country_from_addresses(self):
         # let's try to find country in the non-standardised address field
@@ -521,9 +588,7 @@ class Whois:
                 stderr=PIPE,
                 env=subprocess_env,
             )
-            response = (
-                p.stdout.read().decode("unicode_escape").strip().lower()
-            )
+            response = p.stdout.read().decode("unicode_escape").strip().lower()
             response += p.stderr.read().decode("unicode_escape").strip().lower()
         except UnicodeDecodeError:
             # ip address 94.230.155.109 had this string 'Jan Krivsky Hl\xc3\x83\x83\xc3\x82\xc2\xa1dkov' and everything failed

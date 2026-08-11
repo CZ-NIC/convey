@@ -1,0 +1,34 @@
+{
+  "objectClassName": "ip network",
+  "handle": "195.113.128.0 - 195.113.191.255",
+  "startAddress": "195.113.128.0",
+  "endAddress": "195.113.191.255",
+  "ipVersion": "v4",
+  "name": "CESNET-CZ",
+  "type": "ASSIGNED PA",
+  "country": "CZ",
+  "cidr0_cidrs": [{"v4prefix": "195.113.128.0", "length": 18}],
+  "entities": [
+    {
+      "objectClassName": "entity",
+      "handle": "CESNET-MNT",
+      "roles": ["registrant", "technical"],
+      "vcardArray": ["vcard", [
+        ["version", {}, "text", "4.0"],
+        ["fn", {}, "text", "CESNET, z.s.p.o."],
+        ["adr", {"label": "Zikova 4\n160 00 Praha 6\nCzech Republic"}, "text", ["", "", "Zikova 4", "Praha", "", "160 00", "Czech Republic"]],
+        ["email", {}, "text", "noc@cesnet.cz"]
+      ]]
+    },
+    {
+      "objectClassName": "entity",
+      "handle": "ABUSE-CESNET",
+      "roles": ["abuse"],
+      "vcardArray": ["vcard", [
+        ["version", {}, "text", "4.0"],
+        ["fn", {}, "text", "Abuse contact"],
+        ["email", {"type": "abuse"}, "text", "abuse@cesnet.cz"]
+      ]]
+    }
+  ]
+}

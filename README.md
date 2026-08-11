@@ -188,6 +188,8 @@ Some field types are directly computable:
 #### Whois module
 
 When obtaining a WHOIS record
+* We ask **RDAP** first – the JSON successor of the port 43 *whois* protocol. gTLD registries are allowed to shut *whois* down (ICANN Registration Data Policy, since 2025-01-28) and the RIRs are heading the same way. Should RDAP not answer (most ccTLDs, ex: `.cz`, have no RDAP) or should the answer be incomplete, we fall back to *whois*. Choose the backend with `--whois.backend auto|rdap|whois`.
+* RDAP does not carry the announcing **ASN** (*whois* has it in the `origin:` route object), hence we resolve it over DNS from the Cymru IP-to-ASN zone (needs `dig`; disable with `--whois.asn-lookup False`).
 * We are internally calling `whois` program, detecting what servers were asked.
 * Sometimes you encounter a funny formatted *whois* response. We try to mitigate such cases and **re-ask another registry** in well known cases.
 * Since IP addresses in the same prefix share the same information we cache it to gain **maximal speed** while reducing *whois* queries.
