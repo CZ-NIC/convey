@@ -758,6 +758,8 @@ class Controller:
                     print("No e-mails in the set. Cannot send.")
 
                 t = f" from {limit}" if limit < float("inf") else ""
+                if method == "otrs":
+                    menu.add("Test OTRS connection...", key="c")
                 menu.add(f"Limit sending amount{t} to...", key="l")
                 menu.add("Edit template...", key="e")
                 menu.add("Choose recipients...", key="r")
@@ -799,7 +801,11 @@ class Controller:
                 continue
 
             # other menu options
-            if option == "e":
+            if option == "c":
+                print("Testing OTRS connection...")
+                success, msg = sender.test_connection()
+                hit_any_key(("OK: " if success else "FAILED: ") + msg)
+            elif option == "e":
                 local, abroad = st["local"][0], st["abroad"][0]
                 if local:
                     Contacts.mail_draft["local"].edit_text()

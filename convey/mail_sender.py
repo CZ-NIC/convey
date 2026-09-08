@@ -167,8 +167,13 @@ class MailSenderOtrs(MailSender):
 
                 fields["FormID"] = form_id
             else:
+                mo = re_title.search(upload_form.text)
+                title = mo.group(1) if mo else "no <title> found"
                 raise RuntimeError(
                     "Cannot get the FormID, unable to upload the attachments."
+                    f" Response page title: {title!r} (fetched from {upload_form.url})."
+                    " This usually means the OTRS session (otrs.cookie/otrs.token) is stale/wrong for"
+                    " this host, or otrs.id does not point to an accessible ticket."
                 )
 
         # If we had a single file, we could upload it with a single request that way:
@@ -266,6 +271,62 @@ class MailSenderOtrs(MailSender):
     def assure_tokens(self):
         """Check and update by dialog OTRS credentials"""
         self.parser.m.form(self.parser.sending)
+
+    def test_connection(self):
+        """Check that host/baseuri/otrs_id/otrs_cookie/otrs_token let us reach the ticket's
+        forward form, without sending or uploading anything.
+        :return: (bool success, str message)
+        """
+        host = Config.get_env().otrs.host
+        url = (
+            host if "://" in host else f"https://{host}"
+        ) + Config.get_env().otrs.baseuri
+        cookies = {
+            (
+                "OTRSAgentInterface" if OTRS_VERSION == 6 else "Session"
+            ): self.parser.sending.otrs_cookie
+        }
+        try:
+            r = get(
+                url,
+                params={
+                    "ChallengeToken": self.parser.sending.otrs_token,
+                    "Action": "AgentTicketForward",
+                    "TicketID": str(self.parser.sending.otrs_id),
+                },
+                cookies=cookies,
+                verify=self.parser.env.sending.verify_ssl,
+            )
+        except Exception as e:
+            return False, f"Cannot connect to {url}: {e}"
+
+        mo = re_title.search(r.text)
+        title = mo.group(1) if mo else None
+
+        if title and (
+            "Předat - Tiket - " in title or "Forward - Ticket - " in title
+        ):
+            if re.search(r'FormID" value="((\d|\.)*)"', r.text):
+                return True, (
+                    f"OK, reached the forward form for ticket {self.parser.sending.otrs_id}"
+                    " (FormID found, attachments should upload fine)."
+                )
+            return True, (
+                f"Reached the forward form for ticket {self.parser.sending.otrs_id},"
+                " but no FormID field was found. Sending without attachments should work,"
+                " but attaching files would fail with 'Cannot get the FormID'."
+            )
+        elif title == "Login - OTRS":
+            return False, "Not logged in, or otrs.cookie is stale/wrong for this host."
+        elif title in (
+            "Fatal Error - Frontend -  OTRS",
+            "Fatal Error - Rozhraní -  OTRS",
+        ):
+            return False, "Bad CSRF token (otrs.token), or otrs.id is not a valid ticket."
+        elif title is None:
+            return False, f"Unrecognized response (no <title> found) from {url}."
+        else:
+            return False, f"Unrecognized response page: {title!r}"
 
     def process(self, e: Envelope):
         def assure_str(c):

@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.5.7 (2026-09-08)
+* enh: OTRS connection test in the sending menu; FormID errors now report the fetched page title
+
 ## 1.5.6 (2026-08-11)
 * feat: RDAP support – registries are asked over RDAP first, whois stays as a fallback (`--whois.backend auto|rdap|whois`); the ASN missing in RDAP is resolved from the Cymru DNS zone (`--whois.asn-lookup`)
 * fix(security): daemon socket moved from the world-reachable `/tmp/convey_socket` to a private per-user directory (prevents a local user from capturing convey's argv, spoofing its output, or driving the daemon)
