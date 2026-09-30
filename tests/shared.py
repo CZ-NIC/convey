@@ -48,6 +48,9 @@ SHEET_HEADER_ITSELF_CSV = p("sheet_header_itself.csv")
 SHEET_HEADER_PERSON_CSV = p("sheet_header_person.csv")
 SHEET_PERSON_CSV = p("sheet_person.csv")
 PERSON_GIF_CSV = p("person_gif.csv")
+MERGE_MAIN_CSV = p("merge_main.csv")
+MERGE_REMOTE_A_CSV = p("merge_remote_a.csv")
+MERGE_REMOTE_B_CSV = p("merge_remote_b.csv")
 CONSUMPTION = p("consumption.csv")
 p("red-permission.gif").chmod(S_IRUSR | S_IRGRP)  # make file unreadable to others
 

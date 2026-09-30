@@ -393,8 +393,8 @@ class Controller:
 
         # merge
         fc = FlagController(self.parser)
-        if e.action.merge:
-            ac.add_merge(**fc.read(MergeFlag, e.action.merge))
+        for merge in e.action.merge:
+            ac.add_merge(**fc.read(MergeFlag, merge))
 
         # run single value check if the input is not a CSV file
         if e.io.single_detect:

@@ -80,7 +80,7 @@ class Processor:
         if settings["merge"]:
             settings["merging"] = True
             settings["addByMethod"] += [
-                ("merged", op.local_column.col_i_original, (lambda x: op.get(x),))
+                ("merged", op.local_column.col_i_original, (op.get,))
                 for op in settings["merge"]
             ]
             del settings["merge"]

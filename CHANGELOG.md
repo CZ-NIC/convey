@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.5.8 (unreleased)
+* fix: multiple merges no longer all use the last merged file
+
 ## 1.5.7 (2026-09-08)
 * enh: OTRS connection test in the sending menu; FormID errors now report the fetched page title
 

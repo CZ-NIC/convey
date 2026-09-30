@@ -300,12 +300,14 @@ class Actions:
     """Aggregate"""
 
     merge: Annotated[
-        str,
+        UseAppendAction[list[str]],
         arg(
             metavar="[REMOTE_PATH],[REMOTE_COLUMN],[LOCAL_COLUMN]",
-            help="""Merge another file here. """ + column_help,
+            help="""Merge another file here. """
+            + column_help
+            + "\n\nThis flag May be used multiple times.",
         ),
-    ] = ""
+    ] = field_orig(default_factory=list)
 
 
 @dataclass

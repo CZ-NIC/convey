@@ -4,6 +4,9 @@ from shared import (
     COMBINED_LIST_METHOD,
     COMBINED_SHEET_PERSON,
     GIF_CSV,
+    MERGE_MAIN_CSV,
+    MERGE_REMOTE_A_CSV,
+    MERGE_REMOTE_B_CSV,
     PERSON_CSV,
     PERSON_GIF_CSV,
     PERSON_HEADER_CSV,
@@ -145,6 +148,18 @@ class TestAction(TestAbstract):
 
         # merge by a column number
         self.check(PERSON_GIF_CSV, f"--merge {GIF_CSV},email,1", filename=PERSON_CSV)
+
+        # merge two files at once, each by a different local column
+        self.check(
+            [
+                "name,id_a,id_b,color,size,city,zip",
+                "alice,a1,b2,red,S,Brno,60200",
+                "bob,a2,b1,green,M,Praha,11000",
+                "carol,a3,b3,blue,L,Ostrava,70200",
+            ],
+            f"--merge {MERGE_REMOTE_A_CSV},1,2 --merge {MERGE_REMOTE_B_CSV},1,3",
+            filename=MERGE_MAIN_CSV,
+        )
 
         # invalid column definition
         msg = "ERROR:convey.identifier:Cannot identify COLUMN invalid, put there an exact column name, its type, the numerical order starting with 1, or with -1."
