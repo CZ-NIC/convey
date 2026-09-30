@@ -1,4 +1,13 @@
-from tests.shared import GIF_CSV, PERSON_CSV, PERSON_GIF_CSV, TestAbstract
+from unittest.mock import MagicMock
+
+from convey.action_controller import ActionController
+from tests.shared import (
+    DUPLICATE_NAMES_CSV,
+    GIF_CSV,
+    PERSON_CSV,
+    PERSON_GIF_CSV,
+    TestAbstract,
+)
 
 
 class TestInternal(TestAbstract):
@@ -22,3 +31,21 @@ class TestInternal(TestAbstract):
         self.assertListEqual([], parser2A.get_similar(fields2B[1]))
         self.assertListEqual([fields2A[1]], parser2A.get_similar(fields2B[3]))
         self.assertListEqual([fields2B[0], fields2B[3]], parser2B.get_similar(fields2A))
+
+    def test_duplicate_field_names(self):
+        """Columns sharing a name (ex: after a merge) must all be offered in the dialogs."""
+        parser = self.check(None, filename=DUPLICATE_NAMES_CSV).controller.parser
+        self.assertListEqual(
+            ["name (1)", "regulation_level", "name (3)", "is_regulated", "name (5)"],
+            list(parser.get_field_labels().values()),
+        )
+
+        m = MagicMock()
+        m.select.side_effect = lambda options, *_, **__: options
+        ac = ActionController(parser, m)
+        options = ac.select_col(include_computables=False)
+        self.assertListEqual(parser.fields, list(options.values()))
+
+        ac.choose_cols()
+        options = m.select.call_args.args[0]
+        self.assertListEqual(parser.fields, list(options.values()))

@@ -260,7 +260,7 @@ class ActionController:
         # XX possibility un/check all
         chosens = set(
             self.m.select(
-                self.parser.fields,
+                {label: f for f, label in self.parser.get_field_labels().items()},
                 "Choose columns to be included in the output file",
                 default=[f for f in self.parser.fields if f.is_chosen],
             )
@@ -302,14 +302,14 @@ class ActionController:
         fields: dict[str, Field | Type] = {}
         if prepended_field:  # a prepended_field is a mere description, not a real field
             fields[prepended_field] = None
-        fields.update(
-            {
-                (str(field), s): field
-                for field, s in (
-                    [] if only_computables else self.parser.get_fields_autodetection()
-                )
-            }
-        )
+        if not only_computables:
+            labels = self.parser.get_field_labels()
+            fields.update(
+                {
+                    (labels[field], s): field
+                    for field, s in self.parser.get_fields_autodetection()
+                }
+            )
 
         # add computable field types
         if include_computables:
@@ -357,7 +357,10 @@ class ActionController:
             custom = []
         if not source_field or not source_type:
             print(f"\nWhat column we base {target_type} on?")
-            vals = {(k, v): k for k, v in self.parser.get_fields_autodetection()}
+            labels = self.parser.get_field_labels()
+            vals = {
+                (labels[k], v): k for k, v in self.parser.get_fields_autodetection()
+            }
             source_field = self.m.select(
                 vals,
                 title="Searching source for " + str(target_type),

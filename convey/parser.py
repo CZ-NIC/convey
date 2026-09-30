@@ -6,7 +6,7 @@ import logging
 import re
 import subprocess
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from itertools import zip_longest
 from json import dumps
 from math import ceil
@@ -350,6 +350,16 @@ class Parser:
         self.informer.sout_info()
         self.is_formatted = True  # delimiter and header has been detected etc.
         return self
+
+    def get_field_labels(self) -> dict[Field, str]:
+        """Field names for the dialogs. Repeated names (ex: after a merge) get their column number
+        appended, otherwise the dialog options, keyed by the label, would collapse into one.
+        """
+        counts = Counter(str(f) for f in self.fields)
+        return {
+            f: f"{f} ({i + 1})" if counts[str(f)] > 1 else str(f)
+            for i, f in enumerate(self.fields)
+        }
 
     def get_fields_autodetection(self, append_values=True) -> list[tuple[Field, str]]:
         """returns list of tuples [ (field, detection str), ("Url", "url, hostname") ]

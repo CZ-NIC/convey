@@ -51,6 +51,7 @@ PERSON_GIF_CSV = p("person_gif.csv")
 MERGE_MAIN_CSV = p("merge_main.csv")
 MERGE_REMOTE_A_CSV = p("merge_remote_a.csv")
 MERGE_REMOTE_B_CSV = p("merge_remote_b.csv")
+DUPLICATE_NAMES_CSV = p("duplicate_names.csv")
 CONSUMPTION = p("consumption.csv")
 p("red-permission.gif").chmod(S_IRUSR | S_IRGRP)  # make file unreadable to others
 
