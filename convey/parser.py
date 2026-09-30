@@ -1103,34 +1103,25 @@ class Parser:
         del state["identifier"]
         del state["ip_seen"]  # delete whois dicts
         del state["ranges"]
-        # counters generators may be removed (their state is not jsonpicklable)
-        # however that means that when re-resolving after main processing, generators counts will reset
-        # See comment in the Aggregation class, concerning generator serialization.
-        # counters[location file][grouped row][order in aggregation settings] = [sum generator, count]
-        for l in state["aggregation"].values():
-            for g in l.values():
-                for o in g:
-                    o[0] = None
         state["dialect"] = self.dialect.__dict__.copy()
         # The output dialect (settings["dialect"]) is otherwise serialized as an opaque object with a
         # garbled class name; store it as a plain dict of attributes so the cache stays plain data.
         out_dialect = self.settings.get("dialect")
         if out_dialect and not isinstance(out_dialect, dict):
-            state["settings"] = {
-                **self.settings,
-                "dialect": {
-                    a: getattr(out_dialect, a)
-                    for a in (
-                        "delimiter",
-                        "quotechar",
-                        "escapechar",
-                        "doublequote",
-                        "skipinitialspace",
-                        "lineterminator",
-                        "quoting",
-                    )
-                    if hasattr(out_dialect, a)
-                },
+            # .copy() keeps the defaultdict so that the missing settings keys still default to []
+            state["settings"] = self.settings.copy()
+            state["settings"]["dialect"] = {
+                a: getattr(out_dialect, a)
+                for a in (
+                    "delimiter",
+                    "quotechar",
+                    "escapechar",
+                    "doublequote",
+                    "skipinitialspace",
+                    "lineterminator",
+                    "quoting",
+                )
+                if hasattr(out_dialect, a)
             }
         return state
 

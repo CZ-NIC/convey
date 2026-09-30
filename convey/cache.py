@@ -22,6 +22,8 @@ import json
 
 from netaddr import IPRange, IPNetwork
 
+from .aggregate import Aggregate
+
 WHOIS_CACHE_VERSION = 1
 
 
@@ -86,7 +88,9 @@ _ALLOWED = frozenset(
         "convey.types.Type",
         "convey.attachment.Attachment",
         "convey.action.MergeAction",
+        "convey.action.AggregateAction",
         "convey.aggregate.Aggregate",
+        *(f"convey.aggregate.Aggregate.{fn.__name__}" for fn in Aggregate.all()),
         "collections.defaultdict",
         "collections.OrderedDict",
         "datetime.datetime",

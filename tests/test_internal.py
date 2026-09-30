@@ -1,6 +1,10 @@
 from unittest.mock import MagicMock
 
+import jsonpickle
+
 from convey.action_controller import ActionController
+from convey.aggregate import Aggregate
+from convey.cache import assert_safe_jsonpickle
 from tests.shared import (
     DUPLICATE_NAMES_CSV,
     GIF_CSV,
@@ -22,7 +26,9 @@ class TestInternal(TestAbstract):
         self.assertListEqual([fields1B[0]], parser1B.get_similar(fields1A[0]))
         self.assertListEqual([], parser1B.get_similar(fields1A[1]))
 
-        c2 = self.check(None, f"--merge {PERSON_GIF_CSV},2,1", filename=GIF_CSV).controller
+        c2 = self.check(
+            None, f"--merge {PERSON_GIF_CSV},2,1", filename=GIF_CSV
+        ).controller
         parser2A, parser2B = c2.parser, c2.parser.settings["merge"][0].remote_parser
         fields2A = c2.parser.fields
         fields2B = parser2B.fields
@@ -49,3 +55,21 @@ class TestInternal(TestAbstract):
         ac.choose_cols()
         options = m.select.call_args.args[0]
         self.assertListEqual(parser.fields, list(options.values()))
+
+    def test_cache_with_aggregation(self):
+        """Parser with the aggregation results must survive the cache round-trip."""
+        parser = self.check(
+            None, "--aggregate 5,count", filename=DUPLICATE_NAMES_CSV
+        ).controller.parser
+        text = jsonpickle.encode(parser, keys=True)
+        assert_safe_jsonpickle(text)
+        restored = jsonpickle.decode(text, keys=True)
+
+        self.assertIsNone(restored.settings["merge"] or None)  # still a defaultdict
+        (fn, field), *_ = restored.settings["aggregate"].actions
+        self.assertIs(Aggregate.count, fn)
+        self.assertEqual("name", field.name)
+        (grouped,) = restored.aggregation.values()
+        self.assertEqual(1, grouped["gamma"][0].count)
+        self.assertEqual(2, grouped[None][0].count)
+        grouped["gamma"][0].generator.send("x")  # the generator is recreated

@@ -70,7 +70,10 @@ class ActionController:
         group = self.assure_aggregation_group_by(
             fn, field, group or group_old, grouping_probably_wanted, exit_on_fail
         )
-        fns.append([fn, field])
+        if [fn, field] in fns:  # ex: the CLI flag re-run over a cached file
+            logger.debug(f"Aggregation {fn.__name__}({field}) already added.")
+        else:
+            fns.append([fn, field])
         self.parser.settings["aggregate"] = AggregateAction(group, fns)
         self.parser.is_processable = True
 

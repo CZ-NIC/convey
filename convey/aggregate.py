@@ -9,11 +9,24 @@ class Aggregate:
     def __init__(self, factory: AggregateMethod):
         self.count: Union[int, str] = 0
         "count or description"
+        self.factory = factory
         self.generator: Generator = factory()
         next(self.generator)
 
         self.is_roundable = factory in (Aggregate.sum, Aggregate.avg)
         self.is_too_broad = factory is self.list
+
+    def __getstate__(self):
+        # A generator is not serializable. We drop it and start a new one when restored,
+        # hence the counting resets when re-resolving a cached file (see the comment below).
+        state = self.__dict__.copy()
+        del state["generator"]
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.generator = self.factory()
+        next(self.generator)
 
     def get(self):
         return round(self.count, 2) if self.is_roundable else self.count
