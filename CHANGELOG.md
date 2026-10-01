@@ -1,7 +1,8 @@
 # CHANGELOG
 
-## 1.5.8 (unreleased)
+## 1.5.8 (2026-10-01)
 * docs: split into full documentation
+* enh: `convey.log` moved from the current directory to the user log dir (`~/.cache/convey/log/`), created only when something is logged, rotated; `--log-file` to change it; an unwritable directory no longer prevents convey from starting
 * fix: multiple merges no longer all use the last merged file
 * fix: tests will not flood up CWD
 * fix: file cache got lost (saved as `null`) after an aggregation or a custom output dialect, and the next run crashed on it; a CLI aggregation re-run over the cached file is no longer added twice

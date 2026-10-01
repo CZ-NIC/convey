@@ -113,6 +113,9 @@ class CLI:
     headless: Annotated[BlankTrue, arg(aliases=["-H"])] = None
     """Launch program in a headless mode which imposes --yes and --quiet. No menu is shown."""
 
+    log_file: Optional[Path] = None
+    """Where WARNINGs and ERRORs are logged. Default: convey.log in the user log dir (ex: ~/.cache/convey/log/)."""
+
     github_crash_submit: bool = True
     """ Submit crashes to GitHub """
 

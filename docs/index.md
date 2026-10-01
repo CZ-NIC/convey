@@ -13,7 +13,7 @@ Any input is accepted:
 * **log/XLS/XLSX/ODS file** converted to CSV
 * **CSV file** (any delimiter, header or [pandoc](https://pandoc.org/MANUAL.html#tables) table format) performs one or more actions
     1. **Pick, delete or sort columns** (if only some columns are needed)
-    2. **Add a column** (computes one field from another – see below)
+    2. **Add a column** (computes one field from another – see [computing fields](https://cz-nic.github.io/convey/fields/computing-fields/))
     3. **Filter** (keep/discard rows with specific values, no duplicates)
     4. **Split by a column** (produce separate files instead of single file; these can then be sent by generic SMTP or through OTRS)
     5. **Change CSV dialect** (change delimiter or quoting character, remove header)

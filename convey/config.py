@@ -2,6 +2,7 @@
 import configparser
 import glob
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import re
 import sys
@@ -14,7 +15,7 @@ from sys import exit
 from time import sleep
 from urllib.parse import quote
 
-from appdirs import user_config_dir
+from appdirs import user_config_dir, user_log_dir
 
 if TYPE_CHECKING:
     from .args_controller import Env
@@ -22,33 +23,47 @@ if TYPE_CHECKING:
 # setup logging
 # This cannot be in __init__.py so that we cannot reliably use logger in __init__.py, __main__.py and decorators.py.
 # The reason is __init__.py gets launched when generic Python autocompletion searches for includable modules.
-# If user would hit tab when writing `python3 -m [LETTER].[TAB]` into terminal, empty convey.log would have been created in the dir.
-handlers = []
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(logging.Formatter("%(message)s"))
 console_handler.setLevel(logging.INFO)
-handlers.append(console_handler)
-try:
-    file_handler = logging.FileHandler("convey.log")
+logging.basicConfig(level=logging.INFO, handlers=[console_handler])
+
+# WARNINGs and ERRORs are kept in a log file at the user log dir, not in the CWD (where the daemon may live too).
+# The file is created lazily on the first record (`delay`), so a run that logs nothing creates nothing.
+default_log_file = Path(user_log_dir("convey"), "convey.log")
+file_handler: RotatingFileHandler | None = None
+
+
+def set_log_file(path: Path | str | None = None):
+    """(Re)attach the file handler to the given path (default log file if None)."""
+    global file_handler
+    path = Path(path or default_log_file).expanduser().resolve()
+    if file_handler and Path(file_handler.baseFilename) == path:
+        return
+    if file_handler:
+        logging.root.removeHandler(file_handler)
+        file_handler.close()
+        file_handler = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = RotatingFileHandler(
+            path, maxBytes=1_000_000, backupCount=3, delay=True
+        )
+    except OSError as e:
+        print(f"Cannot use the log file {path}: {e}", file=sys.stderr)
+        return
     file_handler.setFormatter(
         logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     )
     file_handler.setLevel(logging.WARNING)
-    handlers.append(file_handler)
-except PermissionError:
-    file_handler = None
-    print(
-        "Cannot create convey.log here at "
-        + str(os.path.abspath("."))
-        + " – change directory please."
-    )
-    exit()
-except (
-    FileNotFoundError
-):  # FileNotFoundError emitted when we are in a directory whose inode exists no more
-    print("Current working directory doesn't exist.")
-    exit()
-logging.basicConfig(level=logging.INFO, handlers=handlers)
+    logging.root.addHandler(file_handler)
+
+
+def get_log_file() -> str:
+    return file_handler.baseFilename if file_handler else "the log file"
+
+
+set_log_file()
 
 # mute noisy module (prints warning every time a validation fails which fails permanently when determining data type)
 logging.getLogger("validate_email").setLevel(logging.ERROR)
@@ -65,7 +80,6 @@ default_path = Path(
 
 config_dir = user_config_dir("convey")
 BOOLEAN_STATES = configparser.RawConfigParser.BOOLEAN_STATES
-console_handler, file_handler, *_ = *logging.root.handlers, None
 
 
 def get_path(file):
@@ -178,6 +192,9 @@ class Config:
             Config.get_env().process.daemon = True
         if yes:
             Config.get_env().cli.yes = True
+        set_log_file(Config.get_env().cli.log_file)
+        if file_handler:
+            file_handler.setLevel(logging.WARNING)
         if verbosity:
             Config.verbosity = verbosity
         else:

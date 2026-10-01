@@ -14,7 +14,7 @@ from envelope import Envelope
 
 from .parser import Parser
 from .attachment import Attachment, AttachmentExc
-from .config import Config
+from .config import Config, get_log_file
 
 re_title = re.compile("<title>([^<]*)</title>")
 logger = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ class MailSender(ABC):
 
         print("\nSent: {}/{} mails.".format(sent_mails, total_count))
         if sent_mails != total_count:
-            print("Could not send all abroad mails. (Details in convey.log.)")
+            print(f"Could not send all abroad mails. (Details in {get_log_file()}.)")
 
 
 class MailSenderOtrs(MailSender):
@@ -303,9 +303,7 @@ class MailSenderOtrs(MailSender):
         mo = re_title.search(r.text)
         title = mo.group(1) if mo else None
 
-        if title and (
-            "Předat - Tiket - " in title or "Forward - Ticket - " in title
-        ):
+        if title and ("Předat - Tiket - " in title or "Forward - Ticket - " in title):
             if re.search(r'FormID" value="((\d|\.)*)"', r.text):
                 return True, (
                     f"OK, reached the forward form for ticket {self.parser.sending.otrs_id}"
@@ -322,7 +320,10 @@ class MailSenderOtrs(MailSender):
             "Fatal Error - Frontend -  OTRS",
             "Fatal Error - Rozhraní -  OTRS",
         ):
-            return False, "Bad CSRF token (otrs.token), or otrs.id is not a valid ticket."
+            return (
+                False,
+                "Bad CSRF token (otrs.token), or otrs.id is not a valid ticket.",
+            )
         elif title is None:
             return False, f"Unrecognized response (no <title> found) from {url}."
         else:
@@ -396,7 +397,7 @@ class MailSenderOtrs(MailSender):
             )
             raise
         if not res or not self._check_response(res):
-            print("Sending failure, see convey.log.")
+            print(f"Sending failure, see {get_log_file()}.")
             return False
         else:
             return True
