@@ -102,6 +102,12 @@ _ALLOWED = frozenset(
         "pathlib.WindowsPath",
         "pathlib.PurePosixPath",
         "pathlib.PureWindowsPath",
+        # Python 3.13 moved the pathlib classes into a private submodule
+        "pathlib._local.Path",
+        "pathlib._local.PosixPath",
+        "pathlib._local.WindowsPath",
+        "pathlib._local.PurePosixPath",
+        "pathlib._local.PureWindowsPath",
         "netaddr.ip.IPRange",
         "netaddr.ip.IPNetwork",
         "netaddr.ip.IPAddress",
