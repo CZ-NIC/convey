@@ -1,0 +1,61 @@
+site_name: "Convey"
+site_description: "Swiss knife for mutual conversion of the web related data types, like base64 or outputs of whois, dig, curl."
+repo_name: CZ-NIC/convey
+repo_url: https://github.com/CZ-NIC/convey
+site_url: https://cz-nic.github.io/convey/
+docs_dir: docs
+
+theme:
+  name: "material"
+  features:
+    - navigation.expand
+    - navigation.sections
+    - content.code.copy
+    - toc.follow
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      use_pygments: true
+      linenums: false
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.keys
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+  - attr_list
+
+nav:
+  - Home: index.md
+  - Usage: usage.md
+  - Installation: installation.md
+  - Fields:
+      - Computing fields: fields/computing-fields.md
+      - External fields: fields/external-fields.md
+  - Web service: web-service.md
+  - Sending files: sending-files.md
+  - Examples:
+      - URL parsing & CSV: examples/url-parsing.md
+      - Code, base64 & regex: examples/code-base64-regex.md
+      - Units & countries: examples/units-countries.md
+      - Aggregate & merge: examples/aggregate-merge.md
+      - Sending images: examples/sending-images.md
+  - CLI options: convey-help-cmd-output.md
+  - Changelog: changelog.md

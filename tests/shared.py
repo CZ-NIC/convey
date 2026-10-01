@@ -10,6 +10,7 @@ import os
 import logging
 from pathlib import Path
 from stat import S_IRGRP, S_IRUSR
+from tempfile import TemporaryDirectory
 from typing import List, Optional, Union
 from unittest import TestCase
 
@@ -19,10 +20,10 @@ sys.path.append(str(Path(__file__).parent.parent))
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 
 # to evade project folder pollution, chdir to a temp folder
-PROJECT_DIR = Path.cwd()
-# temp = TemporaryDirectory() XX As the output folder appears in the file folder, this has diminished effect.
-# os.chdir(temp.name)
-# os.chdir("tests")
+# (STDIN input outputs and split files land in the CWD; --file inputs keep their cache next to the file)
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+TEMP_DIR = TemporaryDirectory(prefix="convey-tests-")  # removed at interpreter exit
+os.chdir(TEMP_DIR.name)
 
 TESTDATA_DIR = Path("tests") / Path("test_data")
 

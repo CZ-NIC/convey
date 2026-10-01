@@ -286,7 +286,12 @@ class Wrapper:
                 save = False
                 if i == 4 or (i == 3 and self.parser.is_analyzed):
                     save = True
-                elif i == 2 or (i == 1 and self.parser.is_analyzed) and last_chance:
+                elif (
+                    (i == 2 or (i == 1 and self.parser.is_analyzed))
+                    and last_chance
+                    and not self.env.cli.yes
+                ):
+                    # in a non-interactive run (--yes, --headless) there is nobody to ask, do not litter the CWD
                     save = is_yes(f"Save to an output file {target_file}?")
             else:
                 save = bool(self.env.io.output)

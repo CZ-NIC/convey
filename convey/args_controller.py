@@ -84,6 +84,7 @@ class IO:
     2 ~ always ask
     1 ~ if processed, ask, otherwise do not save
     0 or empty ~ do not save, just display
+    Asking (2, 1) is skipped in a non-interactive run (--yes, --headless): nothing is saved then.
     This value gets overwritten if --output flag is used to specify the destination file.
     Note: We do not save single value input but only CSV STDIN input unless --output flag specified.
     Ex: $ convey example.com # single value input - no output unless --output flag

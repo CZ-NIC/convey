@@ -62,7 +62,7 @@ class TestAction(TestAbstract):
         # Check the contents of the files that just have been split
         check1 = False
         check2 = False
-        for f in Path().rglob("consumption.csv_convey*/*"):
+        for f in CONSUMPTION.parent.glob(f"{CONSUMPTION.name}_convey*/*"):
             if f.name == "kettle" and f.read_text() == "sum(price)\n602.0\n":
                 check1 = True
             if f.name == "bulb" and f.read_text() == "sum(price)\n370.0\n":

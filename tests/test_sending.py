@@ -13,6 +13,7 @@ class TestSending(TestAbstract):
         cmd = """--field code,3,'x="example@example.com" if "example.com" in x else x+"@example.com"'""" \
               " --split code --send-test {mail} 'email_template.eml' --headless"
 
+        self.addCleanup(os.chdir, os.getcwd())
         os.chdir(PROJECT_DIR / TESTDATA_DIR)
 
         lines = convey(cmd.format(mail="example@example.com"))
@@ -44,6 +45,7 @@ class TestSending(TestAbstract):
         cmd_pattern = "-t abusemail,path --split abusemail --send-test {mail} 'bare_template.eml' "
         cmd = cmd_pattern + "--attach-files False --attach-paths-from-path-column True"
 
+        self.addCleanup(os.chdir, os.getcwd())
         os.chdir(PROJECT_DIR / TESTDATA_DIR)
 
         def ch(c, logs=None):
