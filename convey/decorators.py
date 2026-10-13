@@ -12,7 +12,7 @@ class PickBase(ABC):
         pass
 
     def get_type_description(self):
-        return self.subtype.__doc__.strip()
+        return (self.subtype.__doc__ or "").strip()
 
 
 class PickMethod(PickBase):

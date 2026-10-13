@@ -721,7 +721,7 @@ class Controller:
             if Config.is_testing():
                 info.append(
                     f"\n\n\n*** TESTING MOD - mails will be sent to the address: {self.env.sending.testing_mail} ***"
-                    f"\n (For turning off testing mode set `testing = False` in config.ini.)"
+                    f"\n (For turning off testing mode set `sending.testing: False` in convey.yaml or use `--testing False`.)"
                 )
             info.append("*" * 50)
             sum_ = st["local"][0] + st["abroad"][0]

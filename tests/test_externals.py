@@ -35,3 +35,12 @@ class TestExternals(TestAbstract):
         # `lambda_ = lambda_.get_lambda(custom.pop(0) if custom is not None else None)`
         #       -> get_module_from_path(custom[0], ...) does not contain a path
         # self.assertEqual(["a"], convey("--field external,external_pick_base.py,PickMethodTest --input 'mm'"))
+
+    def test_registered_file(self):
+        """The whole file is registered. Its imports (a module, PickInput) must not break it
+        and a PickMethod class without a docstring works."""
+        convey = Convey()
+        path = str(p("external_pick_base.py"))
+        self.assertEqual(["-foo-"], convey(f"--external-fields {path} --field dumb_method --input 'foo'"))
+        self.assertEqual(["a,b,a"], convey(f"--external-fields {path} --field PickMethodTest[filtered] -C --input 'a,b'"))
+        self.assertEqual(["12"], convey(f"--external-fields {path}:time_format --field time_format[%H] --input '2016-08-08 12:00'"))

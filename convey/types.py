@@ -307,9 +307,10 @@ class Types:
         if not name:
             name = method_name
         lambda_ = getattr(module, method_name)
-        if isinstance(
-            lambda_, ABCMeta
-        ):  # this is just an import statement of ex: PickBase
+        if isinstance(lambda_, ABCMeta) or not (
+            callable(lambda_) or isinstance(lambda_, PickBase)
+        ):
+            # this is just an import statement of ex: PickBase or a module, or a constant
             return
         doc = (
             lambda_.__doc__
@@ -392,14 +393,14 @@ class Types:
         "csirt_contact",
         TypeGroup.whois,
         "E-mail address corresponding with country code, taken from your personal contacts_abroad CSV"
-        " in the format `country,abusemail`. See config.ini/contacts_abroad",
+        " in the format `country,abusemail`. See the `sending.contacts_abroad` option",
     )
     incident_contact = Type("incident_contact", TypeGroup.whois)
     cc_contact = Type(
         "cc_contact",
         TypeGroup.whois,
         "E-mail address corresponding with the abusemail, taken from your personal contacts_cc CSV"
-        " in the format `domain,cc;cc` (mails delimited by a semicolon). See config.ini/contacts_cc."
+        " in the format `domain,cc;cc` (mails delimited by a semicolon). See the `sending.contacts_cc` option."
         " Note:  when sending an e-mail to a csirt_contact, the e-mail template fills Cc header"
         " from the csirt_contact through contacts_cc.csv too. So you may end up with another Cc field"
         " than in cc_contact.",

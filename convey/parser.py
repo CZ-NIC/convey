@@ -683,7 +683,9 @@ class Parser:
             target_file = f"output_{time.strftime('%Y-%m-%d %H:%M:%S')}.csv"
         output = self.env.io.output
         return (
-            Path(str(output)) if output else Path(Config.get_cache_dir(), target_file)
+            Path(str(output)).absolute()
+            if output
+            else Path(Config.get_cache_dir(), target_file)
         )
 
     def run_analysis(self, autoopen_editor=None):

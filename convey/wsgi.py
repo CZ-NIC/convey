@@ -2,6 +2,7 @@ import json
 from collections import defaultdict
 from urllib import parse
 
+from convey.action_controller import ActionController
 from convey.args_controller import parse_args
 from convey.config import Config
 from convey.controller import Controller
@@ -20,6 +21,7 @@ Config.init_verbosity(True)
 Config.get_env().io.single_query = True
 parser = Parser(m, prepare=False)
 controller = Controller(parser)
+action_controller = ActionController(parser, m)
 unsafe_fields = [Types.code, Types.external]
 for target_type in Config.get_env().web.webservice_allow_unsafe_fields or []:
     if hasattr(Types, target_type):
@@ -57,7 +59,11 @@ def application(env, start_response):
                     .prepare()
                 )
                 if "field" in argument:
-                    target_type = controller.add_new_column(argument["field"], True)
+                    # the parser is shared among the requests, do not let it skip a field seen before
+                    parser.col_seen.clear()
+                    target_type = action_controller.add_new_column(
+                        argument["field"], True
+                    )
                     if target_type in unsafe_fields:
                         raise SystemExit(
                             f"Unsafe field '{target_type}' disabled via web"

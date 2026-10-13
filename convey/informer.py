@@ -250,7 +250,7 @@ class Informer:
 
                 if self.env.sending.testing:
                     print_s(
-                        "\n*** TESTING MOD - mails will be send to mail {} ***\n (For turning off testing mode set `testing = False` in config.ini.)".format(
+                        "\n*** TESTING MOD - mails will be send to mail {} ***\n (For turning off testing mode set `sending.testing: False` in convey.yaml or use `--testing False`.)".format(
                             self.env.sending.testing_mail
                         )
                     )
