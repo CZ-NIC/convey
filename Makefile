@@ -1,12 +1,12 @@
-MANIFEST := convey/__init__.py
-TAG := $(shell grep "^__version" $(MANIFEST) | pz --search '"(\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)\.?\d+)?)?"')
+# make release PART=patch|minor|major   bump, commit, tag, push both (after CI passed on main)
+# make release                          tag a bump committed already, push the tag
+# The logic lives in gh-safe-release (thin layer over bump-my-version), installed once per machine for all projects.
+# Upgrade: $(TOOL)/bin/pip install -U bump-my-version-gh-safe-release
+TOOL := $(HOME)/.local/share/gh-safe-release
+.PHONY: release
 
-.PHONY: release validate pre-check
-default: release
+release: $(TOOL)/bin/gh-safe-release
+	$< $(PART)
 
-release:
-	@echo "Tagging release $(TAG)"
-	git tag $(TAG)
-	git push origin $(TAG)
-	@#echo "Deploying documentation..."
-	@	#mkdocs gh-deploy
+$(TOOL)/bin/gh-safe-release:
+	python3 -m venv $(TOOL) && $(TOOL)/bin/pip install -q bump-my-version-gh-safe-release

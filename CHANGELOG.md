@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 1.5.9 (unreleased)
+## Unreleased
 * docs: reorganized by modes (single value, CSV processing, web service), every example re-run and fixed, new pages Configuration and Aggregate & merge, field syntax and field reference, examples for filter, unique, delete, sort and dialect
 * fix: web service `field` parameter crashed
 * fix: registering a whole external file (`--external-fields file.py`) failed when the file imported a module or contained a constant
@@ -15,6 +15,7 @@
 * fix: an external field crashed when the input was detected as a unit (ex: "bar", "mm")
 * fix: external fields registered by a previous command stayed in the daemon
 * enh: web service rejects unsafe fields before setting them up
+
 ## 1.5.8 (2026-10-01)
 * docs: split into full documentation
 * enh: `convey.log` moved from the current directory to the user log dir (`~/.cache/convey/log/`), created only when something is logged, rotated; `--log-file` to change it; an unwritable directory no longer prevents convey from starting

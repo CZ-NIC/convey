@@ -1,0 +1,18 @@
+[tool.bumpversion]
+current_version = "1.5.8"
+commit = true
+tag = true
+tag_name = "{new_version}"
+tag_message = "{new_version}"
+message = "chore(release): {new_version}"
+
+# CHANGELOG first, so that a missing heading fails before anything is written.
+[[tool.bumpversion.files]]
+filename = "CHANGELOG.md"
+search = "## Unreleased"
+replace = "## {new_version} ({now:%Y-%m-%d})"
+
+[[tool.bumpversion.files]]
+filename = "convey/__init__.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
