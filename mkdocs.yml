@@ -44,18 +44,18 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Usage: usage.md
   - Installation: installation.md
+  - Modes:
+      - Single value: single-value.md
+      - CSV processing: csv-processing.md
+      - Aggregate & merge: aggregate-merge.md
+      - Web service: web-service.md
   - Fields:
       - Computing fields: fields/computing-fields.md
       - External fields: fields/external-fields.md
-  - Web service: web-service.md
-  - Sending files: sending-files.md
-  - Examples:
-      - URL parsing & CSV: examples/url-parsing.md
-      - Code, base64 & regex: examples/code-base64-regex.md
-      - Units & countries: examples/units-countries.md
-      - Aggregate & merge: examples/aggregate-merge.md
-      - Sending images: examples/sending-images.md
+  - Sending e-mails:
+      - Sending e-mails: sending-files.md
+      - Sending images: sending-images.md
+  - Configuration: configuration.md
   - CLI options: convey-help-cmd-output.md
   - Changelog: changelog.md

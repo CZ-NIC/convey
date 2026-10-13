@@ -1,44 +1,51 @@
 # Web service
-When launched as a web service, several parameters are available:
 
-* `q` – search query
-* `type` – same as `--type` CLI flag
-* `field` – same as `--field` CLI flag.
-    * Note that unsafe field types `code` and `external` are disabled in web service by default. You may re-allow them in `webservice_allow_unsafe_fields` config option
-    * full syntax of CLI flag is supported
-    > *FIELD[[CUSTOM]],[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM]*
+The [single value](single-value.md) mode may be exposed over HTTP, returning JSON.
 
-    Ex: `reg_s,l,L` performs regular substitution of *'l'* by *'L'*
+## Launch
 
-* `clear=web` – clears web scrapping module cache
-
-Quick deployment may be realized by a single command:
 ```bash
+$ pip3 install uwsgi   # if not installed yet
 $ convey --server
 ```
 
-* Note that convey must be installed via `pip`
-* Note that LACNIC may freeze for 300 s, hence the timeout recommendation.
-* Note that you may find your convey installation path by launching `pip3 show convey`
-* If you received or [generated](https://uwsgi-docs.readthedocs.io/en/latest/HTTPS.html#https-support-from-1-3) key and certificate, you may turn on HTTPS in `uwsgi.ini` accesible by: `convey --config uwsgi`
-* Internally, flag `--server` launches `wsgi.py` with a UWSGI session.
+The server listens on the port 26683 by default. Its configuration (port, HTTPS, processes, timeouts) is in `uwsgi.ini`, open it by `convey --config uwsgi`.
+
+* If you received or [generated](https://uwsgi-docs.readthedocs.io/en/latest/HTTPS.html#https-support-from-1-3) key and certificate, you may turn on HTTPS in `uwsgi.ini`.
+* LACNIC may freeze for 300 s when its query rate is exceeded – consider raising the timeouts.
+* Internally, flag `--server` launches uwsgi with the `wsgi.py` of your convey installation (find it by `pip3 show convey`):
     ```bash
-    $ uwsgi --http :26683 --http-timeout 310 --wsgi-file /home/$USER/.local/lib/python3.../site-packages/convey/wsgi.py
+    $ uwsgi --ini ~/.config/convey/uwsgi.ini --wsgi-file /home/$USER/.local/lib/python3.../site-packages/convey/wsgi.py
     ```
 
+## Parameters
 
-Access: `curl http://localhost:26683/?q=example.com`
-```json
-{"ip": "93.184.216.34", "prefix": "93.184.216.0-93.184.216.255", "asn": "", "abusemail": "abuse@verizondigitalmedia.com", "country": "unknown", "netname": "edgecast-netblk-03", "csirt-contact": "-", "incident-contact": "unknown", "status": 200, "text": "DNSThe free app that makes your (much longer text...)"}
+* `q` – search query
+* `type` – same as the `--type` CLI flag
+* `field` – same as the `--field` CLI flag, the full [field syntax](fields/computing-fields.md#field-syntax) is supported
+    * Ex: `reg_s,l,L` performs regular substitution of *'l'* by *'L'*
+    * The unsafe field types `code` and `external` are disabled by default. You may re-allow them in the `web.webservice_allow_unsafe_fields` [config option](configuration.md) – but beware, they let the caller run any code on your server.
+* `clear=web` – clears the web scraping module cache
+
+## Examples
+
+Without a field, every computable information is returned.
+
+```bash
+$ curl "http://localhost:26683/?q=example.com"
+{"cidr": "172.64.0.0/13", "country_name": "United States of America", "ip": "172.66.147.243", "tld": "com", "url": "http://example.com", "abusemail": "abuse@cloudflare.com", "asn": "as13335", "country": "us", "csirt_contact": "soc@us-cert.gov", "incident_contact": "us@@soc@us-cert.gov", "netname": "cloudflarenet", "prefix": "172.64.0.0/13", "http_status": "200", "text": "This domain is for use in documentation examples (...)", (...)}
 ```
 
-Access: `curl http://localhost:26683/?q=example.com&field=ip`
-```json
-{"ip": "93.184.216.34"}
-```
+```bash
+$ curl "http://localhost:26683/?q=example.com&field=ip"
+{"ip": "172.66.147.243"}
 
-Access: `curl http://localhost:26683?q=hello&type=country&field=reg_s,l,L`
-```json
+$ curl "http://localhost:26683/?q=hello&field=reg_s,l,L"
 {"reg_s": "heLLo"}
-```
 
+$ curl "http://localhost:26683/?q=sc&type=country&field=country_name"
+{"country_name": "Seychelles"}
+
+$ curl "http://localhost:26683/?q=hello&field=code,x=1"
+{"error": "could not process input", "message": "Unsafe field 'code' disabled via web"}
+```

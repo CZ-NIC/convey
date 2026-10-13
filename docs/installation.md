@@ -8,7 +8,7 @@ If something is missing on your system, you may find help yourself with this com
 * `libpcre3 libpcre3-dev` needed to suppress uWSGI warning `!!! no internal routing support, rebuild with pcre support !!!`
 * `libssl-dev` needed to be present before building `uwsgi` if you will need to use `--https`
 
-## Launch as a package:
+## Launch as a package
 
 ```bash
 # (optional) setup virtual environment
@@ -17,7 +17,7 @@ python3 -m venv venv
 (venv) $ ... # continue below
 
 # install from PyPi
-pip3 install convey  # without root use may want to use --user
+pip3 install convey  # without root, you may want to use --user
 
 # (optional) alternatively, you may want to install current master from GitHub
 pip3 install git+https://github.com/CZ-NIC/convey.git
@@ -26,7 +26,7 @@ pip3 install git+https://github.com/CZ-NIC/convey.git
 convey [filename or input text] # or try `python3 -m convey` if you're not having `.local/bin` in your executable path
 ```
 
-Parameter `[filename or input text]` may be the path of the CSV source file or any text that should be parsed. Note that if the text consist of a single value, program prints out all the computable information and exits; I.E. inputting a base64 string will decode it.
+Parameter `[filename or input text]` may be the path of the CSV source file or any text that should be parsed. If the text consists of a [single value](single-value.md), the program prints out all the computable information and exits; ex: inputting a base64 string will decode it.
 
 ## OR launch from a directory
 
@@ -46,8 +46,7 @@ pip3 install -r requirements.txt  --user
 2. Copy: [extra/convey-autocompletion.bash](https://github.com/CZ-NIC/convey/blob/main/extra/convey-autocompletion.bash) to `/etc/bash_completion.d/`
 3. Restart terminal
 
-## Customisation
+## Next steps
 
-* Launch convey with [`--help`](convey-help-cmd-output.md) flag to see [further options](convey-help-cmd-output.md).
-* The config file [`convey.yaml`](https://github.com/CZ-NIC/convey/blob/main/convey/defaults/convey.yaml) is automatically created in [user config folder](https://github.com/CZ-NIC/convey/blob/main/convey/defaults/convey.yaml). This file may be edited for further customisation. Access it with `convey --config`. Convey tries to open the file in the default GUI editor or in the terminal editor if GUI is not an option.
-
+* Launch convey with the [`--help`](convey-help-cmd-output.md) flag to see all the options.
+* Make your choices permanent in the [configuration](configuration.md) file `convey.yaml`, open it by `convey --config`.

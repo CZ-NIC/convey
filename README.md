@@ -34,14 +34,17 @@ Python3.10+ required.
 
 ## Documentation
 
-- [Usage](https://cz-nic.github.io/convey/usage/) — single query, CSV processor, web service.
-- [Installation](https://cz-nic.github.io/convey/installation/) — prerequisites, PyPI/GitHub install, bash completion, customisation.
+- [Installation](https://cz-nic.github.io/convey/installation/) — prerequisites, PyPI/GitHub install, bash completion.
+- Modes:
+    * [Single value](https://cz-nic.github.io/convey/single-value/) — whois, DNS, web, encodings, regex, units, countries.
+    * [CSV processing](https://cz-nic.github.io/convey/csv-processing/) — pick, add, filter, split, change dialect; caching, headless runs.
+    * [Aggregate & merge](https://cz-nic.github.io/convey/aggregate-merge/)
+    * [Web service](https://cz-nic.github.io/convey/web-service/)
 - Fields:
-    * [Computing fields](https://cz-nic.github.io/convey/fields/computing-fields/) — computable and detectable fields, whois module, overview of all methods.
+    * [Computing fields](https://cz-nic.github.io/convey/fields/computing-fields/) — field syntax, reference of all fields, whois module.
     * [External fields](https://cz-nic.github.io/convey/fields/external-fields/) — custom Python methods, `PickMethod` and `PickInput` decorators.
-- [Web service](https://cz-nic.github.io/convey/web-service/)
-- [Sending files](https://cz-nic.github.io/convey/sending-files/) — mailing split chunks via SMTP or OTRS, dynamic templates.
-- [Examples](https://cz-nic.github.io/convey/examples/url-parsing/) — URL parsing, CSV processing, file splitting, base64, units, aggregate, merge…
+- [Sending e-mails](https://cz-nic.github.io/convey/sending-files/) — mailing split chunks via SMTP or OTRS, dynamic templates, [sending images](https://cz-nic.github.io/convey/sending-images/).
+- [Configuration](https://cz-nic.github.io/convey/configuration/) — `convey.yaml`, daemon, files and logs.
 - [CLI options](https://cz-nic.github.io/convey/convey-help-cmd-output/)
 - [Changelog](https://cz-nic.github.io/convey/changelog/)
 

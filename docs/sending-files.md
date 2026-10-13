@@ -1,17 +1,17 @@
-# Sending files
+# Sending e-mails
 
-When you split the CSV file into chunks by an e-mail, generated files may be sent to these addresses. Look at the example of an unlocked "send" menu below. You see the list of the recipients, followed by a conditional list of recipients that have been already sent to. Next, an exact e-mail message is printed out, including headers.
+When you [split](csv-processing.md#split-by-a-column) the CSV file into chunks by an e-mail (ex: `--split abusemail` or `--split incident_contact`), generated files may be sent to these addresses. In the main menu, choose *send*, or use the `--send` flag to send them automatically after the split. Look at the example of an unlocked "send" menu below. You see the list of the recipients, followed by a conditional list of recipients that have been already sent to. Next, an exact e-mail message is printed out, including headers.
 
 In the menu, you may either:
 
  * **Send** the e-mails
- * **Limit** the messages that are being send at once; if you are not 100 % sure you want to send the the whole message bucket at once.
+ * **Limit** the messages that are being send at once; if you are not 100 % sure you want to send the whole message bucket at once.
  * **Edit** the template. The message file will open either in the default GUI or terminal editor. The first line of the template should be `Subject: ...`, followed by a free line. Note that you may include any e-mail headers, such as `Reply-To: ...`, `Cc: ...`, etc. The e-mail will reflect all of them. You may write the message either in plain text or in the HTML.
  * **Choose** which recipients in a checkbox list will receive the message.
  * **Test** sending a message to your own address. You'll be prompted which of the messages should be delivered to you. The e-mail contents possibly modified by a dynamic template is shown just before sending.
  * **Print all e-mails** to a file to have the more granulated control over what is going to be sent.
- * **Toggle file attaching** on and off. A portion of the source file related to this e-mail address might be attached. There are use cases when you do not want the files to be sent with as the body text suits fine.
- * **Toggle paths from the path column attaching** on and off. Files mentioned in a path column and related to this e-amil address might be attached.
+ * **Toggle file attaching** on and off. A portion of the source file related to this e-mail address might be attached. There are use cases when you do not want the files to be attached as the body text suits fine (`--attach-files`).
+ * **Toggle paths from the path column attaching** on and off. Files mentioned in a path column and related to this e-mail address might be attached (`--attach-paths-from-path-column`), see [sending images](sending-images.md).
 
 ```bash
   *** E-mail template ***
@@ -46,21 +46,21 @@ x) Go back...
 ```
 
 ## Arbitrary e-mail headers, "From" header, GPG signing
-In the template, you may specify any e-mail header, such as `Reply-To`, `Cc` or `From`. If `From` is not found, we take `SMTP/email_from_name` config value. If `gnupg` home is found on the default user path, we check if there is a secret key matching the `From` header and if found, e-mail will be GPG-signed. If it is going to be signed, you would see something like `Content-Type: multipart/signed; protocol="application/pgp-signature";` header in the e-mail template preview.
+In the template, you may specify any e-mail header, such as `Reply-To`, `Cc` or `From`. If `From` is not found, we take the `sending.email_from_name` [config](configuration.md) value. If `gnupg` home is found on the default user path, we check if there is a secret key matching the `From` header and if found, e-mail will be GPG-signed. If it is going to be signed, you would see something like `Content-Type: multipart/signed; protocol="application/pgp-signature";` header in the e-mail template preview.
 
 ## Dynamic templates
-Message is processed with [Jinja2](https://jinja.palletsprojects.com/en/2.10.x/) templating system by default.
+Message is processed with [Jinja2](https://jinja.palletsprojects.com/) templating system by default (disable by `--jinja False`). Edit the templates by `convey --config template` and `convey --config template_abroad` (the latter is used for the foreign CSIRTs, see `incident_contact` in [computing fields](fields/computing-fields.md#whois)).
 
 Few instruments are included to treat the attachment contents:
 
-* **attachment()** – Prints the attachment contents and prevent it to be attached.
+* **attachment()** – Prints the attachment contents and prevents it from being attached.
     ```jinja2
     You will find our findings below.
 
     {{ attachment() }}
     ```
 * **row()** – Generate attachment contents fields row by row. Header skipped.
-* **amount(count=2)** – Check if the attachment has at least `count` number of lines. Header is not counted. Useful when deciding whether the are single row in the result or multiple.
+* **amount(count=2)** – Check if the attachment has at least `count` number of lines. Header is not counted. Useful when deciding whether there is a single row in the result or multiple.
 * **joined(column: int, delimiter=", ")** – Return a column joined by delimiter
 * **first_row** – Access first line fields
 
@@ -74,3 +74,10 @@ Few instruments are included to treat the attachment contents:
     {% endif %}
     ```
 
+
+## Testing mode and SMTP
+
+* `--testing` – no e-mail is sent to the real recipients, all of them are forwarded to the `sending.testing_mail` address.
+* `--smtp-host` – the SMTP server to send through (default: `localhost`).
+* `--send otrs` – send automatically through OTRS instead of SMTP; configure the `otrs.*` [options](configuration.md).
+* `--subject`, `--body` – set the e-mail subject and body from the command line.

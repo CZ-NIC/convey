@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 1.5.9 (unreleased)
+* docs: reorganized by modes (single value, CSV processing, web service), every example re-run and fixed, new pages Configuration and Aggregate & merge, field syntax and field reference, examples for filter, unique, delete, sort and dialect
+* fix: web service `field` parameter crashed
+* fix: registering a whole external file (`--external-fields file.py`) failed when the file imported a module or contained a constant
+* fix: `PickMethod` class without a docstring crashed
+* fix: relative `--output` path was saved into the result directory instead of the current one
 ## 1.5.8 (2026-10-01)
 * docs: split into full documentation
 * enh: `convey.log` moved from the current directory to the user log dir (`~/.cache/convey/log/`), created only when something is logged, rotated; `--log-file` to change it; an unwritable directory no longer prevents convey from starting

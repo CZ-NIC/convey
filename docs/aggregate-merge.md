@@ -2,7 +2,7 @@
 
 ## Aggregate
 
-Syntax is `[COLUMN, FUNCTION], ..., [group-by-COLUMN]`.
+Syntax is `--aggregate, -a [COLUMN, FUNCTION], ..., [group-by-COLUMN]`.
 Possible functions are:
 
 * avg
@@ -12,7 +12,6 @@ Possible functions are:
 * max
 * list
 * set
-
 
 Let's have a file.
 ```csv
@@ -36,11 +35,11 @@ $ convey file.csv --aggregate price,sum
 Group the `price` sum by `category`.
 ```bash
 $ convey file.csv --aggregate price,sum,category
-category     sum(price)
----------  ------------
-total               972
-bulb                370
-kettle              602
+category      sum(price)
+----------  ------------
+total                972
+kettle               602
+bulb                 370
 ```
 
 Group the `price` sum and the `consumption` average value by `category`.
@@ -50,8 +49,8 @@ $ convey file.csv --aggregate price,sum,consumption,avg,category
 category      sum(price)    avg(consumption)
 ----------  ------------  ------------------
 total                972               41
-bulb                 370               18.33
 kettle               602               75
+bulb                 370               18.33
 ```
 
 Group the `price` sum by `category` and list its values.
@@ -61,31 +60,57 @@ $ convey file.csv --aggregate price,sum,price,list,category
 category      sum(price)  list(price)
 ----------  ------------  ---------------------
 total                972  (all)
-bulb                 370  ['100', '150', '120']
 kettle               602  ['250', '352']
+bulb                 370  ['100', '150', '120']
 ```
 
-You can even split while aggregating. Each file will count its own results.
+Count the rows in each group. The counted column must be the grouping one.
 
 ```bash
-$ convey file.csv --agg price,sum --split category
+$ convey file.csv --aggregate category,count,category
+category      count(category)
+----------  -----------------
+total                       5
+bulb                        3
+kettle                      2
+```
 
-Split location: bulb
-  sum(price)
-------------
-         370
+Unique values of a column, no grouping.
 
-Split location: kettle
-  sum(price)
-------------
-         602
+```bash
+$ convey file.csv --aggregate category,set
+set(category)
+------------------
+{'bulb', 'kettle'}
+```
+
+The tables above are printed in the interactive mode (shown here without the menu). For a script, use `--headless --output` to get a CSV.
+
+```bash
+$ convey file.csv --aggregate price,sum,category -H --output
+category,sum(price)
+total,972.0
+kettle,602.0
+bulb,370.0
+```
+
+You can even split while aggregating. Each file counts its own results.
+
+```bash
+$ convey file.csv --aggregate price,sum --split category -H
+$ cat file.csv_convey*/bulb
+sum(price)
+370.0
+$ cat file.csv_convey*/kettle
+sum(price)
+602.0
 ```
 
 ## Merge
 
-You can merge two file based on a common column.
+You can merge two files based on a common column. Syntax is `--merge [REMOTE_PATH],[REMOTE_COLUMN],[LOCAL_COLUMN]`.
 
-Imagine a XLS file `person.xls`, containing following rows:
+Imagine an XLS file `person.xls`, containing the following rows:
 
 ```
 john@example.com,foo,male
@@ -117,7 +142,7 @@ foo,orange,wikipedia.com,john@example.com,male
 ```
 
 * When a pivot key (local column value)
-    * is missing from the remote file, the fields on the line stays blank.
+    * is missing from the remote file, the fields on the line stay blank.
     * is found twice, the row gets duplicated.
+* The `--merge` flag may be used multiple times to merge more files.
 * Performance note: Working with really huge files? Whereas the local file that you merge to can be of an arbitrary size, the remote file being merged should not be excessively big, it should fit to the RAM.
-
