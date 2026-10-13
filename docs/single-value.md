@@ -138,12 +138,9 @@ tld        com
 To prevent `abusemail` from being output, use `--field-excluded, -fe` instead of `--field, -f`.
 
 ```bash
-$ convey example.com -fe abusemail -f tld,abusemail -H
+$ convey example.com -fe abusemail -f tld,2 -H
 com
 ```
-
-!!! warning
-    Refer to an excluded field by its name, not by its position. All `--field` flags are added before the `--field-excluded` ones, so `-fe abusemail -f tld,2` fails with *Column ID 2 does not exist*.
 
 ### Options asked at runtime
 

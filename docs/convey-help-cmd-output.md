@@ -202,6 +202,60 @@ See full docs at https://github.com/CZ-NIC/convey (ex. to launch a web service).
             (Note the comma without space behind 'netname'.)
 
         Computable fields:
+        * base64 (Text encoded with Base64) usual names: base64
+        * charset
+        * cidr (CIDR 127.0.0.1/32) usual names: cidr
+        * country_name
+        * date
+        * email (E-mail address) usual names: mail
+        * formatted_time
+        * hostname (2nd or 3rd domain name) usual names: fqdn, hostname, domain
+        * ip (valid IP address) usual names: ip, ipaddress
+        * isotimestamp
+        * plaintext (Plain text) usual names: plaintext, text
+        * port (port) usual names: port, prt
+        * quoted_printable (Text encoded as quotedprintable)
+        * time
+        * tld
+        * unit (any physical quantity)
+        * url (URL starting with http/https) usual names: url, uri, location
+        * urlencode (Text encoded with urlencode) usual names: urlencode
+        * code
+        * external
+        * reg
+        * reg_m
+        * reg_s
+        * abusemail (Abuse e-mail contact from whois)
+        * asn (Autonomous system number) usual names: as, asn, asnumber
+        * cc_contact (E-mail address corresponding with the abusemail, taken
+        from your personal contacts_cc CSV in the format `domain,cc;cc` (mails
+        delimited by a semicolon). See the `sending.contacts_cc` option. Note:
+        when sending an e-mail to a csirt_contact, the e-mail template fills Cc
+        header from the csirt_contact through contacts_cc.csv too. So you may
+        end up with another Cc field than in cc_contact.)
+        * country
+        * csirt_contact (E-mail address corresponding with country code, taken
+        from your personal contacts_abroad CSV in the format `country,
+        abusemail`. See the `sending.contacts_abroad` option)
+        * incident_contact
+        * netname
+        * prefix
+        * registrar_abusemail (Abuse e-mail contact from whois)
+        * a
+        * aaaa
+        * dmarc
+        * mx
+        * ns
+        * spf
+        * txt
+        * ports (Open ports given by nmap)
+        * csp
+        * form_names
+        * html
+        * http_status (HTTP response status. If 0 or negative, request failed.)
+        * redirects
+        * text
+        * x_frame_options
 
         This flag May be used multiple times. (repeatable)
   -fe FIELD,[COLUMN],[SOURCE_TYPE],[CUSTOM],[CUSTOM], --field-excluded FIELD,

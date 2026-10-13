@@ -87,7 +87,7 @@ $ convey test.csv -f cidr -H --output result.csv   # saved to ./result.csv
 
 !!! note
     `--headless` without `--output` prints nothing – the result goes silently to the invented file in the result directory.
-    A headless run outputs only when there is something to process (a column added, a filter, a split…).
+    A headless run outputs only when there is something to process (a column added, a filter, a split…) or when the file has already been processed before (then the cached result is output again).
 
 The output dialect follows the input. Here, the single-column file was detected as quoting all the values.
 
@@ -136,7 +136,7 @@ bulb,120
 Pick and reorder columns by `--sort, -s`. The listed columns are output in the given order, the others are dropped.
 
 ```bash
-$ convey shop.csv --sort 2,1 -H --output
+$ convey shop.csv --sort price,category -H --output
 price,category
 100,bulb
 150,bulb
@@ -144,9 +144,6 @@ price,category
 352,kettle
 120,bulb
 ```
-
-!!! warning
-    `--sort` accepts the column positions only, not their names.
 
 ## Add a column
 

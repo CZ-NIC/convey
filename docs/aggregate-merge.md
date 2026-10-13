@@ -97,11 +97,29 @@ bulb,370.0
 You can even split while aggregating. Each file counts its own results.
 
 ```bash
-$ convey file.csv --aggregate price,sum --split category -H
-$ cat file.csv_convey*/bulb
+$ convey file.csv --aggregate price,sum --split category
+Split location: bulb
+  sum(price)
+------------
+         370
+
+Split location: kettle
+  sum(price)
+------------
+         602
+```
+
+The results are saved in the split files, `--headless --output` prints them as CSV.
+
+```bash
+$ convey file.csv --aggregate price,sum --split category -H --output
+* Saved to bulb
+
 sum(price)
 370.0
-$ cat file.csv_convey*/kettle
+
+* Saved to kettle
+
 sum(price)
 602.0
 ```
