@@ -1,6 +1,7 @@
 from dataclasses import fields, is_dataclass
 import logging
 import os
+import shlex
 import socket
 import subprocess
 import sys
@@ -100,6 +101,26 @@ def control_daemon(cmd, in_daemon=False):
     return cmd
 
 
+def order_fields(
+    raw_args: list[str], fields: list[str], excluded: list[str]
+) -> list[tuple[bool, str]]:
+    """User has requested to compute these.
+    Returns tuples: add (whether to include the column in the result), field definition.
+    The order of `--field` and `--field-excluded` flags is kept as in the CLI
+    so that a field may be referred by its column number. (The parser gives them in two separate lists.)
+    """
+    queues = {True: list(fields), False: list(excluded)}
+    flags = {"-f": True, "--field": True, "-fe": False, "--field-excluded": False}
+    result = []
+    for arg in raw_args:
+        add = flags.get(arg.split("=", 1)[0])
+        if add is not None and queues[add]:
+            result.append((add, queues[add].pop(0)))
+    # fields not found in the CLI (ex: from the config file)
+    result.extend((add, v) for add in (True, False) for v in queues[add])
+    return result
+
+
 class Controller:
 
     def __init__(self, parser=None):
@@ -115,6 +136,12 @@ class Controller:
         # Hence, we cannot use the Env object yet.
         Types.refresh(True)
         self.m = parse_args(args=given_args)
+        if given_args is None:
+            self.raw_args = sys.argv[1:]
+        elif isinstance(given_args, str):
+            self.raw_args = shlex.split(given_args)
+        else:
+            self.raw_args = list(given_args)
         Config.set_env(self.m.env)
 
         try:
@@ -259,6 +286,7 @@ class Controller:
                     try:
                         # the daemon has received a new command
                         env = parse_args(argv[2:]).env
+                        self.raw_args = argv[2:]
                         # we have to copy the values into, to copy the values into self.env to keep references
                         self.copy_into(self.env, env)
                     except SystemExit as e:
@@ -349,10 +377,9 @@ class Controller:
             if e.io.single_detect:
                 e.io.single_detect = True
 
-        new_fields: list[tuple[bool, Any]] = []
-        "User has requested to compute these. Defined by tuples: add (whether to include the column in the result), field definition"
-        [new_fields.append((True, values)) for values in e.action.field]
-        [new_fields.append((False, values)) for values in e.action.field_excluded]
+        new_fields = order_fields(
+            self.raw_args, e.action.field, e.action.field_excluded
+        )
 
         self.m.env.comp.adding_new_fields = bool(new_fields)
         self.wrapper = Wrapper(
@@ -473,7 +500,16 @@ class Controller:
             # However, this is such a small change, we will not turning parser.is_processable on.
             self.parser.settings["header"] = e.csv.header_output
 
-        if self.parser.is_processable and self.m.env.cli.yes:
+        if self.m.env.cli.yes and (
+            self.parser.is_processable
+            # A headless run asking for the output gets it even if nothing changed since the cached run
+            # or if just the header is to be cut off (which does not make the parser processable).
+            or (
+                e.cli.headless
+                and (e.io.stdout or e.io.output)
+                and (self.parser.is_analyzed or e.csv.header_output is not None)
+            )
+        ):
             self.process()
 
         if (

@@ -46,6 +46,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 types: List["Type"] = []  # all field types
+external_types: List["Type"] = []  # field types imported from the external files
 methods: dict[tuple["Type", "Type"], Callable] = {}
 graph: Graph["Type"] = Graph()
 methods_deleted = {}
@@ -271,6 +272,14 @@ class Types:
         # we cannot use Config.get_env() in the init phase
         config = _AlwaysFalse() if init else Config.get_env()
 
+        # forget the external fields of the previous run (the daemon or tests run multiple commands in a process)
+        for t in external_types:
+            if t in types:
+                types.remove(t)
+            if getattr(Types, t.name, None) is t:
+                delattr(Types, t.name)
+        external_types.clear()
+
         methods.clear()
         methods.update(Types._get_methods(config))
         graph.clear()
@@ -323,8 +332,9 @@ class Types:
         #     types.pop(types.index(getattr(Types, name)))
         #     delattr(Types, name)
         # else:
-        setattr(Types, name, Type(name, TypeGroup.general, doc))
-        type_ = getattr(Types, name)
+        type_ = Type(name, TypeGroup.general, doc)
+        setattr(Types, name, type_)
+        external_types.append(type_)
         methods[(Types.plaintext, type_)] = lambda_
         if lambda_ is not True:
             graph.add_edge(Types.plaintext, type_)

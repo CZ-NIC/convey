@@ -61,13 +61,9 @@ def application(env, start_response):
                 if "field" in argument:
                     # the parser is shared among the requests, do not let it skip a field seen before
                     parser.col_seen.clear()
-                    target_type = action_controller.add_new_column(
-                        argument["field"], True
+                    action_controller.add_new_column(
+                        argument["field"], True, forbidden=tuple(unsafe_fields)
                     )
-                    if target_type in unsafe_fields:
-                        raise SystemExit(
-                            f"Unsafe field '{target_type}' disabled via web"
-                        )
                 if res.is_single_query:
                     response = res.run_single_query(json=True)
                     status = "200 OK"

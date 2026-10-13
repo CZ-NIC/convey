@@ -987,24 +987,30 @@ class Parser:
 
     def resort(self, chosens=[]):
         """
-        :type chosens: List[str] Column IDs in str, ex: "1" points to column index 0
+        :type chosens: List[str] Columns to be kept in this order, see `Identifier.get_column_i`. Ex: "1" points to column index 0.
         """
-        for f in self.fields:
-            f.is_chosen = False
-        l = [str(c + 1) for c in range(len(self.fields))]
-        excluded = [f for f in l if f in set(l) - set(chosens)]
+        # resolve all the columns before any col_i changes
+        chosen_i = []
+        for col in chosens:
+            col_i = self.identifier.get_column_i(col, check="to be re-sorted") % len(
+                self.fields
+            )
+            if col_i not in chosen_i:
+                chosen_i.append(col_i)
+        excluded_i = [i for i in range(len(self.fields)) if i not in chosen_i]
         transposed = list(zip(*self.sample_parsed))
+        fields = list(self.fields)
         sp = []
-        for i, (col, is_chosen) in enumerate(
-            [(col, True) for col in chosens] + [(col, False) for col in excluded]
+        for i, (col_i, is_chosen) in enumerate(
+            [(c, True) for c in chosen_i] + [(c, False) for c in excluded_i]
         ):
-            col_i = self.identifier.get_column_i(col, check="to be re-sorted")
-            self.fields[col_i].col_i = i
-            if self.fields[col_i].is_new:
+            f = fields[col_i]
+            f.col_i = i
+            if f.is_new:
                 sp.append([None] * len(self.sample_parsed))
             else:
                 sp.append(transposed[col_i])
-            self.fields[col_i].is_chosen = is_chosen
+            f.is_chosen = is_chosen
         self.fields = sorted(self.fields, key=lambda f: f.col_i)
         self.sample_parsed = list(map(list, zip(*sp)))  # force list preventing tuples
 
@@ -1155,6 +1161,8 @@ class Parser:
     def post_setstate(self, m: Mininterface[Env]):
         self.m = m
         self.env = m.env
+        # the output destination is given by the current CLI, not by the cached run
+        self.stdout = self.env.io.stdout
 
         self.informer = Informer(self)
         self.processor = Processor(self, rewrite=False)

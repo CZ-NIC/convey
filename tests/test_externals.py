@@ -31,10 +31,10 @@ class TestExternals(TestAbstract):
         # method "filtered" is used which excludes "1"
         self.assertNotEqual(["1"], convey("--field external," + str(p("external_pick_base.py")) + ",PickMethodTest,filtered --input '1'"))
 
-        # XX does not work, error when resolving path Unit -> Plaintext -> External. Identifier.get_methods_from
-        # `lambda_ = lambda_.get_lambda(custom.pop(0) if custom is not None else None)`
-        #       -> get_module_from_path(custom[0], ...) does not contain a path
-        # self.assertEqual(["a"], convey("--field external,external_pick_base.py,PickMethodTest --input 'mm'"))
+        # "mm" is detected as a unit, the path is unit -> plaintext -> external.
+        # The intermediate unit method must not consume the CUSTOM parts (path, method name) of the external.
+        self.assertEqual(["mm"], convey("--field external,1,plaintext," + str(p("external_pick_base.py")) + ",PickMethodTest --input 'mm'"))
+        self.assertIn("1000.0 micron", convey("--field external," + str(p("external_pick_base.py")) + ",PickMethodTest --input 'mm'")[0])
 
     def test_registered_file(self):
         """The whole file is registered. Its imports (a module, PickInput) must not break it

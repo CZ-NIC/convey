@@ -6,6 +6,7 @@ from bdb import BdbQuit
 from collections import defaultdict
 from csv import reader as csvreader, writer as csvwriter
 from functools import reduce
+from itertools import islice
 from operator import eq, ne, mul
 from pathlib import Path
 from queue import Queue, Empty
@@ -262,12 +263,14 @@ class Processor:
                         )  # put the aggregated data to the place we would attend them
                     else:
                         t = open(Path(Config.get_cache_dir(), location), "w")
-                        if len(self.parser.aggregation) > 1:
-                            print("\nSplit location: " + location)
+                        if parser.is_split:
+                            parser.files_created.add(location)
                     header, rows = inf.get_aggregation(data, nice=False)
                     w = csvwriter(t, dialect=settings["dialect"])
                     w.writerow(header)
                     [w.writerow(r) for r in rows]
+                    if isinstance(t, io.TextIOWrapper):
+                        t.close()
         finally:
             inf.stop()
             if not stdin:
@@ -282,10 +285,11 @@ class Processor:
                     result = self.descriptors[1][0].getvalue()
                     print(result.strip())
                     parser.stdout = result
-                    parser.stdout_sample = [
-                        row.split(parser.dialect.delimiter)
-                        for row in result.split("\n", 10)[:10]
-                    ]
+                    parser.stdout_sample = list(
+                        islice(
+                            csvreader(io.StringIO(result), dialect=parser.dialect), 10
+                        )
+                    )
                     self.parser.saved_to_disk = False
                 else:
                     self.parser.saved_to_disk = True

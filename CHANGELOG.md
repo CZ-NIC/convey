@@ -6,6 +6,15 @@
 * fix: registering a whole external file (`--external-fields file.py`) failed when the file imported a module or contained a constant
 * fix: `PickMethod` class without a docstring crashed
 * fix: relative `--output` path was saved into the result directory instead of the current one
+* fix: `--help` listed no computable fields
+* fix: `--sort` accepts column names and positions from the right, not only positions
+* fix: `--field` and `--field-excluded` keep the CLI order, so an excluded field may be referred by its column number
+* fix: a headless run over an already processed file printed nothing; the `--output` destination of the cached run is no longer reused
+* fix: `--split` with `--aggregate` shows a table for each split file and counts them as result files
+* fix: final table had an empty line under the header
+* fix: an external field crashed when the input was detected as a unit (ex: "bar", "mm")
+* fix: external fields registered by a previous command stayed in the daemon
+* enh: web service rejects unsafe fields before setting them up
 ## 1.5.8 (2026-10-01)
 * docs: split into full documentation
 * enh: `convey.log` moved from the current directory to the user log dir (`~/.cache/convey/log/`), created only when something is logged, rotated; `--log-file` to change it; an unwritable directory no longer prevents convey from starting

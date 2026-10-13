@@ -1,4 +1,7 @@
 from pathlib import Path
+import shutil
+import subprocess
+from tempfile import TemporaryDirectory
 from shared import (
     CONSUMPTION,
     COMBINED_LIST_METHOD,
@@ -17,6 +20,7 @@ from shared import (
     SHEET_PERSON_CSV,
     TestAbstract,
     Convey,
+    PROJECT_DIR,
     p,
 )
 
@@ -189,3 +193,42 @@ class TestAction(TestAbstract):
             f"--merge {PERSON_CSV},2,1 -f base64,6",
             filename=SHEET_CSV,
         )
+
+    def test_sort(self):
+        # pick and reorder columns by their position, name or position from the right
+        for cols in ("2,1", "price,category", "-2,1"):
+            self.check(
+                ["price,category", "100,bulb", "150,bulb", "250,kettle", "352,kettle", "120,bulb"],
+                f"--sort {cols}",
+                filename=CONSUMPTION,
+            )
+
+    def test_field_order(self):
+        """An excluded field may be referred by its column number in the order of the CLI flags."""
+        self.check("aGVsbG8%3D", "-fe base64 -f urlencode,2,plaintext", text="hello")
+
+
+class TestCachedRun(TestAbstract):
+    """Without --reprocess, the cache of the previous run is used."""
+
+    def run_convey(self, cwd, *args):
+        cmd = [str(PROJECT_DIR / "convey.py"), "--daemon", "False", "--headless", "--github-crash-submit", "False", *args]
+        return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, stdin=subprocess.DEVNULL).stdout.splitlines()
+
+    def test_headless_output_twice(self):
+        with TemporaryDirectory() as temp:
+            shutil.copy(str(CONSUMPTION), temp)
+            for _ in range(2):  # the second run has nothing new to process, still prints the result
+                out = self.run_convey(temp, "consumption.csv", "-f", "base64,1", "--output")
+                self.assertEqual("bulb,100,30,YnVsYg==", out[1])
+            # relative output path is relative to CWD; the cached run does not stick to the previous stdout
+            self.run_convey(temp, "consumption.csv", "--output", "out.csv")
+            self.assertEqual("bulb,100,30,YnVsYg==", Path(temp, "out.csv").read_text().splitlines()[1])
+
+    def test_split_aggregate(self):
+        with TemporaryDirectory() as temp:
+            shutil.copy(str(CONSUMPTION), temp)
+            out = self.run_convey(temp, "consumption.csv", "-a", "price,sum", "--split", "category", "--output")
+            self.assertIn("* Saved to bulb", out)
+            self.assertIn("370.0", out)
+            self.assertIn("602.0", out)

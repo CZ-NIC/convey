@@ -239,6 +239,11 @@ class CSVDialect:
     """If false, header is omitted when processing."""
 
 
+# load types so that we can print out computable types in the help text
+# (the Env object does not exist yet, hence `init`)
+Types.refresh(True)
+
+
 @dataclass
 class Actions:
     """Actions"""

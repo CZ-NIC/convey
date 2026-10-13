@@ -109,8 +109,12 @@ class Identifier:
             if isinstance(lambda_, PickBase):
                 # either the fields was added (has custom:List)
                 # or is being computed in run_single_query() through get_computable_fields that makes us sure PickBase has a default
+                # When the target is a custom field (code, reg, external), the CUSTOM parts belong to it,
+                # not to an intermediate method on the way (ex: unit -> plaintext when input "bar" is a unit).
                 lambda_ = lambda_.get_lambda(
-                    custom.pop(0) if custom is not None else None
+                    custom.pop(0)
+                    if custom and target.group != TypeGroup.custom
+                    else None
                 )
             elif not hasattr(
                 lambda_, "__call__"

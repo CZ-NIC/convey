@@ -171,15 +171,19 @@ class ActionController:
         self.parser.is_processable = True
         self.parser.settings["merge"].append(operation)
 
-    def add_new_column(self, task, add=True):
+    def add_new_column(self, task, add=True, forbidden: tuple[Type, ...] = ()):
         """
         :type task: str FIELD,[COLUMN],[SOURCE_TYPE], ex: `netname 3|"IP address" ip|sourceip`
         :type add: bool Add to the result.
+        :param forbidden: Field types that must not be computed (ex: unsafe fields via web).
+            Checked before the field gets set up.
         """
         if task in self.parser.col_seen:
             logger.debug(f"Column {task} already added, do not re-add.")
             return
         target_type, source_field, source_type, custom = self._add_new_column(task)
+        if target_type in forbidden:
+            raise SystemExit(f"Unsafe field '{target_type}' disabled via web")
         if not self.source_new_column(
             target_type, add, source_field, source_type, custom
         ):

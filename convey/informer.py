@@ -204,7 +204,9 @@ class Informer:
                     )
                 )
             else:
-                print_s("Aggregating in split files...")
+                for location, data in p.aggregation.items():
+                    print_s(f"Split location: {location}")
+                    print_s(self.get_aggregation(data, color=True, limit=8) + "\n")
 
         if p.is_analyzed:
             if p.saved_to_disk is False:
