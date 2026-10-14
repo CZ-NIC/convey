@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## Unreleased
+## 1.5.9 (2026-10-14)
 * docs: reorganized by modes (single value, CSV processing, web service), every example re-run and fixed, new pages Configuration and Aggregate & merge, field syntax and field reference, examples for filter, unique, delete, sort and dialect
 * fix: web service `field` parameter crashed
 * fix: registering a whole external file (`--external-fields file.py`) failed when the file imported a module or contained a constant
